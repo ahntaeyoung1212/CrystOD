@@ -1,4 +1,4 @@
-# crystod
+# CrystOD
 
 `crystod` is a Python package and command-line toolset for symmetry analysis of crystal orbitals, SALCs, basis functions, phonon irreducible representations, symmetry-adapted phonon vibration bases, symmetry-adapted phonon modulations, and point-group direct products.
 
