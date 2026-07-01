@@ -1,0 +1,1 @@
+crystod --phonon-irrep --dim "4 4 4" --poscar 99_PPOSCAR_BaTiO3 --readfc

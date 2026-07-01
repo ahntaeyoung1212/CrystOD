@@ -1,0 +1,250 @@
+space_group: P4mm
+special_points:
+- # A
+  q_position: [0.5, 0.5, 0.5]
+- # GM
+  q_position: [0.0, 0.0, 0.0]
+- # M
+  q_position: [0.5, 0.5, 0.0]
+- # Z
+  q_position: [0.0, 0.0, 0.5]
+- # R
+  q_position: [0.0, 0.5, 0.5]
+- # X
+  q_position: [0.0, 0.5, 0.0]
+
+irreps:
+- q_label: A
+  q_position: [0.5, 0.5, 0.5]
+  - # 1
+    irrep_label: ['A3(1)']
+    frequency:   3.8664834951
+  - # 2 3
+    irrep_label: ['A5(2)']
+    frequency:   3.9477895688
+  - # 4
+    irrep_label: ['A4(1)']
+    frequency:   5.2681283998
+  - # 5 6
+    irrep_label: ['A5(2)']
+    frequency:   5.3223490909
+  - # 7
+    irrep_label: ['A1(1)']
+    frequency:   8.8124431746
+  - # 8 9
+    irrep_label: ['A5(2)']
+    frequency:  10.9890008864
+  - # 10
+    irrep_label: ['A2(1)']
+    frequency:  12.2578508137
+  - # 11 12
+    irrep_label: ['A5(2)']
+    frequency:  12.3339765052
+  - # 13
+    irrep_label: ['A3(1)']
+    frequency:  12.5321566943
+  - # 14
+    irrep_label: ['A1(1)']
+    frequency:  15.1064575211
+  - # 15
+    irrep_label: ['A1(1)']
+    frequency:  21.5059477348
+
+- q_label: GM
+  q_position: [0.0, 0.0, 0.0]
+  - # 1 2
+    irrep_label: ['GM5(2)']
+    frequency:  -2.9255152286
+  - # 3
+    irrep_label: ['GM1(1)']
+    frequency:  -0.0005585176
+  - # 4 5
+    irrep_label: ['GM5(2)']
+    frequency:   0.0031592679
+  - # 6
+    irrep_label: ['GM1(1)']
+    frequency:   4.9894323180
+  - # 7 8
+    irrep_label: ['GM5(2)']
+    frequency:   5.0961741022
+  - # 9
+    irrep_label: ['GM1(1)']
+    frequency:   7.0250267119
+  - # 10
+    irrep_label: ['GM2(1)']
+    frequency:   8.4778163969
+  - # 11 12
+    irrep_label: ['GM5(2)']
+    frequency:   8.6432272040
+  - # 13 14
+    irrep_label: ['GM5(2)']
+    frequency:  13.5612245056
+  - # 15
+    irrep_label: ['GM1(1)']
+    frequency:  14.2845794257
+
+- q_label: M
+  q_position: [0.5, 0.5, 0.0]
+  - # 1
+    irrep_label: ['M3(1)']
+    frequency:   3.0412327549
+  - # 2 3
+    irrep_label: ['M5(2)']
+    frequency:   3.2641519183
+  - # 4
+    irrep_label: ['M1(1)']
+    frequency:   5.6627329970
+  - # 5
+    irrep_label: ['M4(1)']
+    frequency:   5.8420185256
+  - # 6 7
+    irrep_label: ['M5(2)']
+    frequency:   7.9472484689
+  - # 8 9
+    irrep_label: ['M5(2)']
+    frequency:   9.9643704461
+  - # 10
+    irrep_label: ['M1(1)']
+    frequency:  11.9926374675
+  - # 11 12
+    irrep_label: ['M5(2)']
+    frequency:  12.1704634703
+  - # 13
+    irrep_label: ['M2(1)']
+    frequency:  12.2960489041
+  - # 14
+    irrep_label: ['M3(1)']
+    frequency:  13.4203780285
+  - # 15
+    irrep_label: ['M1(1)']
+    frequency:  20.4200345877
+
+- q_label: Z
+  q_position: [0.0, 0.0, 0.5]
+  - # 1 2
+    irrep_label: ['Z5(2)']
+    frequency:  -1.6665767380
+  - # 3 4
+    irrep_label: ['Z5(2)']
+    frequency:   3.1789621316
+  - # 5
+    irrep_label: ['Z1(1)']
+    frequency:   4.3633261804
+  - # 6 7
+    irrep_label: ['Z5(2)']
+    frequency:   5.8737077248
+  - # 8
+    irrep_label: ['Z1(1)']
+    frequency:   7.2230484769
+  - # 9
+    irrep_label: ['Z2(1)']
+    frequency:   8.9881987742
+  - # 10 11
+    irrep_label: ['Z5(2)']
+    frequency:   9.4650505190
+  - # 12 13
+    irrep_label: ['Z5(2)']
+    frequency:  12.6496133387
+  - # 14
+    irrep_label: ['Z1(1)']
+    frequency:  13.3330536228
+  - # 15
+    irrep_label: ['Z1(1)']
+    frequency:  20.1672685694
+
+- q_label: R
+  q_position: [0.0, 0.5, 0.5]
+  - # 1
+    irrep_label: ['R4(1)']
+    frequency:  -1.1671621556
+  - # 2
+    irrep_label: ['R2(1)']
+    frequency:   3.0867666204
+  - # 3
+    irrep_label: ['R3(1)']
+    frequency:   3.1885602131
+  - # 4
+    irrep_label: ['R1(1)']
+    frequency:   3.1974609905
+  - # 5
+    irrep_label: ['R3(1)']
+    frequency:   5.9101256912
+  - # 6
+    irrep_label: ['R1(1)']
+    frequency:   7.5227548132
+  - # 7
+    irrep_label: ['R3(1)']
+    frequency:   8.0425651866
+  - # 8
+    irrep_label: ['R4(1)']
+    frequency:   9.7814221605
+  - # 9
+    irrep_label: ['R2(1)']
+    frequency:  10.0611782135
+  - # 10
+    irrep_label: ['R4(1)']
+    frequency:  10.4091229263
+  - # 11
+    irrep_label: ['R1(1)']
+    frequency:  10.4772248682
+  - # 12
+    irrep_label: ['R3(1)']
+    frequency:  12.1890517161
+  - # 13
+    irrep_label: ['R3(1)']
+    frequency:  13.3064064651
+  - # 14
+    irrep_label: ['R1(1)']
+    frequency:  14.6969683261
+  - # 15
+    irrep_label: ['R1(1)']
+    frequency:  20.8002301909
+
+- q_label: X
+  q_position: [0.0, 0.5, 0.0]
+  - # 1
+    irrep_label: ['X4(1)']
+    frequency:  -1.3601687700
+  - # 2
+    irrep_label: ['X3(1)']
+    frequency:   3.1068625497
+  - # 3
+    irrep_label: ['X2(1)']
+    frequency:   3.1374055540
+  - # 4
+    irrep_label: ['X1(1)']
+    frequency:   4.2698366254
+  - # 5
+    irrep_label: ['X1(1)']
+    frequency:   5.2128973964
+  - # 6
+    irrep_label: ['X4(1)']
+    frequency:   6.1852486830
+  - # 7
+    irrep_label: ['X3(1)']
+    frequency:   7.7270429506
+  - # 8
+    irrep_label: ['X1(1)']
+    frequency:   7.7918165940
+  - # 9
+    irrep_label: ['X3(1)']
+    frequency:   8.9725341893
+  - # 10
+    irrep_label: ['X3(1)']
+    frequency:   9.5694796216
+  - # 11
+    irrep_label: ['X2(1)']
+    frequency:   9.5768969200
+  - # 12
+    irrep_label: ['X4(1)']
+    frequency:  12.4873988271
+  - # 13
+    irrep_label: ['X1(1)']
+    frequency:  13.3171806953
+  - # 14
+    irrep_label: ['X3(1)']
+    frequency:  13.9045620589
+  - # 15
+    irrep_label: ['X1(1)']
+    frequency:  18.9495084805
+
