@@ -23,9 +23,13 @@
 Recommended:
 
 ```bash
-git clone <your-repository-or-local-copy> crystod_main
-cd crystod_main
-python3 -m pip install -e . --no-deps
+unzip ~/Downloads/CrystOD-main.zip
+mv ~/Downloads/CrystOD-main ~
+cd ~/CrystOD-main
+conda create -n crystod python=3.11
+conda activate crystod
+pip install phonopy spglib spgrep irrep irreptables numpy openpyxl pandas
+python3 -m pip install -e ~/CrystOD-main --no-deps
 ```
 
 If your default Python environment uses an old `setuptools`, avoid `--no-build-isolation` for editable install.
