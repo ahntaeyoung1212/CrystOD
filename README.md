@@ -29,7 +29,7 @@ cd ~/CrystOD-main
 conda create -n crystod python=3.11
 conda activate crystod
 pip install phonopy spglib spgrep irrep irreptables numpy openpyxl pandas
-python3 -m pip install -e ~/CrystOD-main --no-deps
+python3 -m pip install -e ~/CrystOD-main --no-deps --no-build-isolation
 ```
 
 If your default Python environment uses an old `setuptools`, avoid `--no-build-isolation` for editable install.
@@ -37,7 +37,7 @@ If your default Python environment uses an old `setuptools`, avoid `--no-build-i
 Example:
 
 ```bash
-python3 -m pip install -e . --no-deps
+python3 -m pip install -e ~/CrystOD-main --no-deps
 ```
 
 If needed, upgrade the build backend first:
