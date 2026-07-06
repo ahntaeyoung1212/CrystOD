@@ -61,21 +61,14 @@ crystod --help
 Example:
 
 ```bash
-crystod --salc \
-  --poscar example/test_POSCARs/221_PPOSCAR_SrTiO3 \
-  --element Ti --orbital d
+crystod --salc --poscar example/test_POSCARs/221_PPOSCAR_SrTiO3 --element Ti --orbital d
 ```
 
 Spinor example with irrep table:
 
 ```bash
-crystod --salc \
-  --poscar example/test_POSCARs/221_PPOSCAR_SrTiO3 \
-  --element Ti \
-  --orbital d \
-  --spinor \
-  --kpoint 0 0 0 \
-  --show-irrep-table
+crystod --salc --poscar example/test_POSCARs/221_PPOSCAR_SrTiO3 --element Ti --orbital d \
+  --spinor --kpoint 0 0 0 --show-irrep-table
 ```
 
 ## 2. Hybridization Analysis
@@ -83,10 +76,7 @@ crystod --salc \
 Example:
 
 ```bash
-crystod --salc \
-  --poscar example/test_POSCARs/221_PPOSCAR_SrTiO3 \
-  --atomic-orbital Ti_d O_p \
-  --kpoint 0 0 0
+crystod --salc --poscar example/test_POSCARs/221_PPOSCAR_SrTiO3 --atomic-orbital Ti_d O_p --kpoint 0 0 0
 ```
 
 ## 3. Phonon Irreducible Representations
@@ -94,10 +84,7 @@ crystod --salc \
 Example:
 
 ```bash
-crystod --phonon-irrep \
-  --dim "4 4 4" \
-  --poscar example/test_POSCARs/221_PPOSCAR_SrTiO3 \
-  --readfc
+crystod --phonon-irrep --poscar example/test_POSCARs/221_PPOSCAR_SrTiO3 --dim="4 4 4" --readfc
 ```
 
 ## 4. Basis Functions
@@ -130,9 +117,8 @@ crystod --direct-product --point-group m-3m --irreps T2g T2g T1u
 List the available high-symmetry q-points and irrep-grouped vibration spaces:
 
 ```bash
-crystod --vibration \
-  --poscar example/test_POSCARs/221_PPOSCAR_ScF3 \
-  --qpoint R
+crystod --vibration --poscar example/test_POSCARs/221_PPOSCAR_ScF3 --qpoint R
+crystod --vibration --poscar example/test_POSCARs/221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0
 ```
 
 Select one symmetry-allowed mode component, build the commensurate supercell, and export a displaced structure:
@@ -161,11 +147,9 @@ python3 vibration_viewer.py --npz mode_data.npz --write-trajectory vibration.xyz
 Example:
 
 ```bash
-crystod --modulation \
-  --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml \
-  --qpoint 0.5 0.5 0.5 \
-  --mode 0 1 2 \
-  --amplitude 0.3
+crystod --modulation --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 0 1 2 --amplitude 0.3
+crystod --modulation --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint1 0.5 0.5 0.5 --mode1 0 1 2 --amplitude1 0.3 \
+  --qpoint2 0.5 0.5 0 --mode2 0 --amplitude2 0.3 
 ```
 
 If `phonopy_params.yaml` exists in the current directory, `--yaml` can be omitted.
@@ -180,7 +164,7 @@ crystod --modulation \
   --qpoint1 0 0.5 0.5 --mode1 0 --amplitude1 0.3 \
   --qpoint2 0.5 0 0.5 --mode2 0 --amplitude2 0.3 \
   --qpoint3 0.5 0.5 0 --mode3 0 --amplitude3 0.3 \
-  --output POSCAR_multi_q
+  --output POSCAR_multi_q_arms
 ```
 
 Show the point-group character table:
@@ -192,10 +176,7 @@ crystod --direct-product --point-group 3m --show-irrep-table
 Show both the table and the direct-product decomposition:
 
 ```bash
-crystod --direct-product \
-  --point-group m-3m \
-  --irreps T2g T2g T1u \
-  --show-irrep-table
+crystod --direct-product --point-group m-3m --irreps T2g T2g T1u --show-irrep-table
 ```
 
 ## Command Summary
