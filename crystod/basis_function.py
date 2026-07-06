@@ -8,7 +8,7 @@ from phonopy.structure.cells import get_primitive_matrix_by_centring
 from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
 from spgrep.representation import get_character
 import spglib
-from sympy import Matrix, Poly, expand, nsimplify, symbols
+from sympy import Matrix, Poly, Rational, expand, nsimplify, simplify, sqrt, symbols
 from sympy.parsing.sympy_parser import (
     convert_xor,
     implicit_multiplication_application,
@@ -195,19 +195,24 @@ def _apply_rotation(expr, rotation: np.ndarray):
 
 
 def _expr_to_key(expr) -> str:
-    return str(expand(expr))
+    poly = Poly(expand(expr), _X, _Y, _Z, domain="EX")
+    return tuple(
+        (monomial, nsimplify(coeff))
+        for monomial, coeff in sorted(poly.as_dict().items())
+        if coeff != 0
+    )
 
 
 def _monomial_order(expressions: list) -> list[tuple[int, int, int]]:
     exponents: set[tuple[int, int, int]] = set()
     for expr in expressions:
-        poly = Poly(expr, _X, _Y, _Z, domain="QQ")
+        poly = Poly(expr, _X, _Y, _Z, domain="EX")
         exponents.update(poly.as_dict().keys())
     return sorted(exponents, key=lambda item: (sum(item), item[0], item[1], item[2]))
 
 
 def _vectorize(expr, monomials: list[tuple[int, int, int]]) -> Matrix:
-    poly = Poly(expr, _X, _Y, _Z, domain="QQ")
+    poly = Poly(expr, _X, _Y, _Z, domain="EX")
     coeff_map = poly.as_dict()
     return Matrix([coeff_map.get(monomial, 0) for monomial in monomials])
 
@@ -216,12 +221,41 @@ def _normalize_expr(expr):
     expanded = expand(expr)
     if expanded == 0:
         return expanded
-    poly = Poly(expanded, _X, _Y, _Z, domain="QQ")
+    poly = Poly(expanded, _X, _Y, _Z, domain="EX")
     coeffs = [coeff for _, coeff in sorted(poly.as_dict().items()) if coeff != 0]
     if not coeffs:
         return expanded
     first_coeff = coeffs[0]
     return expand(nsimplify(expanded / first_coeff))
+
+
+def _cartesianize_rotations(rotations: list[np.ndarray]) -> list[Matrix]:
+    if not rotations:
+        return []
+
+    hexagonal_basis = Matrix(
+        [
+            [1, Rational(-1, 2), 0],
+            [0, sqrt(3) / 2, 0],
+            [0, 0, 1],
+        ]
+    )
+    hexagonal_basis_inv = hexagonal_basis.inv()
+
+    cartesian_rotations: list[Matrix] = []
+    for rotation in rotations:
+        rotation_matrix = Matrix(rotation)
+        if rotation_matrix.T * rotation_matrix == Matrix.eye(3):
+            cartesian_rotations.append(rotation_matrix)
+            continue
+
+        # Hexagonal/trigonal character-table rotations are expressed in
+        # crystallographic a-b-c axes, so convert them to orthonormal Cartesian
+        # axes before acting on polynomial basis functions.
+        cartesian_rotations.append(
+            simplify(hexagonal_basis * rotation_matrix * hexagonal_basis_inv)
+        )
+    return cartesian_rotations
 
 
 def _build_closed_subspace(seed_expressions: list, rotations: list[np.ndarray]):
@@ -263,8 +297,8 @@ def _representation_matrices(
     basis_expressions: list,
     monomials: list[tuple[int, int, int]],
     rotations: list[np.ndarray],
-) -> list[np.ndarray]:
-    representation_matrices: list[np.ndarray] = []
+) -> list[Matrix]:
+    representation_matrices: list[Matrix] = []
     for rotation in rotations:
         columns = []
         for expr in basis_expressions:
@@ -273,39 +307,30 @@ def _representation_matrices(
             solution, params = basis_matrix.gauss_jordan_solve(rotated_vector)
             if params.shape[0] != 0:
                 raise RuntimeError("Failed to build a closed representation matrix.")
-            columns.append(np.array([complex(value) for value in solution], dtype=np.complex128))
-        representation_matrices.append(np.column_stack(columns))
+            columns.append(solution)
+        representation_matrices.append(Matrix.hstack(*columns))
     return representation_matrices
 
 
 def _character_by_class(
     class_names: list[str],
     class_sizes: list[int],
-    rep_matrices: list[np.ndarray],
+    rep_matrices: list[Matrix],
 ) -> np.ndarray:
     chars = []
     offset = 0
     for class_name, class_size in zip(class_names, class_sizes):
         class_chars = []
         for index in range(offset, offset + class_size):
-            class_chars.append(np.trace(rep_matrices[index]))
+            class_chars.append(complex(rep_matrices[index].trace().evalf()))
         offset += class_size
         chars.append(sum(class_chars) / class_size)
     return np.array(chars, dtype=np.complex128)
 
 
-def _is_independent(vectors: list[np.ndarray], candidate: np.ndarray, tol: float = 1e-8) -> bool:
-    if not vectors:
-        return np.linalg.norm(candidate) > tol
-    matrix = np.column_stack(vectors)
-    rank_before = np.linalg.matrix_rank(matrix, tol=tol)
-    rank_after = np.linalg.matrix_rank(np.column_stack([matrix, candidate]), tol=tol)
-    return rank_after > rank_before
-
-
 def _project_irrep_basis(
     basis_expressions: list,
-    rep_matrices: list[np.ndarray],
+    rep_matrices: list[Matrix],
     operation_classes: list[str],
     ct: dict,
     irrep_name: str,
@@ -315,30 +340,41 @@ def _project_irrep_basis(
     group_order = len(rep_matrices)
     irrep_dimension = int(round(float(np.asarray(irrep_characters)[0].real)))
 
-    projector = np.zeros_like(rep_matrices[0], dtype=np.complex128)
+    if irrep_dimension == 1:
+        representative_matrices: dict[str, Matrix] = {}
+        for class_name, rep_matrix in zip(operation_classes, rep_matrices):
+            representative_matrices.setdefault(class_name, rep_matrix)
+
+        rows = []
+        identity = Matrix.eye(rep_matrices[0].shape[0])
+        for class_name in ct["rotation_list"]:
+            char_value = nsimplify(irrep_characters[class_index[class_name]])
+            rows.extend((representative_matrices[class_name] - char_value * identity).tolist())
+
+        functions = []
+        for vector in Matrix(rows).nullspace():
+            expr = 0
+            for coeff, basis_expr in zip(vector, basis_expressions):
+                if coeff == 0:
+                    continue
+                expr += nsimplify(coeff) * basis_expr
+            if expr != 0:
+                functions.append(_normalize_expr(expr))
+        return functions
+
+    projector = Matrix.zeros(*rep_matrices[0].shape)
     for rep_matrix, class_name in zip(rep_matrices, operation_classes):
         char_value = np.asarray(irrep_characters[class_index[class_name]]).item()
-        projector += np.conjugate(char_value) * rep_matrix
-    projector *= irrep_dimension / group_order
-
-    projected_vectors: list[np.ndarray] = []
-    for column_index in range(projector.shape[1]):
-        column = projector[:, column_index]
-        if np.linalg.norm(column) < 1e-8:
-            continue
-        if _is_independent(projected_vectors, column):
-            projected_vectors.append(column)
+        projector += nsimplify(np.conjugate(char_value)) * rep_matrix
+    projector *= Rational(irrep_dimension, group_order)
 
     functions = []
-    for vector in projected_vectors:
+    for vector in projector.columnspace():
         expr = 0
         for coeff, basis_expr in zip(vector, basis_expressions):
-            coeff = np.real_if_close(coeff)
-            coeff = complex(coeff)
-            if abs(coeff) < 1e-10:
+            if coeff == 0:
                 continue
-            coeff_sym = nsimplify(coeff.real) if abs(coeff.imag) < 1e-10 else nsimplify(coeff)
-            expr += coeff_sym * basis_expr
+            expr += nsimplify(coeff) * basis_expr
         if expr != 0:
             functions.append(_normalize_expr(expr))
     return functions
@@ -364,35 +400,24 @@ def _decompose_by_operations(
 
 def _project_spacegroup_irrep_basis(
     basis_expressions: list,
-    rep_matrices: list[np.ndarray],
+    rep_matrices: list[Matrix],
     irrep_characters: np.ndarray,
     irrep_name: str,
 ) -> list:
     group_order = len(rep_matrices)
     irrep_dimension = int(round(float(np.real_if_close(irrep_characters[0]))))
-    projector = np.zeros_like(rep_matrices[0], dtype=np.complex128)
+    projector = Matrix.zeros(*rep_matrices[0].shape)
     for rep_matrix, character in zip(rep_matrices, irrep_characters):
-        projector += np.conjugate(character) * rep_matrix
-    projector *= irrep_dimension / group_order
-
-    projected_vectors: list[np.ndarray] = []
-    for column_index in range(projector.shape[1]):
-        column = projector[:, column_index]
-        if np.linalg.norm(column) < 1e-8:
-            continue
-        if _is_independent(projected_vectors, column):
-            projected_vectors.append(column)
+        projector += nsimplify(np.conjugate(character)) * rep_matrix
+    projector *= Rational(irrep_dimension, group_order)
 
     functions = []
-    for vector in projected_vectors:
+    for vector in projector.columnspace():
         expr = 0
         for coeff, basis_expr in zip(vector, basis_expressions):
-            coeff = np.real_if_close(coeff)
-            coeff = complex(coeff)
-            if abs(coeff) < 1e-10:
+            if coeff == 0:
                 continue
-            coeff_sym = nsimplify(coeff.real) if abs(coeff.imag) < 1e-10 else nsimplify(coeff)
-            expr += coeff_sym * basis_expr
+            expr += nsimplify(coeff) * basis_expr
         if expr != 0:
             functions.append(_normalize_expr(expr))
     return functions
@@ -516,14 +541,15 @@ def _analyze_point_group(
 ) -> str:
     ct = _get_character_table(point_group)
     class_names, rotations, class_sizes, operation_classes = _rotation_classes(ct)
+    cartesian_rotations = _cartesianize_rotations(rotations)
 
-    monomials, basis_vectors, basis_expressions = _build_closed_subspace(seed_expressions, rotations)
+    monomials, basis_vectors, basis_expressions = _build_closed_subspace(seed_expressions, cartesian_rotations)
     basis_matrix = Matrix.hstack(*basis_vectors)
     rep_matrices = _representation_matrices(
         basis_matrix=basis_matrix,
         basis_expressions=basis_expressions,
         monomials=monomials,
-        rotations=rotations,
+        rotations=cartesian_rotations,
     )
     reducible_character = _character_by_class(class_names, class_sizes, rep_matrices)
     multiplicities = decompose_representation(ct, reducible_character)
@@ -610,18 +636,19 @@ def _analyze_space_group(
     little_conventional_rotations = np.rint(conventional_rotations[mapping_little_group]).astype(int)
     little_primitive_rotations = primitive_rotations[mapping_little_group]
     little_primitive_translations = primitive_translations[mapping_little_group]
+    cartesian_little_rotations = _cartesianize_rotations([rotation for rotation in little_conventional_rotations])
     monomials, basis_vectors, basis_expressions = _build_closed_subspace(
         seed_expressions,
-        [rotation for rotation in little_conventional_rotations],
+        cartesian_little_rotations,
     )
     basis_matrix = Matrix.hstack(*basis_vectors)
     rep_matrices = _representation_matrices(
         basis_matrix=basis_matrix,
         basis_expressions=basis_expressions,
         monomials=monomials,
-        rotations=[rotation for rotation in little_conventional_rotations],
+        rotations=cartesian_little_rotations,
     )
-    rep_characters = np.array([np.trace(matrix) for matrix in rep_matrices], dtype=np.complex128)
+    rep_characters = np.array([complex(matrix.trace().evalf()) for matrix in rep_matrices], dtype=np.complex128)
 
     generic_labels, display_label_map, irrep_characters_map = _resolve_spacegroup_irrep_labels(
         irreps=irreps,
