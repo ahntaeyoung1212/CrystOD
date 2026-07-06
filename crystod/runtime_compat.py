@@ -99,3 +99,24 @@ def get_scaled_positions(atoms):
         return getter()
 
     raise AttributeError("Could not obtain scaled positions from PhonopyAtoms.")
+
+
+def get_spacegroup_type(spacegroup_type):
+    """Return a stable space-group type object across spglib versions."""
+    if spacegroup_type is None:
+        raise AttributeError("Could not obtain space-group type from spglib.")
+
+    required_attrs = (
+        "international_short",
+        "international",
+        "international_full",
+        "hall_number",
+        "number",
+    )
+    if all(hasattr(spacegroup_type, attr) for attr in required_attrs):
+        return spacegroup_type
+
+    if isinstance(spacegroup_type, Mapping):
+        return SymmetryDatasetAdapter(spacegroup_type)
+
+    raise TypeError(f"Unsupported space-group type: {type(spacegroup_type)!r}")
