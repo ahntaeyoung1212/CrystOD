@@ -23,13 +23,9 @@
 Recommended:
 
 ```bash
-unzip ~/Downloads/CrystOD-main.zip
-mv ~/Downloads/CrystOD-main ~
-cd ~/CrystOD-main
-conda create -n crystod python=3.11
-conda activate crystod
-pip install phonopy spglib spgrep irrep irreptables numpy openpyxl pandas
-python3 -m pip install -e ~/CrystOD-main --no-deps --no-build-isolation
+git clone <your-repository-or-local-copy> crystod_main
+cd crystod_main
+python3 -m pip install -e . --no-deps
 ```
 
 If your default Python environment uses an old `setuptools`, avoid `--no-build-isolation` for editable install.
@@ -37,7 +33,7 @@ If your default Python environment uses an old `setuptools`, avoid `--no-build-i
 Example:
 
 ```bash
-python3 -m pip install -e ~/CrystOD-main --no-deps
+python3 -m pip install -e . --no-deps
 ```
 
 If needed, upgrade the build backend first:
@@ -165,6 +161,18 @@ crystod --modulation \
 
 If `phonopy_params.yaml` exists in the current directory, `--yaml` can be omitted.
 If a single amplitude is given, it is applied to all selected modes.
+Different q-points can also be combined by using numbered argument sets such as
+`--qpoint1/--mode1/--amplitude1`, `--qpoint2/--mode2/--amplitude2`, and so on.
+Example:
+
+```bash
+crystod --modulation \
+  --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml \
+  --qpoint1 0 0.5 0.5 --mode1 0 --amplitude1 0.3 \
+  --qpoint2 0.5 0 0.5 --mode2 0 --amplitude2 0.3 \
+  --qpoint3 0.5 0.5 0 --mode3 0 --amplitude3 0.3 \
+  --output POSCAR_multi_q
+```
 
 Show the point-group character table:
 
@@ -190,6 +198,7 @@ crystod --direct-product \
 - `crystod --phonon-irrep --dim "nx ny nz" --poscar POSCAR [--readfc]`
 - `crystod --vibration --poscar POSCAR --qpoint QLABEL_OR_QX QY QZ [--mode-index N]`
 - `crystod --modulation --qpoint qx qy qz --mode MODE1 MODE2 ... [--yaml phonopy_params.yaml]`
+- `crystod --modulation --qpoint1 qx1 qy1 qz1 --mode1 ... --qpoint2 qx2 qy2 qz2 --mode2 ... [--amplitude1 ... --amplitude2 ...]`
 - `crystod --direct-product --point-group PG --irreps IRREP1 IRREP2 ...`
 - `crystod --direct-product --point-group PG --show-irrep-table`
 
