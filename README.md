@@ -109,7 +109,10 @@ crystod --basis-function x y z --point-group m-3m
 crystod --basis-function x y z --space-group Pm-3m --kpoint 0 0 0
 crystod --basis-function xyz --space-group Pm-3m --kpoint 0.5 0.3 0 --show-irrep-table
 crystod --basis-function z^2 --point-group m-3m
-crystod --basis-function "x(y^2-z^2)" --point-group m-3m
+crystod --basis-function "x(y^2-z^2)" --point-group="m-3m"
+crystod --basis-function "x^2-y^2" "2z^2-x^2-y^2" xy yz zx --space-group="Pm-3m" --kpoint 0 0 0
+crystod --basis-function xyz "z^3" "y^3" "x^3" "y(z^2-x^2)" "z(x^2-y^2)" "x(z^2-y^2)" --space-group="Pm-3m" --kpoint 0.5 0.5 0
+crystod --basis-function xyz "z^3" "yz^2" "xz^2" "z(x^2-y^2)" "y(3x^2-y^2)" "x(x^2-3y^2)" --space-group="P6/mmm" --kpoint 0 0 0
 ```
 
 The input functions are automatically closed under the selected point group or the little group of the selected space-group k-point, then decomposed into irreps. When the k-point is listed in `irreptables`, physical labels such as `GM4-(3)` or `R4-(3)` are shown; otherwise, `spgrep` generic labels such as `irrep_2(1)` are used.
