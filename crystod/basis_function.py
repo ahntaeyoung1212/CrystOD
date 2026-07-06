@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, RawDescriptionHelpFormatter, RawTextHelpFormatter
+import re
 
 import numpy as np
 from phonopy.phonon.character_table import character_table as all_character_tables
@@ -564,7 +565,7 @@ def _analyze_point_group(
         f"{point_group}",
         "",
         "* Input basis functions *",
-        " " + " ".join(str(expr) for expr in seed_expressions),
+        " " + ", ".join(_format_expression(expr) for expr in seed_expressions),
         "",
         "* Closed basis-function space *",
         f" dimension: {len(basis_expressions)}",
@@ -585,7 +586,7 @@ def _analyze_point_group(
         "* Decomposition *",
         f" {decomposition}",
         "",
-        "* Symmetry-adapted basis functions *",
+        "* Irreducible representations for basis functions *",
     ])
 
     for irrep_name, multiplicity in multiplicities.items():
@@ -692,7 +693,7 @@ def _analyze_space_group(
         kpoint_line,
         "",
         "* Input basis functions *",
-        " " + " ".join(str(expr) for expr in seed_expressions),
+        " " + ", ".join(_format_expression(expr) for expr in seed_expressions),
         "",
         "* Closed basis-function space *",
         f" dimension: {len(basis_expressions)}",
@@ -717,7 +718,7 @@ def _analyze_space_group(
         "* Decomposition *",
         f" {decomposition}",
         "",
-        "* Symmetry-adapted basis functions *",
+        "* Irreducible representations for basis functions *",
     ])
     for irrep_name in generic_labels:
         multiplicity = multiplicities[irrep_name]
@@ -738,11 +739,16 @@ def _analyze_space_group(
 def _format_expression_list(expressions: list) -> str:
     if not expressions:
         return "[]"
-    return "[" + ", ".join(str(expr) for expr in expressions) + "]"
+    return "[" + ", ".join(_format_expression(expr) for expr in expressions) + "]"
 
 
 def _format_decomposition_term(label: str, multiplicity) -> str:
     return f"{float(multiplicity):.1f} [{label}]"
+
+
+def _format_expression(expr) -> str:
+    text = str(expr).replace("**", "^").replace("*", "")
+    return re.sub(r"(?<=\d)(?=[A-Za-z])", " ", text)
 
 
 def main(argv: list[str] | None = None) -> None:
