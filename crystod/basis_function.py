@@ -17,8 +17,8 @@ from sympy.parsing.sympy_parser import (
 )
 
 from .direct_product import _format_character_value, decompose_representation
-from .crystal_orbital_spgrep import get_seitz_symbol
 from .irreptables_compat import load_irreptables
+from .operations import get_seitz_symbol
 
 IrrepTable, Irrep = load_irreptables()
 

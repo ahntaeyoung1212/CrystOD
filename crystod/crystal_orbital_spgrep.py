@@ -27,6 +27,7 @@ from .runtime_compat import (
     get_scaled_positions,
     get_symmetry_dataset,
 )
+from .operations import characterize_rotation, get_seitz_symbol
 from argparse import ArgumentParser, RawTextHelpFormatter, RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter
 import numpy as np
 from numpy.typing import NDArray
@@ -123,107 +124,6 @@ def get_label_overrides(
 ) -> dict[str, str]:
     """Return manual label overrides for known Bilbao/irreptables naming mismatches."""
     return {}
-
-def characterize_rotation(rotation: NDArray[np.int_]) -> tuple[bool, int]:
-    """Characterize the linear part of symmetery operation."""
-    is_proper = True
-    no_inv_r = rotation
-    r_det = np.linalg.det(rotation)
-    if int(r_det) == -1:
-        is_proper = False
-        # remove invention.
-        no_inv_r = -1 * no_inv_r
-    # get the rotation order.
-    e = np.eye(3, 3, dtype=int)
-    rot_order = 0
-    test_r = no_inv_r
-    for _ in range(7):
-        rot_order += 1
-        if (test_r == e).all():
-            break
-        test_r = no_inv_r @ test_r
-    if rot_order not in [1, 2, 3, 4, 6]:
-        ValueError("This rotation matrix is not a symmetry operation of the space group.")
-    return is_proper, rot_order
-    
-def get_seitz_symbol(rotation: NDArray[np.int_],
-                     trans_mat: NDArray[np.float_]
-                     ) -> str:
-    """Labelling the rotation part of the symmetry operation with the Seitz notation.
-
-    Parameters
-    ----------
-    rotation: ndarray, (3, 3)
-        Linear part of symmetry operation.
-    trans_mat: ndarray, (3, 3)
-        Transformation matrix.
-
-    Returns
-    -------
-    is_proper: bool
-        Proper or not.
-    rot_order: int
-        Rotaion order.
-    symbol: str
-        Seitz notation of the rotaion.
-    """
-    r_trans = trans_mat @ rotation @ np.linalg.inv(trans_mat)
-    r = (np.rint(r_trans)).astype(np.int_)
-    is_proper, rot_order = characterize_rotation(r)
-    if (rot_order == 1):
-        if is_proper:
-            return '1'
-        else:
-            return '-1'
-    else:
-        if is_proper:
-            no_inv_r = r
-        else:
-            # remove invention.
-            no_inv_r = -1 * r
-
-    # get the characteristic direction.
-    # characteristic direction is the eigenvector with the eigenvalue of 1.
-    eig_vals, eig_vecs = np.linalg.eig(no_inv_r)
-    eig_vecs = eig_vecs.astype(np.complex128)
-    for idx, w in enumerate(eig_vals):
-        if abs(w - 1.0) < 1e-8:
-            v = eig_vecs[:, idx]
-            # round the eigen vector to an integer ratio.
-            uniques = np.unique(v).real # sort values
-            round_num = uniques[0]
-            if abs(round_num) < 1e-8: # check round_num is 0 or not
-                round_num = uniques[1]
-            direction = np.rint(v.real / round_num).astype(np.int_)
-            break
-    # get the sign of rotation and make the symbol.
-    if (rot_order == 2):
-        if is_proper:
-            return '2_' + ''.join([str(xi) for xi in direction])
-        else:
-            return 'm_' + ''.join([str(xi) for xi in direction])
-    else: # for rot_order is 3, 4, or 6.
-        def get_rot_sign(r, direction):
-            """Getting sign of the rotation.
-            In this function, rot_axis is the axis of positive rotation.
-            For further details about computationing rot_axis, see:
-            Technical Concepts: Orientation, Rotation, Velocity and Acceleration and the SRM, P. Berner, Version 2.0, 2008,
-            <http://sedris.org/wg8home/Documents/WG80485.pdf>, pp. 33, 61-63.
-            """
-            rot_axis = np.array([r[2, 1] - r[1, 2],
-                                 r[0, 2] - r[2, 0],
-                                 r[1, 0] - r[0, 1]])
-            # Compare the direction of rotational axis and the characteristic direction by inner product.
-            if np.dot(rot_axis, direction) > 0:
-                return '+'
-            else:
-                return '-'
-        if is_proper:
-            rot_sign = get_rot_sign(no_inv_r, direction)
-            return str(rot_order) + '^' + rot_sign + '_' + ''.join([str(xi) for xi in direction])
-        else:
-            rot_sign = get_rot_sign(no_inv_r, direction)
-            return '-' + str(rot_order) + '^' + rot_sign + '_' + ''.join([str(xi) for xi in direction])
 
 class CrystalOrbital:
     def __init__(

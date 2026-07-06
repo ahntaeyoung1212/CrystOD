@@ -170,7 +170,10 @@ def _append_optional_kpoint(argv: list[str], kpoint) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args, unknown = parser.parse_known_args(argv)
+
+    if unknown and not args.modulation:
+        parser.error(f"unrecognized arguments: {' '.join(unknown)}")
 
     if args.salc:
         if args.element and args.atomic_orbital:
@@ -311,10 +314,6 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.modulation:
-        if not args.qpoint:
-            parser.error("--modulation requires --qpoint.")
-        if not args.mode:
-            parser.error("--modulation requires --mode.")
         if (
             args.poscar != "POSCAR"
             or args.element
@@ -329,21 +328,30 @@ def main(argv: list[str] | None = None) -> None:
             or args.irreps
         ):
             parser.error("--modulation does not use SALC-, phonon-irrep-, or direct-product-specific options.")
+        has_numbered_modulation_args = any(
+            token.startswith("--qpoint") or token.startswith("--mode") or token.startswith("--amplitude")
+            for token in unknown
+        )
+        if not args.qpoint and not has_numbered_modulation_args:
+            parser.error("--modulation requires --qpoint, or numbered arguments such as --qpoint1.")
+        if not args.mode and not has_numbered_modulation_args:
+            parser.error("--modulation requires --mode, or numbered arguments such as --mode1.")
 
         dispatch_argv = [
             "--yaml",
             args.yaml,
-            "--qpoint",
-            *[str(value) for value in args.qpoint],
-            "--mode",
-            *[str(value) for value in args.mode],
         ]
+        if args.qpoint:
+            dispatch_argv.extend(["--qpoint", *[str(value) for value in args.qpoint]])
+        if args.mode:
+            dispatch_argv.extend(["--mode", *[str(value) for value in args.mode]])
         if args.amplitude:
             dispatch_argv.extend(["--amplitude", *[str(value) for value in args.amplitude]])
         if args.output is not None:
             dispatch_argv.extend(["--output", args.output])
         if args.tolerance is not None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        dispatch_argv.extend(unknown)
 
         from .modulation import main as modulation_main
 

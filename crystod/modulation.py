@@ -4,9 +4,11 @@ Symmetry-adapted phonon modulation workflow for crystod.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, RawDescriptionHelpFormatter, RawTextHelpFormatter
 from fractions import Fraction
 from pathlib import Path
+import re
 
 import numpy as np
 import phonopy
@@ -15,7 +17,12 @@ from ase import Atoms
 from ase.io import write as ase_write
 from numpy.typing import NDArray
 
-from .runtime_compat import SymmetryDatasetAdapter, get_little_group
+from .runtime_compat import (
+    SymmetryDatasetAdapter,
+    get_chemical_symbols,
+    get_little_group,
+    get_scaled_positions,
+)
 from .spglib_compat import ensure_spglib_compat
 
 ensure_spglib_compat()
@@ -38,6 +45,7 @@ Generate modulated crystal structures from symmetry-adapted phonon modes.
 
 # Command Example:
 crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 0 1 2 --amplitude 0.3
+crystod --modulation --yaml phonopy_params.yaml --qpoint1 0 0.5 0.5 --mode1 0 --qpoint2 0.5 0 0.5 --mode2 0 --output POSCAR_combined
 """
 
 
@@ -53,14 +61,12 @@ def build_parser() -> ArgumentParser:
         "--qpoint",
         nargs=3,
         type=float,
-        required=True,
         help="Target q-point in primitive reciprocal coordinates.",
     )
     parser.add_argument(
         "--mode",
         nargs="+",
         type=int,
-        required=True,
         help="Mode index or indices to apply after the mode table is shown.",
     )
     parser.add_argument(
@@ -84,6 +90,20 @@ def build_parser() -> ArgumentParser:
         help="Symmetry tolerance.",
     )
     return parser
+
+
+@dataclass
+class ModulationTerm:
+    qpoint: list[float]
+    mode_indices: list[int]
+    amplitudes: list[float]
+
+
+@dataclass
+class PreparedModulationTerm:
+    modulation: SymmetryAdaptedModulation
+    mode_indices: list[int]
+    amplitudes: list[float]
 
 
 class _CoreRepresentation:
@@ -114,8 +134,8 @@ class _CoreRepresentation:
         translation: NDArray[np.float64],
         kpoint: list[float],
     ) -> NDArray[np.complex128]:
-        num_atom = len(self.primitive_cell.get_scaled_positions())
-        positions = self.primitive_cell.get_scaled_positions()
+        positions = get_scaled_positions(self.primitive_cell)
+        num_atom = len(positions)
         matrix = np.zeros((num_atom, num_atom), dtype=complex)
         for i, pos_in in enumerate(positions):
             pos_rot = np.dot(rotation, pos_in) + translation
@@ -236,9 +256,19 @@ class SymmetryAdaptedModulation:
             block_dim = basis_block.shape[0]
             submatrix = block_matrix[cursor : cursor + block_dim, cursor : cursor + block_dim]
             block_eigvals, block_eigvecs = np.linalg.eigh(submatrix)
+            block_eigvals = block_eigvals.real
+
+            # Preserve the symmetry-adapted basis when a block is numerically
+            # degenerate. Re-diagonalizing an exactly degenerate block can pick
+            # an arbitrary rotated basis and lower the apparent symmetry of an
+            # individual mode, even though the irrep subspace is unchanged.
+            mean_eigval = float(np.mean(block_eigvals))
+            if np.allclose(block_eigvals, mean_eigval, atol=1e-10, rtol=1e-8):
+                block_eigvals = np.full(block_dim, mean_eigval, dtype=float)
+                block_eigvecs = np.eye(block_dim, dtype=complex)
 
             for component_index in range(block_dim):
-                eigval = block_eigvals[component_index].real
+                eigval = float(block_eigvals[component_index])
                 frequency = np.sign(eigval) * np.sqrt(np.abs(eigval)) * 15.633302
 
                 mode_vector = np.zeros(3 * self.n_atoms, dtype=complex)
@@ -274,14 +304,18 @@ class SymmetryAdaptedModulation:
                 f"{int(info['irrep_block_index']):12d}  {int(info['degeneracy']):11d}"
             )
 
-    def _get_commensurate_supercell_matrix(self) -> NDArray[np.int_]:
+    @staticmethod
+    def get_commensurate_supercell_sizes(qpoint: list[float] | NDArray[np.float64]) -> NDArray[np.int_]:
         sizes = []
-        for component in self.qpoint:
+        for component in qpoint:
             if abs(component) < 1e-10:
                 sizes.append(1)
             else:
                 sizes.append(Fraction(float(component)).limit_denominator(12).denominator)
-        return np.diag(sizes).astype(int)
+        return np.array(sizes, dtype=int)
+
+    def _get_commensurate_supercell_matrix(self) -> NDArray[np.int_]:
+        return np.diag(self.get_commensurate_supercell_sizes(self.qpoint)).astype(int)
 
     def get_modulated_structure(
         self,
@@ -298,7 +332,7 @@ class SymmetryAdaptedModulation:
         primitive = self.vibrations.primitive_cell
         lattice = primitive.cell
         frac_pos = primitive.scaled_positions
-        symbols_prim = primitive.get_chemical_symbols()
+        symbols_prim = get_chemical_symbols(primitive)
 
         positions = []
         displacements_total = []
@@ -385,37 +419,223 @@ def _normalize_amplitudes(mode_indices: list[int], amplitudes: list[float]) -> l
     return amplitudes
 
 
+def _parse_numbered_modulation_terms(extra_argv: list[str]) -> list[ModulationTerm]:
+    if not extra_argv:
+        return []
+
+    grouped: dict[int, dict[str, list[str]]] = {}
+    index = 0
+    pattern = re.compile(r"^--(qpoint|mode|amplitude)(\d+)$")
+
+    while index < len(extra_argv):
+        token = extra_argv[index]
+        match = pattern.fullmatch(token)
+        if not match:
+            raise ValueError(f"Unrecognized modulation argument: {token}")
+
+        key, suffix = match.group(1), int(match.group(2))
+        index += 1
+        values: list[str] = []
+        while index < len(extra_argv) and not extra_argv[index].startswith("--"):
+            values.append(extra_argv[index])
+            index += 1
+
+        if not values:
+            raise ValueError(f"{token} requires value(s).")
+        grouped.setdefault(suffix, {})[key] = values
+
+    terms: list[ModulationTerm] = []
+    for suffix in sorted(grouped):
+        entry = grouped[suffix]
+        if "qpoint" not in entry:
+            raise ValueError(f"--qpoint{suffix} is required when using numbered modulation arguments.")
+        if "mode" not in entry:
+            raise ValueError(f"--mode{suffix} is required when using numbered modulation arguments.")
+        if len(entry["qpoint"]) != 3:
+            raise ValueError(f"--qpoint{suffix} requires exactly three coordinates.")
+
+        qpoint = [float(value) for value in entry["qpoint"]]
+        mode_indices = [int(value) for value in entry["mode"]]
+        raw_amplitudes = [float(value) for value in entry.get("amplitude", ["0.3"])]
+        amplitudes = _normalize_amplitudes(mode_indices, raw_amplitudes)
+        terms.append(
+            ModulationTerm(
+                qpoint=qpoint,
+                mode_indices=mode_indices,
+                amplitudes=amplitudes,
+            )
+        )
+
+    return terms
+
+
+def _build_combined_modulated_structure(terms: list[PreparedModulationTerm]) -> Atoms:
+    if not terms:
+        raise ValueError("At least one modulation term is required.")
+
+    reference = terms[0].modulation.vibrations.primitive_cell
+    lattice = reference.cell
+    frac_pos = reference.scaled_positions
+    symbols_prim = get_chemical_symbols(reference)
+    n_atoms = len(frac_pos)
+
+    for term in terms[1:]:
+        primitive = term.modulation.vibrations.primitive_cell
+        if not np.allclose(primitive.cell, lattice):
+            raise ValueError("All modulation terms must share the same primitive lattice.")
+        if not np.allclose(primitive.scaled_positions, frac_pos):
+            raise ValueError("All modulation terms must share the same primitive positions.")
+        if get_chemical_symbols(primitive) != symbols_prim:
+            raise ValueError("All modulation terms must share the same primitive species ordering.")
+
+    supercell_sizes = np.ones(3, dtype=int)
+    for term in terms:
+        supercell_sizes = np.lcm(
+            supercell_sizes,
+            SymmetryAdaptedModulation.get_commensurate_supercell_sizes(term.modulation.qpoint),
+        )
+    n1, n2, n3 = supercell_sizes
+
+    prepared_terms: list[tuple[np.ndarray, list[np.ndarray], list[float]]] = []
+    for term in terms:
+        reshaped_vectors = [term.modulation.mode_vectors[index].reshape(n_atoms, 3) for index in term.mode_indices]
+        prepared_terms.append((term.modulation.qpoint, reshaped_vectors, term.amplitudes))
+
+    positions = []
+    displacements_total = []
+    all_symbols = []
+
+    for i1 in range(n1):
+        for i2 in range(n2):
+            for i3 in range(n3):
+                translation_frac = np.array([i1, i2, i3], dtype=float)
+                for atom_index in range(n_atoms):
+                    pos_frac = frac_pos[atom_index] + translation_frac
+                    positions.append(pos_frac @ lattice)
+
+                    displacement = np.zeros(3)
+                    for qpoint, mode_vectors, amplitudes in prepared_terms:
+                        phase = np.exp(2j * np.pi * np.dot(qpoint, translation_frac))
+                        for mode_vector, amplitude in zip(mode_vectors, amplitudes):
+                            displacement += np.real(mode_vector[atom_index] * phase) * amplitude
+
+                    displacements_total.append(displacement)
+                    all_symbols.append(symbols_prim[atom_index])
+
+    positions = np.array(positions)
+    displacements_total = np.array(displacements_total)
+    modulated_positions = positions + displacements_total
+
+    supercell_lattice = lattice.copy()
+    supercell_lattice[0] *= n1
+    supercell_lattice[1] *= n2
+    supercell_lattice[2] *= n3
+
+    unique_symbols: list[str] = []
+    for symbol in symbols_prim:
+        if symbol not in unique_symbols:
+            unique_symbols.append(symbol)
+
+    sorted_indices = []
+    for symbol in unique_symbols:
+        for atom_index, atom_symbol in enumerate(all_symbols):
+            if atom_symbol == symbol:
+                sorted_indices.append(atom_index)
+
+    sorted_symbols = [all_symbols[index] for index in sorted_indices]
+    sorted_positions = modulated_positions[sorted_indices]
+    return Atoms(sorted_symbols, sorted_positions, cell=supercell_lattice, pbc=True)
+
+
 def main(argv: list[str] | None = None) -> None:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args, extra_argv = parser.parse_known_args(argv)
     yaml_path = Path(args.yaml_path)
     if not yaml_path.exists():
         raise FileNotFoundError(f"File '{yaml_path}' does not exist.")
 
-    print(f"Loading '{yaml_path}' at q = {args.qpoint}...")
-    modulation = SymmetryAdaptedModulation(
-        yaml_path=str(yaml_path),
-        qpoint=args.qpoint,
-        symprec=args.symprec,
-    )
+    try:
+        numbered_terms = _parse_numbered_modulation_terms(extra_argv)
+    except ValueError as exc:
+        parser.error(str(exc))
 
-    print()
-    modulation.print_mode_info()
+    if numbered_terms:
+        if args.qpoint is not None or args.mode is not None or args.amplitude != [0.3]:
+            parser.error(
+                "Use either --qpoint/--mode/--amplitude or numbered sets such as "
+                "--qpoint1/--mode1/--amplitude1, but not both."
+            )
+        terms = numbered_terms
+    else:
+        if args.qpoint is None:
+            parser.error("--modulation requires --qpoint, or numbered arguments such as --qpoint1.")
+        if args.mode is None:
+            parser.error("--modulation requires --mode, or numbered arguments such as --mode1.")
+        terms = [
+            ModulationTerm(
+                qpoint=args.qpoint,
+                mode_indices=args.mode,
+                amplitudes=_normalize_amplitudes(args.mode, args.amplitude),
+            )
+        ]
 
-    mode_indices = args.mode
-    amplitudes = _normalize_amplitudes(mode_indices, args.amplitude)
+    modulation_cache: dict[tuple[float, float, float], SymmetryAdaptedModulation] = {}
+    prepared_terms: list[PreparedModulationTerm] = []
+
+    for term_index, term in enumerate(terms, start=1):
+        qpoint_key = tuple(float(value) for value in term.qpoint)
+        modulation = modulation_cache.get(qpoint_key)
+        if modulation is None:
+            print(f"Loading '{yaml_path}' at q = {term.qpoint}...")
+            modulation = SymmetryAdaptedModulation(
+                yaml_path=str(yaml_path),
+                qpoint=term.qpoint,
+                symprec=args.symprec,
+            )
+            print()
+            modulation.print_mode_info()
+            modulation_cache[qpoint_key] = modulation
+            if term_index != len(terms):
+                print()
+
+        for mode_index in term.mode_indices:
+            if mode_index < 0 or mode_index >= modulation.n_modes:
+                raise IndexError(f"Mode index {mode_index} is out of range [0, {modulation.n_modes - 1}].")
+
+        prepared_terms.append(
+            PreparedModulationTerm(
+                modulation=modulation,
+                mode_indices=term.mode_indices,
+                amplitudes=term.amplitudes,
+            )
+        )
 
     print("\nGenerating modulated structure...")
-    print(f"  Modes: {mode_indices}")
-    print(f"  Amplitudes (A): {amplitudes}")
+    if len(prepared_terms) == 1:
+        print(f"  q-point: {prepared_terms[0].modulation.qpoint.tolist()}")
+        print(f"  Modes: {prepared_terms[0].mode_indices}")
+        print(f"  Amplitudes (A): {prepared_terms[0].amplitudes}")
+    else:
+        for term_index, term in enumerate(prepared_terms, start=1):
+            print(
+                f"  Term {term_index}: q = {term.modulation.qpoint.tolist()}, "
+                f"modes = {term.mode_indices}, amplitudes (A) = {term.amplitudes}"
+            )
 
-    atoms = modulation.write_modulated_poscar(
-        filepath=args.output,
-        mode_indices=mode_indices,
-        amplitudes=amplitudes,
-    )
+    if len(prepared_terms) == 1:
+        term = prepared_terms[0]
+        atoms = term.modulation.write_modulated_poscar(
+            filepath=args.output,
+            mode_indices=term.mode_indices,
+            amplitudes=term.amplitudes,
+        )
+    else:
+        atoms = _build_combined_modulated_structure(prepared_terms)
+        ase_write(args.output, atoms, format="vasp", direct=True)
+        print(f"Modulated structure written to: {args.output}")
 
     print("\nSymmetry of the generated structure:")
-    modulation.analyze_symmetry(atoms, symprec=0.1)
+    SymmetryAdaptedModulation.analyze_symmetry(atoms, symprec=0.1)
 
 
 if __name__ == "__main__":
