@@ -18,6 +18,7 @@ from sympy.parsing.sympy_parser import (
 
 from .direct_product import _format_character_value, decompose_representation
 from .irreptables_compat import load_irreptables
+from .runtime_compat import get_spacegroup_type
 from .operations import get_seitz_symbol
 
 IrrepTable, Irrep = load_irreptables()
@@ -105,17 +106,17 @@ def _resolve_space_group_type(space_group_symbol: str) -> dict:
     requested = _normalize_symbol(space_group_symbol)
     matches = []
     for hall_number in range(1, 531):
-        info = spglib.get_spacegroup_type(hall_number)
+        info = get_spacegroup_type(spglib.get_spacegroup_type(hall_number))
         candidates = [
-            info["international_short"],
-            info["international"],
-            info["international_full"],
+            info.international_short,
+            info.international,
+            info.international_full,
         ]
         if any(_normalize_symbol(candidate) == requested for candidate in candidates):
             matches.append(info)
     if not matches:
         raise SystemExit(f'ERROR: "{space_group_symbol}" is not recognized as a standard space-group symbol.')
-    matches.sort(key=lambda item: item["hall_number"])
+    matches.sort(key=lambda item: item.hall_number)
     return matches[0]
 
 
@@ -465,13 +466,9 @@ def _get_little_group_label(
     rotations: np.ndarray,
     translations: np.ndarray,
 ) -> str:
-    little_group = spglib.get_spacegroup_type_from_symmetry(rotations, translations)
-    if hasattr(little_group, "international_short"):
-        international_short = little_group.international_short
-        number = little_group.number
-    else:
-        international_short = little_group["international_short"]
-        number = little_group["number"]
+    little_group = get_spacegroup_type(spglib.get_spacegroup_type_from_symmetry(rotations, translations))
+    international_short = little_group.international_short
+    number = little_group.number
     return f"{international_short} ({number})"
 
 
@@ -553,7 +550,9 @@ def _analyze_point_group(
         lines.append(f"  {class_name}: {_format_character_value(character)}")
 
     decomposition = " + ".join(
-        f"{value}({key})" for key, value in multiplicities.items() if value > 0
+        _format_decomposition_term(key, value)
+        for key, value in multiplicities.items()
+        if value > 0
     )
     lines.extend([
         "",
@@ -586,9 +585,9 @@ def _analyze_space_group(
     show_irrep_table: bool,
 ) -> str:
     sg_type = _resolve_space_group_type(space_group_symbol)
-    irt_table = IrrepTable(sg_type["number"], spinor=False)
+    irt_table = IrrepTable(sg_type.number, spinor=False)
     primitive_matrix = np.array(
-        get_primitive_matrix_by_centring(sg_type["international_short"][0]),
+        get_primitive_matrix_by_centring(sg_type.international_short[0]),
         dtype=float,
     )
     primitive_matrix_inv = np.linalg.inv(primitive_matrix)
@@ -657,7 +656,7 @@ def _analyze_space_group(
     lines = [
         "",
         "* Space group *",
-        f"{sg_type['international_short']} ({sg_type['number']})",
+        f"{sg_type.international_short} ({sg_type.number})",
         "",
         "* Little group of k *",
         f"{little_group_label}",
@@ -682,7 +681,7 @@ def _analyze_space_group(
         lines.append(f"  {operation_label}: {_format_character_value(character)}")
 
     decomposition = " + ".join(
-        f"{value}({display_label_map[key]})"
+        _format_decomposition_term(display_label_map[key], value)
         for key, value in multiplicities.items()
         if value > 0
     )
@@ -713,6 +712,10 @@ def _format_expression_list(expressions: list) -> str:
     if not expressions:
         return "[]"
     return "[" + ", ".join(str(expr) for expr in expressions) + "]"
+
+
+def _format_decomposition_term(label: str, multiplicity) -> str:
+    return f"{float(multiplicity):.1f} [{label}]"
 
 
 def main(argv: list[str] | None = None) -> None:
