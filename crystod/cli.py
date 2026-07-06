@@ -1,6 +1,14 @@
 from __future__ import annotations
 
 from argparse import ArgumentParser
+from fractions import Fraction
+
+
+def _parse_fractional_float(value: str) -> float:
+    try:
+        return float(Fraction(value))
+    except Exception:
+        return float(value)
 
 
 def build_parser() -> ArgumentParser:
@@ -60,7 +68,7 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--kpoint",
         nargs=3,
-        type=float,
+        type=_parse_fractional_float,
         default=None,
         help="Optional k-point in primitive basis.",
     )

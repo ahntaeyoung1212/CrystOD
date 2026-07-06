@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, RawDescriptionHelpFormatter, RawTextHelpFormatter
+from fractions import Fraction
 import re
 
 import numpy as np
@@ -53,6 +54,13 @@ _X, _Y, _Z = symbols("x y z")
 _BASE_VECTOR = Matrix([_X, _Y, _Z])
 
 
+def _parse_fractional_float(value: str) -> float:
+    try:
+        return float(Fraction(value))
+    except Exception:
+        return float(value)
+
+
 def build_parser() -> ArgumentParser:
     parser = ArgumentParser(description=desc, formatter_class=MyHelpFormatter)
     parser.add_argument(
@@ -76,7 +84,7 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--kpoint",
         nargs=3,
-        type=float,
+        type=_parse_fractional_float,
         default=None,
         help="Primitive-basis k-point for space-group analysis.",
     )
@@ -242,11 +250,15 @@ def _cartesianize_rotations(rotations: list[np.ndarray]) -> list[Matrix]:
         ]
     )
     hexagonal_basis_inv = hexagonal_basis.inv()
+    requires_hexagonal_conversion = any(
+        Matrix(rotation).T * Matrix(rotation) != Matrix.eye(3)
+        for rotation in rotations
+    )
 
     cartesian_rotations: list[Matrix] = []
     for rotation in rotations:
         rotation_matrix = Matrix(rotation)
-        if rotation_matrix.T * rotation_matrix == Matrix.eye(3):
+        if not requires_hexagonal_conversion:
             cartesian_rotations.append(rotation_matrix)
             continue
 
@@ -407,6 +419,25 @@ def _project_spacegroup_irrep_basis(
 ) -> list:
     group_order = len(rep_matrices)
     irrep_dimension = int(round(float(np.real_if_close(irrep_characters[0]))))
+
+    if irrep_dimension == 1:
+        rows = []
+        identity = Matrix.eye(rep_matrices[0].shape[0])
+        for rep_matrix, character in zip(rep_matrices, irrep_characters):
+            char_value = nsimplify(character)
+            rows.extend((rep_matrix - char_value * identity).tolist())
+
+        functions = []
+        for vector in Matrix(rows).nullspace():
+            expr = 0
+            for coeff, basis_expr in zip(vector, basis_expressions):
+                if coeff == 0:
+                    continue
+                expr += nsimplify(coeff) * basis_expr
+            if expr != 0:
+                functions.append(_normalize_expr(expr))
+        return functions
+
     projector = Matrix.zeros(*rep_matrices[0].shape)
     for rep_matrix, character in zip(rep_matrices, irrep_characters):
         projector += nsimplify(np.conjugate(character)) * rep_matrix
