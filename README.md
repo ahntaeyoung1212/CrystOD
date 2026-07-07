@@ -20,7 +20,7 @@
 
 - Python 3.9 or later
 - Main Python dependencies:
-  `phonopy`, `spglib`, `spgrep`, `irrep`, `irreptables`, `ase`, `numpy`, `pandas`, `openpyxl`, `sympy`
+  `phonopy`, `spglib`, `spgrep`, `irrep`, `irreptables`, `ase`, `seekpath`, `numpy`, `pandas`, `openpyxl`, `sympy`
 
 ## Installation
 
@@ -33,7 +33,7 @@ conda activate crystod
 unzip ~/Downloads/CrystOD-main.zip
 mv ~/Downloads/CrystOD-main ~
 cd ~/CrystOD-main
-pip install phonopy spglib spgrep irrep irreptables numpy openpyxl pandas
+pip install phonopy spglib spgrep irrep irreptables ase seekpath numpy openpyxl pandas
 
 python3 -m pip install -e ~/CrystOD-main --no-deps --no-build-isolation
 ```
@@ -58,6 +58,12 @@ Show global help:
 
 ```bash
 crystod --help
+```
+
+Check whether CrystOD works successfully or not:
+
+```bash
+python3 testsuite.py
 ```
 
 ## 1. IrReps (Irreducible Representations) of SALC (Symmetry-Adapted Linear Combination) for a Selected Element and Orbital
