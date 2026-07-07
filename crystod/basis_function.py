@@ -37,12 +37,18 @@ class MyHelpFormatter(
 desc = """
 Classify polynomial basis functions into irreducible representations of a point group.
 
+Besides the polar coordinates x, y, z, the axial-vector (pseudovector)
+components Rx, Ry, Rz are supported; they transform with det(R) * R, i.e.
+like rotations, angular momenta, or magnetic moments (spins).
+
 # Command Examples:
 crystod --basis-function x y z --point-group m-3m
+crystod --basis-function Rx Ry Rz --point-group m-3m
 crystod --basis-function x y z --space-group Pm-3m --kpoint 0 0 0
 crystod --basis-function xyz --space-group Pm-3m --kpoint 0.5 0.3 0 --show-irrep-table
 crystod --basis-function z^2 --point-group m-3m
 crystod --basis-function "x(y^2-z^2)" --point-group m-3m
+crystod --basis-function "x*Ry - y*Rx" --point-group m-3m
 """
 
 _PARSER_TRANSFORMS = standard_transformations + (
@@ -51,7 +57,10 @@ _PARSER_TRANSFORMS = standard_transformations + (
 )
 
 _X, _Y, _Z = symbols("x y z")
+_RX, _RY, _RZ = symbols("Rx Ry Rz")
+_GENERATORS = (_X, _Y, _Z, _RX, _RY, _RZ)
 _BASE_VECTOR = Matrix([_X, _Y, _Z])
+_AXIAL_VECTOR = Matrix([_RX, _RY, _RZ])
 
 
 def _parse_fractional_float(value: str) -> float:
@@ -67,7 +76,8 @@ def build_parser() -> ArgumentParser:
         "--basis-function",
         nargs="+",
         required=True,
-        help="Polynomial basis functions in x, y, z. Quote expressions containing parentheses.",
+        help="Polynomial basis functions in x, y, z and the axial components Rx, Ry, Rz. "
+        "Quote expressions containing parentheses.",
     )
     parser.add_argument(
         "--point-group",
@@ -170,12 +180,12 @@ def _parse_function(raw_expression: str):
     expr = expand(
         parse_expr(
             raw_expression,
-            local_dict={"x": _X, "y": _Y, "z": _Z},
+            local_dict={"x": _X, "y": _Y, "z": _Z, "Rx": _RX, "Ry": _RY, "Rz": _RZ},
             transformations=_PARSER_TRANSFORMS,
         )
     )
-    if expr.free_symbols - {_X, _Y, _Z}:
-        unknown = ", ".join(sorted(symbol.name for symbol in expr.free_symbols - {_X, _Y, _Z}))
+    if expr.free_symbols - set(_GENERATORS):
+        unknown = ", ".join(sorted(symbol.name for symbol in expr.free_symbols - set(_GENERATORS)))
         raise SystemExit(f'ERROR: basis function "{raw_expression}" uses unsupported symbols: {unknown}')
     return expr
 
@@ -194,17 +204,26 @@ def _rotation_classes(ct: dict) -> tuple[list[str], list[np.ndarray], list[int],
 
 
 def _apply_rotation(expr, rotation: np.ndarray):
-    rotated_base = Matrix(rotation) * _BASE_VECTOR
-    substituted = expr.subs({
+    rotation_matrix = Matrix(rotation)
+    rotated_base = rotation_matrix * _BASE_VECTOR
+    substitutions = {
         _X: rotated_base[0],
         _Y: rotated_base[1],
         _Z: rotated_base[2],
-    }, simultaneous=True)
+    }
+    if expr.free_symbols & {_RX, _RY, _RZ}:
+        # axial vectors (rotations / magnetic moments) pick up det(R)
+        determinant = nsimplify(rotation_matrix.det())
+        rotated_axial = determinant * rotation_matrix * _AXIAL_VECTOR
+        substitutions[_RX] = rotated_axial[0]
+        substitutions[_RY] = rotated_axial[1]
+        substitutions[_RZ] = rotated_axial[2]
+    substituted = expr.subs(substitutions, simultaneous=True)
     return expand(substituted)
 
 
 def _expr_to_key(expr) -> str:
-    poly = Poly(expand(expr), _X, _Y, _Z, domain="EX")
+    poly = Poly(expand(expr), *_GENERATORS, domain="EX")
     return tuple(
         (monomial, nsimplify(coeff))
         for monomial, coeff in sorted(poly.as_dict().items())
@@ -215,13 +234,13 @@ def _expr_to_key(expr) -> str:
 def _monomial_order(expressions: list) -> list[tuple[int, int, int]]:
     exponents: set[tuple[int, int, int]] = set()
     for expr in expressions:
-        poly = Poly(expr, _X, _Y, _Z, domain="EX")
+        poly = Poly(expr, *_GENERATORS, domain="EX")
         exponents.update(poly.as_dict().keys())
-    return sorted(exponents, key=lambda item: (sum(item), item[0], item[1], item[2]))
+    return sorted(exponents, key=lambda item: (sum(item), item))
 
 
 def _vectorize(expr, monomials: list[tuple[int, int, int]]) -> Matrix:
-    poly = Poly(expr, _X, _Y, _Z, domain="EX")
+    poly = Poly(expr, *_GENERATORS, domain="EX")
     coeff_map = poly.as_dict()
     return Matrix([coeff_map.get(monomial, 0) for monomial in monomials])
 
@@ -230,7 +249,7 @@ def _normalize_expr(expr):
     expanded = expand(expr)
     if expanded == 0:
         return expanded
-    poly = Poly(expanded, _X, _Y, _Z, domain="EX")
+    poly = Poly(expanded, *_GENERATORS, domain="EX")
     coeffs = [coeff for _, coeff in sorted(poly.as_dict().items()) if coeff != 0]
     if not coeffs:
         return expanded
@@ -298,7 +317,10 @@ def _build_closed_subspace(seed_expressions: list, rotations: list[np.ndarray]):
         for coeff, monomial in zip(basis_vector, monomials):
             if coeff == 0:
                 continue
-            expr += coeff * (_X ** monomial[0]) * (_Y ** monomial[1]) * (_Z ** monomial[2])
+            term = coeff
+            for generator, power in zip(_GENERATORS, monomial):
+                term *= generator ** power
+            expr += term
         basis_expressions.append(_normalize_expr(expr))
 
     normalized_basis_vectors = [_vectorize(expr, monomials) for expr in basis_expressions]
@@ -802,6 +824,25 @@ def _format_expression(expr) -> str:
     return re.sub(r"(?<=\d)(?=[A-Za-z])", " ", text)
 
 
+def _get_special_kpoints(space_group_symbol: str) -> tuple[list[str], list[list[float]]]:
+    """Unique special k-points of the space group from irreptables, in the
+    primitive basis (same convention as --salc and --phonon-irrep)."""
+    sg_type = _resolve_space_group_type(space_group_symbol)
+    irt_table = IrrepTable(sg_type.number, spinor=False)
+    primitive_matrix = np.array(
+        get_primitive_matrix_by_centring(sg_type.international_short[0]),
+        dtype=float,
+    )
+    names: list[str] = []
+    kpoints: list[list[float]] = []
+    for irrep in irt_table.irreps:
+        k_primitive = [float(np.round(float(v), 6)) for v in np.array(irrep.k, dtype=float) @ primitive_matrix]
+        if k_primitive not in kpoints:
+            kpoints.append(k_primitive)
+            names.append(irrep.kpname)
+    return names, kpoints
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -811,7 +852,13 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.space_group:
         if args.kpoint is None:
-            parser.error("--space-group requires --kpoint.")
+            # no k-point given: analyze all special k-points of the space group
+            names, kpoints = _get_special_kpoints(args.space_group)
+            print("No --kpoint given; analyzing all special k points: " + ", ".join(names))
+            for name, kpoint in zip(names, kpoints):
+                print(_analyze_space_group(args.space_group, kpoint, seed_expressions, args.show_irrep_table))
+                print()
+            return
         print(_analyze_space_group(args.space_group, args.kpoint, seed_expressions, args.show_irrep_table))
         return
 

@@ -63,6 +63,11 @@ def build_parser() -> ArgumentParser:
         help="Generate a modulated structure from symmetry-adapted phonon modes.",
     )
     mode.add_argument(
+        "--spin-basis",
+        action="store_true",
+        help="Construct symmetry-adapted spin bases (cluster multipoles / SAMM) for a magnetic element.",
+    )
+    mode.add_argument(
         "--vibration",
         action="store_true",
         help="Construct symmetry-allowed vibration bases without phonon force data.",
@@ -71,7 +76,7 @@ def build_parser() -> ArgumentParser:
         "--basis-function",
         nargs="+",
         default=None,
-        help="Classify polynomial basis functions in a point group, e.g. x y z.",
+        help="Classify polynomial basis functions in a point group, e.g. x y z (polar) or Rx Ry Rz (axial).",
     )
     mode.add_argument(
         "--visualize-basis",
@@ -266,6 +271,11 @@ def build_parser() -> ArgumentParser:
         dest="projection_direction",
         default=None,
         help='Projection direction in reduced coordinates for phonon-fatband mode, e.g. "0 0 1".',
+    )
+    parser.add_argument(
+        "--show-spin-direction",
+        action="store_true",
+        help="Print per-atom spin directions and a VASP MAGMOM line in spin-basis mode.",
     )
     parser.add_argument(
         "--trans-mat",
@@ -604,9 +614,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--point-group", args.point_group])
         if args.space_group:
             dispatch_argv.extend(["--space-group", args.space_group])
-            if args.kpoint is None:
-                parser.error("--basis-function with --space-group requires --kpoint.")
-            dispatch_argv.extend(["--kpoint", *[str(value) for value in args.kpoint]])
+            if args.kpoint is not None:
+                dispatch_argv.extend(["--kpoint", *[str(value) for value in args.kpoint]])
         _append_optional_flag(dispatch_argv, args.show_irrep_table, "--show-irrep-table")
 
         from .basis_function import main as basis_function_main
@@ -761,6 +770,30 @@ def main(argv: list[str] | None = None) -> None:
         modulation_main(dispatch_argv)
         return
 
+    if args.spin_basis:
+        if not args.element:
+            parser.error("--spin-basis requires --element.")
+        if not args.qpoint:
+            parser.error("--spin-basis requires --qpoint.")
+
+        dispatch_argv = [
+            "--poscar",
+            args.poscar,
+            "--element",
+            args.element,
+            "--qpoint",
+            *[str(value) for value in args.qpoint],
+        ]
+        _append_optional_flag(dispatch_argv, args.show_spin_direction, "--show-spin-direction")
+        if args.amplitude:
+            dispatch_argv.extend(["--amplitude", str(args.amplitude[0])])
+        _append_optional_value(dispatch_argv, "--tolerance", args.tolerance)
+
+        from .spin_basis import main as spin_basis_main
+
+        spin_basis_main(dispatch_argv)
+        return
+
     if args.vibration:
         if (
             args.element
@@ -807,7 +840,7 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     parser.error(
-        "Please specify either --salc, --phonon-irrep, --phonon-vector, --phonon-fatband, --phonon-lt, --direct-product, --decompose-irrep, --ligand-field-split, --modulation, "
+        "Please specify either --salc, --phonon-irrep, --phonon-vector, --phonon-fatband, --phonon-lt, --direct-product, --decompose-irrep, --ligand-field-split, --spin-basis, --modulation, "
         "--vibration, --basis-function, --visualize-basis, --star-of-k, --show-coset, "
         "--generate-basis-function, --bz, --bz-supercell, or --xdatcar2adp."
     )
