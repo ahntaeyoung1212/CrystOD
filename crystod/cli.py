@@ -28,6 +28,21 @@ def build_parser() -> ArgumentParser:
         help="Run phonon irrep labeling.",
     )
     mode.add_argument(
+        "--phonon-fatband",
+        action="store_true",
+        help="Plot element-projected phonon fatbands along an automatic seekpath k-path.",
+    )
+    mode.add_argument(
+        "--phonon-vector",
+        action="store_true",
+        help="Visualize phonon eigenvectors as VESTA files with displacement arrows.",
+    )
+    mode.add_argument(
+        "--decompose-irrep",
+        action="store_true",
+        help="Decompose a reducible representation into point-group irreps from entered characters.",
+    )
+    mode.add_argument(
         "--direct-product",
         action="store_true",
         help="Run direct-product decomposition for point-group irreps.",
@@ -68,6 +83,16 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="Auto-generate 1st-3rd order polynomial basis functions per irrep.",
     )
+    mode.add_argument(
+        "--bz",
+        action="store_true",
+        help="Plot the first Brillouin zone with an automatic (seekpath) or manual k-path as HTML.",
+    )
+    mode.add_argument(
+        "--xdatcar2adp",
+        action="store_true",
+        help="Compute anisotropic displacement parameters (ADPs) from an MD XDATCAR and write a CIF.",
+    )
 
     parser.add_argument("--poscar", default="POSCAR", help="POSCAR path.")
     parser.add_argument(
@@ -105,7 +130,9 @@ def build_parser() -> ArgumentParser:
 
     parser.add_argument(
         "--dim",
-        help='Supercell dimension for phonon irrep mode, e.g. "4 4 4".',
+        nargs="+",
+        default=None,
+        help='Supercell dimension for phonon or xdatcar2adp modes, e.g. --dim 4 4 4 or --dim "4 4 4".',
     )
     parser.add_argument(
         "--readfc",
@@ -196,6 +223,64 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="Re-combine degenerate SALC components into real-coefficient form (visualize-basis mode).",
     )
+    parser.add_argument(
+        "--conventional",
+        action="store_true",
+        help="Output the conventional cell instead of the primitive cell in phonon-vector mode.",
+    )
+    parser.add_argument(
+        "--characters",
+        nargs="+",
+        type=float,
+        default=None,
+        help="Characters of the reducible representation for decompose-irrep mode (skips interactive input).",
+    )
+    parser.add_argument(
+        "--nac",
+        action="store_true",
+        help="Apply the non-analytical term correction (LO/TO splitting, BORN file) in phonon-fatband mode.",
+    )
+    parser.add_argument(
+        "--npoints",
+        type=int,
+        default=None,
+        help="Number of q-points per band-path leg for phonon-fatband mode.",
+    )
+    parser.add_argument(
+        "--projection-direction",
+        dest="projection_direction",
+        default=None,
+        help='Projection direction in reduced coordinates for phonon-fatband mode, e.g. "0 0 1".',
+    )
+    parser.add_argument(
+        "--xdatcar",
+        default="XDATCAR",
+        help="Input XDATCAR path for xdatcar2adp mode.",
+    )
+    parser.add_argument(
+        "--start-step",
+        type=int,
+        default=None,
+        help="First MD step used in xdatcar2adp mode (earlier steps are discarded as equilibration).",
+    )
+    parser.add_argument(
+        "--grouping-tolerance",
+        type=float,
+        default=None,
+        help="Tolerance for grouping supercell atoms into unit-cell sites in xdatcar2adp mode.",
+    )
+    parser.add_argument(
+        "--band",
+        default=None,
+        help='Manual band path for bz mode, e.g. "0 0 0  0 1/2 0  1/2 1/2 0, 1/2 1/2 0  1/2 1/2 1/2".',
+    )
+    parser.add_argument(
+        "--label",
+        "--band-labels",
+        dest="label",
+        default=None,
+        help='Band-path labels for bz mode, e.g. "GM X M GM R X M R".',
+    )
     return parser
 
 
@@ -220,6 +305,9 @@ def main(argv: list[str] | None = None) -> None:
 
     if unknown and not args.modulation:
         parser.error(f"unrecognized arguments: {' '.join(unknown)}")
+
+    if args.dim is not None:
+        args.dim = " ".join(str(value) for value in args.dim)
 
     if args.salc:
         if args.element and args.atomic_orbital:
@@ -285,6 +373,96 @@ def main(argv: list[str] | None = None) -> None:
         from .phonon_irreps import main as phonon_irreps_main
 
         phonon_irreps_main(dispatch_argv)
+        return
+
+    if args.phonon_fatband:
+        if not args.dim:
+            parser.error("--phonon-fatband requires --dim.")
+        if args.label and not args.band:
+            parser.error("--label requires --band in phonon-fatband mode.")
+
+        dispatch_argv = [
+            "--dim",
+            args.dim,
+            "--poscar",
+            args.poscar,
+        ]
+        _append_optional_flag(dispatch_argv, args.readfc, "--readfc")
+        _append_optional_flag(dispatch_argv, args.nac, "--nac")
+        _append_optional_value(dispatch_argv, "--element", args.element)
+        _append_optional_value(dispatch_argv, "--band", args.band)
+        _append_optional_value(dispatch_argv, "--label", args.label)
+        _append_optional_value(dispatch_argv, "--npoints", args.npoints)
+        _append_optional_value(dispatch_argv, "--projection-direction", args.projection_direction)
+        _append_optional_value(dispatch_argv, "--output", args.output)
+        _append_optional_value(dispatch_argv, "--tolerance", args.tolerance)
+
+        from .phonon_fatband import main as phonon_fatband_main
+
+        phonon_fatband_main(dispatch_argv)
+        return
+
+    if args.phonon_vector:
+        if not args.dim:
+            parser.error("--phonon-vector requires --dim.")
+        if not args.qpoint:
+            parser.error("--phonon-vector requires --qpoint.")
+        if args.element or args.orbital or args.atomic_orbital or args.kpoint or args.spinor or args.show_irrep_table:
+            parser.error("--phonon-vector does not use SALC-specific options.")
+
+        dispatch_argv = [
+            "--dim",
+            args.dim,
+            "--poscar",
+            args.poscar,
+        ]
+        _append_optional_flag(dispatch_argv, args.readfc, "--readfc")
+        _append_optional_flag(dispatch_argv, args.conventional, "--conventional")
+        dispatch_argv.extend(["--qpoint", *[str(value) for value in args.qpoint]])
+        if args.mode:
+            dispatch_argv.extend(["--mode", *[str(value) for value in args.mode]])
+        if args.amplitude:
+            dispatch_argv.extend(["--amplitude", str(args.amplitude[0])])
+        _append_optional_value(dispatch_argv, "--output", args.output)
+        _append_optional_value(dispatch_argv, "--tolerance", args.tolerance)
+
+        from .phonon_vector import main as phonon_vector_main
+
+        phonon_vector_main(dispatch_argv)
+        return
+
+    if args.xdatcar2adp:
+        if not args.dim:
+            parser.error("--xdatcar2adp requires --dim.")
+
+        dispatch_argv = [
+            "--dim",
+            args.dim,
+            "--xdatcar",
+            args.xdatcar,
+        ]
+        if args.start_step is not None:
+            dispatch_argv.extend(["--start-step", str(args.start_step)])
+        _append_optional_value(dispatch_argv, "--output", args.output)
+        _append_optional_value(dispatch_argv, "--symprec", args.tolerance)
+        _append_optional_value(dispatch_argv, "--grouping-tolerance", args.grouping_tolerance)
+
+        from .xdatcar_adp import main as xdatcar_adp_main
+
+        xdatcar_adp_main(dispatch_argv)
+        return
+
+    if args.decompose_irrep:
+        if not args.point_group:
+            parser.error("--decompose-irrep requires --point-group.")
+
+        dispatch_argv = ["--point-group", args.point_group]
+        if args.characters:
+            dispatch_argv.extend(["--characters", *[str(value) for value in args.characters]])
+
+        from .decompose_irrep import main as decompose_irrep_main
+
+        decompose_irrep_main(dispatch_argv)
         return
 
     if args.direct_product:
@@ -443,6 +621,24 @@ def main(argv: list[str] | None = None) -> None:
         generate_basis_function_main(dispatch_argv)
         return
 
+    if args.bz:
+        if args.label and not args.band:
+            parser.error("--label requires --band in bz mode.")
+
+        dispatch_argv = [
+            "--poscar",
+            args.poscar,
+        ]
+        _append_optional_value(dispatch_argv, "--band", args.band)
+        _append_optional_value(dispatch_argv, "--label", args.label)
+        _append_optional_value(dispatch_argv, "--output", args.output)
+        _append_optional_value(dispatch_argv, "--tolerance", args.tolerance)
+
+        from .brillouin_zone import main as brillouin_zone_main
+
+        brillouin_zone_main(dispatch_argv)
+        return
+
     if args.modulation:
         if (
             args.poscar != "POSCAR"
@@ -534,7 +730,7 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     parser.error(
-        "Please specify either --salc, --phonon-irrep, --direct-product, --modulation, "
+        "Please specify either --salc, --phonon-irrep, --phonon-vector, --phonon-fatband, --direct-product, --decompose-irrep, --modulation, "
         "--vibration, --basis-function, --visualize-basis, --star-of-k, --show-coset, "
-        "or --generate-basis-function."
+        "--generate-basis-function, --bz, or --xdatcar2adp."
     )
