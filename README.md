@@ -23,6 +23,7 @@
 - `crystod --bz` for interactive 3D Brillouin-zone plots with an automatic (seekpath) or manual high-symmetry k-path. (v0.2.2)
 - `crystod --xdatcar2adp` for anisotropic displacement parameters (ADPs) from an MD XDATCAR trajectory as a CIF. (v0.2.3)
 - `crystod --bz-supercell` for plotting the unit-cell BZ together with the folded BZ of a transformed (super)lattice. (v0.2.3)
+- `crystod --spin-basis` for symmetry-adapted spin bases (cluster multipoles / SAMM): enumeration of FM/AFM arrangements. (v0.2.3)
 
 ## Requirements
 
@@ -121,6 +122,23 @@ crystod --basis-function xyz "z^3" "yz^2" "xz^2" "z(x^2-y^2)" "y(3x^2-y^2)" "x(x
 ```
 
 The input functions are automatically closed under the selected point group or the little group of the selected space-group k-point, then decomposed into irreps. When the k-point is listed in `irreptables`, physical labels such as `GM4-(3)` or `R4-(3)` are shown; otherwise, `spgrep` generic labels such as `irrep_2(1)` are used.
+
+Besides the polar coordinates x, y, z, the **axial-vector components `Rx`, `Ry`, `Rz`** (rotations, angular momenta, magnetic moments) are supported; they transform with `det(R) R` and therefore land in the parity partners of the polar bases (v0.2.3):
+
+```bash
+crystod --basis-function Rx Ry Rz --point-group m-3m          # -> T1g (x y z gives T1u)
+crystod --basis-function Rx Ry Rz --space-group Pm-3m --kpoint 0 0 0   # -> GM4+
+crystod --basis-function "x*Ry - y*Rx" --point-group m-3m     # toroidal component -> T1u
+```
+
+This makes the magnetic (spin) irreps directly comparable with the `--spin-basis` labels (e.g. the GM4+ cluster dipole of AlNi3).
+
+When `--kpoint` is omitted in space-group mode, all special k points of the space group are analyzed automatically (as in `--salc`):
+
+```bash
+crystod --basis-function Rx Ry Rz --space-group Pm-3m
+# -> GM4+(3), R4+(3), M3+(1) + M5+(2), X3+(1) + X5+(2)
+```
 
 ## 5. Direct Products of Point-Group Irreps
 
@@ -422,6 +440,21 @@ crystod --ligand-field-split --point-group 4/mmm --orbital f
 
 The characters of the (2l+1)-dimensional orbital representation are generated from the standard angular-momentum formulas (chi(C(a)) = sin((l+1/2)a)/sin(a/2), chi(S(a)) = cos((l+1/2)a)/cos(a/2)) and decomposed with the same reduction engine as `--decompose-irrep`; the reducible characters per symmetry-operation class are also printed. Based on `script/ligand_field_spliting.py` by Hiroki Koiso.
 
+## 20. Symmetry-Adapted Spin Bases: Cluster Multipoles / SAMM (v0.2.3)
+
+Treat the spins on the sites of a magnetic element as axial-vector degrees of freedom and decompose them into space-group irreps at a q-point by projection — a complete, symmetry-exhaustive enumeration of the ferromagnetic and antiferromagnetic arrangements, following the cluster-multipole / symmetry-adapted multipole moment (SAMM) framework of M.-T. Suzuki et al. [PRB 95, 094406 (2017); PRB 99, 174407 (2019)]:
+
+```bash
+crystod --spin-basis --poscar example/test_POSCARs/221_PPOSCAR_AlNi3 --element Ni --qpoint 0 0 0
+crystod --spin-basis --poscar example/test_POSCARs/221_PPOSCAR_AlNi3 --element Ni --qpoint GM --show-spin-direction
+```
+
+For the Mn3Ir-type Ni 3c cluster of AlNi3 this yields `9 dims = 2 x GM4+(3) + GM5+(3)`: the GM4+ (T1g) cluster dipole (FM), the GM4+ (T1g) cluster octupole (AFM: the experimentally realized 120-degree structure of Mn3Ir, which shares the irrep with the dipole and hence allows the anomalous Hall effect), and the GM5+ (T2g) cluster octupole (AFM). Every AFM basis satisfies sum_i S_i = 0 exactly.
+
+The construction is the SALC projection used elsewhere in crystod with the Cartesian part replaced by det(R) R (spins are axial vectors); irrep labels come from spgrep + irreptables as usual. Within a multiply-occurring irrep the unique net-moment (dipole) combination is split off from the net-zero (higher-multipole) ones, and multipole ranks (dipole, octupole, ...) are assigned representation-theoretically from the parity-resolved angular-momentum characters (Suzuki's Table III logic).
+
+Each basis vector is exported as `POSCAR_<formula>_spin_<irrep>_<dipole|octupole|...>_<direction>.vesta` (e.g. `POSCAR_AlNi3_spin_GM4+_octupole_111.vesta` for the 120-degree Mn3Ir-type state), with spin arrows on the magnetic atoms. `--show-spin-direction` prints the spin direction [x, y, z] of every atom in POSCAR order together with a ready-to-paste VASP noncollinear `MAGMOM` line. For q != 0 (e.g. `--qpoint R`) the commensurate magnetic supercell is built automatically, with the Bloch phase applied to the spins and the MAGMOM/VESTA output referring to the supercell.
+
 ## Command Summary
 
 - `crystod --salc --poscar POSCAR --element ELEMENT --orbital ORBITAL`
@@ -449,6 +482,7 @@ The characters of the (2l+1)-dimensional orbital representation are generated fr
 - `crystod --phonon-fatband --dim nx ny nz --poscar POSCAR [--element EL] [--nac] [--readfc] [--band ... --label ...]`
 - `crystod --bz-supercell --poscar POSCAR --trans-mat "t11 t12 t13  t21 t22 t23  t31 t32 t33" [--output FILE.html]`
 - `crystod --phonon-lt --dim nx ny nz --poscar POSCAR [--nac] [--readfc] [--band ... --label ...]`
+- `crystod --spin-basis --poscar POSCAR --element EL --qpoint QLABEL_OR_QX QY QZ [--show-spin-direction]`
 
 ## Notes
 
@@ -468,6 +502,8 @@ The characters of the (2l+1)-dimensional orbital representation are generated fr
 - Added `--phonon-fatband`: element-projected phonon fatbands (PDF per element) along an automatic seekpath k-path, computed directly from POSCAR + FORCE_SETS/FORCE_CONSTANTS via the phonopy API. Colored with VESTA default element colors; `--nac` applies the non-analytical term correction (LO/TO splitting) from a `BORN` file.
 - Added `--bz-supercell`: interactive 3D plot of the unit-cell BZ together with the BZ of a transformed (super)lattice, tiled at the |det T| folded supercell reciprocal-lattice points (based on `script/supercell_BZ.py` by Hiroki Koiso).
 - Added `--phonon-lt`: phonon bands colored by longitudinal/transverse character with an optional `--nac` correction (based on `script/LT_phonon_band.py`, after Qijing Zheng), using the exact eigenvector projection onto the propagation direction so that diagonal path segments are also colored correctly.
+- Added `--spin-basis`: symmetry-adapted spin bases (cluster multipoles / SAMM, after M.-T. Suzuki et al.) with FM/AFM separation, multipole-rank naming, per-atom spin directions with a VASP MAGMOM line (`--show-spin-direction`), VESTA export, and automatic magnetic supercells for q != 0.
+- `--basis-function` now supports the axial-vector components `Rx`, `Ry`, `Rz` (transforming with det(R) R, like magnetic moments), including mixed polar-axial products such as the toroidal `x*Ry - y*Rx`. In space-group mode, omitting `--kpoint` now analyzes all special k points automatically (as in `--salc`).
 - `--dim` now also accepts unquoted values (`--dim 4 4 4`) in all modes.
 - Fixed `--phonon-irrep` with phonopy >= 2.21, where the removed `IrReps.frequencies` property caused an `AttributeError`.
 

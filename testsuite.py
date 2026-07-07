@@ -29,6 +29,7 @@ Sections:
   18. --bz-supercell           unit-cell + supercell Brillouin-zone plot
   19. --phonon-lt              longitudinal/transverse-resolved phonon band
   20. --ligand-field-split     orbital splitting in a point-group field
+  21. --spin-basis             symmetry-adapted spin bases (cluster multipoles / SAMM)
 """
 
 from __future__ import annotations
@@ -199,6 +200,30 @@ def test_04_basis_function() -> None:
     report("d-type set at GM exit 0", code == 0, out)
     report("d-type set -> GM3+ and GM5+", "GM3+" in out and "GM5+" in out, out)
     report("no numerical-noise blowup", re.search(r"\d{15,}", out) is None, out)
+
+    code, out = run_cli(["--basis-function", "Rx", "Ry", "Rz", "--point-group", "m-3m"])
+    report("axial Rx Ry Rz in m-3m -> T1g (not T1u)",
+           code == 0 and "T1g" in out and "T1u" not in out, out)
+
+    code, out = run_cli(
+        ["--basis-function", "Rx", "Ry", "Rz", "--space-group", "Pm-3m",
+         "--kpoint", "0", "0", "0"]
+    )
+    report("axial Rx Ry Rz at GM in Pm-3m -> GM4+", code == 0 and "GM4+" in out, out)
+
+    code, out = run_cli(["--basis-function", "Rx", "Ry", "Rz", "--point-group", "6/mmm"])
+    report("axial vector in 6/mmm -> A2g + E1g",
+           code == 0 and "A2g" in out and "E1g" in out, out)
+
+    code, out = run_cli(["--basis-function", "x*Ry - y*Rx", "--point-group", "m-3m"])
+    report("toroidal x*Ry - y*Rx -> T1u", code == 0 and "T1u" in out, out)
+
+    code, out = run_cli(["--basis-function", "Rx", "Ry", "Rz", "--space-group", "Pm-3m"])
+    report("no --kpoint: all special k points analyzed",
+           code == 0 and "analyzing all special k points" in out
+           and out.count("k-point (primitive)") >= 4, out)
+    report("axial decompositions at GM and R are gerade",
+           "GM4+" in out and "R4+" in out, out)
 
 
 # ---------------------------------------------------------------- 5. direct-product
@@ -761,6 +786,51 @@ def test_16_xdatcar2adp() -> None:
                    text[:600])
 
 
+# ---------------------------------------------------------------- 21. spin-basis
+def test_21_spin_basis() -> None:
+    print("\n[21] --spin-basis (AlNi3, Ni 3c cluster, Mn3Ir-type)")
+    poscar = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_AlNi3")
+    if not os.path.isfile(poscar):
+        report("example POSCAR found", False, poscar)
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        shutil.copy(poscar, tmp)
+        code, out = run_cli(
+            ["--spin-basis", "--poscar", "221_PPOSCAR_AlNi3", "--element", "Ni",
+             "--qpoint", "0", "0", "0", "--show-spin-direction"],
+            cwd=tmp,
+        )
+        report("exit code 0", code == 0, out)
+        report("decomposition 2 x GM4+ + GM5+",
+               "2 x GM4+(3)" in out and "GM5+(3)" in out, out)
+        report("FM dipole and AFM octupoles identified",
+               "[FM, dipole]" in out and out.count("[AFM, octupole]") >= 2
+               and "quadrupole" not in out, out)
+        report("AFM net moment vanishes", "All AFM bases satisfy sum_i S_i = 0" in out, out)
+        report("MAGMOM line printed for noncollinear input", "MAGMOM =" in out, out)
+        for name in ("POSCAR_AlNi3_spin_GM4+_dipole_z.vesta",
+                     "POSCAR_AlNi3_spin_GM4+_octupole_111.vesta",
+                     "POSCAR_AlNi3_spin_GM5+_octupole_111.vesta"):
+            report(f"{name} written", os.path.isfile(os.path.join(tmp, name)))
+
+        code, out = run_cli(
+            ["--spin-basis", "--poscar", "221_PPOSCAR_AlNi3", "--element", "Ni",
+             "--qpoint", "R"],
+            cwd=tmp,
+        )
+        report("R-point exit 0", code == 0, out)
+        report("R-point 2x2x2 magnetic supercell and R4+ label",
+               "2x2x2" in out and "R4+" in out, out)
+
+        code, out = run_cli(
+            ["--spin-basis", "--poscar", "221_PPOSCAR_AlNi3", "--element", "Cu",
+             "--qpoint", "0", "0", "0"],
+            cwd=tmp,
+        )
+        report("unknown element rejected cleanly",
+               code != 0 and "is not in this POSCAR" in out and "Traceback" not in out, out)
+
+
 # ---------------------------------------------------------------- 20. ligand-field-split
 def test_20_ligand_field_split() -> None:
     print("\n[20] --ligand-field-split")
@@ -807,6 +877,7 @@ SECTIONS = {
     18: test_18_bz_supercell,
     19: test_19_phonon_lt,
     20: test_20_ligand_field_split,
+    21: test_21_spin_basis,
 }
 
 
