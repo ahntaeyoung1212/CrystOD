@@ -26,6 +26,9 @@ Sections:
   15. --decompose-irrep        reducible-representation decomposition
   16. --xdatcar2adp            ADPs from an MD XDATCAR trajectory
   17. --phonon-fatband         element-projected phonon fatbands (phonopy data)
+  18. --bz-supercell           unit-cell + supercell Brillouin-zone plot
+  19. --phonon-lt              longitudinal/transverse-resolved phonon band
+  20. --ligand-field-split     orbital splitting in a point-group field
 """
 
 from __future__ import annotations
@@ -47,6 +50,7 @@ PHONON_IRREP_DIR = os.path.join(ROOT, "example", "phonon_irrep", "SrTiO3_Pm-3m")
 PHONON_VECTOR_DIR = os.path.join(ROOT, "example", "phonon_irrep", "Si_Fd-3m")
 XDATCAR_ADP_DIR = os.path.join(ROOT, "example", "xdatcar2adp", "ScF3_Pm-3m_NpT_300K")
 PHONON_FATBAND_DIR = os.path.join(ROOT, "example", "phonon_fatband", "ScF3_Pm-3m")
+PHONON_LT_DIR = os.path.join(ROOT, "example", "phonon_lt", "ScF3_Pm-3m")
 
 PASS = 0
 FAIL = 0
@@ -642,6 +646,88 @@ def test_17_phonon_fatband() -> None:
             report("BORN example found (skipping --nac run)", False, born_path)
 
 
+# ---------------------------------------------------------------- 19. phonon-lt
+def test_19_phonon_lt() -> None:
+    print("\n[19] --phonon-lt (ScF3, 4x4x4 FORCE_SETS)")
+    if not os.path.isdir(PHONON_LT_DIR):
+        report("example data found", False, PHONON_LT_DIR)
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        for name in ("221_PPOSCAR_ScF3", "FORCE_SETS", "BORN"):
+            shutil.copy(os.path.join(PHONON_LT_DIR, name), tmp)
+
+        code, out = run_cli(
+            ["--phonon-lt", "--poscar", "221_PPOSCAR_ScF3", "--dim", "4", "4", "4",
+             "--npoints", "11"],
+            cwd=tmp,
+        )
+        report("exit code 0", code == 0, out)
+        report("phonon_band_LT.pdf written",
+               os.path.isfile(os.path.join(tmp, "phonon_band_LT.pdf")), out)
+
+        code, out = run_cli(
+            ["--phonon-lt", "--poscar", "221_PPOSCAR_ScF3", "--dim", "4", "4", "4",
+             "--npoints", "11", "--nac"],
+            cwd=tmp,
+        )
+        report("--nac exit 0", code == 0, out)
+        report("NAC announced and phonon_band_LT_nac.pdf written",
+               "NAC (LO/TO splitting) enabled" in out
+               and os.path.isfile(os.path.join(tmp, "phonon_band_LT_nac.pdf")), out)
+
+    # longitudinal-ratio sanity: acoustic branches near Gamma along [100]
+    from phonopy import load as phonopy_load
+    from crystod.phonon_lt import get_longitudinal_ratio
+
+    phonon = phonopy_load(
+        supercell_matrix=[4.0, 4.0, 4.0],
+        primitive_matrix="auto",
+        unitcell_filename=os.path.join(PHONON_LT_DIR, "221_PPOSCAR_ScF3"),
+        force_sets_filename=os.path.join(PHONON_LT_DIR, "FORCE_SETS"),
+        is_nac=False,
+    )
+    q = [0.1, 0.0, 0.0]
+    phonon.run_qpoints([q], with_eigenvectors=True)
+    eigvecs = phonon.get_qpoints_dict()["eigenvectors"][0][np.newaxis]
+    rec = np.linalg.inv(np.array(phonon.primitive.cell)).T
+    ratio = get_longitudinal_ratio(np.array([q]), eigvecs, rec)[0]
+    freqs = phonon.get_qpoints_dict()["frequencies"][0]
+    acoustic = np.argsort(freqs)[:3]
+    report("acoustic set near GM splits into 2 T + 1 L along [100]",
+           sorted(np.round(ratio[acoustic], 2))[:2] == [0.0, 0.0]
+           and round(max(ratio[acoustic]), 2) > 0.9,
+           str(ratio[acoustic]))
+
+
+# ---------------------------------------------------------------- 18. bz-supercell
+def test_18_bz_supercell() -> None:
+    print("\n[18] --bz-supercell (ScF3, Pm-3m -> transformed lattice)")
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_cli(
+            ["--bz-supercell", "--poscar", POSCAR_ScF3,
+             "--trans-mat", "0 1 2   -1 0 2   1 -1 2",
+             "--output", os.path.join(tmp, "BZ_supercell.html")],
+            cwd=tmp,
+        )
+        report("exit code 0", code == 0, out)
+        report("volume ratio |det T| = 6 reported", "|det T| = 6" in out, out)
+        report("6 folded Gamma points listed",
+               "folding onto the supercell Gamma point (6)" in out, out)
+        html_path = os.path.join(tmp, "BZ_supercell.html")
+        report("HTML written", os.path.isfile(html_path))
+        if os.path.isfile(html_path):
+            text = open(html_path).read()
+            report("HTML contains plotly traces", "Plotly.newPlot" in text and "scatter3d" in text,
+                   text[:300])
+
+        code, out = run_cli(
+            ["--bz-supercell", "--poscar", POSCAR_ScF3, "--trans-mat", "1 0 0  0 1 0"],
+            cwd=tmp,
+        )
+        report("wrong matrix size rejected cleanly",
+               code != 0 and "requires nine numbers" in out and "Traceback" not in out, out)
+
+
 # ---------------------------------------------------------------- 16. xdatcar2adp
 def test_16_xdatcar2adp() -> None:
     print("\n[16] --xdatcar2adp (ScF3 NpT 300K, truncated trajectory)")
@@ -675,6 +761,31 @@ def test_16_xdatcar2adp() -> None:
                    text[:600])
 
 
+# ---------------------------------------------------------------- 20. ligand-field-split
+def test_20_ligand_field_split() -> None:
+    print("\n[20] --ligand-field-split")
+    code, out = run_cli(["--ligand-field-split", "--point-group", "m-3m", "--orbital", "d"])
+    report("d in m-3m exit 0", code == 0, out)
+    report("d in m-3m -> Eg + T2g",
+           "1(Eg)" in out and "1(T2g)" in out and "(A1g)" not in out, out)
+
+    code, out = run_cli(["--ligand-field-split", "--point-group", "4/mmm", "--orbital", "d"])
+    report("d in 4/mmm -> A1g + B1g + B2g + Eg",
+           all(f"1({name})" in out for name in ("A1g", "B1g", "B2g", "Eg")), out)
+
+    code, out = run_cli(["--ligand-field-split", "--point-group", "4/mmm", "--orbital", "f"])
+    report("f in 4/mmm -> A2u + B1u + B2u + 2Eu",
+           all(name in out for name in ("1(A2u)", "1(B1u)", "1(B2u)", "2(Eu)")), out)
+
+    code, out = run_cli(["--ligand-field-split", "--point-group", "m-3m", "--orbital", "q"])
+    report("unknown orbital rejected cleanly",
+           code != 0 and "is not supported" in out and "Traceback" not in out, out)
+
+    code, out = run_cli(["--ligand-field-split", "--point-group", "xyz", "--orbital", "d"])
+    report("unknown point group rejected cleanly",
+           code != 0 and "not in the available point groups" in out and "Traceback" not in out, out)
+
+
 SECTIONS = {
     1: test_01_wigner_d,
     2: test_02_salc,
@@ -693,6 +804,9 @@ SECTIONS = {
     15: test_15_decompose_irrep,
     16: test_16_xdatcar2adp,
     17: test_17_phonon_fatband,
+    18: test_18_bz_supercell,
+    19: test_19_phonon_lt,
+    20: test_20_ligand_field_split,
 }
 
 
