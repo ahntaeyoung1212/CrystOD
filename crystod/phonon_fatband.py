@@ -234,9 +234,15 @@ def _plot_fatband(
     plt.close(fig)
 
 
-def main(argv: list[str] | None = None) -> None:
-    args = build_parser().parse_args(argv)
+def compute_band_structure(args):
+    """Load phonopy data, resolve the k-path, and run the band structure
+    with eigenvectors and band connection.
 
+    `args` must carry dim/poscar/readfc/nac/band/label/npoints/tolerance.
+    Returns (phonon, band_dict, ticks, tick_labels) where band_dict is the
+    phonopy band-structure dict (distances/frequencies/eigenvectors/qpoints
+    as lists over continuous sub-paths).
+    """
     supercell_mat = [float(n) for n in args.dim.split()]
     if args.readfc:
         force_sets = None
@@ -317,6 +323,17 @@ def main(argv: list[str] | None = None) -> None:
     )
     band = phonon.get_band_structure_dict()
     distances = [np.array(d) for d in band["distances"]]
+    ticks, tick_labels = _build_tick_positions(distances, list(path_connections), label_segments)
+    return phonon, band, ticks, tick_labels
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
+
+    phonon, band, ticks, tick_labels = compute_band_structure(args)
+    primitive = phonon.primitive
+    symbols = list(primitive.symbols)
+    distances = [np.array(d) for d in band["distances"]]
     frequencies = [np.array(f) for f in band["frequencies"]]
     eigenvectors = band["eigenvectors"]
 
@@ -353,7 +370,6 @@ def main(argv: list[str] | None = None) -> None:
             )
         unique_elements = [args.element]
 
-    ticks, tick_labels = _build_tick_positions(distances, list(path_connections), label_segments)
     if args.output:
         prefix = args.output
     else:

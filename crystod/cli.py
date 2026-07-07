@@ -33,9 +33,19 @@ def build_parser() -> ArgumentParser:
         help="Plot element-projected phonon fatbands along an automatic seekpath k-path.",
     )
     mode.add_argument(
+        "--phonon-lt",
+        action="store_true",
+        help="Plot the phonon band colored by longitudinal/transverse character.",
+    )
+    mode.add_argument(
         "--phonon-vector",
         action="store_true",
         help="Visualize phonon eigenvectors as VESTA files with displacement arrows.",
+    )
+    mode.add_argument(
+        "--ligand-field-split",
+        action="store_true",
+        help="Decompose an atomic orbital (s/p/d/f/...) into point-group irreps (ligand-field splitting).",
     )
     mode.add_argument(
         "--decompose-irrep",
@@ -87,6 +97,11 @@ def build_parser() -> ArgumentParser:
         "--bz",
         action="store_true",
         help="Plot the first Brillouin zone with an automatic (seekpath) or manual k-path as HTML.",
+    )
+    mode.add_argument(
+        "--bz-supercell",
+        action="store_true",
+        help="Plot the unit-cell BZ together with the BZ of a transformed (super)lattice as HTML.",
     )
     mode.add_argument(
         "--xdatcar2adp",
@@ -253,6 +268,13 @@ def build_parser() -> ArgumentParser:
         help='Projection direction in reduced coordinates for phonon-fatband mode, e.g. "0 0 1".',
     )
     parser.add_argument(
+        "--trans-mat",
+        "--trans-matrix",
+        dest="trans_mat",
+        default=None,
+        help='Unit-cell to supercell transformation matrix for bz-supercell mode, e.g. "0 1 2  -1 0 2  1 -1 2".',
+    )
+    parser.add_argument(
         "--xdatcar",
         default="XDATCAR",
         help="Input XDATCAR path for xdatcar2adp mode.",
@@ -402,6 +424,31 @@ def main(argv: list[str] | None = None) -> None:
         phonon_fatband_main(dispatch_argv)
         return
 
+    if args.phonon_lt:
+        if not args.dim:
+            parser.error("--phonon-lt requires --dim.")
+        if args.label and not args.band:
+            parser.error("--label requires --band in phonon-lt mode.")
+
+        dispatch_argv = [
+            "--dim",
+            args.dim,
+            "--poscar",
+            args.poscar,
+        ]
+        _append_optional_flag(dispatch_argv, args.readfc, "--readfc")
+        _append_optional_flag(dispatch_argv, args.nac, "--nac")
+        _append_optional_value(dispatch_argv, "--band", args.band)
+        _append_optional_value(dispatch_argv, "--label", args.label)
+        _append_optional_value(dispatch_argv, "--npoints", args.npoints)
+        _append_optional_value(dispatch_argv, "--output", args.output)
+        _append_optional_value(dispatch_argv, "--tolerance", args.tolerance)
+
+        from .phonon_lt import main as phonon_lt_main
+
+        phonon_lt_main(dispatch_argv)
+        return
+
     if args.phonon_vector:
         if not args.dim:
             parser.error("--phonon-vector requires --dim.")
@@ -431,6 +478,23 @@ def main(argv: list[str] | None = None) -> None:
         phonon_vector_main(dispatch_argv)
         return
 
+    if args.bz_supercell:
+        if not args.trans_mat:
+            parser.error("--bz-supercell requires --trans-mat.")
+
+        dispatch_argv = [
+            "--poscar",
+            args.poscar,
+            "--trans-mat",
+            args.trans_mat,
+        ]
+        _append_optional_value(dispatch_argv, "--output", args.output)
+
+        from .bz_supercell import main as bz_supercell_main
+
+        bz_supercell_main(dispatch_argv)
+        return
+
     if args.xdatcar2adp:
         if not args.dim:
             parser.error("--xdatcar2adp requires --dim.")
@@ -450,6 +514,19 @@ def main(argv: list[str] | None = None) -> None:
         from .xdatcar_adp import main as xdatcar_adp_main
 
         xdatcar_adp_main(dispatch_argv)
+        return
+
+    if args.ligand_field_split:
+        if not args.point_group:
+            parser.error("--ligand-field-split requires --point-group.")
+        if not args.orbital:
+            parser.error("--ligand-field-split requires --orbital.")
+
+        dispatch_argv = ["--point-group", args.point_group, "--orbital", args.orbital]
+
+        from .ligand_field import main as ligand_field_main
+
+        ligand_field_main(dispatch_argv)
         return
 
     if args.decompose_irrep:
@@ -730,7 +807,7 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     parser.error(
-        "Please specify either --salc, --phonon-irrep, --phonon-vector, --phonon-fatband, --direct-product, --decompose-irrep, --modulation, "
+        "Please specify either --salc, --phonon-irrep, --phonon-vector, --phonon-fatband, --phonon-lt, --direct-product, --decompose-irrep, --ligand-field-split, --modulation, "
         "--vibration, --basis-function, --visualize-basis, --star-of-k, --show-coset, "
-        "--generate-basis-function, --bz, or --xdatcar2adp."
+        "--generate-basis-function, --bz, --bz-supercell, or --xdatcar2adp."
     )
