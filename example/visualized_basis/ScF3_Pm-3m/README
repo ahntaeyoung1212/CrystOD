@@ -1,0 +1,8 @@
+# Visualize the crystal orbitals of p states for F based on symmetry-adapted linear combination
+crystod --visualize-basis --poscar 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 0 0 0 --output SALC_F-p_GM.html
+crystod --visualize-basis --poscar 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 0.5 0.5 0.5 --output SALC_F-p_R.html
+
+# Visualize the crystal orbitals of p states for F based on symmetry-adapted linear combination
+crystod --visualize-basis --poscar 221_PPOSCAR_ScF3 --element Sc --orbital d --kpoint 0 0 0 --real-coefficient --output SALC_Sc-d_GM.html
+crystod --visualize-basis --poscar 221_PPOSCAR_ScF3 --element Sc --orbital d --kpoint 0.5 0.5 0.5 --real-coefficient --output SALC_Sc-d_R.html
+
