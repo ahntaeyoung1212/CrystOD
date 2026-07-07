@@ -2,3 +2,6 @@
 crystod --bz --poscar ../test_POSCARs/227_PPOSCAR_Si       
 crystod --bz --poscar ../test_POSCARs/221_PPOSCAR_ScF3
 crystod --bz --poscar ../test_POSCARs/139_PPOSCAR_Sr3Ti2O7 
+
+# Plot the Brillouin zones for cubic and rhombohedral-like ScF3 
+crystod --bz-supercell --poscar ../test_POSCARs/221_PPOSCAR_ScF3 --trans-mat="0 1 2   -1 0 2   1 -1 2"
