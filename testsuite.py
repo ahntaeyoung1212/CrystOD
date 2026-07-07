@@ -830,6 +830,15 @@ def test_21_spin_basis() -> None:
         report("unknown element rejected cleanly",
                code != 0 and "is not in this POSCAR" in out and "Traceback" not in out, out)
 
+        code, out = run_cli(
+            ["--spin-basis", "--poscar", "221_PPOSCAR_AlNi3", "--element", "Ni"],
+            cwd=tmp,
+        )
+        report("survey mode (no --qpoint) exit 0", code == 0, out)
+        report("survey lists all special k points with axial irreps",
+               out.count("k point (primitive)") >= 4
+               and "2.0 [GM4+(3)]" in out and "R4+" in out, out)
+
 
 # ---------------------------------------------------------------- 20. ligand-field-split
 def test_20_ligand_field_split() -> None:

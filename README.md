@@ -447,7 +447,12 @@ Treat the spins on the sites of a magnetic element as axial-vector degrees of fr
 ```bash
 crystod --spin-basis --poscar example/test_POSCARs/221_PPOSCAR_AlNi3 --element Ni --qpoint 0 0 0
 crystod --spin-basis --poscar example/test_POSCARs/221_PPOSCAR_AlNi3 --element Ni --qpoint GM --show-spin-direction
+
+# survey mode: spin-multipole irreps at ALL special k points (as in --salc)
+crystod --spin-basis --poscar example/test_POSCARs/221_PPOSCAR_AlNi3 --element Ni
 ```
+
+When `--qpoint` is omitted, the spin (axial-vector) irrep decomposition is listed for every special k point of the space group — the magnetic counterpart of `--salc --element Ni --orbital p` (e.g. for AlNi3: GM: `2.0 [GM4+(3)] + 1.0 [GM5+(3)]`, R: `R2+ + R3+ + R4+ + R5+`, ...).
 
 For the Mn3Ir-type Ni 3c cluster of AlNi3 this yields `9 dims = 2 x GM4+(3) + GM5+(3)`: the GM4+ (T1g) cluster dipole (FM), the GM4+ (T1g) cluster octupole (AFM: the experimentally realized 120-degree structure of Mn3Ir, which shares the irrep with the dipole and hence allows the anomalous Hall effect), and the GM5+ (T2g) cluster octupole (AFM). Every AFM basis satisfies sum_i S_i = 0 exactly.
 
@@ -482,7 +487,7 @@ Each basis vector is exported as `POSCAR_<formula>_spin_<irrep>_<dipole|octupole
 - `crystod --phonon-fatband --dim nx ny nz --poscar POSCAR [--element EL] [--nac] [--readfc] [--band ... --label ...]`
 - `crystod --bz-supercell --poscar POSCAR --trans-mat "t11 t12 t13  t21 t22 t23  t31 t32 t33" [--output FILE.html]`
 - `crystod --phonon-lt --dim nx ny nz --poscar POSCAR [--nac] [--readfc] [--band ... --label ...]`
-- `crystod --spin-basis --poscar POSCAR --element EL --qpoint QLABEL_OR_QX QY QZ [--show-spin-direction]`
+- `crystod --spin-basis --poscar POSCAR --element EL [--qpoint QLABEL_OR_QX QY QZ] [--show-spin-direction]`
 
 ## Notes
 
@@ -502,7 +507,7 @@ Each basis vector is exported as `POSCAR_<formula>_spin_<irrep>_<dipole|octupole
 - Added `--phonon-fatband`: element-projected phonon fatbands (PDF per element) along an automatic seekpath k-path, computed directly from POSCAR + FORCE_SETS/FORCE_CONSTANTS via the phonopy API. Colored with VESTA default element colors; `--nac` applies the non-analytical term correction (LO/TO splitting) from a `BORN` file.
 - Added `--bz-supercell`: interactive 3D plot of the unit-cell BZ together with the BZ of a transformed (super)lattice, tiled at the |det T| folded supercell reciprocal-lattice points (based on `script/supercell_BZ.py` by Hiroki Koiso).
 - Added `--phonon-lt`: phonon bands colored by longitudinal/transverse character with an optional `--nac` correction (based on `script/LT_phonon_band.py`, after Qijing Zheng), using the exact eigenvector projection onto the propagation direction so that diagonal path segments are also colored correctly.
-- Added `--spin-basis`: symmetry-adapted spin bases (cluster multipoles / SAMM, after M.-T. Suzuki et al.) with FM/AFM separation, multipole-rank naming, per-atom spin directions with a VASP MAGMOM line (`--show-spin-direction`), VESTA export, and automatic magnetic supercells for q != 0.
+- Added `--spin-basis`: symmetry-adapted spin bases (cluster multipoles / SAMM, after M.-T. Suzuki et al.) with FM/AFM separation, multipole-rank naming, per-atom spin directions with a VASP MAGMOM line (`--show-spin-direction`), VESTA export, and automatic magnetic supercells for q != 0. Omitting `--qpoint` lists the spin-multipole irreps at all special k points (as in `--salc`).
 - `--basis-function` now supports the axial-vector components `Rx`, `Ry`, `Rz` (transforming with det(R) R, like magnetic moments), including mixed polar-axial products such as the toroidal `x*Ry - y*Rx`. In space-group mode, omitting `--kpoint` now analyzes all special k points automatically (as in `--salc`).
 - `--dim` now also accepts unquoted values (`--dim 4 4 4`) in all modes.
 - Fixed `--phonon-irrep` with phonopy >= 2.21, where the removed `IrReps.frequencies` property caused an `AttributeError`.
