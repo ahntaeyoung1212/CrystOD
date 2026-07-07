@@ -1,0 +1,4 @@
+# Plot the Brillouin zone for the relevant POSCARs
+crystod --bz --poscar ../test_POSCARs/227_PPOSCAR_Si       
+crystod --bz --poscar ../test_POSCARs/221_PPOSCAR_ScF3
+crystod --bz --poscar ../test_POSCARs/139_PPOSCAR_Sr3Ti2O7 
