@@ -281,7 +281,7 @@ This is the automated counterpart of `--basis-function`: for each requested orde
 - `--show-irrep-table` in SALC mode prints the little-group irrep table at the selected `k` point.
 - `--show-irrep-table` in direct-product mode prints the point-group character table.
 - Some workflows depend on the versions of `phonopy`, `spglib`, `spgrep`, and `irreptables`. `crystod` includes compatibility helpers for newer environments, but keeping these packages reasonably up to date is recommended.
-- Run `python test_new_features.py` (in the repository root, inside the `crystod` environment) to smoke-test the v0.2.1 features, including a Wigner-D regression test.
+- We recommend to run `python testsuite.py` (in the repository root, inside the `crystod` environment) for operation check.
 
 ## Changelog
 
