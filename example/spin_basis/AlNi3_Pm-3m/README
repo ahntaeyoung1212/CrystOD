@@ -261,3 +261,35 @@ Magnetic (commensurate) supercell: 2x2x2
     written to: POSCAR_AlNi3_spin_R5+_R_comp2.vesta
 
 Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+
+
+
+
+# All irreducible representations for multipoles
+crystod --spin-basis --poscar 221_PPOSCAR_AlNi3 --element Ni 
+
+Space group: Pm-3m (#221)
+Magnetic sites: Ni x 3
+  Ni1: [0.5, 0.5, 0.0]
+  Ni2: [0.5, 0.0, 0.5]
+  Ni3: [0.0, 0.5, 0.5]
+
+ * Spin (axial-vector) Irreducible Representations of Ni sites *
+
+ * k point (primitive) *
+ GM [0.0, 0.0, 0.0]
+   2.0 [GM4+(3)] + 1.0 [GM5+(3)]
+
+ * k point (primitive) *
+ R [0.5, 0.5, 0.5]
+   1.0 [R2+(1)] + 1.0 [R3+(2)] + 1.0 [R4+(3)] + 1.0 [R5+(3)]
+
+ * k point (primitive) *
+ M [0.5, 0.5, 0.0]
+   1.0 [M1-(1)] + 1.0 [M3-(1)] + 1.0 [M5+(2)] + 1.0 [M5-(2)] + 1.0 [M2+(1)] + 1.0 [M2-(1)] + 1.0 [M4-(1)]
+
+ * k point (primitive) *
+ X [0.0, 0.5, 0.0]
+   1.0 [X1-(1)] + 1.0 [X3+(1)] + 1.0 [X5+(2)] + 2.0 [X5-(2)] + 1.0 [X2-(1)]
+
+Use --qpoint to obtain the symmetry-adapted spin bases, MAGMOM lines, and VESTA files at one k point.
