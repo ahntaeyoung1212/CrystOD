@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from math import acos, atan2
+from math import acos, atan2, factorial, sqrt
 
 import numpy as np
 from numpy.typing import NDArray
-from sympy import N
-from sympy.physics.wigner import wigner_d_small
 
 
 def characterize_rotation(rotation: NDArray[np.int_]) -> tuple[bool, int]:
@@ -78,100 +76,133 @@ def get_seitz_symbol(rotation: NDArray[np.int_], trans_mat: NDArray[np.float64])
     return prefix + "".join(str(component) for component in direction)
 
 
-def rotation_matrix_to_euler_zyz(rotation: NDArray[np.float64]) -> tuple[float, float, float]:
-    """Convert an SO(3) rotation matrix to ZYZ Euler angles."""
+def rotation_matrix_to_euler_zyz(
+    rotation: NDArray[np.float64], tol: float = 1e-7
+) -> tuple[float, float, float]:
+    """Convert an SO(3) rotation matrix to ZYZ Euler angles (R = Rz(a) Ry(b) Rz(g))."""
     beta = acos(np.clip(rotation[2, 2], -1.0, 1.0))
-    if np.isclose(beta, 0.0):
-        alpha = 0.0
-        gamma = atan2(rotation[1, 0], rotation[0, 0])
-    elif np.isclose(beta, np.pi):
-        alpha = 0.0
-        gamma = -atan2(rotation[1, 0], rotation[0, 0])
-    else:
-        alpha = atan2(rotation[1, 2], rotation[0, 2])
-        gamma = atan2(rotation[2, 1], -rotation[2, 0])
+    if beta < tol:
+        return 0.0, 0.0, atan2(rotation[1, 0], rotation[0, 0])
+    if abs(beta - np.pi) < tol:
+        return 0.0, np.pi, atan2(rotation[1, 0], -rotation[0, 0])
+    alpha = atan2(rotation[1, 2], rotation[0, 2])
+    gamma = atan2(rotation[2, 1], -rotation[2, 0])
     return alpha, beta, gamma
 
 
+def wigner_d_small_matrix(l: int, beta: float) -> NDArray[np.float64]:
+    """Return the small Wigner d matrix d^l(beta) with rows/columns ordered m = -l..l.
+
+    Uses the explicit Wigner sum formula; d[i, j] = d^l_{m' m}(beta) with
+    m' = -l + i and m = -l + j.
+    """
+    size = 2 * l + 1
+    d_matrix = np.zeros((size, size))
+    cos_half = np.cos(beta / 2.0)
+    sin_half = np.sin(beta / 2.0)
+    for i, m_prime in enumerate(range(-l, l + 1)):
+        for j, m in enumerate(range(-l, l + 1)):
+            k_min = max(0, m - m_prime)
+            k_max = min(l + m, l - m_prime)
+            value = 0.0
+            for k in range(k_min, k_max + 1):
+                numerator = sqrt(
+                    factorial(l + m)
+                    * factorial(l - m)
+                    * factorial(l + m_prime)
+                    * factorial(l - m_prime)
+                )
+                denominator = (
+                    factorial(l + m - k)
+                    * factorial(k)
+                    * factorial(m_prime - m + k)
+                    * factorial(l - m_prime - k)
+                )
+                value += (
+                    (-1.0) ** (m_prime - m + k)
+                    * (numerator / denominator)
+                    * cos_half ** (2 * l + m - m_prime - 2 * k)
+                    * sin_half ** (m_prime - m + 2 * k)
+                )
+            d_matrix[i, j] = value
+    return d_matrix
+
+
 def complex_to_real_transform(l: int) -> NDArray[np.complex128]:
-    """Return the complex-to-real spherical-harmonics transformation matrix."""
+    """Return the complex-to-real spherical-harmonics transformation matrix.
+
+    Rows are ordered m = -l..l (sin-type for m < 0, Y_l0, cos-type for m > 0);
+    columns are complex Y_lm ordered m = -l..l with the Condon-Shortley phase:
+    real_row = transform @ [Y_{-l}, ..., Y_{l}].
+    """
     size = 2 * l + 1
     transform = np.zeros((size, size), dtype=complex)
-    m_values = np.arange(-l, l + 1)
-    for row, m in enumerate(m_values):
+    inv_sqrt2 = 1.0 / np.sqrt(2.0)
+    for row, m in enumerate(range(-l, l + 1)):
         if m < 0:
-            transform[row, l + m] = 1j / np.sqrt(2)
-            transform[row, l - m] = -((-1) ** abs(m)) * 1j / np.sqrt(2)
+            # sin-type: i (Y_{-|m|} - (-1)^{|m|} Y_{|m|}) / sqrt(2)
+            transform[row, l + m] = 1j * inv_sqrt2
+            transform[row, l - m] = -((-1.0) ** abs(m)) * 1j * inv_sqrt2
         elif m == 0:
-            transform[row, l] = 1
+            transform[row, l] = 1.0
         else:
-            transform[row, l - m] = 1 / np.sqrt(2)
-            transform[row, l + m] = ((-1) ** abs(m)) / np.sqrt(2)
+            # cos-type: (Y_{-m} + (-1)^m Y_{m}) / sqrt(2)
+            transform[row, l - m] = inv_sqrt2
+            transform[row, l + m] = ((-1.0) ** m) * inv_sqrt2
     return transform
 
 
 def complex_to_real_transform_orbital(l: int) -> NDArray[np.complex128]:
-    """Return the complex-to-real transformation matrix in common orbital order."""
-    size = 2 * l + 1
-    transform = np.zeros((size, size), dtype=complex)
+    """Return the complex-to-real transformation matrix in common orbital order.
+
+    Orbital orderings (columns are Y_lm with m = -l..l):
+      l=1: p_x, p_y, p_z
+      l=2: d_xy, d_yz, d_z2, d_xz, d_x2-y2
+      l=3: f_x(x2-3y2), f_y(3x2-y2), f_z(x2-y2), f_xyz, f_xz2, f_yz2, f_z3
+    """
+    generic = complex_to_real_transform(l)
+
+    def sin_row(m: int) -> NDArray[np.complex128]:
+        return generic[l - abs(m)]
+
+    def cos_row(m: int) -> NDArray[np.complex128]:
+        return generic[l + abs(m)]
 
     if l == 1:
-        transform[0, 0] = 1 / np.sqrt(2)
-        transform[0, 2] = -1 / np.sqrt(2)
-        transform[1, 0] = -1j / np.sqrt(2)
-        transform[1, 2] = -1j / np.sqrt(2)
-        transform[2, 1] = 1
-        return transform
-
+        return np.stack([cos_row(1), sin_row(1), generic[l]])
     if l == 2:
-        transform[0, 0] = 1j / np.sqrt(2)
-        transform[0, 4] = -1j / np.sqrt(2)
-        transform[1, 1] = 1j / np.sqrt(2)
-        transform[1, 3] = 1j / np.sqrt(2)
-        transform[2, 2] = 1
-        transform[3, 1] = 1 / np.sqrt(2)
-        transform[3, 3] = -1 / np.sqrt(2)
-        transform[4, 0] = 1 / np.sqrt(2)
-        transform[4, 4] = 1 / np.sqrt(2)
-        return transform
-
+        return np.stack([sin_row(2), sin_row(1), generic[l], cos_row(1), cos_row(2)])
     if l == 3:
-        transform[0, 0] = 1 / np.sqrt(2)
-        transform[0, 6] = -1 / np.sqrt(2)
-        transform[1, 0] = 1j / np.sqrt(2)
-        transform[1, 6] = 1j / np.sqrt(2)
-        transform[2, 1] = 1 / np.sqrt(2)
-        transform[2, 5] = 1 / np.sqrt(2)
-        transform[3, 1] = 1j / np.sqrt(2)
-        transform[3, 5] = -1j / np.sqrt(2)
-        transform[4, 2] = 1 / np.sqrt(2)
-        transform[4, 4] = -1 / np.sqrt(2)
-        transform[5, 2] = 1j / np.sqrt(2)
-        transform[5, 4] = 1j / np.sqrt(2)
-        transform[6, 3] = 1
-        return transform
-
-    return complex_to_real_transform(l)
+        return np.stack(
+            [cos_row(3), sin_row(3), cos_row(2), sin_row(2), cos_row(1), sin_row(1), generic[l]]
+        )
+    return generic
 
 
 def wigner_D_matrix(l: int, rotation: NDArray[np.float64]) -> NDArray[np.complex128]:
-    """Return the complex Wigner D matrix for an SO(3) rotation."""
-    alpha, beta, gamma = rotation_matrix_to_euler_zyz(rotation)
-    m_values = np.arange(l, -l - 1, -1, dtype=float)
-    if np.isclose(beta, 0.0):
-        d_numeric = np.eye(2 * l + 1, dtype=complex)
-    else:
-        d_numeric = np.array(wigner_d_small(l, beta).applyfunc(N), dtype=complex)
-    left = np.diag(np.exp(1j * m_values * alpha))
-    right = np.diag(np.exp(1j * m_values * gamma))
-    return left @ d_numeric @ right
+    """Return the complex Wigner D matrix for an SO(3) rotation.
+
+    Rows/columns are ordered m = -l..l. The convention is
+    Y_lm(R^{-1} r) = sum_{m'} D^l_{m' m}(R) Y_lm'(r).
+    """
+    alpha, beta, gamma = rotation_matrix_to_euler_zyz(np.asarray(rotation, dtype=float))
+    d_matrix = wigner_d_small_matrix(l, beta)
+    m_values = np.arange(-l, l + 1, dtype=float)
+    left = np.diag(np.exp(-1j * m_values * alpha))
+    right = np.diag(np.exp(-1j * m_values * gamma))
+    return left @ d_matrix @ right
 
 
-def wigner_D_real(l: int, rotation: NDArray[np.float64]) -> NDArray[np.float64 | np.complex128]:
-    """Return the real-basis Wigner D matrix in the orbital ordering used by matsym."""
-    det = float(np.linalg.det(rotation))
-    so3_rotation = det * rotation
-    d_complex = wigner_D_matrix(l, so3_rotation)
+def wigner_D_real(l: int, rotation: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Return the real-orbital-basis representation matrix of an O(3) operation.
+
+    The matrix M satisfies f_j(R^{-1} r) = sum_i M[i, j] f_i(r) where f_i are
+    the real orbitals ordered as in ``complex_to_real_transform_orbital``.
+    Improper operations pick up the parity factor (-1)^l.
+    """
+    rotation = np.asarray(rotation, dtype=float)
+    det_sign = 1.0 if np.linalg.det(rotation) > 0 else -1.0
+    d_complex = wigner_D_matrix(l, det_sign * rotation)
     transform = complex_to_real_transform_orbital(l)
-    d_real = (transform @ d_complex @ np.linalg.inv(transform)) * det
-    return np.real_if_close(d_real)
+    d_real = (transform @ d_complex.T @ np.linalg.inv(transform)).T * (det_sign**l)
+    return np.real(np.real_if_close(d_real))

@@ -594,6 +594,16 @@ def main(argv: list[str] | None = None) -> None:
             )
             print()
             modulation.print_mode_info()
+
+            from .star_of_k import print_star_of_k
+
+            print("\nStar of q (arms related by the space-group rotations):")
+            print_star_of_k(
+                rotations=modulation.vibrations.rotations,
+                translations=modulation.vibrations.translations,
+                kpoint=[float(value) for value in term.qpoint],
+                indent="  ",
+            )
             modulation_cache[qpoint_key] = modulation
             if term_index != len(terms):
                 print()

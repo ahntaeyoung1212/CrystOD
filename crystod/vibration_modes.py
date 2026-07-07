@@ -17,7 +17,13 @@ from numpy.typing import NDArray
 from phonopy.structure.cells import get_primitive_matrix_by_centring
 
 from .irreptables_compat import load_irreptables
-from .runtime_compat import SymmetryDatasetAdapter, get_character, get_little_group
+from .runtime_compat import (
+    SymmetryDatasetAdapter,
+    get_character,
+    get_chemical_symbols,
+    get_little_group,
+    get_scaled_positions,
+)
 from .spglib_compat import ensure_spglib_compat
 
 ensure_spglib_compat()
@@ -129,8 +135,8 @@ class _CoreRepresentation:
         translation: NDArray[np.float64],
         kpoint: list[float],
     ) -> NDArray[np.complex128]:
-        num_atom = len(self.primitive_cell.get_scaled_positions())
-        positions = self.primitive_cell.get_scaled_positions()
+        positions = get_scaled_positions(self.primitive_cell)
+        num_atom = len(positions)
         matrix = np.zeros((num_atom, num_atom), dtype=complex)
         for i, pos_in in enumerate(positions):
             pos_rot = np.dot(rotation, pos_in) + translation
@@ -361,7 +367,7 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         n_atoms = len(primitive.scaled_positions)
         lattice = primitive.cell
         frac_pos = primitive.scaled_positions
-        symbols_prim = primitive.get_chemical_symbols()
+        symbols_prim = get_chemical_symbols(primitive)
         mode = mode_vector.reshape((-1, 3))
         n1, n2, n3 = supercell_size
 

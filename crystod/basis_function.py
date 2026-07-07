@@ -411,6 +411,26 @@ def _decompose_by_operations(
     return results
 
 
+def _sympify_character(value, tol: float = 1e-6):
+    """Convert a numeric character to an exact sympy value.
+
+    Characters coming from spgrep/irreptables are complex floats carrying
+    numerical noise (e.g. -2.0000000000000004 + 6.7e-16j). Feeding these to
+    nsimplify directly yields astronomically large exact rationals, so the
+    real and imaginary parts are chopped and simplified with a tolerance
+    first (crystallographic characters are sums of roots of unity).
+    """
+    from sympy import I, Integer
+
+    value = complex(value)
+    real = 0.0 if abs(value.real) < tol else value.real
+    imag = 0.0 if abs(value.imag) < tol else value.imag
+    result = nsimplify(real, tolerance=tol) if real else Integer(0)
+    if imag:
+        result += nsimplify(imag, tolerance=tol) * I
+    return result
+
+
 def _project_spacegroup_irrep_basis(
     basis_expressions: list,
     rep_matrices: list[Matrix],
@@ -424,7 +444,7 @@ def _project_spacegroup_irrep_basis(
         rows = []
         identity = Matrix.eye(rep_matrices[0].shape[0])
         for rep_matrix, character in zip(rep_matrices, irrep_characters):
-            char_value = nsimplify(character)
+            char_value = _sympify_character(character)
             rows.extend((rep_matrix - char_value * identity).tolist())
 
         functions = []
@@ -440,7 +460,7 @@ def _project_spacegroup_irrep_basis(
 
     projector = Matrix.zeros(*rep_matrices[0].shape)
     for rep_matrix, character in zip(rep_matrices, irrep_characters):
-        projector += nsimplify(np.conjugate(character)) * rep_matrix
+        projector += _sympify_character(np.conjugate(character)) * rep_matrix
     projector *= Rational(irrep_dimension, group_order)
 
     functions = []

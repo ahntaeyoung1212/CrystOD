@@ -48,6 +48,26 @@ def build_parser() -> ArgumentParser:
         default=None,
         help="Classify polynomial basis functions in a point group, e.g. x y z.",
     )
+    mode.add_argument(
+        "--visualize-basis",
+        action="store_true",
+        help="Construct and visualize symmetry-adapted crystal-orbital (SALC) basis functions.",
+    )
+    mode.add_argument(
+        "--star-of-k",
+        action="store_true",
+        help="Display the star of a k point for the space group of a structure.",
+    )
+    mode.add_argument(
+        "--show-coset",
+        action="store_true",
+        help="Display coset decompositions of a point group or of a space group at k.",
+    )
+    mode.add_argument(
+        "--generate-basis-function",
+        action="store_true",
+        help="Auto-generate 1st-3rd order polynomial basis functions per irrep.",
+    )
 
     parser.add_argument("--poscar", default="POSCAR", help="POSCAR path.")
     parser.add_argument(
@@ -157,6 +177,24 @@ def build_parser() -> ArgumentParser:
         "--export-npz",
         default=None,
         help="Optional .npz export path for vibration mode data.",
+    )
+    parser.add_argument(
+        "--subgroup",
+        default=None,
+        help="Subgroup point-group label for show-coset mode, e.g. 4/mmm.",
+    )
+    parser.add_argument(
+        "--order",
+        nargs="+",
+        type=int,
+        choices=[1, 2, 3],
+        default=None,
+        help="Polynomial order(s) for generate-basis-function mode.",
+    )
+    parser.add_argument(
+        "--real-coefficient",
+        action="store_true",
+        help="Re-combine degenerate SALC components into real-coefficient form (visualize-basis mode).",
     )
     return parser
 
@@ -321,6 +359,90 @@ def main(argv: list[str] | None = None) -> None:
         basis_function_main(dispatch_argv)
         return
 
+    if args.visualize_basis:
+        if not args.element or not args.orbital:
+            parser.error("--visualize-basis requires --element and --orbital.")
+        if args.kpoint is None:
+            parser.error("--visualize-basis requires --kpoint.")
+
+        dispatch_argv = [
+            "--poscar",
+            args.poscar,
+            "--element",
+            args.element,
+            "--orbital",
+            args.orbital,
+        ]
+        _append_optional_kpoint(dispatch_argv, args.kpoint)
+        _append_optional_value(dispatch_argv, "--tolerance", args.tolerance)
+        _append_optional_value(dispatch_argv, "--mode-index", args.mode_index)
+        _append_optional_value(dispatch_argv, "--output", args.output)
+        _append_optional_flag(dispatch_argv, args.real_coefficient, "--real-coefficient")
+
+        from .visualize_basis import main as visualize_basis_main
+
+        visualize_basis_main(dispatch_argv)
+        return
+
+    if args.star_of_k:
+        if args.kpoint is None:
+            parser.error("--star-of-k requires --kpoint.")
+
+        dispatch_argv = [
+            "--poscar",
+            args.poscar,
+        ]
+        _append_optional_kpoint(dispatch_argv, args.kpoint)
+        _append_optional_value(dispatch_argv, "--tolerance", args.tolerance)
+
+        from .star_of_k import main as star_of_k_main
+
+        star_of_k_main(dispatch_argv)
+        return
+
+    if args.show_coset:
+        if bool(args.point_group) == bool(args.space_group):
+            parser.error("--show-coset requires exactly one of --point-group or --space-group.")
+        if args.point_group and not args.subgroup:
+            parser.error("--show-coset with --point-group requires --subgroup.")
+        if args.space_group and args.kpoint is None:
+            parser.error("--show-coset with --space-group requires --kpoint.")
+
+        dispatch_argv: list[str] = []
+        if args.point_group:
+            dispatch_argv.extend(["--point-group", args.point_group, "--subgroup", args.subgroup])
+        else:
+            dispatch_argv.extend(["--space-group", args.space_group])
+            dispatch_argv.extend(["--kpoint", *[str(value) for value in args.kpoint]])
+
+        from .coset import main as coset_main
+
+        coset_main(dispatch_argv)
+        return
+
+    if args.generate_basis_function:
+        if bool(args.point_group) == bool(args.space_group):
+            parser.error(
+                "--generate-basis-function requires exactly one of --point-group or --space-group."
+            )
+        if args.space_group and args.kpoint is None:
+            parser.error("--generate-basis-function with --space-group requires --kpoint.")
+
+        dispatch_argv = []
+        if args.point_group:
+            dispatch_argv.extend(["--point-group", args.point_group])
+        else:
+            dispatch_argv.extend(["--space-group", args.space_group])
+            dispatch_argv.extend(["--kpoint", *[str(value) for value in args.kpoint]])
+        if args.order:
+            dispatch_argv.extend(["--order", *[str(value) for value in args.order]])
+        _append_optional_flag(dispatch_argv, args.show_irrep_table, "--show-irrep-table")
+
+        from .generate_basis_function import main as generate_basis_function_main
+
+        generate_basis_function_main(dispatch_argv)
+        return
+
     if args.modulation:
         if (
             args.poscar != "POSCAR"
@@ -411,4 +533,8 @@ def main(argv: list[str] | None = None) -> None:
         vibration_main(dispatch_argv)
         return
 
-    parser.error("Please specify either --salc, --phonon-irrep, --direct-product, --modulation, --vibration, or --basis-function.")
+    parser.error(
+        "Please specify either --salc, --phonon-irrep, --direct-product, --modulation, "
+        "--vibration, --basis-function, --visualize-basis, --star-of-k, --show-coset, "
+        "or --generate-basis-function."
+    )
