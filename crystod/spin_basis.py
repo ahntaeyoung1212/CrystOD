@@ -79,8 +79,9 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--qpoint",
         nargs="+",
-        default=["0", "0", "0"],
-        help="Either a high-symmetry label such as GM/X/M/R or three primitive reciprocal coordinates.",
+        default=None,
+        help="Either a high-symmetry label such as GM/X/M/R or three primitive reciprocal coordinates. "
+        "When omitted, the spin-multipole irreps at all special k points are listed (as in --salc).",
     )
     parser.add_argument(
         "--show-spin-direction",
@@ -357,6 +358,37 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Magnetic sites: {args.element} x {n_sites}")
     for k, index in enumerate(site_indices):
         print(f"  {args.element}{k + 1}: {np.round(positions[index], 6).tolist()}")
+
+    if args.qpoint is None:
+        # survey mode (as in --salc without --kpoint): spin-multipole irreps
+        # at every special k point of the space group
+        from phonopy.structure.cells import get_primitive_matrix_by_centring
+
+        from .irreptables_compat import load_irreptables
+        from .phonon_irreps import get_irt_special_points
+        from .runtime_compat import get_character
+
+        IrrepTable, _ = load_irreptables()
+        dataset = vibrations.spglib_dataset
+        irt_table = IrrepTable(dataset["number"], spinor=False)
+        primitive_matrix = get_primitive_matrix_by_centring(dataset["international"][0])
+        q_names, q_list = get_irt_special_points(irt_table, primitive_matrix)
+
+        print(f"\n * Spin (axial-vector) Irreducible Representations of {args.element} sites *")
+        for name, q in zip(q_names, q_list):
+            irreps, spin_rep, mapping = get_spin_representation(vibrations, site_indices, q)
+            labels = vibrations.get_irrep_labels(q, irreps, mapping)
+            rep_characters = np.array([np.trace(matrix) for matrix in spin_rep])
+            terms = []
+            for irrep, label in zip(irreps, labels):
+                characters = np.array(get_character(irrep), dtype=complex)
+                count = int(round(float(np.real(np.dot(rep_characters, np.conj(characters)))) / len(spin_rep)))
+                if count > 0:
+                    terms.append(f"{count}.0 [{label}]")
+            print(f"\n * k point (primitive) * \n {name} {q}")
+            print(f"   {' + '.join(terms)}")
+        print("\nUse --qpoint to obtain the symmetry-adapted spin bases, MAGMOM lines, and VESTA files at one k point.")
+        return
 
     qpoint_label, qpoint = vibrations.resolve_qpoint(args.qpoint)
     is_gamma = np.allclose(qpoint, 0.0)

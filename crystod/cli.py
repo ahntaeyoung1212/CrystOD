@@ -773,17 +773,15 @@ def main(argv: list[str] | None = None) -> None:
     if args.spin_basis:
         if not args.element:
             parser.error("--spin-basis requires --element.")
-        if not args.qpoint:
-            parser.error("--spin-basis requires --qpoint.")
 
         dispatch_argv = [
             "--poscar",
             args.poscar,
             "--element",
             args.element,
-            "--qpoint",
-            *[str(value) for value in args.qpoint],
         ]
+        if args.qpoint:
+            dispatch_argv.extend(["--qpoint", *[str(value) for value in args.qpoint]])
         _append_optional_flag(dispatch_argv, args.show_spin_direction, "--show-spin-direction")
         if args.amplitude:
             dispatch_argv.extend(["--amplitude", str(args.amplitude[0])])
