@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, RawDescriptionHelpFormatter, RawTextHelpFormatter
 from fractions import Fraction
+from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
@@ -317,7 +319,7 @@ def _print_salc_coefficients(
 # 3D HTML visualization
 # --------------------------------------------------------------------------
 
-_ATOM_COLORS = {
+_FALLBACK_ATOM_COLORS = {
     "H": "#f0f0f0", "C": "#555555", "N": "#3050f8", "O": "#ff0d0d",
     "F": "#90e050", "Na": "#ab5cf2", "Mg": "#8aff00", "Al": "#bfa6a6",
     "Si": "#f0c8a0", "P": "#ff8000", "S": "#ffff30", "Cl": "#1ff01f",
@@ -326,6 +328,31 @@ _ATOM_COLORS = {
     "Co": "#f090a0", "Ni": "#50d050", "Cu": "#c88033", "Zn": "#7d80b0",
     "Sr": "#00ff00", "Ba": "#00c900", "O2": "#ff0d0d",
 }
+
+
+def _rgb_to_hex(rgb: list[int]) -> str:
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+
+@lru_cache(maxsize=1)
+def _load_atom_colors() -> dict[str, str]:
+    color_path = Path(__file__).with_name("vesta_element_rgb.json")
+    try:
+        payload = json.loads(color_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return dict(_FALLBACK_ATOM_COLORS)
+
+    colors = dict(_FALLBACK_ATOM_COLORS)
+    for symbol, rgb in payload.items():
+        if symbol.startswith("_") or rgb is None:
+            continue
+        if (
+            isinstance(rgb, list)
+            and len(rgb) == 3
+            and all(isinstance(channel, int) and 0 <= channel <= 255 for channel in rgb)
+        ):
+            colors[symbol] = _rgb_to_hex(rgb)
+    return colors
 
 
 def _lattice_edge_traces(lattice: NDArray[np.float64], supercell_size: tuple[int, int, int]):
@@ -362,6 +389,7 @@ def _atom_traces(
     positions: NDArray[np.float64],
     symbols: list[str],
 ) -> list[dict]:
+    atom_colors = _load_atom_colors()
     traces = []
     for symbol in sorted(set(symbols)):
         indices = [index for index, s in enumerate(symbols) if s == symbol]
@@ -374,7 +402,7 @@ def _atom_traces(
                 "z": positions[indices, 2].tolist(),
                 "marker": {
                     "size": 6,
-                    "color": _ATOM_COLORS.get(symbol, "#cccccc"),
+                    "color": atom_colors.get(symbol, "#cccccc"),
                     "line": {"color": "#333333", "width": 1},
                 },
                 "name": symbol,

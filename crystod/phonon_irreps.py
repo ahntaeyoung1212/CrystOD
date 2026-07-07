@@ -151,7 +151,10 @@ def get_irrep_labels(
     mapping_to_irt = get_mapping_to_irt(irt_little_r, phonon_little_r, prim_mat)
 
     band_indices = phonon_irreps.band_indices
-    frequencies = phonon_irreps.frequencies
+    frequencies = getattr(phonon_irreps, "frequencies", None)
+    if frequencies is None:
+        # phonopy >= 2.21 dropped the public property; fall back to the internal array.
+        frequencies = getattr(phonon_irreps, "_freqs")
     phonon_irreps_characters = phonon_irreps.characters
 
     labels: list[list[str] | None] = []

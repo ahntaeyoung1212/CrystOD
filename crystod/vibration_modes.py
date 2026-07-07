@@ -109,18 +109,24 @@ def build_parser() -> ArgumentParser:
 
 
 class _CoreRepresentation:
-    def __init__(self, cell: PhonopyAtoms, symprec: float = 1e-5):
-        primitive_lattice, primitive_pos, primitive_numbers = spglib.standardize_cell(
-            cell.totuple(),
-            to_primitive=True,
-            symprec=symprec,
-        )
-        self.primitive_cell = PhonopyAtoms(
-            numbers=primitive_numbers,
-            scaled_positions=primitive_pos,
-            cell=primitive_lattice,
-        )
-        print("\n ### Inputed cell was converted into primitive cell. ###")
+    def __init__(self, cell: PhonopyAtoms, symprec: float = 1e-5, standardize: bool = True):
+        if standardize:
+            primitive_lattice, primitive_pos, primitive_numbers = spglib.standardize_cell(
+                cell.totuple(),
+                to_primitive=True,
+                symprec=symprec,
+            )
+            self.primitive_cell = PhonopyAtoms(
+                numbers=primitive_numbers,
+                scaled_positions=primitive_pos,
+                cell=primitive_lattice,
+            )
+            print("\n ### Inputed cell was converted into primitive cell. ###")
+        else:
+            # Keep the input cell as-is (it must already be primitive). This
+            # preserves the caller's atom positions so that phase conventions
+            # stay consistent with an externally built dynamical matrix.
+            self.primitive_cell = cell
 
         dataset = SymmetryDatasetAdapter(
             spglib.get_symmetry_dataset(self.primitive_cell.totuple(), symprec=symprec)
@@ -173,8 +179,8 @@ class _CoreRepresentation:
 
 
 class SymmetryOnlyVibrations(_CoreRepresentation):
-    def __init__(self, cell: PhonopyAtoms, symprec: float = 1e-5):
-        super().__init__(cell=cell, symprec=symprec)
+    def __init__(self, cell: PhonopyAtoms, symprec: float = 1e-5, standardize: bool = True):
+        super().__init__(cell=cell, symprec=symprec, standardize=standardize)
         lattice_t = np.transpose(self.primitive_cell.cell)
         lattice_t_inv = np.linalg.inv(lattice_t)
         self.rotations_cartesian = np.array(

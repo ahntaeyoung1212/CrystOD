@@ -21,4 +21,4 @@ __all__ = [
     "wigner_D_real",
 ]
 
-__version__ = "0.2.1"
+__version__ = "0.2.3"
