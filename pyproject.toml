@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CrystOD"
-version = "0.2.1"
+version = "0.2.3"
 authors = [
   {name = "Yasuhide Mochizuki"},
   {email = "mochizuki@rs.tus.ac.jp"},
@@ -24,6 +24,8 @@ dependencies = [
   "pandas",
   "openpyxl",
   "sympy",
+  "scipy",
+  "seekpath",
 ]
 
 [project.scripts]

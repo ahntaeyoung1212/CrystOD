@@ -21,6 +21,11 @@ Sections:
   10. --show-coset              coset decompositions
   11. --generate-basis-function automatic polynomial bases
   12. --visualize-basis         SALC coefficients + 3D HTML
+  13. --bz                      Brillouin-zone plot (seekpath auto k-path)
+  14. --phonon-vector          phonon eigenvector VESTA export (phonopy data)
+  15. --decompose-irrep        reducible-representation decomposition
+  16. --xdatcar2adp            ADPs from an MD XDATCAR trajectory
+  17. --phonon-fatband         element-projected phonon fatbands (phonopy data)
 """
 
 from __future__ import annotations
@@ -39,6 +44,9 @@ POSCAR_ScF3 = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_ScF3")
 POSCAR_SrTiO3 = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_SrTiO3")
 MODULATION_DIR = os.path.join(ROOT, "example", "modulation", "ScF3_Pm-3m")
 PHONON_IRREP_DIR = os.path.join(ROOT, "example", "phonon_irrep", "SrTiO3_Pm-3m")
+PHONON_VECTOR_DIR = os.path.join(ROOT, "example", "phonon_irrep", "Si_Fd-3m")
+XDATCAR_ADP_DIR = os.path.join(ROOT, "example", "xdatcar2adp", "ScF3_Pm-3m_NpT_300K")
+PHONON_FATBAND_DIR = os.path.join(ROOT, "example", "phonon_fatband", "ScF3_Pm-3m")
 
 PASS = 0
 FAIL = 0
@@ -385,6 +393,7 @@ def test_12_visualize_basis() -> None:
             text = open(html).read()
             report("HTML contains plotly + dropdown menu",
                    "plotly" in text and "updatemenus" in text)
+            report("HTML uses VESTA F color", "#b0b9e6" in text, text[:4000])
 
         html_m = os.path.join(tmp, "salc_M.html")
         code, out = run_cli(
@@ -393,6 +402,277 @@ def test_12_visualize_basis() -> None:
         )
         report("k = M (supercell + Bloch phase) exit 0", code == 0, out)
         report("k = M HTML created", os.path.isfile(html_m))
+
+
+def test_13_bz() -> None:
+    print("\n[13] --bz (Brillouin-zone plot)")
+    with tempfile.TemporaryDirectory() as tmp:
+        html = os.path.join(tmp, "BZ_ScF3.html")
+        code, out = run_cli(["--bz", "--poscar", POSCAR_ScF3, "--output", html])
+        report("auto k-path exit 0", code == 0, out)
+        report("space group detected (Pm-3m #221)", "Pm-3m" in out and "221" in out, out)
+        report("seekpath k-path printed",
+               "GAMMA" in out and all(label in out for label in ("X", "M", "R")), out)
+        exists = os.path.isfile(html)
+        report("HTML file created", exists)
+        if exists:
+            text = open(html).read()
+            report("HTML contains plotly + BZ traces",
+                   "plotly" in text and "scatter3d" in text and "goldenrod" in text)
+            report("Gamma label present", "\\u0393" in text or "\u0393" in text)
+
+        # default output name: BZ_{POSCAR name}.html in cwd
+        code, out = run_cli(["--bz", "--poscar", POSCAR_ScF3], cwd=tmp)
+        default_html = os.path.join(tmp, "BZ_221_PPOSCAR_ScF3.html")
+        report("default output name exit 0", code == 0, out)
+        report("BZ_221_PPOSCAR_ScF3.html auto-created", os.path.isfile(default_html))
+
+        # manual --band/--label mode
+        html_manual = os.path.join(tmp, "BZ_manual.html")
+        code, out = run_cli(
+            ["--bz", "--poscar", POSCAR_ScF3,
+             "--band", "0 0 0  0 1/2 0  1/2 1/2 0  0 0 0  1/2 1/2 1/2  0 1/2 0, 1/2 1/2 0  1/2 1/2 1/2",
+             "--label", "GM X M GM R X M R",
+             "--output", html_manual]
+        )
+        report("manual --band/--label exit 0", code == 0, out)
+        report("manual path: 2 segments", "2 segment" in out, out)
+        report("manual HTML created", os.path.isfile(html_manual))
+
+        # error handling: label count mismatch
+        code, out = run_cli(
+            ["--bz", "--poscar", POSCAR_ScF3,
+             "--band", "0 0 0  1/2 1/2 1/2", "--label", "GM", "--output", html_manual]
+        )
+        report("label count mismatch rejected cleanly",
+               code != 0 and "ERROR" in out and "Traceback" not in out, out)
+
+
+# ---------------------------------------------------------------- 14. phonon-vector
+def test_14_phonon_vector() -> None:
+    print("\n[14] --phonon-vector (Si, 4x4x4 FC)")
+    if not os.path.isdir(PHONON_VECTOR_DIR):
+        report("example data found", False, PHONON_VECTOR_DIR)
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        for name in ("227_PPOSCAR_Si", "FORCE_CONSTANTS"):
+            shutil.copy(os.path.join(PHONON_VECTOR_DIR, name), tmp)
+
+        code, out = run_cli(
+            ["--phonon-vector", "--dim", "4 4 4", "--poscar", "227_PPOSCAR_Si",
+             "--readfc", "--qpoint", "GM"],
+            cwd=tmp,
+        )
+        report("mode table exit 0", code == 0, out)
+        report("acoustic modes labeled GM4-", "GM4-" in out, out)
+        report("optical modes labeled GM5+", "GM5+" in out, out)
+
+        code, out = run_cli(
+            ["--phonon-vector", "--dim", "4 4 4", "--poscar", "227_PPOSCAR_Si",
+             "--readfc", "--qpoint", "GM", "--mode", "3"],
+            cwd=tmp,
+        )
+        vesta_path = os.path.join(tmp, "POSCAR_Si_GM_mode3.vesta")
+        report("GM mode 3 export exit 0", code == 0, out)
+        report("VESTA file written with auto name", os.path.isfile(vesta_path))
+        if os.path.isfile(vesta_path):
+            text = open(vesta_path).read()
+            report("VESTA file contains arrows (VECTR/VECTT)",
+                   "VECTR" in text and "VECTT" in text, text[:500])
+            report("VESTA title carries irrep label", "GM5+" in text, text[:500])
+
+        code, out = run_cli(
+            ["--phonon-vector", "--dim", "4 4 4", "--poscar", "227_PPOSCAR_Si",
+             "--readfc", "--qpoint", "X", "--mode", "0"],
+            cwd=tmp,
+        )
+        report("X point export exit 0", code == 0, out)
+        report("commensurate 2x1x2 supercell built", "2x1x2" in out, out)
+        report("X VESTA file written",
+               os.path.isfile(os.path.join(tmp, "POSCAR_Si_X_mode0.vesta")))
+
+        code, out = run_cli(
+            ["--phonon-vector", "--dim", "4 4 4", "--poscar", "227_PPOSCAR_Si",
+             "--readfc", "--qpoint", "GM", "--mode", "3", "--conventional"],
+            cwd=tmp,
+        )
+        conv_path = os.path.join(tmp, "POSCAR_Si_GM_mode3_conv.vesta")
+        report("conventional export exit 0", code == 0, out)
+        report("conventional VESTA written with _conv suffix", os.path.isfile(conv_path))
+        if os.path.isfile(conv_path):
+            text = open(conv_path).read()
+            report("conventional cubic cell (a = 5.4687)", "5.468728" in text, text[:400])
+            arrows = re.findall(
+                r"^\s*\d+\s+(-?\d\.\d+)\s+(-?\d\.\d+)\s+(-?\d\.\d+)\s*$",
+                text.split("VECTR")[1].split("VECTT")[0], re.M,
+            )
+            axis_pure = bool(arrows) and all(
+                abs(float(a)) < 1e-5 and abs(float(b)) < 1e-5 and abs(abs(float(c)) - 1.5) < 1e-4
+                for a, b, c in arrows
+            )
+            report("GM mode 3 arrows purely along c in conventional cell", axis_pure)
+
+        code, out = run_cli(
+            ["--phonon-vector", "--dim", "4 4 4", "--poscar", "227_PPOSCAR_Si",
+             "--readfc", "--qpoint", "GM", "--mode", "3", "4", "5", "--conventional"],
+            cwd=tmp,
+        )
+        sum_path = os.path.join(tmp, "POSCAR_Si_GM_mode3+4+5_conv.vesta")
+        report("multi-mode sum export exit 0", code == 0, out)
+        report("summed modes written to one file", os.path.isfile(sum_path))
+        if os.path.isfile(sum_path):
+            text = open(sum_path).read()
+            arrows = re.findall(
+                r"^\s*\d+\s+(-?\d\.\d+)\s+(-?\d\.\d+)\s+(-?\d\.\d+)\s*$",
+                text.split("VECTR")[1].split("VECTT")[0], re.M,
+            )
+            along_111 = bool(arrows) and all(
+                abs(abs(float(a)) - 1.5 / np.sqrt(3.0)) < 1e-4
+                and float(a) == float(b) == float(c)
+                for a, b, c in arrows
+            )
+            report("mode 3+4+5 sum points along [111]", along_111)
+
+    # symmetry-adapted directions: degenerate GM optical modes must point
+    # along the cubic axes, not arbitrary combinations within the subspace
+    from phonopy import load as phonopy_load
+    from crystod.phonon_vector import build_symmetry_adapted_modes
+
+    phonon = phonopy_load(
+        supercell_matrix=[4.0, 4.0, 4.0],
+        primitive_matrix="auto",
+        unitcell_filename=os.path.join(PHONON_VECTOR_DIR, "227_PPOSCAR_Si"),
+        force_constants_filename=os.path.join(PHONON_VECTOR_DIR, "FORCE_CONSTANTS"),
+    )
+    modes = build_symmetry_adapted_modes(phonon, [0.0, 0.0, 0.0])
+    aligned = True
+    for index in (3, 4, 5):
+        vector = np.real(modes[index][1]).reshape(-1, 3)[0]
+        aligned &= bool(
+            (np.sort(np.abs(vector))[:2] < 1e-6).all() and np.abs(vector).max() > 0.1
+        )
+    report("GM optical eigenvectors axis-aligned (symmetry-adapted)", aligned)
+    freqs = [round(mode[0], 4) for mode in modes]
+    report("symmetry-adapted frequencies match phonopy",
+           freqs == [0.0, 0.0, 0.0, 14.9571, 14.9571, 14.9571],
+           str(freqs))
+
+
+# ---------------------------------------------------------------- 15. decompose-irrep
+def test_15_decompose_irrep() -> None:
+    print("\n[15] --decompose-irrep")
+    code, out = run_cli(
+        ["--decompose-irrep", "--point-group", "3m", "--characters", "3", "0", "1"]
+    )
+    report("3m with characters 3 0 1 exit 0", code == 0, out)
+    report("3 0 1 in 3m -> A1 + E", "1(A1)" in out and "1(E)" in out and "(A2)" not in out, out)
+
+    code, out = run_cli(
+        ["--decompose-irrep", "--point-group", "m-3m",
+         "--characters", "9", "0", "1", "3", "-1", "-3", "0", "5", "1", "3"]
+    )
+    report("m-3m Gamma-point ScF3-like rep exit 0", code == 0, out)
+
+    code, out = run_cli(["--decompose-irrep", "--point-group", "xyz", "--characters", "1"])
+    report("unknown point group rejected cleanly",
+           code != 0 and "not in the available point groups" in out and "Traceback" not in out, out)
+
+    code, out = run_cli(["--decompose-irrep", "--point-group", "3m", "--characters", "3", "0"])
+    report("wrong character count rejected cleanly",
+           code != 0 and "3 characters are required" in out and "Traceback" not in out, out)
+
+
+# ---------------------------------------------------------------- 17. phonon-fatband
+def test_17_phonon_fatband() -> None:
+    print("\n[17] --phonon-fatband (ScF3, 4x4x4 FORCE_SETS)")
+    if not os.path.isdir(PHONON_FATBAND_DIR):
+        report("example data found", False, PHONON_FATBAND_DIR)
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        for name in ("221_PPOSCAR_ScF3", "FORCE_SETS"):
+            shutil.copy(os.path.join(PHONON_FATBAND_DIR, name), tmp)
+
+        code, out = run_cli(
+            ["--phonon-fatband", "--poscar", "221_PPOSCAR_ScF3", "--dim", "4", "4", "4",
+             "--npoints", "11"],
+            cwd=tmp,
+        )
+        report("exit code 0", code == 0, out)
+        report("Pm-3m and seekpath k-path detected",
+               "Pm-3m" in out and "k-path (seekpath)" in out, out)
+        report("fatband_Sc.pdf written", os.path.isfile(os.path.join(tmp, "fatband_Sc.pdf")))
+        report("fatband_F.pdf written", os.path.isfile(os.path.join(tmp, "fatband_F.pdf")))
+
+        code, out = run_cli(
+            ["--phonon-fatband", "--poscar", "221_PPOSCAR_ScF3", "--dim", "4", "4", "4",
+             "--npoints", "11", "--element", "F"],
+            cwd=tmp,
+        )
+        report("single-element mode exit 0", code == 0, out)
+
+        code, out = run_cli(
+            ["--phonon-fatband", "--poscar", "221_PPOSCAR_ScF3", "--dim", "4", "4", "4",
+             "--npoints", "11", "--element", "Xx"],
+            cwd=tmp,
+        )
+        report("unknown element rejected cleanly",
+               code != 0 and "is not in this compound" in out and "Traceback" not in out, out)
+
+        code, out = run_cli(
+            ["--phonon-fatband", "--poscar", "221_PPOSCAR_ScF3", "--dim", "4", "4", "4",
+             "--npoints", "11", "--nac", "--element", "F"],
+            cwd=tmp,
+        )
+        report("--nac without BORN rejected cleanly",
+               code != 0 and "requires a BORN file" in out and "Traceback" not in out, out)
+
+        born_path = os.path.join(PHONON_FATBAND_DIR, "BORN")
+        if os.path.isfile(born_path):
+            shutil.copy(born_path, tmp)
+            code, out = run_cli(
+                ["--phonon-fatband", "--poscar", "221_PPOSCAR_ScF3", "--dim", "4", "4", "4",
+                 "--npoints", "11", "--nac", "--element", "F"],
+                cwd=tmp,
+            )
+            report("--nac with BORN exit 0", code == 0, out)
+            report("NAC announced and fatband_nac_F.pdf written",
+                   "NAC (LO/TO splitting) enabled" in out
+                   and os.path.isfile(os.path.join(tmp, "fatband_nac_F.pdf")), out)
+        else:
+            report("BORN example found (skipping --nac run)", False, born_path)
+
+
+# ---------------------------------------------------------------- 16. xdatcar2adp
+def test_16_xdatcar2adp() -> None:
+    print("\n[16] --xdatcar2adp (ScF3 NpT 300K, truncated trajectory)")
+    source = os.path.join(XDATCAR_ADP_DIR, "XDATCAR")
+    if not os.path.isfile(source):
+        report("example data found", False, source)
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        # 293 frames x 264 lines each (NpT trajectory with repeated headers)
+        destination = os.path.join(tmp, "XDATCAR")
+        with open(source) as fin, open(destination, "w") as fout:
+            for line_number, line in enumerate(fin):
+                if line_number >= 77352:
+                    break
+                fout.write(line)
+
+        code, out = run_cli(
+            ["--xdatcar2adp", "--dim", "4", "4", "4", "--start-step", "100",
+             "--output", "ADP_test.cif"],
+            cwd=tmp,
+        )
+        report("exit code 0", code == 0, out)
+        report("Pm-3m detected from time-averaged structure", "Pm-3m" in out, out)
+        report("Sc ADP constrained isotropic", "U11=U22, U11=U33" in out, out)
+        cif_path = os.path.join(tmp, "ADP_test.cif")
+        report("ADP CIF written", os.path.isfile(cif_path))
+        if os.path.isfile(cif_path):
+            text = open(cif_path).read()
+            report("CIF contains aniso U loop and both sites",
+                   "_atom_site_aniso_U_11" in text and "Sc0" in text and "F1" in text,
+                   text[:600])
 
 
 SECTIONS = {
@@ -408,6 +688,11 @@ SECTIONS = {
     10: test_10_show_coset,
     11: test_11_generate_basis_function,
     12: test_12_visualize_basis,
+    13: test_13_bz,
+    14: test_14_phonon_vector,
+    15: test_15_decompose_irrep,
+    16: test_16_xdatcar2adp,
+    17: test_17_phonon_fatband,
 }
 
 
