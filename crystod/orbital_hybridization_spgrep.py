@@ -32,6 +32,7 @@ from .operations import (
     conjugated_little_group_map,
     find_star_arm,
     get_seitz_symbol,
+    snap_qpoint,
 )
 from argparse import ArgumentParser, RawTextHelpFormatter, RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter
 import numpy as np
@@ -178,7 +179,7 @@ class CrystalOrbital:
         kpoint_names = []
         primitive_kpoints = []
         for irrep in self.irt_character_table.irreps:
-            primitive_k = list(np.round(np.array(irrep.k) @ self.transformation_matrix, 6))
+            primitive_k = snap_qpoint(np.array(irrep.k) @ self.transformation_matrix)
             if primitive_k not in primitive_kpoints:
                 primitive_kpoints.append(primitive_k)
                 kpoint_names.append(irrep.kpname)

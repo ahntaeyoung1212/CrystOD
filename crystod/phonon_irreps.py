@@ -30,6 +30,7 @@ from phonopy import load
 from phonopy.structure.cells import get_primitive_matrix_by_centring
 
 from .irreptables_compat import load_irreptables
+from .operations import snap_qpoint
 from .runtime_compat import get_symmetry_dataset
 
 IrrepTable, Irrep = load_irreptables()
@@ -94,11 +95,16 @@ def format_qpoint(q, decimals: int = 6) -> list[float]:
 
 
 def get_irt_special_points(irt_table, prim_mat) -> tuple[list[str], list[list[float]]]:
-    """Get unique special q-points from irreptables in primitive basis."""
+    """Get unique special q-points from irreptables in primitive basis.
+
+    Coordinates are snapped to exact fractions (1/3 stays 1/3, not 0.333333):
+    decimal-rounded values break the little-group detection and irreptables
+    lookups downstream.
+    """
     q_list = []
     q_names = []
     for irrep in irt_table.irreps:
-        q_primitive = format_qpoint(np.dot(irrep.k, prim_mat))
+        q_primitive = snap_qpoint(np.dot(irrep.k, prim_mat))
         if q_primitive not in q_list:
             q_list.append(q_primitive)
             q_names.append(irrep.kpname)
@@ -230,12 +236,12 @@ def main(argv: list[str] | None = None) -> None:
         fp.write("special_points:\n")
         for qname, q in zip(q_names, q_list):
             fp.write(f"- # {qname}\n")
-            fp.write(f"  q_position: {q}\n")
+            fp.write(f"  q_position: {format_qpoint(q)}\n")
         fp.write("\n")
         fp.write("irreps:\n")
         for qname, q in zip(q_names, q_list):
             fp.write(f"- q_label: {qname}\n")
-            fp.write(f"  q_position: {q}\n")
+            fp.write(f"  q_position: {format_qpoint(q)}\n")
             labels, band_indices, freqs = get_irrep_labels(
                 q=q,
                 phonon=phonon,

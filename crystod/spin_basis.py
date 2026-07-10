@@ -231,16 +231,49 @@ def get_multipole_rank_lists(
 # ---------------------------------------------------------------------------
 
 def _realify(space: NDArray[np.complex128]) -> NDArray[np.float64] | None:
-    """Rotate each basis row by a global phase and return the real form,
-    or None when the space is genuinely complex."""
+    """Return a real orthonormal basis of the row space, or None when the
+    space is genuinely complex.
+
+    First each row is rotated by a global phase. When that fails (e.g. the
+    circular-basis partners (x + iy, x - iy) of a 2-dim irrep), the rows are
+    recombined unitarily: Gram-Schmidt over the real and imaginary parts gives
+    a real basis whenever the space is closed under complex conjugation.
+    Collapsing such a space with np.real instead would fold both partners onto
+    the same vector and lose a dimension.
+    """
     rows = []
     for row in space:
         pivot = row[np.argmax(np.abs(row))]
         aligned = row * np.exp(-1j * np.angle(pivot))
         if np.abs(aligned.imag).max() > 1e-8:
-            return None
+            rows = None
+            break
         rows.append(aligned.real)
-    return np.array(rows)
+    if rows is not None:
+        return np.array(rows)
+
+    dim = space.shape[0]
+    basis: list[NDArray[np.float64]] = []
+    for row in space:
+        for part in (np.real(row), np.imag(row)):
+            residual = np.array(part, dtype=float)
+            for vector in basis:
+                residual -= np.dot(vector, residual) * vector
+            norm = np.linalg.norm(residual)
+            if norm > 1e-6:
+                basis.append(residual / norm)
+            if len(basis) == dim:
+                break
+        if len(basis) == dim:
+            break
+    if len(basis) < dim:
+        return None
+    candidate = np.array(basis)
+    # the real basis must span the same complex space (closure under conjugation)
+    projection = space @ candidate.T @ candidate
+    if np.abs(projection - np.asarray(space)).max() > 1e-6:
+        return None
+    return candidate
 
 
 def _net_moments(space: NDArray[np.float64], n_sites: int) -> NDArray[np.float64]:
@@ -464,7 +497,7 @@ def main(argv: list[str] | None = None) -> None:
                 count = int(round(float(np.real(np.dot(rep_characters, np.conj(characters)))) / len(spin_rep)))
                 if count > 0:
                     terms.append(f"{count}.0 [{label}]")
-            print(f"\n * k point (primitive) * \n {name} {q}")
+            print(f"\n * k point (primitive) * \n {name} {np.round(q, 6).tolist()}")
             print(f"   {' + '.join(terms)}")
         print("\nUse --qpoint to obtain the symmetry-adapted spin bases, MAGMOM lines, and VESTA files at one k point.")
         return

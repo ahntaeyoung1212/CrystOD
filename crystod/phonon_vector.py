@@ -41,6 +41,7 @@ from spgrep.representation import project_to_irrep
 
 from .irreptables_compat import load_irreptables
 from .modulation import _find_intertwiner, _irrep_filename_tag
+from .operations import parse_qpoint_token
 from .phonon_irreps import find_star_representative, get_irrep_labels, get_irt_special_points
 from .runtime_compat import get_symmetry_dataset
 from .vibration_modes import SymmetryOnlyVibrations
@@ -237,7 +238,7 @@ def build_parser() -> ArgumentParser:
 
 def _parse_coordinate(value: str) -> float:
     try:
-        return float(Fraction(value))
+        return parse_qpoint_token(value)
     except ValueError:
         return float(value)
 
@@ -847,7 +848,7 @@ def main(argv: list[str] | None = None) -> None:
         echo(f"Space group: {dataset['international']} (#{dataset['number']})")
         echo("Available high-symmetry q-points:")
         for name, q in zip(q_names, q_list):
-            echo(f"  {name:8s} {q}")
+            echo(f"  {name:8s} {np.round(q, 6).tolist()}")
 
     try:
         primitive_rotations = get_symmetry_dataset(phonon.primitive_symmetry)["rotations"]

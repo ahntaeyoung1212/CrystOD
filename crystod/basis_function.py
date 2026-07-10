@@ -370,10 +370,10 @@ def _project_irrep_basis(
     ct: dict,
     irrep_name: str,
 ) -> list:
-    irrep_characters = ct["character_table"][irrep_name]
+    irrep_characters = np.atleast_1d(np.asarray(ct["character_table"][irrep_name]))
     class_index = {class_name: index for index, class_name in enumerate(ct["rotation_list"])}
     group_order = len(rep_matrices)
-    irrep_dimension = int(round(float(np.asarray(irrep_characters)[0].real)))
+    irrep_dimension = int(round(float(irrep_characters[0].real)))
 
     if irrep_dimension == 1:
         representative_matrices: dict[str, Matrix] = {}

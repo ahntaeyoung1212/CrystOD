@@ -17,7 +17,7 @@ from numpy.typing import NDArray
 from phonopy.structure.cells import get_primitive_matrix_by_centring
 
 from .irreptables_compat import load_irreptables
-from .operations import conjugated_little_group_map, find_star_arm
+from .operations import conjugated_little_group_map, find_star_arm, parse_qpoint_token, snap_qpoint
 from .runtime_compat import (
     SymmetryDatasetAdapter,
     get_character,
@@ -228,7 +228,7 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         if len(raw_qpoint) != 3:
             raise ValueError("--qpoint must be either one label or three coordinates.")
 
-        qpoint = [float(value) for value in raw_qpoint]
+        qpoint = [parse_qpoint_token(value) for value in raw_qpoint]
         matched_label = None
         for label, coords in qpoint_map.items():
             if np.allclose(qpoint, coords, atol=1e-8):
@@ -327,7 +327,7 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             # the tabulated arm and transport the characters by conjugation.
             special_points: list[list[float]] = []
             for irrep_at_q in irt_table.irreps:
-                primitive_q = list(np.round(np.array(irrep_at_q.k) @ prim_mat, 6))
+                primitive_q = snap_qpoint(np.array(irrep_at_q.k) @ prim_mat)
                 if primitive_q not in special_points:
                     special_points.append(primitive_q)
             arm = find_star_arm(qpoint, self.rotations, special_points)

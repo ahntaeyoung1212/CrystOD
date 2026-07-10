@@ -17,6 +17,7 @@ from ase import Atoms
 from ase.io import write as ase_write
 from numpy.typing import NDArray
 
+from .operations import parse_qpoint_token
 from .runtime_compat import (
     SymmetryDatasetAdapter,
     get_chemical_symbols,
@@ -61,8 +62,9 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--qpoint",
         nargs=3,
-        type=float,
-        help="Target q-point in primitive reciprocal coordinates.",
+        type=parse_qpoint_token,
+        help="Target q-point in primitive reciprocal coordinates "
+        "(fractions such as 1/3 are allowed).",
     )
     parser.add_argument(
         "--mode",
@@ -598,7 +600,7 @@ def _parse_numbered_modulation_terms(extra_argv: list[str]) -> list[ModulationTe
         if len(entry["qpoint"]) != 3:
             raise ValueError(f"--qpoint{suffix} requires exactly three coordinates.")
 
-        qpoint = [float(value) for value in entry["qpoint"]]
+        qpoint = [parse_qpoint_token(value) for value in entry["qpoint"]]
         mode_indices = [int(value) - 1 for value in entry["mode"]]
         raw_amplitudes = [float(value) for value in entry.get("amplitude", ["0.3"])]
         amplitudes = _normalize_amplitudes(mode_indices, raw_amplitudes)

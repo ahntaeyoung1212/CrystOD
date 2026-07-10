@@ -2,10 +2,39 @@
 
 from __future__ import annotations
 
+from fractions import Fraction
 from math import acos, atan2, factorial, sqrt
 
 import numpy as np
 from numpy.typing import NDArray
+
+
+def snap_qpoint(
+    qpoint: list[float] | NDArray[np.float64],
+    max_denominator: int = 48,
+) -> list[float]:
+    """Snap k-point coordinates to the nearest simple fractions.
+
+    Decimal-rounded coordinates (e.g. 1/3 -> 0.333333) break little-group
+    detection and irreptables lookups, which need the exact value; snapping
+    restores the exact double of the underlying fraction.
+    """
+    return [float(Fraction(float(value)).limit_denominator(max_denominator)) for value in qpoint]
+
+
+def parse_qpoint_token(value: str | float, tol: float = 1e-6, max_denominator: int = 48) -> float:
+    """Parse one k-point coordinate from user input.
+
+    Fractions such as '1/3' are taken exactly; decimal values within ``tol``
+    of a simple fraction are snapped to it (0.333333 -> 1/3), since the
+    truncated decimal breaks little-group detection and irreptables lookups.
+    Other values are returned unchanged.
+    """
+    number = float(Fraction(value)) if isinstance(value, str) else float(value)
+    snapped = Fraction(number).limit_denominator(max_denominator)
+    if abs(float(snapped) - number) < tol:
+        return float(snapped)
+    return number
 
 
 def characterize_rotation(rotation: NDArray[np.int_]) -> tuple[bool, int]:
