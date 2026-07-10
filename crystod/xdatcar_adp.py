@@ -37,7 +37,7 @@ Compute anisotropic displacement parameters (ADPs) from an MD trajectory
 U_ij tensors as a CIF file.
 
 # Command Example:
-crystod --xdatcar2adp --dim 4 4 4 --start-step 1000 --xdatcar XDATCAR --output ADP.cif
+crystod-md --adp --dim 4 4 4 --start-step 1000 --xdatcar XDATCAR --output ADP.cif
 """
 
 # U-component order used throughout: [U11, U22, U33, U12, U13, U23]

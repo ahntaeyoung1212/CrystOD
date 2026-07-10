@@ -44,8 +44,8 @@ desc = """
 Generate modulated crystal structures from symmetry-adapted phonon modes.
 
 # Command Example:
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 0 1 2 --amplitude 0.3
-crystod --modulation --yaml phonopy_params.yaml --qpoint1 0 0.5 0.5 --mode1 0 --qpoint2 0.5 0 0.5 --mode2 0 --output POSCAR_combined
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint1 0 0.5 0.5 --mode1 1 --qpoint2 0.5 0 0.5 --mode2 1 --output POSCAR_combined
 """
 
 
@@ -67,7 +67,7 @@ def build_parser() -> ArgumentParser:
         "--mode",
         nargs="+",
         type=int,
-        help="Mode index or indices to apply after the mode table is shown.",
+        help="Mode number(s) to apply, 1-based as in the printed mode table.",
     )
     parser.add_argument(
         "--amplitude",
@@ -300,7 +300,7 @@ class SymmetryAdaptedModulation:
         print("-" * 50)
         for mode_index, info in enumerate(self.mode_info):
             print(
-                f"{mode_index:5d}  {float(info['frequency_THz']):12.4f}  "
+                f"{mode_index + 1:5d}  {float(info['frequency_THz']):12.4f}  "
                 f"{int(info['irrep_block_index']):12d}  {int(info['degeneracy']):11d}"
             )
 
@@ -324,7 +324,10 @@ class SymmetryAdaptedModulation:
     ) -> Atoms:
         for mode_index in mode_indices:
             if mode_index < 0 or mode_index >= self.n_modes:
-                raise IndexError(f"Mode index {mode_index} is out of range [0, {self.n_modes - 1}].")
+                raise SystemExit(
+                    f"ERROR: mode number {mode_index + 1} is out of range "
+                    f"[1, {self.n_modes}] (numbering is 1-based)."
+                )
 
         supercell_matrix = self._get_commensurate_supercell_matrix()
         n1, n2, n3 = np.diag(supercell_matrix)
@@ -455,7 +458,7 @@ def _parse_numbered_modulation_terms(extra_argv: list[str]) -> list[ModulationTe
             raise ValueError(f"--qpoint{suffix} requires exactly three coordinates.")
 
         qpoint = [float(value) for value in entry["qpoint"]]
-        mode_indices = [int(value) for value in entry["mode"]]
+        mode_indices = [int(value) - 1 for value in entry["mode"]]
         raw_amplitudes = [float(value) for value in entry.get("amplitude", ["0.3"])]
         amplitudes = _normalize_amplitudes(mode_indices, raw_amplitudes)
         terms.append(
@@ -571,11 +574,12 @@ def main(argv: list[str] | None = None) -> None:
             parser.error("--modulation requires --qpoint, or numbered arguments such as --qpoint1.")
         if args.mode is None:
             parser.error("--modulation requires --mode, or numbered arguments such as --mode1.")
+        mode_indices = [value - 1 for value in args.mode]
         terms = [
             ModulationTerm(
                 qpoint=args.qpoint,
-                mode_indices=args.mode,
-                amplitudes=_normalize_amplitudes(args.mode, args.amplitude),
+                mode_indices=mode_indices,
+                amplitudes=_normalize_amplitudes(mode_indices, args.amplitude),
             )
         ]
 
@@ -610,7 +614,10 @@ def main(argv: list[str] | None = None) -> None:
 
         for mode_index in term.mode_indices:
             if mode_index < 0 or mode_index >= modulation.n_modes:
-                raise IndexError(f"Mode index {mode_index} is out of range [0, {modulation.n_modes - 1}].")
+                raise SystemExit(
+                    f"ERROR: mode number {mode_index + 1} is out of range "
+                    f"[1, {modulation.n_modes}] (numbering is 1-based)."
+                )
 
         prepared_terms.append(
             PreparedModulationTerm(
@@ -623,13 +630,14 @@ def main(argv: list[str] | None = None) -> None:
     print("\nGenerating modulated structure...")
     if len(prepared_terms) == 1:
         print(f"  q-point: {prepared_terms[0].modulation.qpoint.tolist()}")
-        print(f"  Modes: {prepared_terms[0].mode_indices}")
+        print(f"  Modes: {[index + 1 for index in prepared_terms[0].mode_indices]}")
         print(f"  Amplitudes (A): {prepared_terms[0].amplitudes}")
     else:
         for term_index, term in enumerate(prepared_terms, start=1):
             print(
                 f"  Term {term_index}: q = {term.modulation.qpoint.tolist()}, "
-                f"modes = {term.mode_indices}, amplitudes (A) = {term.amplitudes}"
+                f"modes = {[index + 1 for index in term.mode_indices]}, "
+                f"amplitudes (A) = {term.amplitudes}"
             )
 
     if len(prepared_terms) == 1:

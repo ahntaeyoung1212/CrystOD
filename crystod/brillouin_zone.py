@@ -39,11 +39,11 @@ high-symmetry k-path is generated automatically with seekpath.
 A custom path can be given instead with --band/--label.
 
 # Command Examples:
-crystod --bz --poscar 221_PPOSCAR_ScF3
-crystod --bz --poscar 221_PPOSCAR_ScF3 --output BZ_ScF3_Pm-3m.html
-crystod --bz --poscar 221_PPOSCAR_ScF3 \\
+crystod-bz -c 221_PPOSCAR_ScF3
+crystod-bz -c 221_PPOSCAR_ScF3 --output BZ_ScF3_Pm-3m.html
+crystod-bz -c 221_PPOSCAR_ScF3 \\
     --band "0 0 0  0 1/2 0  1/2 1/2 0  0 0 0  1/2 1/2 1/2  0 1/2 0, 1/2 1/2 0  1/2 1/2 1/2" \\
-    --label "GM X M GM R X  M R"
+    --band-labels "GM X M GM R X  M R"
 """
 
 

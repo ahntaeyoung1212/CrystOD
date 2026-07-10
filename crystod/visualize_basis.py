@@ -96,12 +96,23 @@ def build_parser() -> ArgumentParser:
         "--mode-index",
         type=int,
         default=None,
-        help="Only print/visualize the selected irrep-grouped SALC space.",
+        help="Only print/visualize the selected irrep-grouped SALC space (1-based).",
     )
     parser.add_argument(
         "--output",
         default=None,
-        help="Optional standalone HTML path for the interactive 3D visualization.",
+        help="Output HTML path for the interactive 3D visualization "
+        "(default: SALC_{element}_{orbital}_{kpoint}.html).",
+    )
+    parser.add_argument(
+        "--bond",
+        nargs=3,
+        action="append",
+        default=None,
+        metavar=("EL1", "EL2", "MAX"),
+        help="Draw bonds between EL1 and EL2 atoms up to MAX Angstroms, plus the "
+        "VESTA-style coordination polyhedra around the EL1 atoms "
+        "(repeatable), e.g. --bond Sc F 2.3.",
     )
     parser.add_argument(
         "--real-coefficient",
@@ -111,6 +122,13 @@ def build_parser() -> ArgumentParser:
             "when the irrep space allows it (real-type irreps). The spanned\n"
             "space is unchanged; only the basis choice within it is rotated."
         ),
+    )
+    parser.add_argument(
+        "--conventional",
+        action="store_true",
+        help="Display the SALC in the conventional cell instead of the primitive "
+        "cell (primitive-to-conventional matrix from the detected centring, "
+        "as in crystod-phonon --vector).",
     )
     return parser
 
@@ -299,9 +317,9 @@ def _print_salc_coefficients(
     for space_index, (space, label) in enumerate(zip(basis_spaces, basis_labels)):
         if mode_index is not None and space_index != mode_index:
             continue
-        print(f" Mode Space {space_index}: irrep = {label}, dimension = {space.shape[0]}")
+        print(f" Mode Space {space_index + 1}: irrep = {label}, dimension = {space.shape[0]}")
         for component_index, vector in enumerate(space):
-            print(f"   component {component_index}:")
+            print(f"   component {component_index + 1}:")
             for atom_slot, atom_index in enumerate(element_indices):
                 coefficients = vector[atom_slot * n_components : (atom_slot + 1) * n_components]
                 if np.max(np.abs(coefficients)) < 1e-6:
@@ -418,8 +436,8 @@ def _orbital_surface(
     coefficients: NDArray[np.complex128],
     l: int,
     scale: float,
-    n_theta: int = 30,
-    n_phi: int = 60,
+    n_theta: int = 22,
+    n_phi: int = 44,
 ) -> dict | None:
     theta = np.linspace(0.0, np.pi, n_theta)
     phi = np.linspace(0.0, 2.0 * np.pi, n_phi)
@@ -440,20 +458,97 @@ def _orbital_surface(
     radius = scale * np.abs(values) / max_value
     points = unit * radius[:, None] + center[None, :]
     shape = theta_grid.shape
+    # sign-only coloring (VESTA style: + yellow, - blue) and 3-decimal
+    # coordinates keep the standalone HTML small.
+    sign = (values >= 0).astype(int)
     return {
         "type": "surface",
-        "x": points[:, 0].reshape(shape).tolist(),
-        "y": points[:, 1].reshape(shape).tolist(),
-        "z": points[:, 2].reshape(shape).tolist(),
-        "surfacecolor": np.sign(values).reshape(shape).tolist(),
-        "cmin": -1,
+        "x": np.round(points[:, 0], 3).reshape(shape).tolist(),
+        "y": np.round(points[:, 1], 3).reshape(shape).tolist(),
+        "z": np.round(points[:, 2], 3).reshape(shape).tolist(),
+        "surfacecolor": sign.reshape(shape).tolist(),
+        "cmin": 0,
         "cmax": 1,
-        "colorscale": [[0.0, "#3b6fd4"], [0.5, "#dddddd"], [1.0, "#d43b3b"]],
+        "colorscale": [[0.0, "#26c6da"], [1.0, "#ffeb3b"]],
         "showscale": False,
-        "opacity": 0.85,
+        # opaque by default: WebGL depth testing then resolves front/back
+        # correctly (translucent surfaces cannot be depth-sorted by plotly)
+        "opacity": 1.0,
+        "lighting": {
+            "ambient": 0.55,
+            "diffuse": 0.75,
+            "specular": 0.4,
+            "roughness": 0.5,
+            "fresnel": 0.1,
+        },
         "hoverinfo": "skip",
         "showlegend": False,
     }
+
+
+def _axis_traces(lattice: NDArray[np.float64]) -> list[dict]:
+    """VESTA-style a/b/c compass (a red, b green, c blue).
+
+    The compass lives in a small second scene pinned to the lower-left corner
+    of the viewport; its camera is synchronized to the main scene by the page
+    JavaScript, so it always shows the current orientation like VESTA."""
+    traces: list[dict] = []
+    label_positions = []
+    label_texts = []
+    label_colors = []
+    for name, vector, color in zip("abc", lattice, ("#d62728", "#2ca02c", "#1f77b4")):
+        direction = vector / np.linalg.norm(vector)
+        tip = direction
+        traces.append(
+            {
+                "type": "scatter3d",
+                "scene": "scene2",
+                "mode": "lines",
+                "x": [0, round(float(tip[0]), 3)],
+                "y": [0, round(float(tip[1]), 3)],
+                "z": [0, round(float(tip[2]), 3)],
+                "line": {"color": color, "width": 8},
+                "hoverinfo": "skip",
+                "showlegend": False,
+            }
+        )
+        traces.append(
+            {
+                "type": "cone",
+                "scene": "scene2",
+                "x": [round(float(tip[0]), 3)],
+                "y": [round(float(tip[1]), 3)],
+                "z": [round(float(tip[2]), 3)],
+                "u": [round(float(direction[0]), 3)],
+                "v": [round(float(direction[1]), 3)],
+                "w": [round(float(direction[2]), 3)],
+                "anchor": "tail",
+                "sizemode": "absolute",
+                "sizeref": 0.3,
+                "colorscale": [[0.0, color], [1.0, color]],
+                "showscale": False,
+                "hoverinfo": "skip",
+                "showlegend": False,
+            }
+        )
+        label_positions.append(direction * 1.45)
+        label_texts.append(name)
+        label_colors.append(color)
+    traces.append(
+        {
+            "type": "scatter3d",
+            "scene": "scene2",
+            "mode": "text",
+            "x": [round(float(p[0]), 3) for p in label_positions],
+            "y": [round(float(p[1]), 3) for p in label_positions],
+            "z": [round(float(p[2]), 3) for p in label_positions],
+            "text": label_texts,
+            "textfont": {"size": 16, "color": label_colors},
+            "hoverinfo": "skip",
+            "showlegend": False,
+        }
+    )
+    return traces
 
 
 def write_html_visualization(
@@ -466,45 +561,220 @@ def write_html_visualization(
     kpoint: list[float],
     title: str,
     mode_index: int | None = None,
+    info: dict | None = None,
+    bonds: list[tuple[str, str, float]] | None = None,
+    conventional: bool = False,
 ) -> None:
+    """Write the standalone SALC viewer page.
+
+    The page layout (left control/mode sidebar + central 3D viewport) is
+    modeled after the phonon website by Henrique Miranda
+    (https://henriquemiranda.github.io/phononwebsite/, BSD-3-Clause); the 3D
+    rendering itself uses plotly.
+
+    ``bonds`` is a list of (element_1, element_2, max_length_A): bonds within
+    the cutoff are drawn as in VESTA, and the coordination polyhedra around
+    the element_1 atoms are rendered as translucent convex hulls.
+    """
     primitive = orbitals.primitive_cell
     lattice = np.array(primitive.cell, dtype=float)
     frac_positions = np.array(primitive.scaled_positions, dtype=float)
     symbols = get_chemical_symbols(primitive)
-    supercell_size = orbitals.get_supercell_size(kpoint)
-    n1, n2, n3 = supercell_size
+
+    # Display cell: rows of cell_matrix are the display-cell lattice vectors
+    # in the primitive basis — a diagonal (commensurate) supercell of the
+    # primitive cell by default, or the conventional cell (times commensurate
+    # multiples) with --conventional, as in crystod-phonon --vector.
+    if conventional:
+        from .phonon_vector import get_commensurate_supercell_matrix, get_conventional_matrix
+
+        centring = orbitals.spglib_dataset["international"][0]
+        base_matrix = get_conventional_matrix(centring)
+        cell_matrix = np.array(get_commensurate_supercell_matrix(kpoint, base_matrix), dtype=int)
+        multiples = np.rint(
+            np.diag(cell_matrix @ np.linalg.inv(np.array(base_matrix, dtype=float)))
+        ).astype(int)
+        cell_description = (
+            f"conventional ({centring} centring), "
+            f"{multiples[0]} x {multiples[1]} x {multiples[2]} cells"
+        )
+    else:
+        n1, n2, n3 = orbitals.get_supercell_size(kpoint)
+        cell_matrix = np.diag([n1, n2, n3]).astype(int)
+        cell_description = f"primitive, {n1} x {n2} x {n3} cells"
+
+    display_lattice = np.array(cell_matrix, dtype=float) @ lattice
+    inverse_cell = np.linalg.inv(np.array(cell_matrix, dtype=float))
+
+    # Atoms displayed in the display cell, with VESTA-style boundary
+    # completion: an atom with fractional coordinate 0 along a display-cell
+    # axis is also drawn at 1 (carrying the Bloch phase of its full primitive
+    # translation), so that bonds and coordination polyhedra at the cell
+    # boundary are not cut off.
+    boundary_eps = 1e-6
+    corner_shifts = [np.zeros(3)]
+    for axis in range(3):
+        corner_shifts = corner_shifts + [shift + cell_matrix[axis] for shift in corner_shifts]
+    corner_array = np.array(corner_shifts, dtype=float)
+    t_low = np.floor(corner_array.min(axis=0)).astype(int) - 1
+    t_high = np.ceil(corner_array.max(axis=0)).astype(int) + 1
+
+    atom_entries = []  # (atom_index, translation in primitive-cell units)
+    for t1 in range(t_low[0], t_high[0] + 1):
+        for t2 in range(t_low[1], t_high[1] + 1):
+            for t3 in range(t_low[2], t_high[2] + 1):
+                base_translation = np.array([t1, t2, t3], dtype=float)
+                for atom_index in range(len(frac_positions)):
+                    frac_cell = (frac_positions[atom_index] + base_translation) @ inverse_cell
+                    if np.any(frac_cell < -boundary_eps) or np.any(frac_cell >= 1 - boundary_eps):
+                        continue
+                    duplicate_axes = [
+                        axis for axis in range(3) if abs(frac_cell[axis]) < boundary_eps
+                    ]
+                    combos = [()]
+                    for axis in duplicate_axes:
+                        combos = combos + [combo + (axis,) for combo in combos]
+                    for combo in combos:
+                        translation = base_translation.copy()
+                        for axis in combo:
+                            translation = translation + cell_matrix[axis]
+                        atom_entries.append((atom_index, translation))
 
     all_positions = []
     all_symbols = []
     target_slots = []  # (atom_slot_in_element_list, cartesian position, phase)
-    for i1 in range(n1):
-        for i2 in range(n2):
-            for i3 in range(n3):
-                translation = np.array([i1, i2, i3], dtype=float)
-                phase = np.exp(2j * np.pi * np.dot(kpoint, translation))
-                for atom_index in range(len(frac_positions)):
-                    position = (frac_positions[atom_index] + translation) @ lattice
-                    all_positions.append(position)
-                    all_symbols.append(symbols[atom_index])
-                    if atom_index in element_indices:
-                        target_slots.append((element_indices.index(atom_index), position, phase))
+    for atom_index, translation in atom_entries:
+        position = (frac_positions[atom_index] + translation) @ lattice
+        all_positions.append(position)
+        all_symbols.append(symbols[atom_index])
+        if atom_index in element_indices:
+            phase = np.exp(2j * np.pi * np.dot(kpoint, translation))
+            target_slots.append((element_indices.index(atom_index), position, phase))
     all_positions = np.array(all_positions)
 
     nearest = np.inf
     for slot_a in range(len(all_positions)):
         for slot_b in range(slot_a + 1, len(all_positions)):
-            nearest = min(nearest, float(np.linalg.norm(all_positions[slot_a] - all_positions[slot_b])))
+            separation = float(np.linalg.norm(all_positions[slot_a] - all_positions[slot_b]))
+            if separation > 1e-3:
+                nearest = min(nearest, separation)
     lobe_scale = 0.45 * nearest if np.isfinite(nearest) else 1.0
 
-    static_traces = [_lattice_edge_traces(lattice, supercell_size)]
-    static_traces.extend(_atom_traces(all_positions, all_symbols))
+    # VESTA-style bonds and coordination polyhedra. As in VESTA, neighbors are
+    # searched in the periodic images of the displayed supercell, and image
+    # atoms that participate in a bond are added to the display (with lobes
+    # when they belong to the target element), so that coordination polyhedra
+    # at the cell boundary are complete.
+    atom_colors = _load_atom_colors()
+    bond_traces = []
+    polyhedra_traces = []
+    if bonds:
+        supercell_lattice = display_lattice
+        image_offsets = [
+            np.array([o1, o2, o3], dtype=float)
+            for o1 in (-1, 0, 1)
+            for o2 in (-1, 0, 1)
+            for o3 in (-1, 0, 1)
+        ]
+        n_base = len(all_positions)
+        base_positions = np.array(all_positions)
+        extra_atoms: dict[tuple, np.ndarray] = {}  # (entry index, offset) -> position
+
+        for el1, el2, max_length in bonds:
+            segments: list = []
+            centers: dict[int, list] = {}
+            for a in range(n_base):
+                if all_symbols[a] != el1:
+                    continue
+                for b in range(n_base):
+                    if all_symbols[b] != el2:
+                        continue
+                    for offset in image_offsets:
+                        position_b = base_positions[b] + offset @ supercell_lattice
+                        separation = float(np.linalg.norm(base_positions[a] - position_b))
+                        if not (1e-3 < separation <= max_length):
+                            continue
+                        centers.setdefault(a, []).append(position_b)
+                        segments.append((base_positions[a], position_b))
+                        if np.any(offset):
+                            extra_atoms[(b, tuple(int(o) for o in offset))] = position_b
+
+            if segments:
+                xs: list = []
+                ys: list = []
+                zs: list = []
+                for position_a, position_b in segments:
+                    xs.extend([float(position_a[0]), float(position_b[0]), None])
+                    ys.extend([float(position_a[1]), float(position_b[1]), None])
+                    zs.extend([float(position_a[2]), float(position_b[2]), None])
+                bond_traces.append(
+                    {
+                        "type": "scatter3d",
+                        "mode": "lines",
+                        "x": xs,
+                        "y": ys,
+                        "z": zs,
+                        "line": {"color": "#7a7a7a", "width": 5},
+                        "name": f"{el1}-{el2} bonds",
+                        "hoverinfo": "skip",
+                    }
+                )
+            show_legend = True
+            for neighbor_positions in centers.values():
+                if len(neighbor_positions) < 4:
+                    continue  # a convex hull needs at least four ligands
+                points = np.array(neighbor_positions, dtype=float)
+                polyhedra_traces.append(
+                    {
+                        "type": "mesh3d",
+                        "x": points[:, 0].tolist(),
+                        "y": points[:, 1].tolist(),
+                        "z": points[:, 2].tolist(),
+                        "alphahull": 0,
+                        "opacity": 0.35,
+                        "color": atom_colors.get(el1, "#cccccc"),
+                        "flatshading": True,
+                        "name": f"{el1} polyhedra",
+                        "legendgroup": f"poly-{el1}",
+                        "showlegend": show_legend,
+                        "hoverinfo": "skip",
+                    }
+                )
+                show_legend = False
+
+        # add the bonded image atoms to the display (deduplicated by position)
+        all_positions_list = [np.array(position) for position in all_positions]
+        for (entry_slot, offset), position in extra_atoms.items():
+            if any(np.linalg.norm(position - existing) < 1e-6 for existing in all_positions_list):
+                continue
+            all_positions_list.append(position)
+            atom_index, translation = atom_entries[entry_slot]
+            all_symbols.append(symbols[atom_index])
+            if atom_index in element_indices:
+                image_translation = translation + np.array(offset, dtype=float) @ np.array(
+                    cell_matrix, dtype=float
+                )
+                phase = np.exp(2j * np.pi * np.dot(kpoint, image_translation))
+                target_slots.append((element_indices.index(atom_index), position, phase))
+        all_positions = np.array(all_positions_list)
+
+    atom_traces = _atom_traces(all_positions, all_symbols)
+    static_traces = [_lattice_edge_traces(display_lattice, (1, 1, 1))]
+    static_traces.extend(_axis_traces(lattice))
+    cell_end = len(static_traces)
+    static_traces.extend(atom_traces)
+    atoms_end = len(static_traces)
+    static_traces.extend(bond_traces)
+    bonds_end = len(static_traces)
+    static_traces.extend(polyhedra_traces)
     n_static = len(static_traces)
 
     component_names = ORBITAL_COMPONENT_NAMES[l]
     n_components = len(component_names)
 
     dynamic_traces = []
-    button_specs = []  # (label, trace start, trace count)
+    dynamic_centers = []  # lobe centers, for the view-depth opacity fade
+    mode_specs = []  # dicts describing each selectable (mode space, component)
     for space_index, (space, label) in enumerate(zip(basis_spaces, basis_labels)):
         if mode_index is not None and space_index != mode_index:
             continue
@@ -517,74 +787,278 @@ def write_html_visualization(
                 surface = _orbital_surface(position, coefficients, l, lobe_scale)
                 if surface is not None:
                     dynamic_traces.append(surface)
-            button_specs.append(
-                (
-                    f"Mode {space_index} [{label}] comp {component_index}",
-                    start,
-                    len(dynamic_traces) - start,
-                )
+                    dynamic_centers.append([round(float(value), 2) for value in position])
+            mode_specs.append(
+                {
+                    "label": f"Mode {space_index + 1} [{label}] comp {component_index + 1}",
+                    "space": space_index + 1,
+                    "irrep": label,
+                    "component": component_index + 1,
+                    "start": start,
+                    "count": len(dynamic_traces) - start,
+                }
             )
 
-    buttons = []
-    n_dynamic = len(dynamic_traces)
-    for label, start, count in button_specs:
-        visibility = [True] * n_static + [False] * n_dynamic
-        for offset in range(count):
-            visibility[n_static + start + offset] = True
-        buttons.append(
-            {
-                "label": label,
-                "method": "update",
-                "args": [{"visible": visibility}, {"title": f"{title} — {label}"}],
-            }
-        )
-
     all_traces = static_traces + dynamic_traces
-    initial_visible = buttons[0]["args"][0]["visible"] if buttons else [True] * n_static
-    for trace, visible in zip(all_traces, initial_visible):
-        trace["visible"] = visible
+    if mode_specs:
+        first = mode_specs[0]
+        for offset, trace in enumerate(all_traces):
+            dynamic_offset = offset - n_static
+            trace["visible"] = (
+                offset < n_static
+                or first["start"] <= dynamic_offset < first["start"] + first["count"]
+            )
 
     layout = {
-        "title": {"text": f"{title} — {button_specs[0][0]}" if button_specs else title},
         "scene": {
             "aspectmode": "data",
             "xaxis": {"visible": False},
             "yaxis": {"visible": False},
             "zaxis": {"visible": False},
+            "bgcolor": "#ffffff",
         },
-        "margin": {"l": 0, "r": 0, "t": 60, "b": 0},
-        "updatemenus": [
-            {
-                "buttons": buttons,
-                "direction": "down",
-                "x": 0.0,
-                "y": 1.0,
-                "xanchor": "left",
-                "yanchor": "top",
-            }
-        ]
-        if buttons
-        else [],
-        "legend": {"x": 1.0, "y": 0.9},
+        # small camera-synced a/b/c compass in the lower-left corner
+        "scene2": {
+            "domain": {"x": [0.03, 0.19], "y": [0.02, 0.22]},
+            "aspectmode": "cube",
+            "xaxis": {"visible": False, "range": [-2.2, 2.2]},
+            "yaxis": {"visible": False, "range": [-2.2, 2.2]},
+            "zaxis": {"visible": False, "range": [-2.2, 2.2]},
+            "bgcolor": "rgba(0,0,0,0)",
+            "dragmode": False,
+        },
+        "margin": {"l": 0, "r": 0, "t": 0, "b": 0},
+        "paper_bgcolor": "#ffffff",
+        "legend": {"x": 0.99, "y": 0.95, "xanchor": "right"},
+        "showlegend": True,
     }
 
-    html = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>{title}</title>
-<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-</head>
-<body>
-<div id="plot" style="width:100vw;height:96vh;"></div>
-<script>
-var data = {json.dumps(all_traces)};
-var layout = {json.dumps(layout)};
-Plotly.newPlot("plot", data, layout, {{responsive: true}});
-</script>
-</body>
-</html>
-"""
+    info = dict(info or {})
+    info.setdefault("supercell", cell_description)
+    bond_summary = "; ".join(
+        f"{el1}&ndash;{el2} &le; {max_length:g} &Aring;" for el1, el2, max_length in bonds or []
+    )
+
+    info_rows = "".join(
+        f"<tr><td>{name}</td><td>{value}</td></tr>"
+        for name, value in (
+            ("Compound", info.get("formula", "")),
+            ("Space group", info.get("space_group", "")),
+            ("Orbitals", info.get("element_orbital", "")),
+            ("k point", info.get("kpoint", "")),
+            ("Display cell", info.get("supercell", "")),
+            ("Bonds", bond_summary),
+            ("Basis form", "real coefficients" if info.get("real_coefficient") else "complex (Bloch) coefficients"),
+        )
+        if value
+    )
+    bond_controls = ""
+    if bond_traces or polyhedra_traces:
+        bond_controls = (
+            "  <div class=\"control\"><label><input type=\"checkbox\" id=\"show-bonds\" checked\n"
+            "           onchange=\"applyVisibility()\"/> show bonds</label></div>\n"
+            "  <div class=\"control\"><label><input type=\"checkbox\" id=\"show-poly\" checked\n"
+            "           onchange=\"applyVisibility()\"/> show polyhedra</label></div>\n"
+        )
+    mode_rows = "".join(
+        f'<tr class="mode-row" data-index="{row_index}" onclick="setMode({row_index})">'
+        f'<td>{spec["space"]}</td><td class="irrep">{spec["irrep"]}</td><td>{spec["component"]}</td></tr>'
+        for row_index, spec in enumerate(mode_specs)
+    )
+
+    html = (
+        "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\"/>\n"
+        f"<title>{title}</title>\n"
+        "<script src=\"https://cdn.plot.ly/plotly-2.32.0.min.js\"></script>\n"
+        "<style>\n"
+        "  * { box-sizing: border-box; }\n"
+        "  body { margin: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;\n"
+        "         color: #333; height: 100vh; display: flex; flex-direction: column; }\n"
+        "  #topbar { background: #2c3e50; color: #ecf0f1; padding: 8px 16px;\n"
+        "            display: flex; justify-content: space-between; align-items: baseline; }\n"
+        "  #topbar .brand { font-size: 18px; font-weight: bold; }\n"
+        "  #topbar .brand small { font-weight: normal; opacity: 0.8; margin-left: 8px; }\n"
+        "  #topbar .page-title { font-size: 13px; opacity: 0.9; }\n"
+        "  #container { flex: 1; display: flex; min-height: 0; }\n"
+        "  #sidebar { width: 320px; min-width: 320px; overflow-y: auto; background: #f7f7f7;\n"
+        "             border-right: 1px solid #ddd; padding: 12px 16px; font-size: 13px; }\n"
+        "  #sidebar h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;\n"
+        "                color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 3px;\n"
+        "                margin: 18px 0 8px; }\n"
+        "  #sidebar h2:first-child { margin-top: 4px; }\n"
+        "  table.info { width: 100%; border-collapse: collapse; }\n"
+        "  table.info td { padding: 2px 4px; vertical-align: top; }\n"
+        "  table.info td:first-child { color: #777; width: 40%; }\n"
+        "  .mono { font-family: Menlo, Consolas, monospace; font-size: 12px;\n"
+        "          background: #fff; border: 1px solid #e0e0e0; padding: 6px; border-radius: 3px; }\n"
+        "  table#mode-table { width: 100%; border-collapse: collapse; background: #fff;\n"
+        "                     border: 1px solid #e0e0e0; }\n"
+        "  table#mode-table th { background: #2c3e50; color: #fff; font-weight: normal;\n"
+        "                        padding: 4px 6px; font-size: 12px; text-align: left; }\n"
+        "  table#mode-table td { padding: 4px 6px; border-top: 1px solid #eee; cursor: pointer; }\n"
+        "  table#mode-table td.irrep { font-family: Menlo, Consolas, monospace; }\n"
+        "  tr.mode-row:hover { background: #eaf1f8; }\n"
+        "  tr.mode-row.active { background: #d5e5f5; font-weight: bold; }\n"
+        "  .control { margin: 6px 0; display: flex; align-items: center; gap: 8px; }\n"
+        "  .control label { flex: 1; }\n"
+        "  .credit { margin-top: 24px; padding-top: 8px; border-top: 1px solid #ddd;\n"
+        "            font-size: 11px; color: #888; }\n"
+        "  .credit a { color: #2c6aa0; }\n"
+        "  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }\n"
+        "  #mode-title { padding: 8px 14px; font-size: 15px; border-bottom: 1px solid #eee;\n"
+        "                background: #fff; }\n"
+        "  #mode-title .irrep { font-family: Menlo, Consolas, monospace; color: #2c6aa0; }\n"
+        "  #plot { flex: 1; min-height: 0; }\n"
+        "</style>\n</head>\n<body>\n"
+        "<div id=\"topbar\">\n"
+        "  <div class=\"brand\">CrystOD<small>Symmetry-Adapted Linear Combination (SALC) viewer</small></div>\n"
+        f"  <div class=\"page-title\">{title}</div>\n"
+        "</div>\n"
+        "<div id=\"container\">\n"
+        "<div id=\"sidebar\">\n"
+        "  <h2>Structure</h2>\n"
+        f"  <table class=\"info\">{info_rows}</table>\n"
+        "  <h2>Irreps of SALC</h2>\n"
+        f"  <div class=\"mono\">{info.get('decomposition', '')}</div>\n"
+        "  <h2>SALC basis (click to show)</h2>\n"
+        "  <table id=\"mode-table\">\n"
+        "    <tr><th>Mode</th><th>Irrep</th><th>Comp.</th></tr>\n"
+        f"    {mode_rows}\n"
+        "  </table>\n"
+        "  <h2>Display</h2>\n"
+        "  <div class=\"control\"><label>Lobe opacity</label>\n"
+        "    <input type=\"range\" id=\"opacity\" min=\"0.1\" max=\"1.0\" step=\"0.05\" value=\"1.0\"\n"
+        "           oninput=\"setOpacity(this.value)\"/></div>\n"
+        "  <div class=\"control\"><label><input type=\"checkbox\" id=\"show-cell\" checked\n"
+        "           onchange=\"applyVisibility()\"/> show cell edges &amp; abc axes</label></div>\n"
+        "  <div class=\"control\"><label><input type=\"checkbox\" id=\"show-atoms\" checked\n"
+        "           onchange=\"applyVisibility()\"/> show atoms</label></div>\n"
+        + bond_controls +
+        "  <div class=\"credit\">Viewer layout inspired by the\n"
+        "    <a href=\"https://henriquemiranda.github.io/phononwebsite/\" target=\"_blank\">phonon website</a>\n"
+        "    by Henrique Miranda (BSD-3-Clause). 3D rendering by plotly.</div>\n"
+        "</div>\n"
+        "<div id=\"main\">\n"
+        "  <div id=\"mode-title\"></div>\n"
+        "  <div id=\"plot\"></div>\n"
+        "</div>\n"
+        "</div>\n"
+        "<script>\n"
+        f"var data = {json.dumps(all_traces)};\n"
+        f"var layout = {json.dumps(layout)};\n"
+        f"var N_STATIC = {n_static};\n"
+        f"var CELL_END = {cell_end};\n"
+        f"var ATOMS_END = {atoms_end};\n"
+        f"var BONDS_END = {bonds_end};\n"
+        f"var MODES = {json.dumps(mode_specs)};\n"
+        f"var DYNAMIC_CENTERS = {json.dumps(dynamic_centers)};\n"
+        "var currentMode = 0;\n"
+        "var baseOpacity = 1.0;\n"
+        "var plotDiv = document.getElementById('plot');\n"
+        "function isChecked(id) {\n"
+        "  var element = document.getElementById(id);\n"
+        "  return element ? element.checked : true;\n"
+        "}\n"
+        "function applyVisibility() {\n"
+        "  var spec = MODES[currentMode];\n"
+        "  var visible = data.map(function (_, index) {\n"
+        "    if (index < CELL_END) { return isChecked('show-cell'); }\n"
+        "    if (index < ATOMS_END) { return isChecked('show-atoms'); }\n"
+        "    if (index < BONDS_END) { return isChecked('show-bonds'); }\n"
+        "    if (index < N_STATIC) { return isChecked('show-poly'); }\n"
+        "    var dynamicOffset = index - N_STATIC;\n"
+        "    return spec && dynamicOffset >= spec.start && dynamicOffset < spec.start + spec.count;\n"
+        "  });\n"
+        "  Plotly.restyle('plot', {visible: visible}, visible.map(function (_, i) { return i; }));\n"
+        "}\n"
+        "function setMode(index) {\n"
+        "  currentMode = index;\n"
+        "  var rows = document.querySelectorAll('tr.mode-row');\n"
+        "  rows.forEach(function (row, rowIndex) {\n"
+        "    row.classList.toggle('active', rowIndex === index);\n"
+        "  });\n"
+        "  var spec = MODES[index];\n"
+        "  document.getElementById('mode-title').innerHTML =\n"
+        "    'Mode ' + spec.space + ' <span class=\"irrep\">' + spec.irrep + '</span> — component ' + spec.component;\n"
+        "  applyVisibility();\n"
+        "}\n"
+        "function currentCamera() {\n"
+        "  var scene = plotDiv._fullLayout && plotDiv._fullLayout.scene;\n"
+        "  return (scene && scene.camera && scene.camera.eye)\n"
+        "    ? scene.camera\n"
+        "    : {eye: {x: 1.25, y: 1.25, z: 1.25}, up: {x: 0, y: 0, z: 1}};\n"
+        "}\n"
+        "function syncCompass(camera) {\n"
+        "  // update ONLY the compass scene through plotly's internal setViewport:\n"
+        "  // calling Plotly.relayout during a drag would redraw the main scene\n"
+        "  // from the (stale) stored camera and cancel the rotation in progress.\n"
+        "  var eye = camera.eye;\n"
+        "  var radius = Math.sqrt(eye.x * eye.x + eye.y * eye.y + eye.z * eye.z) || 1;\n"
+        "  var scale = 2.0 / radius;  // compass orientation follows the view, size stays fixed\n"
+        "  var sceneLayout = plotDiv._fullLayout && plotDiv._fullLayout.scene2;\n"
+        "  var sceneObject = sceneLayout && sceneLayout._scene;\n"
+        "  if (!sceneObject) { return; }\n"
+        "  var scaledEye = {x: eye.x * scale, y: eye.y * scale, z: eye.z * scale};\n"
+        "  var upVector = camera.up\n"
+        "    ? {x: camera.up.x, y: camera.up.y, z: camera.up.z}\n"
+        "    : {x: 0, y: 0, z: 1};\n"
+        "  sceneLayout.camera.eye = scaledEye;\n"
+        "  sceneLayout.camera.up = upVector;\n"
+        "  sceneLayout.camera.center = {x: 0, y: 0, z: 0};\n"
+        "  sceneLayout.camera.projection = sceneLayout.camera.projection || {type: 'perspective'};\n"
+        "  // persist into the user layout too: on drag end plotly rebuilds the\n"
+        "  // compass scene from plotDiv.layout, which would reset the camera\n"
+        "  if (plotDiv.layout && plotDiv.layout.scene2) {\n"
+        "    plotDiv.layout.scene2.camera = {eye: scaledEye, up: upVector, center: {x: 0, y: 0, z: 0}};\n"
+        "  }\n"
+        "  try { sceneObject.setViewport(sceneLayout); } catch (error) { /* keep the drag alive */ }\n"
+        "}\n"
+        "// Fully opaque lobes (the default) get correct front/back occlusion from\n"
+        "// the WebGL depth test. When the user makes them translucent, plotly\n"
+        "// cannot depth-sort transparent surfaces, so a depth cue is applied\n"
+        "// instead: lobes far from the camera are drawn fainter than near ones.\n"
+        "function depthFade(camera) {\n"
+        "  if (!DYNAMIC_CENTERS.length) { return; }\n"
+        "  var indices = [];\n"
+        "  for (var i = N_STATIC; i < data.length; i++) { indices.push(i); }\n"
+        "  if (!indices.length) { return; }\n"
+        "  if (baseOpacity >= 0.99) {\n"
+        "    Plotly.restyle('plot', {opacity: 1.0}, indices);\n"
+        "    return;\n"
+        "  }\n"
+        "  var eye = camera.eye;\n"
+        "  var radius = Math.sqrt(eye.x * eye.x + eye.y * eye.y + eye.z * eye.z) || 1;\n"
+        "  var vx = eye.x / radius, vy = eye.y / radius, vz = eye.z / radius;\n"
+        "  var depths = DYNAMIC_CENTERS.map(function (c) { return c[0] * vx + c[1] * vy + c[2] * vz; });\n"
+        "  var minDepth = Math.min.apply(null, depths);\n"
+        "  var maxDepth = Math.max.apply(null, depths);\n"
+        "  var span = (maxDepth - minDepth) || 1;\n"
+        "  var opacities = depths.map(function (d) {\n"
+        "    return Math.round(baseOpacity * (0.2 + 0.8 * (d - minDepth) / span) * 100) / 100;\n"
+        "  });\n"
+        "  Plotly.restyle('plot', {opacity: opacities}, indices);\n"
+        "}\n"
+        "function setOpacity(value) {\n"
+        "  baseOpacity = Number(value);\n"
+        "  depthFade(currentCamera());\n"
+        "}\n"
+        "Plotly.newPlot('plot', data, layout, {responsive: true, displaylogo: false}).then(function () {\n"
+        "  if (MODES.length) { setMode(0); }\n"
+        "  syncCompass(currentCamera());\n"
+        "  depthFade(currentCamera());\n"
+        "  // sync the compass continuously while dragging; refresh the depth cue on release\n"
+        "  plotDiv.on('plotly_relayouting', function (event) {\n"
+        "    if (event['scene.camera']) { syncCompass(event['scene.camera']); }\n"
+        "  });\n"
+        "  plotDiv.on('plotly_relayout', function (event) {\n"
+        "    if (event['scene.camera']) {\n"
+        "      syncCompass(event['scene.camera']);\n"
+        "      depthFade(event['scene.camera']);\n"
+        "    }\n"
+        "  });\n"
+        "});\n"
+        "</script>\n</body>\n</html>\n"
+    )
     with open(output_path, "w", encoding="utf-8") as handle:
         handle.write(html)
 
@@ -645,29 +1119,73 @@ def main(argv: list[str] | None = None) -> None:
                 )
         basis_spaces = realified_spaces
 
+    if args.mode_index is not None and not (1 <= args.mode_index <= len(basis_spaces)):
+        raise SystemExit(
+            f"ERROR: --mode-index {args.mode_index} is out of range "
+            f"[1, {len(basis_spaces)}] (numbering is 1-based)."
+        )
+    selected_space_index = None if args.mode_index is None else args.mode_index - 1
+
     _print_salc_coefficients(
         basis_spaces=basis_spaces,
         basis_labels=basis_labels,
         element=args.element,
         element_indices=element_indices,
         l=l,
-        mode_index=args.mode_index,
+        mode_index=selected_space_index,
     )
 
     if args.output:
-        title = f"SALC: {args.element}_{args.orbital} at {kpoint_label} {format_kpoint(kpoint)}"
-        write_html_visualization(
-            output_path=args.output,
-            orbitals=orbitals,
-            basis_spaces=basis_spaces,
-            basis_labels=basis_labels,
-            element_indices=element_indices,
-            l=l,
-            kpoint=kpoint,
-            title=title,
-            mode_index=args.mode_index,
-        )
-        print(f"Saved 3D visualization to: {args.output}")
+        output_path = args.output
+    else:
+        if kpoint_label and kpoint_label != "custom":
+            kpoint_tag = "GM" if kpoint_label.upper() == "GAMMA" else kpoint_label
+        else:
+            kpoint_tag = "_".join(f"{value:g}" for value in kpoint)
+        mode_tag = f"_mode{args.mode_index}" if args.mode_index is not None else ""
+        conv_tag = "_conv" if args.conventional else ""
+        output_path = f"SALC_{args.element}_{args.orbital}_{kpoint_tag}{mode_tag}{conv_tag}.html"
+
+    from collections import Counter
+
+    composition = Counter(get_chemical_symbols(orbitals.primitive_cell))
+    formula = "".join(
+        f"{symbol}{count if count > 1 else ''}" for symbol, count in composition.items()
+    )
+    info = {
+        "formula": formula,
+        "space_group": f"{orbitals.spglib_dataset['international']} (#{orbitals.spglib_dataset['number']})",
+        "element_orbital": f"{args.element}_{args.orbital}",
+        "kpoint": f"{kpoint_label} {format_kpoint(kpoint)}",
+        "decomposition": decomposition,
+        "real_coefficient": args.real_coefficient,
+    }
+
+    bond_specs: list[tuple[str, str, float]] = []
+    for el1, el2, max_text in args.bond or []:
+        try:
+            bond_specs.append((el1, el2, float(max_text)))
+        except ValueError:
+            raise SystemExit(
+                f"ERROR: --bond expects a numeric maximum length in Angstroms, got '{max_text}'."
+            )
+
+    title = f"SALC: {args.element}_{args.orbital} at {kpoint_label} {format_kpoint(kpoint)}"
+    write_html_visualization(
+        output_path=output_path,
+        orbitals=orbitals,
+        basis_spaces=basis_spaces,
+        basis_labels=basis_labels,
+        element_indices=element_indices,
+        l=l,
+        kpoint=kpoint,
+        title=title,
+        mode_index=selected_space_index,
+        info=info,
+        bonds=bond_specs,
+        conventional=args.conventional,
+    )
+    print(f"Saved 3D visualization to: {output_path}")
 
 
 if __name__ == "__main__":

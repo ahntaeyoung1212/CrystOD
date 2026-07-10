@@ -36,8 +36,8 @@ field: the (2l+1)-dimensional orbital representation is decomposed into the
 irreps of the selected point group.
 
 # Command Examples:
-crystod --ligand-field-split --point-group 4/mmm --orbital d
-crystod --ligand-field-split --point-group m-3m --orbital f
+crystod-group --ligand-field d --point-group 4/mmm
+crystod-group --ligand-field f --point-group m-3m
 """
 
 ORBITAL_AZIMUTHAL_NUMBER = {"s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5, "i": 6}

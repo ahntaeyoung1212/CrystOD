@@ -41,7 +41,7 @@ folds into the unit-cell BZ (i.e. the unit-cell q-points that fold onto the
 Gamma point of the supercell).
 
 # Command Example:
-crystod --bz-supercell --poscar 221_PPOSCAR_ScF3 --trans-mat "0 1 2  -1 0 2  1 -1 2" --output BZ_supercell.html
+crystod-bz -c 221_PPOSCAR_ScF3 --trans-mat "0 1 2  -1 0 2  1 -1 2" --output BZ_supercell.html
 """
 
 

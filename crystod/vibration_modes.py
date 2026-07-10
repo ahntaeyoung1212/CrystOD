@@ -48,8 +48,8 @@ desc = """
 Construct symmetry-allowed vibration basis vectors without phonon force data.
 
 # Command Examples:
-python3 vibration_beta.py --poscar example/test_POSCARs/221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5
-python3 vibration_beta.py --poscar example/test_POSCARs/221_PPOSCAR_ScF3 --qpoint R --mode-index 2 --component-index 0 --output POSCAR_vibration
+crystod-phonon --vibration -c example/test_POSCARs/221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5
+crystod-phonon --vibration -c example/test_POSCARs/221_PPOSCAR_ScF3 --qpoint R --mode-index 3 --component-index 1 --output POSCAR_vibration
 """
 
 
@@ -81,13 +81,13 @@ def build_parser() -> ArgumentParser:
         "--mode-index",
         type=int,
         default=None,
-        help="Irrep-grouped mode-space index to inspect.",
+        help="Irrep-grouped mode-space number to inspect (1-based).",
     )
     parser.add_argument(
         "--component-index",
         type=int,
-        default=0,
-        help="Component index inside the selected degenerate mode space.",
+        default=1,
+        help="Component number inside the selected degenerate mode space (1-based).",
     )
     parser.add_argument(
         "--amplitude",
@@ -431,11 +431,11 @@ def _print_high_symmetry_qpoints(qpoints: dict[str, list[float]]) -> None:
 
 def _print_mode_spaces(basis_spaces: list[NDArray[np.complex128]], irrep_labels: list[str]) -> None:
     print("Irrep-grouped vibration spaces:")
-    for mode_index, (space, irrep_label) in enumerate(zip(basis_spaces, irrep_labels)):
+    for mode_index, (space, irrep_label) in enumerate(zip(basis_spaces, irrep_labels), start=1):
         dim = space.shape[0]
         print(
             f"  Mode Space {mode_index:2d}: irrep = {irrep_label}, dimension = {dim}, "
-            f"component indices = 0..{dim - 1}"
+            f"component numbers = 1..{dim}"
         )
 
 
@@ -465,21 +465,23 @@ def main(argv: list[str] | None = None) -> None:
         )
         return
 
-    if args.mode_index < 0 or args.mode_index >= len(basis_spaces):
-        raise IndexError(
-            f"Mode space index {args.mode_index} is out of range [0, {len(basis_spaces) - 1}]."
+    if args.mode_index < 1 or args.mode_index > len(basis_spaces):
+        raise SystemExit(
+            f"ERROR: mode-space number {args.mode_index} is out of range "
+            f"[1, {len(basis_spaces)}] (numbering is 1-based)."
         )
 
-    selected_space = basis_spaces[args.mode_index]
-    if args.component_index < 0 or args.component_index >= selected_space.shape[0]:
-        raise IndexError(
-            f"Component index {args.component_index} is out of range [0, {selected_space.shape[0] - 1}]."
+    selected_space = basis_spaces[args.mode_index - 1]
+    if args.component_index < 1 or args.component_index > selected_space.shape[0]:
+        raise SystemExit(
+            f"ERROR: component number {args.component_index} is out of range "
+            f"[1, {selected_space.shape[0]}] (numbering is 1-based)."
         )
 
-    mode_vector = selected_space[args.component_index]
+    mode_vector = selected_space[args.component_index - 1]
     supercell_size = vibrations.get_supercell_size(qpoint)
     print(f"\nSelected mode space: {args.mode_index}")
-    print(f"Selected irrep     : {irrep_labels[args.mode_index]}")
+    print(f"Selected irrep     : {irrep_labels[args.mode_index - 1]}")
     print(f"Selected component : {args.component_index}")
     print(f"Commensurate supercell size: {supercell_size}")
 
@@ -511,7 +513,7 @@ def main(argv: list[str] | None = None) -> None:
             mode_index=np.array(args.mode_index),
             component_index=np.array(args.component_index),
             irrep_labels=np.array(irrep_labels, dtype=object),
-            selected_irrep_label=np.array(irrep_labels[args.mode_index], dtype=object),
+            selected_irrep_label=np.array(irrep_labels[args.mode_index - 1], dtype=object),
             mode_space_dimensions=np.array([space.shape[0] for space in basis_spaces], dtype=int),
             selected_mode_dimension=np.array(selected_space.shape[0], dtype=int),
             amplitude=np.array(args.amplitude, dtype=float),

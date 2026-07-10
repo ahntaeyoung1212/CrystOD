@@ -43,8 +43,8 @@ Plot the phonon band structure colored by longitudinal/transverse character
 automatically with seekpath (or given manually with --band/--label).
 
 # Command Examples:
-crystod --phonon-lt --poscar 221_PPOSCAR_ScF3 --dim 4 4 4
-crystod --phonon-lt --poscar 221_PPOSCAR_ScF3 --dim 4 4 4 --nac
+crystod-phonon --lt -c 221_PPOSCAR_ScF3 --dim 4 4 4
+crystod-phonon --lt -c 221_PPOSCAR_ScF3 --dim 4 4 4 --nac
 """
 
 

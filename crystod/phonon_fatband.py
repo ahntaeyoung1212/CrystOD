@@ -47,8 +47,8 @@ automatically with seekpath (or given manually with --band/--label) and one
 fatband_<element>.pdf is written per element.
 
 # Command Examples:
-crystod --phonon-fatband --poscar 221_PPOSCAR_ScF3 --dim 4 4 4
-crystod --phonon-fatband --poscar 221_PPOSCAR_ScF3 --dim 4 4 4 --element F
+crystod-phonon --fatband -c 221_PPOSCAR_ScF3 --dim 4 4 4
+crystod-phonon --fatband -c 221_PPOSCAR_ScF3 --dim 4 4 4 --element F
 """
 
 GREEK_MPL = {"GAMMA": r"$\Gamma$", "DELTA": r"$\Delta$", "SIGMA": r"$\Sigma$", "LAMBDA": r"$\Lambda$"}

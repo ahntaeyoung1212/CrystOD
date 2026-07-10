@@ -31,9 +31,9 @@ Automatically generate 1st-3rd order polynomial basis functions classified by
 irreducible representation.
 
 # Command Examples:
-crystod --generate-basis-function --point-group m-3m
-crystod --generate-basis-function --point-group m-3m --order 2
-crystod --generate-basis-function --space-group Pm-3m --kpoint 0 0 0
+crystod-group --generate-basis --point-group m-3m
+crystod-group --generate-basis --point-group m-3m --order 2
+crystod-group --generate-basis --space-group Pm-3m --kpoint 0 0 0
 """
 
 DEGREE_MONOMIALS: dict[int, list[str]] = {

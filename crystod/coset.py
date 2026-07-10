@@ -37,8 +37,8 @@ desc = """
 Display coset decompositions.
 
 # Command Examples:
-crystod --show-coset --point-group m-3m --subgroup 4/mmm
-crystod --show-coset --space-group Pm-3m --kpoint 0.5 0.5 0
+crystod-group --coset --point-group m-3m --subgroup 4/mmm
+crystod-group --coset --space-group Pm-3m --kpoint 0.5 0.5 0
 """
 
 

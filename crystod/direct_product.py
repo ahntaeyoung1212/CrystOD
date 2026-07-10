@@ -8,7 +8,7 @@ from phonopy.phonon.character_table import character_table as all_character_tabl
 
 def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
-        prog="crystod --direct-product",
+        prog="crystod-group --product",
         description=(
             "Calculate direct products among irreducible representations "
             "of a point group."
@@ -16,8 +16,8 @@ def build_parser() -> ArgumentParser:
         formatter_class=RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  crystod --direct-product --point-group m-3m --irreps T2g T2g T1u\n"
-            '  crystod --direct-product --point-group "6/mmm" --irreps E1u E1u'
+            "  crystod-group --product T2g T2g T1u\n --point-group m-3m"
+            '  crystod-group --product E1u E1u --point-group "6/mmm"'
         ),
     )
     parser.add_argument(

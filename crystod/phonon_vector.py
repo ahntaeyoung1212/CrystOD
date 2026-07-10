@@ -20,6 +20,7 @@ from argparse import (
     RawDescriptionHelpFormatter,
     RawTextHelpFormatter,
 )
+import re
 from fractions import Fraction
 from math import gcd
 from pathlib import Path
@@ -45,7 +46,7 @@ from .vibration_modes import SymmetryOnlyVibrations
 
 IrrepTable, Irrep = load_irreptables()
 
-# sqrt(eV/A^2/AMU) -> THz, same constant as crystod --modulation.
+# sqrt(eV/A^2/AMU) -> THz, same constant as crystod-phonon --modulation.
 FREQUENCY_CONVERSION_THZ = 15.633302
 
 
@@ -63,9 +64,10 @@ POSCAR and FORCE_SETS (or FORCE_CONSTANTS with --readfc) must exist in the
 directory where this code runs, exactly as in --phonon-irrep mode.
 
 # Command Examples:
-crystod --phonon-vector --dim "4 4 4" --poscar 227_PPOSCAR_Si --qpoint GM
-crystod --phonon-vector --dim "4 4 4" --poscar 227_PPOSCAR_Si --qpoint GM --mode 3 4 5
-crystod --phonon-vector --dim "4 4 4" --poscar 227_PPOSCAR_Si --qpoint 0.5 0 0.5 --mode 0
+crystod-phonon --vector --dim "4 4 4" -c 227_PPOSCAR_Si --qpoint GM
+crystod-phonon --vector --dim "4 4 4" -c 227_PPOSCAR_Si --qpoint GM              # all modes
+crystod-phonon --vector --dim "4 4 4" -c 227_PPOSCAR_Si --qpoint GM --mode 4 5 6 # summed pattern
+crystod-phonon --vector --dim "4 4 4" -c 227_PPOSCAR_Si --qpoint 0.5 0 0.5 --mode 1
 """
 
 GAMMA_ALIASES = {"G", "GM", "GAMMA", "Γ"}
@@ -202,7 +204,8 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         type=int,
         default=None,
-        help="Mode index or indices (0-based, sorted by frequency) to export as VESTA files.",
+        help="Mode number(s) (1-based, sorted by frequency) to export as one summed VESTA "
+        "file. When omitted, ALL modes are exported as individual VESTA files.",
     )
     parser.add_argument(
         "--amplitude",
@@ -574,11 +577,24 @@ def write_vesta_with_arrows(
         fp.write("\n".join(lines))
 
 
+def _irrep_filename_tag(labels: list[str]) -> str:
+    """Compact irrep tag for file names: drop the dimension suffix "(n)" and
+    join distinct labels with '+' (e.g. "GM1(1), GM5(2)" -> "GM1+GM5")."""
+    cleaned: list[str] = []
+    for label in labels:
+        for part in label.split(","):
+            part = re.sub(r"\(\d+\)", "", part).strip()
+            if part and part != "-" and part not in cleaned:
+                cleaned.append(part)
+    return "+".join(cleaned)
+
+
 def _output_path(
     output: str | None,
     formula: str,
     q_label: str,
-    mode_indices: list[int],
+    mode_file_string: str,
+    irrep_tag: str,
     conventional: bool = False,
 ) -> str:
     if output is not None:
@@ -586,9 +602,9 @@ def _output_path(
         if path.suffix.lower() != ".vesta":
             path = path.with_suffix(path.suffix + ".vesta") if path.suffix else path.with_suffix(".vesta")
         return str(path)
-    mode_string = "+".join(str(index) for index in mode_indices)
     suffix = "_conv" if conventional else ""
-    return f"POSCAR_{formula}_{q_label}_mode{mode_string}{suffix}.vesta"
+    irrep_part = f"_{irrep_tag}" if irrep_tag else ""
+    return f"POSCAR_{formula}_{q_label}_mode{mode_file_string}{irrep_part}{suffix}.vesta"
 
 
 def _find_intertwiner(
@@ -622,7 +638,7 @@ def build_symmetry_adapted_modes(
     """Eigenvectors of the dynamical matrix at q, symmetry-adapted within degenerate subspaces.
 
     The dynamical matrix is block-diagonalized in the spgrep irrep-projected
-    basis (the same construction as crystod --modulation), so that degenerate
+    basis (the same construction as crystod-phonon --modulation), so that degenerate
     modes come out along symmetry-dictated directions instead of the arbitrary
     linear combinations returned by a plain eigensolver. Returns a list of
     (frequency_THz, mode_vector) sorted by frequency; the vectors are exact
@@ -706,7 +722,7 @@ def build_symmetry_adapted_modes(
         eigenvalues = eigenvalues.real
 
         # Preserve the symmetry-adapted basis when the cluster is numerically
-        # degenerate, exactly as crystod --modulation does.
+        # degenerate, exactly as crystod-phonon --modulation does.
         if multiplicity > 1 and np.allclose(eigenvalues, eigenvalues.mean(), atol=1e-10, rtol=1e-8):
             eigenvalues = np.full(multiplicity, eigenvalues.mean())
             eigenvectors = np.eye(multiplicity, dtype=complex)
@@ -833,17 +849,26 @@ def main(argv: list[str] | None = None) -> None:
     except Exception:
         q_names, q_list = [], []
 
+    formula = reduced_formula(list(phonon.primitive.symbols))
+
+    # the header + mode table is also saved as a text file (report_lines)
+    report_lines: list[str] = []
+
+    def echo(line: str = "") -> None:
+        print(line)
+        report_lines.append(line)
+
     if q_names:
-        print(f"Space group: {dataset['international']} (#{dataset['number']})")
-        print("Available high-symmetry q-points:")
+        echo(f"Space group: {dataset['international']} (#{dataset['number']})")
+        echo("Available high-symmetry q-points:")
         for name, q in zip(q_names, q_list):
-            print(f"  {name:8s} {q}")
+            echo(f"  {name:8s} {q}")
 
     q_label, qpoint = resolve_qpoint(args.qpoint, q_names, q_list)
-    print(f"\nSelected q-point: {q_label} = {qpoint}")
+    echo(f"\nSelected q-point: {q_label} = {qpoint}")
 
     # Symmetry-adapted eigenvectors: degenerate modes are aligned along
-    # symmetry-dictated directions (same construction as crystod --modulation)
+    # symmetry-dictated directions (same construction as crystod-phonon --modulation)
     # instead of the arbitrary combinations a plain eigensolver returns.
     try:
         symmetry_adapted_modes = build_symmetry_adapted_modes(phonon, qpoint)
@@ -863,20 +888,32 @@ def main(argv: list[str] | None = None) -> None:
         mode_vectors = [eigenvector_matrix[:, band] for band in range(len(frequencies))]
 
     _, mode_labels = _get_mode_labels(qpoint, phonon, dataset, args.tol)
-    print(f"\nPhonon modes at q = {q_label}")
-    print(f"{'Mode':>5s}  {'Freq (THz)':>12s}  Irrep")
-    print("-" * 40)
+    echo(f"\nPhonon modes at q = {q_label}")
+    echo(f"{'Mode':>5s}  {'Freq (THz)':>12s}  Irrep")
+    echo("-" * 40)
     for mode_index, frequency in enumerate(frequencies):
-        print(f"{mode_index:5d}  {frequency:12.4f}  {mode_labels[mode_index]}")
+        echo(f"{mode_index + 1:5d}  {frequency:12.4f}  {mode_labels[mode_index]}")
 
-    if args.mode is None:
-        print("\nUse --mode to export selected eigenvectors as VESTA files.")
-        return
+    report_path = f"phonon_modes_{formula}_{q_label}.txt"
+    with open(report_path, "w") as handle:
+        handle.write("\n".join(report_lines) + "\n")
+    print(f"\nMode table written to: {report_path}")
 
     n_modes = len(frequencies)
-    for mode_index in args.mode:
-        if mode_index < 0 or mode_index >= n_modes:
-            raise IndexError(f"Mode index {mode_index} is out of range [0, {n_modes - 1}].")
+    if args.mode is None:
+        if args.output:
+            raise SystemExit("ERROR: --output requires --mode (one summed output file).")
+        mode_groups = [[index] for index in range(n_modes)]
+        print(f"\nNo --mode given; exporting all {n_modes} modes as individual VESTA files.")
+    else:
+        selected: list[int] = []
+        for value in args.mode:
+            if value < 1 or value > n_modes:
+                raise SystemExit(
+                    f"ERROR: mode number {value} is out of range [1, {n_modes}] (numbering is 1-based)."
+                )
+            selected.append(value - 1)
+        mode_groups = [selected]
 
     if args.conventional:
         centring = dataset["international"][0]
@@ -898,63 +935,74 @@ def main(argv: list[str] | None = None) -> None:
     elif not args.conventional:
         print("\nCommensurate supercell for visualization: 1x1x1")
 
-    formula = reduced_formula(list(phonon.primitive.symbols))
+    # As in --modulation, multiple modes selected with --mode are summed into
+    # one displacement pattern (each mode with unit weight). Without --mode,
+    # every mode is exported individually.
+    pad = len(str(n_modes))  # zero-pad mode numbers in file names so ls sorts them
+    for group in mode_groups:
+        supercell = None
+        total_displacements = None
+        for mode_index in group:
+            supercell, complex_field = get_supercell_displacement_field(
+                phonon=phonon,
+                qpoint=qpoint,
+                supercell_matrix=supercell_matrix,
+                mode_vector=mode_vectors[mode_index],
+            )
+            displacements = complex_field.real
+            max_norm = float(np.max(np.linalg.norm(displacements, axis=1)))
+            if max_norm < 1e-12:
+                print(f"Mode {mode_index + 1}: real part of the eigenvector vanished; contributes nothing.")
+            print(
+                f"  + mode {mode_index + 1}: {mode_labels[mode_index]}, "
+                f"{frequencies[mode_index]:.4f} THz"
+            )
+            total_displacements = displacements if total_displacements is None else total_displacements + displacements
 
-    # As in --modulation, multiple selected modes are summed into one
-    # displacement pattern (each mode with unit weight).
-    supercell = None
-    total_displacements = None
-    for mode_index in args.mode:
-        supercell, complex_field = get_supercell_displacement_field(
-            phonon=phonon,
-            qpoint=qpoint,
-            supercell_matrix=supercell_matrix,
-            mode_vector=mode_vectors[mode_index],
-        )
-        displacements = complex_field.real
-        max_norm = float(np.max(np.linalg.norm(displacements, axis=1)))
+        max_norm = float(np.max(np.linalg.norm(total_displacements, axis=1)))
         if max_norm < 1e-12:
-            print(f"Mode {mode_index}: real part of the eigenvector vanished; contributes nothing.")
-        print(
-            f"  + mode {mode_index}: {mode_labels[mode_index]}, "
-            f"{frequencies[mode_index]:.4f} THz"
+            print("The summed displacement pattern vanished; nothing to write.")
+            continue
+        arrows = total_displacements * (args.amplitude / max_norm)
+
+        mode_numbers = [mode_index + 1 for mode_index in group]
+        mode_string = "+".join(str(number) for number in mode_numbers)
+        mode_file_string = "+".join(f"{number:0{pad}d}" for number in mode_numbers)
+        unique_labels: list[str] = []
+        for mode_index in group:
+            if mode_labels[mode_index] not in unique_labels:
+                unique_labels.append(mode_labels[mode_index])
+        if len(group) == 1:
+            title = (
+                f"{formula} {q_label} mode {mode_string} "
+                f"[{unique_labels[0]}] {frequencies[group[0]]:.4f} THz"
+            )
+        else:
+            title = f"{formula} {q_label} modes {mode_string} [{', '.join(unique_labels)}]"
+        if args.conventional:
+            title += " (conventional cell)"
+
+        output_path = _output_path(
+            args.output,
+            formula,
+            q_label,
+            mode_file_string,
+            _irrep_filename_tag(unique_labels),
+            args.conventional,
         )
-        total_displacements = displacements if total_displacements is None else total_displacements + displacements
-
-    max_norm = float(np.max(np.linalg.norm(total_displacements, axis=1)))
-    if max_norm < 1e-12:
-        print("The summed displacement pattern vanished; nothing to write.")
-        return
-    arrows = total_displacements * (args.amplitude / max_norm)
-
-    mode_string = "+".join(str(index) for index in args.mode)
-    unique_labels: list[str] = []
-    for mode_index in args.mode:
-        if mode_labels[mode_index] not in unique_labels:
-            unique_labels.append(mode_labels[mode_index])
-    if len(args.mode) == 1:
-        title = (
-            f"{formula} {q_label} mode {mode_string} "
-            f"[{unique_labels[0]}] {frequencies[args.mode[0]]:.4f} THz"
+        write_vesta_with_arrows(
+            filepath=output_path,
+            lattice=np.array(supercell.cell, dtype=float),
+            scaled_positions=np.array(supercell.scaled_positions, dtype=float),
+            symbols=list(supercell.symbols),
+            arrows_cartesian=arrows,
+            title=title,
         )
-    else:
-        title = f"{formula} {q_label} modes {mode_string} [{', '.join(unique_labels)}]"
-    if args.conventional:
-        title += " (conventional cell)"
+        if len(group) == 1:
+            print(f"Mode {mode_string} written to: {output_path}")
+        else:
+            print(f"Sum of modes {mode_string} written to: {output_path}")
 
-    output_path = _output_path(args.output, formula, q_label, args.mode, args.conventional)
-    write_vesta_with_arrows(
-        filepath=output_path,
-        lattice=np.array(supercell.cell, dtype=float),
-        scaled_positions=np.array(supercell.scaled_positions, dtype=float),
-        symbols=list(supercell.symbols),
-        arrows_cartesian=arrows,
-        title=title,
-    )
-    if len(args.mode) == 1:
-        print(f"Mode {mode_string} written to: {output_path}")
-    else:
-        print(f"Sum of modes {mode_string} written to: {output_path}")
     print(
         f"\nArrows are scaled so the largest displacement is {args.amplitude:g} A; "
         "adjust arrow size in VESTA via Edit > Vectors or Properties > Vectors if needed."

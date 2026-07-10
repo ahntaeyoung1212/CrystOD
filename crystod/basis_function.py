@@ -42,13 +42,13 @@ components Rx, Ry, Rz are supported; they transform with det(R) * R, i.e.
 like rotations, angular momenta, or magnetic moments (spins).
 
 # Command Examples:
-crystod --basis-function x y z --point-group m-3m
-crystod --basis-function Rx Ry Rz --point-group m-3m
-crystod --basis-function x y z --space-group Pm-3m --kpoint 0 0 0
-crystod --basis-function xyz --space-group Pm-3m --kpoint 0.5 0.3 0 --show-irrep-table
-crystod --basis-function z^2 --point-group m-3m
-crystod --basis-function "x(y^2-z^2)" --point-group m-3m
-crystod --basis-function "x*Ry - y*Rx" --point-group m-3m
+crystod-group --basis x y z --point-group m-3m
+crystod-group --basis Rx Ry Rz --point-group m-3m
+crystod-group --basis x y z --space-group Pm-3m --kpoint 0 0 0
+crystod-group --basis xyz --space-group Pm-3m --kpoint 0.5 0.3 0 --show-irrep-table
+crystod-group --basis z^2 --point-group m-3m
+crystod-group --basis "x(y^2-z^2)" --point-group m-3m
+crystod-group --basis "x*Ry - y*Rx" --point-group m-3m
 """
 
 _PARSER_TRANSFORMS = standard_transformations + (

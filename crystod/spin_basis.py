@@ -53,8 +53,8 @@ antiferromagnetic (net moment = 0) combinations are separated, and each basis
 vector is exported as a VESTA file with spin arrows.
 
 # Command Examples:
-crystod --spin-basis --poscar 221_PPOSCAR_AlNi3 --element Ni --qpoint 0 0 0
-crystod --spin-basis --poscar 221_PPOSCAR_AlNi3 --element Ni --qpoint GM --show-spin-direction
+crystod-mag -c 221_PPOSCAR_AlNi3 --element Ni --qpoint 0 0 0
+crystod-mag -c 221_PPOSCAR_AlNi3 --element Ni --qpoint GM --format qe
 """
 
 MULTIPOLE_NAMES = {
@@ -87,7 +87,15 @@ def build_parser() -> ArgumentParser:
         "--show-spin-direction",
         action="store_true",
         help="Print the spin direction [x, y, z] of every atom for each basis vector "
-        "(with a VASP noncollinear MAGMOM line).",
+        "(with a noncollinear magnetization input in the selected --format).",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["vasp", "qe"],
+        default="vasp",
+        help="Format of the noncollinear magnetization input printed with "
+        "--show-spin-direction: vasp = MAGMOM line, qe = Quantum ESPRESSO "
+        "starting_magnetization/angle1/angle2 (&SYSTEM).",
     )
     parser.add_argument(
         "--amplitude",
@@ -100,6 +108,13 @@ def build_parser() -> ArgumentParser:
         type=float,
         default=1e-5,
         help="Symmetry tolerance.",
+    )
+    parser.add_argument(
+        "--conventional",
+        action="store_true",
+        help="Export the spin structures in the conventional cell instead of the "
+        "primitive cell (primitive-to-conventional matrix from the detected "
+        "centring, as in crystod-phonon --vector).",
     )
     return parser
 
@@ -335,6 +350,70 @@ def _direction_tag(space_component: NDArray[np.float64], n_sites: int) -> tuple[
 # Main
 # ---------------------------------------------------------------------------
 
+def _print_qe_noncollinear(symbols: list[str], atom_spins: list, element: str) -> None:
+    """Print pw.x noncollinear magnetization lines (&SYSTEM) for one basis vector.
+
+    Quantum ESPRESSO specifies noncollinear moments per atom TYPE via
+    starting_magnetization / angle1 / angle2, so the magnetic element is split
+    into one type per distinct spin direction and the atom membership of each
+    type is printed as a comment.
+    """
+    type_keys: list[tuple] = []
+    type_of_atom: list[int] = []
+    for symbol, spin in zip(symbols, atom_spins):
+        if symbol == element:
+            key = (symbol, tuple(np.round(spin, 4)))
+        else:
+            key = (symbol,)
+        if key not in type_keys:
+            type_keys.append(key)
+        type_of_atom.append(type_keys.index(key) + 1)
+
+    labels = []
+    magnetic_counter = 0
+    for key in type_keys:
+        if len(key) == 2:
+            magnetic_counter += 1
+            labels.append(f"{element}{magnetic_counter}")
+        else:
+            labels.append(key[0])
+
+    print("    Quantum ESPRESSO noncollinear magnetization (&SYSTEM):")
+    print("      noncolin = .true.")
+    for type_index, key in enumerate(type_keys, start=1):
+        label = labels[type_index - 1]
+        members = [
+            f"{symbols[i]}{i + 1}"
+            for i, atom_type in enumerate(type_of_atom)
+            if atom_type == type_index
+        ]
+        if len(key) == 1:
+            print(f"      ! type {type_index} ({label}): {' '.join(members)} -- non-magnetic")
+            continue
+        spin = np.array(key[1], dtype=float)
+        magnitude = float(np.linalg.norm(spin))
+        if magnitude < 1e-8:
+            theta = phi = 0.0
+        else:
+            theta = float(np.degrees(np.arccos(np.clip(spin[2] / magnitude, -1.0, 1.0))))
+            phi = float(np.degrees(np.arctan2(spin[1], spin[0])))
+        print(
+            f"      ! type {type_index} ({label}): {' '.join(members)}  "
+            f"S = [{spin[0]:.4f}, {spin[1]:.4f}, {spin[2]:.4f}]"
+        )
+        print(f"      starting_magnetization({type_index}) = {magnitude:.4f}")
+        print(f"      angle1({type_index}) = {theta:.4f}")
+        print(f"      angle2({type_index}) = {phi:.4f}")
+    print(
+        "      ! angle1 = polar angle from the z axis (deg); "
+        "angle2 = azimuth from the x axis in the xy plane (deg)."
+    )
+    print(
+        f"      ! Split {element} into the types above in ATOMIC_SPECIES / "
+        "ATOMIC_POSITIONS to realize this spin arrangement."
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
 
@@ -469,18 +548,54 @@ def main(argv: list[str] | None = None) -> None:
             f"\nMagnetic (commensurate) supercell: "
             f"{supercell_sizes[0]}x{supercell_sizes[1]}x{supercell_sizes[2]}"
         )
-    cell_translations = [
-        np.array(t)
-        for t in np.ndindex(int(supercell_sizes[0]), int(supercell_sizes[1]), int(supercell_sizes[2]))
-    ]
-    supercell_lattice = np.diag(supercell_sizes) @ lattice
+
+    # Display cell for the VESTA/MAGMOM output: rows of cell_matrix are the
+    # display-cell lattice vectors in primitive units. With --conventional the
+    # conventional cell is used (times commensurate multiples for q != 0);
+    # wrapping an atom by a display-cell vector leaves its Bloch phase
+    # unchanged because q . S_row is an integer by construction.
+    if args.conventional:
+        from .phonon_vector import get_commensurate_supercell_matrix, get_conventional_matrix
+
+        centring = vibrations.spglib_dataset["international"][0]
+        base_matrix = get_conventional_matrix(centring)
+        cell_matrix = np.array(get_commensurate_supercell_matrix(qpoint, base_matrix), dtype=int)
+        multiples = np.rint(
+            np.diag(cell_matrix @ np.linalg.inv(np.array(base_matrix, dtype=float)))
+        ).astype(int)
+        print(
+            f"Display cell: conventional ({centring} centring), "
+            f"{multiples[0]}x{multiples[1]}x{multiples[2]} cells"
+        )
+    else:
+        cell_matrix = np.diag(supercell_sizes)
+
+    inverse_cell = np.linalg.inv(np.array(cell_matrix, dtype=float))
+    corner_shifts = [np.zeros(3)]
+    for axis in range(3):
+        corner_shifts = corner_shifts + [shift + cell_matrix[axis] for shift in corner_shifts]
+    corner_array = np.array(corner_shifts, dtype=float)
+    t_low = np.floor(corner_array.min(axis=0)).astype(int) - 1
+    t_high = np.ceil(corner_array.max(axis=0)).astype(int) + 1
+    coset_eps = 1e-8
+    cell_translations = []
+    for t1 in range(t_low[0], t_high[0] + 1):
+        for t2 in range(t_low[1], t_high[1] + 1):
+            for t3 in range(t_low[2], t_high[2] + 1):
+                translation = np.array([t1, t2, t3], dtype=float)
+                frac = translation @ inverse_cell
+                if np.all(frac > -coset_eps) and np.all(frac < 1 - coset_eps):
+                    cell_translations.append(translation)
+
+    supercell_lattice = np.array(cell_matrix, dtype=float) @ lattice
     supercell_symbols: list[str] = []
     supercell_positions: list[NDArray[np.float64]] = []
     supercell_site_of_atom: list[int | None] = []  # magnetic-site index or None
     for translation in cell_translations:
         for i, symbol in enumerate(symbols):
             supercell_symbols.append(symbol)
-            supercell_positions.append((positions[i] + translation) / supercell_sizes)
+            frac_cell = (positions[i] + translation) @ inverse_cell
+            supercell_positions.append(frac_cell - np.floor(frac_cell))
             supercell_site_of_atom.append(site_indices.index(i) if i in site_indices else None)
     supercell_positions = np.array(supercell_positions)
     cell_phases = [np.exp(2j * np.pi * np.dot(qpoint, t)) for t in cell_translations]
@@ -543,23 +658,33 @@ def main(argv: list[str] | None = None) -> None:
 
             if args.show_spin_direction:
                 magmom_parts = []
+                atom_spins = []
                 for atom_index, site in enumerate(supercell_site_of_atom):
                     if site is None:
                         magmom_parts.append("0 0 0")
+                        atom_spins.append(np.zeros(3))
                     else:
                         cell_index = atom_index // len(symbols)
                         s = field[cell_index, site]
                         magmom_parts.append(f"{s[0]:.4f} {s[1]:.4f} {s[2]:.4f}")
-                cell_note = "" if is_gamma else f" ({supercell_sizes.tolist()} magnetic supercell)"
+                        atom_spins.append(np.array(s, dtype=float))
+                if args.conventional:
+                    cell_note = " (conventional cell)" if is_gamma else " (conventional magnetic cell)"
+                else:
+                    cell_note = "" if is_gamma else f" ({supercell_sizes.tolist()} magnetic supercell)"
                 print(f"    spin directions (all atoms, POSCAR order){cell_note}:")
                 for atom_index, s_text in enumerate(magmom_parts):
                     print(f"      {supercell_symbols[atom_index]}{atom_index + 1}: "
                           f"[{s_text.replace(' ', ', ')}]")
-                print(f"    MAGMOM = {'   '.join(magmom_parts)}")
+                if args.format == "qe":
+                    _print_qe_noncollinear(supercell_symbols, atom_spins, args.element)
+                else:
+                    print(f"    MAGMOM = {'   '.join(magmom_parts)}")
 
             # VESTA export
             rank_tag = rank_name if rank_name else ("FM" if kind == "FM" else qpoint_label)
-            name = f"POSCAR_{formula}_spin_{short_label}_{rank_tag}_{tag}.vesta"
+            conv_tag = "_conv" if args.conventional else ""
+            name = f"POSCAR_{formula}_spin_{short_label}_{rank_tag}_{tag}{conv_tag}.vesta"
             if name in used_names:
                 stem = name[: -len(".vesta")]
                 suffix = 2

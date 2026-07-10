@@ -34,8 +34,8 @@ interactively for each symmetry-operation class (or given at once with
 --characters).
 
 # Command Examples:
-crystod --decompose-irrep --point-group 3m
-crystod --decompose-irrep --point-group 3m --characters 3 0 1
+crystod-group --decompose --point-group 3m
+crystod-group --decompose --point-group 3m --characters 3 0 1
 """
 
 

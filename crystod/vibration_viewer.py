@@ -36,7 +36,7 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--npz",
         required=True,
-        help="Path to a .npz file exported by crystod --vibration.",
+        help="Path to a .npz file exported by crystod-phonon --vibration.",
     )
     parser.add_argument(
         "--amplitude",
