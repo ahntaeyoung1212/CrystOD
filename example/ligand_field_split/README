@@ -1,4 +1,4 @@
-crystod --ligand-field-split --point-group="m-3m" --orbital d 
+crystod-group --ligand-field d --point-group m-3m
 
 * Point group *
 m-3m
@@ -24,7 +24,7 @@ d
 
 
 
-crystod --ligand-field-split --point-group="m-3m" --orbital f
+crystod-group --ligand-field f --point-group m-3m
 
 * Point group *
 m-3m
@@ -50,7 +50,7 @@ f
 
 
 
-crystod --ligand-field-split --point-group="6/mmm" --orbital f
+crystod-group --ligand-field f --point-group 6/mmm
 
 * Point group *
 6/mmm
