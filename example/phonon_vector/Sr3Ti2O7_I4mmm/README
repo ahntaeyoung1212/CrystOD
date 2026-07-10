@@ -1,5 +1,5 @@
 # Confirm the irreps of phonon modes for the I4/mmm phase 
-crystod --phonon-vector --dim "4 4 4" --poscar 139_PPOSCAR_Sr3Ti2O7 --qpoint X
+crystod-phonon --vector --dim "4 4 4" -c 139_PPOSCAR_Sr3Ti2O7 --qpoint X
 
 # Result 
 Space group: I4/mmm (#139)
@@ -53,4 +53,4 @@ Phonon modes at q = X
    35       23.1297  X2-(1)
 
 # Visualize the phonon mode transforming as irrep X3- in conventional form
-crystod --phonon-vector --dim "4 4 4" --poscar 139_PPOSCAR_Sr3Ti2O7 --qpoint X --mode 0 --conventional
+crystod-phonon --vector --dim "4 4 4" -c 139_PPOSCAR_Sr3Ti2O7 --qpoint X --mode 1 --conventional
