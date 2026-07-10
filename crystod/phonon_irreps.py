@@ -105,6 +105,31 @@ def get_irt_special_points(irt_table, prim_mat) -> tuple[list[str], list[list[fl
     return q_names, q_list
 
 
+def find_star_representative(
+    qpoint: list[float] | NDArray[np.float64],
+    rotations: NDArray[np.int_],
+    q_names: list[str],
+    q_list: list[list[float]],
+) -> tuple[str, list[float]] | None:
+    """Map q onto the tabulated arm of its star.
+
+    irreptables lists only one representative arm per special point (e.g. only
+    (1/2, 1/2, 0) for the three M arms of Pm-3m), so a direct coordinate lookup
+    fails for the other arms. Returns (label, representative q) when some
+    space-group rotation sends q onto a tabulated point (k' = k R, modulo
+    reciprocal-lattice translations); None otherwise. ``rotations`` must be in
+    the same (primitive) basis as q and the tabulated points.
+    """
+    qpoint = np.asarray(qpoint, dtype=float)
+    for name, q_special in zip(q_names, q_list):
+        target = np.asarray(q_special, dtype=float)
+        for rotation in rotations:
+            diff = qpoint @ rotation - target
+            if (np.abs(diff - np.rint(diff)) < 1e-8).all():
+                return name, list(q_special)
+    return None
+
+
 def get_irt_irreps_at_q(q: list[float], irt_table, prim_mat) -> list[Irrep]:
     """Get irreps at the q-point from irreptables."""
     irreps_at_q = []

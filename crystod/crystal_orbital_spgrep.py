@@ -27,7 +27,12 @@ from .runtime_compat import (
     get_scaled_positions,
     get_symmetry_dataset,
 )
-from .operations import characterize_rotation, get_seitz_symbol
+from .operations import (
+    characterize_rotation,
+    conjugated_little_group_map,
+    find_star_arm,
+    get_seitz_symbol,
+)
 from argparse import ArgumentParser, RawTextHelpFormatter, RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter
 import numpy as np
 from numpy.typing import NDArray
@@ -198,12 +203,40 @@ class CrystalOrbital:
         return irreps_at_k
 
     def get_kpoint_name(self, k: list[float]) -> Optional[str]:
-        """Get the special k-point name from irreptables if available."""
+        """Get the special k-point name from irreptables if available.
+
+        Any arm of a tabulated star is recognized, not only the tabulated arm.
+        """
         k = canonicalize_kpoint(k)
         irreps_at_k = self.get_irt_irreps_at_k(k)
         if irreps_at_k:
             return irreps_at_k[0].kpname
+        arm = self._find_irt_star_arm(k)
+        if arm is not None:
+            irreps_at_rep = self.get_irt_irreps_at_k(arm[1])
+            if irreps_at_rep:
+                return irreps_at_rep[0].kpname
         return None
+
+    def _find_irt_star_arm(self, k: list[float]) -> Optional[tuple[int, list[float]]]:
+        """(g_index, k_rep) mapping k onto the tabulated arm of its star, or None.
+
+        The operations are sorted in irreptables order, so g_index doubles as
+        the irreptables operation index.
+        """
+        _, special_points = self.get_irt_special_points()
+        return find_star_arm(k, self.rotations, special_points)
+
+    def _conjugated_character_indices(
+        self,
+        g_index: int,
+        k_rep: list[float],
+        mapping_little_group: NDArray[np.int_],
+    ) -> Optional[tuple[list[int], NDArray[np.complex128]]]:
+        """Character transport h -> g^-1 h g onto the little group of k_rep."""
+        return conjugated_little_group_map(
+            self.rotations, self.translations, g_index, k_rep, mapping_little_group
+        )
 
     def get_irt_special_points(self) -> tuple[list[str], list[list[float]]]:
         """Get unique special k-points from irreptables in primitive basis."""
@@ -225,6 +258,21 @@ class CrystalOrbital:
         """Map spgrep irreps to irreptables labels by comparing characters."""
         k = canonicalize_kpoint(k)
         irt_irreps = self.get_irt_irreps_at_k(k)
+        char_indices: list[int] = list(mapping_little_group)
+        char_phases = np.ones(len(char_indices), dtype=complex)
+        if not irt_irreps:
+            # k may be a non-tabulated arm of a special-point star: map it onto
+            # the tabulated arm and transport the characters by conjugation.
+            arm = self._find_irt_star_arm(k)
+            if arm is not None:
+                conjugated = self._conjugated_character_indices(arm[0], arm[1], mapping_little_group)
+                if conjugated is not None:
+                    candidate_irreps = self.get_irt_irreps_at_k(arm[1])
+                    if candidate_irreps and all(
+                        (index + 1) in candidate_irreps[0].characters for index in conjugated[0]
+                    ):
+                        irt_irreps = candidate_irreps
+                        char_indices, char_phases = conjugated
         if not irt_irreps:
             return {
                 f"irrep_{i+1}({irrep.shape[1]})": f"irrep_{i+1}({irrep.shape[1]})"
@@ -345,9 +393,12 @@ class CrystalOrbital:
         irt_character_map = {}
         for irt_irrep in irt_irreps:
             irt_label = f"{irt_irrep.name}({irt_irrep.dim})"
-            irt_character_map[irt_label] = np.array(
-                [irt_irrep.characters[idx + 1] for idx in mapping_little_group],
-                dtype=complex,
+            irt_character_map[irt_label] = (
+                np.array(
+                    [irt_irrep.characters[idx + 1] for idx in char_indices],
+                    dtype=complex,
+                )
+                * char_phases
             )
 
         spgrep_character_map = {}

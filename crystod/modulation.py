@@ -44,6 +44,7 @@ desc = """
 Generate modulated crystal structures from symmetry-adapted phonon modes.
 
 # Command Example:
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5                      (list modes and star of q only)
 crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
 crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint1 0 0.5 0.5 --mode1 1 --qpoint2 0.5 0 0.5 --mode2 1 --output POSCAR_combined
 """
@@ -67,7 +68,8 @@ def build_parser() -> ArgumentParser:
         "--mode",
         nargs="+",
         type=int,
-        help="Mode number(s) to apply, 1-based as in the printed mode table.",
+        help="Mode number(s) to apply, 1-based as in the printed mode table.\n"
+        "If omitted, only the mode table and the star of q are printed.",
     )
     parser.add_argument(
         "--amplitude",
@@ -78,8 +80,8 @@ def build_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--output",
-        default="POSCAR_modulated",
-        help="Output POSCAR path.",
+        default=None,
+        help="Output POSCAR path (default: MPOSCAR_{q}_{mode}_{irrep}_{subgroup}).",
     )
     parser.add_argument(
         "--tolerance",
@@ -90,6 +92,41 @@ def build_parser() -> ArgumentParser:
         help="Symmetry tolerance.",
     )
     return parser
+
+
+def _find_intertwiner(
+    rep: NDArray[np.complex128],
+    space_s: NDArray[np.complex128],
+    space_r: NDArray[np.complex128],
+) -> NDArray[np.complex128] | None:
+    """Unitary aligning the irrep basis of space_s to that of space_r.
+
+    Both spaces must carry equivalent irreps of the same (projective)
+    representation ``rep``; returns None when they are inequivalent.
+    """
+    dim = space_s.shape[0]
+    d_s = np.array([space_s @ G @ space_s.conj().T for G in rep])
+    d_r = np.array([space_r @ G @ space_r.conj().T for G in rep])
+    for seed_index in range(dim * dim):
+        seed = np.zeros((dim, dim))
+        seed[seed_index // dim, seed_index % dim] = 1.0
+        averaged = sum(a @ seed @ b.conj().T for a, b in zip(d_s, d_r)) / len(rep)
+        if np.linalg.norm(averaged) > 1e-6:
+            u, _, vh = np.linalg.svd(averaged)
+            return u @ vh
+    return None
+
+
+def _irrep_filename_tag(labels: list[str]) -> str:
+    """Compact irrep tag for file names: drop the dimension suffix "(n)" and
+    join distinct labels with '+' (e.g. "GM1(1), GM5(2)" -> "GM1+GM5")."""
+    cleaned: list[str] = []
+    for label in labels:
+        for part in label.split(","):
+            part = re.sub(r"\(\d+\)", "", part).strip()
+            if part and part != "-" and part not in cleaned:
+                cleaned.append(part)
+    return "+".join(cleaned)
 
 
 @dataclass
@@ -246,62 +283,177 @@ class SymmetryAdaptedModulation:
                     * phase[j]
                 )
 
-        unitary = np.vstack(vibration_basis)
-        block_matrix = unitary @ modified_matrix @ unitary.conj().T
+        spaces = vibration_basis
+        dims = [space.shape[0] for space in spaces]
+        if sum(dims) != modified_matrix.shape[0]:
+            raise RuntimeError("Irrep projection does not span the full vibration space.")
+        offsets = np.cumsum([0] + dims)
+        n_spaces = len(spaces)
+        stacked = np.vstack(spaces)
+        block_matrix = stacked @ modified_matrix @ stacked.conj().T
+
+        # Spaces carrying equivalent irreps couple through the dynamical
+        # matrix; diagonalizing each projected block on its own would drop
+        # that coupling and give wrong frequencies whenever an irrep occurs
+        # more than once at q. Group coupled spaces into clusters and
+        # diagonalize per cluster (same construction as crystod-phonon --vector).
+        coupled = np.zeros((n_spaces, n_spaces), dtype=bool)
+        for s in range(n_spaces):
+            for t in range(n_spaces):
+                sub = block_matrix[offsets[s] : offsets[s + 1], offsets[t] : offsets[t + 1]]
+                coupled[s, t] = bool(np.abs(sub).max() > 1e-6)
+        clusters: list[list[int]] = []
+        seen: set[int] = set()
+        for s in range(n_spaces):
+            if s in seen:
+                continue
+            stack, cluster = [s], []
+            while stack:
+                u = stack.pop()
+                if u in seen:
+                    continue
+                seen.add(u)
+                cluster.append(u)
+                stack.extend(v for v in range(n_spaces) if coupled[u, v] and v not in seen)
+            clusters.append(sorted(cluster))
 
         self.mode_info: list[dict[str, float | int]] = []
         self.mode_vectors: list[NDArray[np.complex128]] = []
-        cursor = 0
-        for block_index, basis_block in enumerate(vibration_basis):
-            block_dim = basis_block.shape[0]
-            submatrix = block_matrix[cursor : cursor + block_dim, cursor : cursor + block_dim]
-            block_eigvals, block_eigvecs = np.linalg.eigh(submatrix)
-            block_eigvals = block_eigvals.real
+        for cluster in clusters:
+            dim = dims[cluster[0]]
+            if any(dims[index] != dim for index in cluster):
+                raise RuntimeError("Coupled irrep spaces with different dimensions.")
+            multiplicity = len(cluster)
 
-            # Preserve the symmetry-adapted basis when a block is numerically
-            # degenerate. Re-diagonalizing an exactly degenerate block can pick
-            # an arbitrary rotated basis and lower the apparent symmetry of an
-            # individual mode, even though the irrep subspace is unchanged.
-            mean_eigval = float(np.mean(block_eigvals))
-            if np.allclose(block_eigvals, mean_eigval, atol=1e-10, rtol=1e-8):
-                block_eigvals = np.full(block_dim, mean_eigval, dtype=float)
-                block_eigvecs = np.eye(block_dim, dtype=complex)
+            aligned = [spaces[cluster[0]]]
+            for index in cluster[1:]:
+                intertwiner = _find_intertwiner(vibration_rep, spaces[index], spaces[cluster[0]])
+                if intertwiner is None:
+                    raise RuntimeError("Coupled irrep spaces are not equivalent.")
+                aligned.append(intertwiner.conj().T @ spaces[index])
 
-            for component_index in range(block_dim):
-                eigval = float(block_eigvals[component_index])
+            # After alignment every coupling block is a scalar multiple of the
+            # identity (Schur), so the cluster reduces to one multiplicity-sized
+            # Hermitian matrix shared by all irrep components.
+            coupling = np.zeros((multiplicity, multiplicity), dtype=complex)
+            for a in range(multiplicity):
+                for b in range(multiplicity):
+                    sub = aligned[a] @ modified_matrix @ aligned[b].conj().T
+                    if np.abs(sub - np.eye(dim) * np.trace(sub) / dim).max() > 1e-6:
+                        raise RuntimeError("Coupling between irrep spaces is not scalar.")
+                    coupling[a, b] = np.trace(sub) / dim
+            eigenvalues, eigenvectors = np.linalg.eigh(coupling)
+            eigenvalues = eigenvalues.real
+
+            # Preserve the symmetry-adapted basis when the cluster is
+            # numerically degenerate. Re-diagonalizing an exactly degenerate
+            # cluster can pick an arbitrary rotated basis and lower the
+            # apparent symmetry of an individual mode.
+            if multiplicity > 1 and np.allclose(eigenvalues, eigenvalues.mean(), atol=1e-10, rtol=1e-8):
+                eigenvalues = np.full(multiplicity, eigenvalues.mean())
+                eigenvectors = np.eye(multiplicity, dtype=complex)
+
+            for w in range(multiplicity):
+                eigval = float(eigenvalues[w])
                 frequency = np.sign(eigval) * np.sqrt(np.abs(eigval)) * 15.633302
+                for component in range(dim):
+                    # Rows of the projected basis are bras; keep this module's
+                    # convention that the displacement is Re(vector * e^{2 pi i q.R}),
+                    # so the bra-space combination uses conjugated coefficients.
+                    mode_vector = np.zeros(3 * self.n_atoms, dtype=complex)
+                    for a in range(multiplicity):
+                        mode_vector += np.conj(eigenvectors[a, w]) * aligned[a][component]
+                    self.mode_info.append(
+                        {
+                            "frequency_THz": frequency,
+                            "degeneracy": dim,
+                        }
+                    )
+                    self.mode_vectors.append(mode_vector)
 
-                mode_vector = np.zeros(3 * self.n_atoms, dtype=complex)
-                for basis_index in range(block_dim):
-                    mode_vector += block_eigvecs[basis_index, component_index] * basis_block[basis_index]
-
-                self.mode_info.append(
-                    {
-                        "frequency_THz": frequency,
-                        "irrep_block_index": block_index,
-                        "component_index": component_index,
-                        "degeneracy": block_dim,
-                    }
-                )
-                self.mode_vectors.append(mode_vector)
-            cursor += block_dim
-
-        sort_indices = np.argsort([float(info["frequency_THz"]) for info in self.mode_info])
+        sort_indices = np.argsort([float(info["frequency_THz"]) for info in self.mode_info], kind="stable")
         self.mode_info = [self.mode_info[index] for index in sort_indices]
         self.mode_vectors = [self.mode_vectors[index] for index in sort_indices]
+        self._mode_labels: list[str] | None = None
+        self._q_label: str | None = None
+
+        # Verify against the plain phonopy spectrum before trusting the result.
+        reference = np.sort(np.linalg.eigvalsh(modified_matrix).real)
+        reference = np.sign(reference) * np.sqrt(np.abs(reference)) * 15.633302
+        frequencies = [float(info["frequency_THz"]) for info in self.mode_info]
+        if not np.allclose(frequencies, reference, atol=1e-3):
+            raise RuntimeError("Symmetry-adapted frequencies do not match the phonopy spectrum.")
+        for info, mode_vector in zip(self.mode_info, self.mode_vectors):
+            eigenvalue = np.sign(info["frequency_THz"]) * (info["frequency_THz"] / 15.633302) ** 2
+            ket = np.conj(mode_vector)
+            if np.linalg.norm(modified_matrix @ ket - eigenvalue * ket) > 1e-6:
+                raise RuntimeError("A symmetry-adapted mode is not an eigenvector of the dynamical matrix.")
 
     @property
     def n_modes(self) -> int:
         return len(self.mode_info)
 
+    def get_mode_labels(self) -> list[str]:
+        """Per-mode irrep labels (e.g. 'X3-(1)'); '-' when labeling is unavailable.
+
+        Uses the irreptables-based labeling of crystod-phonon --vector/--irreps.
+        The label of band i applies to mode i because the symmetry-adapted
+        frequencies are verified to match the plain phonopy spectrum.
+        """
+        if self._mode_labels is None:
+            labels = ["-"] * self.n_modes
+            try:
+                from .phonon_vector import _get_mode_labels
+                from .runtime_compat import get_symmetry_dataset
+
+                dataset = get_symmetry_dataset(self.phonon.symmetry)
+                _, labels = _get_mode_labels(
+                    [float(value) for value in self.qpoint],
+                    self.phonon,
+                    dataset,
+                    degeneracy_tolerance=1e-3,
+                )
+            except Exception:
+                pass
+            self._mode_labels = labels
+        return self._mode_labels
+
+    def get_q_label(self) -> str:
+        """Short q label for file names: the CDML name (e.g. 'X') when q lies
+        in the star of a tabulated special point, else 'q_<coordinates>'."""
+        if self._q_label is None:
+            label = "q" + "".join(f"_{value:g}" for value in self.qpoint).replace("/", "o")
+            try:
+                from phonopy.structure.cells import get_primitive_matrix_by_centring
+
+                from .irreptables_compat import load_irreptables
+                from .phonon_irreps import find_star_representative, get_irt_special_points
+                from .runtime_compat import get_symmetry_dataset
+
+                irrep_table_cls, _ = load_irreptables()
+                dataset = get_symmetry_dataset(self.phonon.primitive_symmetry)
+                irt_table = irrep_table_cls(dataset["number"], spinor=False)
+                prim_mat = get_primitive_matrix_by_centring(dataset["international"][0])
+                q_names, q_list = get_irt_special_points(irt_table, prim_mat)
+                representative = find_star_representative(
+                    self.qpoint, dataset["rotations"], q_names, q_list
+                )
+                if representative is not None:
+                    label = representative[0]
+            except Exception:
+                pass
+            self._q_label = label
+        return self._q_label
+
     def print_mode_info(self) -> None:
+        labels = self.get_mode_labels()
         print(f"Phonon modes at q = {self.qpoint}")
-        print(f"{'Mode':>5s}  {'Freq (THz)':>12s}  {'Irrep Block':>12s}  {'Degeneracy':>11s}")
+        print(f"{'Mode':>5s}  {'Freq (THz)':>12s}  {'Irrep':>12s}  {'Degeneracy':>11s}")
         print("-" * 50)
         for mode_index, info in enumerate(self.mode_info):
             print(
                 f"{mode_index + 1:5d}  {float(info['frequency_THz']):12.4f}  "
-                f"{int(info['irrep_block_index']):12d}  {int(info['degeneracy']):11d}"
+                f"{labels[mode_index]:>12s}  {int(info['degeneracy']):11d}"
             )
 
     @staticmethod
@@ -381,17 +533,6 @@ class SymmetryAdaptedModulation:
         sorted_symbols = [all_symbols[index] for index in sorted_indices]
         sorted_positions = modulated_positions[sorted_indices]
         return Atoms(sorted_symbols, sorted_positions, cell=supercell_lattice, pbc=True)
-
-    def write_modulated_poscar(
-        self,
-        filepath: str,
-        mode_indices: list[int],
-        amplitudes: list[float],
-    ) -> Atoms:
-        atoms = self.get_modulated_structure(mode_indices=mode_indices, amplitudes=amplitudes)
-        ase_write(filepath, atoms, format="vasp", direct=True)
-        print(f"Modulated structure written to: {filepath}")
-        return atoms
 
     @staticmethod
     def analyze_symmetry(atoms: Atoms, symprec: float = 0.1) -> dict[str, str | int]:
@@ -550,6 +691,52 @@ def _build_combined_modulated_structure(terms: list[PreparedModulationTerm]) -> 
     return Atoms(sorted_symbols, sorted_positions, cell=supercell_lattice, pbc=True)
 
 
+def _default_output_name(prepared_terms: list[PreparedModulationTerm], spacegroup: str) -> str:
+    """Auto output name: MPOSCAR_{q}_{mode}_{irrep}_{subgroup}, one
+    {q}_{mode}_{irrep} group per modulation term."""
+    parts = ["MPOSCAR"]
+    for term in prepared_terms:
+        labels = term.modulation.get_mode_labels()
+        unique_labels: list[str] = []
+        for index in term.mode_indices:
+            if labels[index] not in unique_labels:
+                unique_labels.append(labels[index])
+        parts.append(term.modulation.get_q_label())
+        parts.append("mode" + "+".join(str(index + 1) for index in term.mode_indices))
+        irrep_tag = _irrep_filename_tag(unique_labels)
+        if irrep_tag:
+            parts.append(irrep_tag)
+    parts.append(spacegroup.replace("/", "").replace(" ", ""))
+    return "_".join(parts)
+
+
+def _load_modulation_with_report(
+    yaml_path: Path,
+    qpoint: list[float],
+    symprec: float,
+) -> SymmetryAdaptedModulation:
+    """Load the modulation at q and print the mode table and the star of q."""
+    print(f"Loading '{yaml_path}' at q = {qpoint}...")
+    modulation = SymmetryAdaptedModulation(
+        yaml_path=str(yaml_path),
+        qpoint=qpoint,
+        symprec=symprec,
+    )
+    print()
+    modulation.print_mode_info()
+
+    from .star_of_k import print_star_of_k
+
+    print("\nStar of q (arms related by the space-group rotations):")
+    print_star_of_k(
+        rotations=modulation.vibrations.rotations,
+        translations=modulation.vibrations.translations,
+        kpoint=[float(value) for value in qpoint],
+        indent="  ",
+    )
+    return modulation
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args, extra_argv = parser.parse_known_args(argv)
@@ -573,7 +760,14 @@ def main(argv: list[str] | None = None) -> None:
         if args.qpoint is None:
             parser.error("--modulation requires --qpoint, or numbered arguments such as --qpoint1.")
         if args.mode is None:
-            parser.error("--modulation requires --mode, or numbered arguments such as --mode1.")
+            # Preview: show the mode table and the star of q so that a mode
+            # can be chosen, without generating a modulated structure.
+            _load_modulation_with_report(yaml_path, args.qpoint, args.symprec)
+            print(
+                "\nNo --mode given. Choose mode number(s) from the table above and rerun with"
+                "\n--mode (and optionally --amplitude) to generate a modulated structure."
+            )
+            return
         mode_indices = [value - 1 for value in args.mode]
         terms = [
             ModulationTerm(
@@ -590,24 +784,7 @@ def main(argv: list[str] | None = None) -> None:
         qpoint_key = tuple(float(value) for value in term.qpoint)
         modulation = modulation_cache.get(qpoint_key)
         if modulation is None:
-            print(f"Loading '{yaml_path}' at q = {term.qpoint}...")
-            modulation = SymmetryAdaptedModulation(
-                yaml_path=str(yaml_path),
-                qpoint=term.qpoint,
-                symprec=args.symprec,
-            )
-            print()
-            modulation.print_mode_info()
-
-            from .star_of_k import print_star_of_k
-
-            print("\nStar of q (arms related by the space-group rotations):")
-            print_star_of_k(
-                rotations=modulation.vibrations.rotations,
-                translations=modulation.vibrations.translations,
-                kpoint=[float(value) for value in term.qpoint],
-                indent="  ",
-            )
+            modulation = _load_modulation_with_report(yaml_path, term.qpoint, args.symprec)
             modulation_cache[qpoint_key] = modulation
             if term_index != len(terms):
                 print()
@@ -642,18 +819,19 @@ def main(argv: list[str] | None = None) -> None:
 
     if len(prepared_terms) == 1:
         term = prepared_terms[0]
-        atoms = term.modulation.write_modulated_poscar(
-            filepath=args.output,
+        atoms = term.modulation.get_modulated_structure(
             mode_indices=term.mode_indices,
             amplitudes=term.amplitudes,
         )
     else:
         atoms = _build_combined_modulated_structure(prepared_terms)
-        ase_write(args.output, atoms, format="vasp", direct=True)
-        print(f"Modulated structure written to: {args.output}")
 
     print("\nSymmetry of the generated structure:")
-    SymmetryAdaptedModulation.analyze_symmetry(atoms, symprec=0.1)
+    symmetry = SymmetryAdaptedModulation.analyze_symmetry(atoms, symprec=0.1)
+
+    output_path = args.output or _default_output_name(prepared_terms, str(symmetry["international"]))
+    ase_write(output_path, atoms, format="vasp", direct=True)
+    print(f"\nModulated structure written to: {output_path}")
 
 
 if __name__ == "__main__":

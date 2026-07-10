@@ -17,6 +17,7 @@ from numpy.typing import NDArray
 from phonopy.structure.cells import get_primitive_matrix_by_centring
 
 from .irreptables_compat import load_irreptables
+from .operations import conjugated_little_group_map, find_star_arm
 from .runtime_compat import (
     SymmetryDatasetAdapter,
     get_character,
@@ -233,6 +234,15 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             if np.allclose(qpoint, coords, atol=1e-8):
                 matched_label = label
                 break
+        if matched_label is None:
+            # q may be a non-tabulated arm of a special-point star: label it
+            # with the name of the arm the space-group rotations map it onto.
+            arm = find_star_arm(qpoint, self.rotations, list(qpoint_map.values()))
+            if arm is not None:
+                for label, coords in qpoint_map.items():
+                    if np.allclose(arm[1], coords, atol=1e-8):
+                        matched_label = label
+                        break
         return matched_label or "custom", qpoint
 
     def get_vibration_rep(self, kpoint: list[float]):
@@ -311,6 +321,24 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
 
         prim_mat = get_primitive_matrix_by_centring(self.spglib_dataset["international"][0])
         irt_irreps = self._get_irt_irreps_at_q(qpoint, irt_table, prim_mat)
+        conjugated = None
+        if not irt_irreps:
+            # q may be a non-tabulated arm of a special-point star: map it onto
+            # the tabulated arm and transport the characters by conjugation.
+            special_points: list[list[float]] = []
+            for irrep_at_q in irt_table.irreps:
+                primitive_q = list(np.round(np.array(irrep_at_q.k) @ prim_mat, 6))
+                if primitive_q not in special_points:
+                    special_points.append(primitive_q)
+            arm = find_star_arm(qpoint, self.rotations, special_points)
+            if arm is not None:
+                candidate_irreps = self._get_irt_irreps_at_q(arm[1], irt_table, prim_mat)
+                transported = conjugated_little_group_map(
+                    self.rotations, self.translations, arm[0], arm[1], mapping_little_group
+                )
+                if candidate_irreps and transported is not None:
+                    irt_irreps = candidate_irreps
+                    conjugated = transported
         if not irt_irreps:
             return generic_labels
 
@@ -318,7 +346,30 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             [irt_table.symmetries[index - 1].R for index in irt_irreps[0].characters.keys()]
         )
         found_little_rotations = self.rotations[mapping_little_group]
-        mapping_to_irt = self._get_mapping_to_irt(irt_little_rotations, found_little_rotations, prim_mat)
+        if conjugated is None:
+            mapping_to_irt = self._get_mapping_to_irt(irt_little_rotations, found_little_rotations, prim_mat)
+            character_phases = np.ones(len(irt_little_rotations), dtype=complex)
+        else:
+            # mapping_to_irt[m] = position (within the little group of q) of the
+            # operation h whose conjugate g^-1 h g is the m-th tabulated
+            # operation; the transported character picks up the Bloch phase.
+            conj_indices, conj_phases = conjugated
+            prim_mat_inv = np.linalg.inv(prim_mat)
+            mapping_to_irt = []
+            phases: list[complex] = []
+            for irt_rotation in irt_little_rotations:
+                rotation_prim = np.rint(prim_mat_inv @ irt_rotation @ prim_mat).astype(int)
+                table_op_index = None
+                for j, rotation in enumerate(self.rotations):
+                    if (rotation == rotation_prim).all():
+                        table_op_index = j
+                        break
+                if table_op_index is None or table_op_index not in conj_indices:
+                    break
+                position = conj_indices.index(table_op_index)
+                mapping_to_irt.append(position)
+                phases.append(conj_phases[position])
+            character_phases = np.array(phases, dtype=complex)
         if len(mapping_to_irt) != len(irt_little_rotations):
             return generic_labels
 
@@ -330,7 +381,9 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             best_overlap = -1.0
             for irt_irrep in irt_irreps:
                 irt_label = f"{irt_irrep.name}({irt_irrep.dim})"
-                irt_character = np.array(list(irt_irrep.characters.values()), dtype=complex)
+                irt_character = (
+                    np.array(list(irt_irrep.characters.values()), dtype=complex) * character_phases
+                )
                 overlap = np.abs(
                     np.dot(spgrep_character, np.conjugate(irt_character)) / irt_irrep.nsym
                 )

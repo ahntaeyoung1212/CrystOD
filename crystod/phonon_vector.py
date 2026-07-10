@@ -40,7 +40,8 @@ from phonopy.structure.cells import get_primitive_matrix_by_centring, get_superc
 from spgrep.representation import project_to_irrep
 
 from .irreptables_compat import load_irreptables
-from .phonon_irreps import get_irrep_labels, get_irt_special_points
+from .modulation import _find_intertwiner, _irrep_filename_tag
+from .phonon_irreps import find_star_representative, get_irrep_labels, get_irt_special_points
 from .runtime_compat import get_symmetry_dataset
 from .vibration_modes import SymmetryOnlyVibrations
 
@@ -245,8 +246,14 @@ def resolve_qpoint(
     raw_qpoint: list[str],
     q_names: list[str],
     q_list: list[list[float]],
+    rotations: NDArray[np.int_] | None = None,
 ) -> tuple[str, list[float]]:
-    """Resolve --qpoint tokens into (label, primitive-basis coordinates)."""
+    """Resolve --qpoint tokens into (label, primitive-basis coordinates).
+
+    With ``rotations`` (space-group rotations in the primitive basis), any arm
+    of a tabulated star is labeled with the star's name, not only the
+    tabulated arm.
+    """
     if len(raw_qpoint) == 1:
         requested = raw_qpoint[0].strip().upper()
         if requested in GAMMA_ALIASES:
@@ -266,6 +273,10 @@ def resolve_qpoint(
     for name, q in zip(q_names, q_list):
         if np.allclose(qpoint, q, atol=1e-8):
             return name, qpoint
+    if rotations is not None:
+        representative = find_star_representative(qpoint, rotations, q_names, q_list)
+        if representative is not None:
+            return representative[0], qpoint
     label = "q" + "".join(f"_{value:g}" for value in qpoint).replace("/", "o")
     return label, qpoint
 
@@ -577,18 +588,6 @@ def write_vesta_with_arrows(
         fp.write("\n".join(lines))
 
 
-def _irrep_filename_tag(labels: list[str]) -> str:
-    """Compact irrep tag for file names: drop the dimension suffix "(n)" and
-    join distinct labels with '+' (e.g. "GM1(1), GM5(2)" -> "GM1+GM5")."""
-    cleaned: list[str] = []
-    for label in labels:
-        for part in label.split(","):
-            part = re.sub(r"\(\d+\)", "", part).strip()
-            if part and part != "-" and part not in cleaned:
-                cleaned.append(part)
-    return "+".join(cleaned)
-
-
 def _output_path(
     output: str | None,
     formula: str,
@@ -605,29 +604,6 @@ def _output_path(
     suffix = "_conv" if conventional else ""
     irrep_part = f"_{irrep_tag}" if irrep_tag else ""
     return f"POSCAR_{formula}_{q_label}_mode{mode_file_string}{irrep_part}{suffix}.vesta"
-
-
-def _find_intertwiner(
-    rep: NDArray[np.complex128],
-    space_s: NDArray[np.complex128],
-    space_r: NDArray[np.complex128],
-) -> NDArray[np.complex128] | None:
-    """Unitary aligning the irrep basis of space_s to that of space_r.
-
-    Both spaces must carry equivalent irreps of the same (projective)
-    representation ``rep``; returns None when they are inequivalent.
-    """
-    dim = space_s.shape[0]
-    d_s = np.array([space_s @ G @ space_s.conj().T for G in rep])
-    d_r = np.array([space_r @ G @ space_r.conj().T for G in rep])
-    for seed_index in range(dim * dim):
-        seed = np.zeros((dim, dim))
-        seed[seed_index // dim, seed_index % dim] = 1.0
-        averaged = sum(a @ seed @ b.conj().T for a, b in zip(d_s, d_r)) / len(rep)
-        if np.linalg.norm(averaged) > 1e-6:
-            u, _, vh = np.linalg.svd(averaged)
-            return u @ vh
-    return None
 
 
 def build_symmetry_adapted_modes(
@@ -803,8 +779,17 @@ def _get_mode_labels(
     try:
         irt_table = IrrepTable(dataset["number"], spinor=False)
         prim_mat = get_primitive_matrix_by_centring(dataset["international"][0])
+        # irreptables tabulates one arm per star; map q onto that arm so every
+        # arm gets labels. The spectra of star arms are identical band by band,
+        # so the labels at the representative apply to the modes at q.
+        label_q = list(qpoint)
+        q_names, q_list = get_irt_special_points(irt_table, prim_mat)
+        rotations = get_symmetry_dataset(phonon.primitive_symmetry)["rotations"]
+        representative = find_star_representative(qpoint, rotations, q_names, q_list)
+        if representative is not None:
+            label_q = representative[1]
         labels, band_indices, frequencies = get_irrep_labels(
-            q=qpoint,
+            q=label_q,
             phonon=phonon,
             irt_table=irt_table,
             prim_mat=prim_mat,
@@ -864,7 +849,11 @@ def main(argv: list[str] | None = None) -> None:
         for name, q in zip(q_names, q_list):
             echo(f"  {name:8s} {q}")
 
-    q_label, qpoint = resolve_qpoint(args.qpoint, q_names, q_list)
+    try:
+        primitive_rotations = get_symmetry_dataset(phonon.primitive_symmetry)["rotations"]
+    except Exception:
+        primitive_rotations = None
+    q_label, qpoint = resolve_qpoint(args.qpoint, q_names, q_list, rotations=primitive_rotations)
     echo(f"\nSelected q-point: {q_label} = {qpoint}")
 
     # Symmetry-adapted eigenvectors: degenerate modes are aligned along

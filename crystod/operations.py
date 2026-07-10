@@ -206,3 +206,76 @@ def wigner_D_real(l: int, rotation: NDArray[np.float64]) -> NDArray[np.float64]:
     transform = complex_to_real_transform_orbital(l)
     d_real = (transform @ d_complex.T @ np.linalg.inv(transform)).T * (det_sign**l)
     return np.real(np.real_if_close(d_real))
+
+
+def find_star_arm(
+    kpoint: list[float] | NDArray[np.float64],
+    rotations: NDArray[np.int_],
+    special_points: list[list[float]],
+) -> tuple[int, list[float]] | None:
+    """Map k onto the tabulated arm of its star.
+
+    irreptables lists only one representative arm per special point (e.g. only
+    (1/2, 1/2, 0) for the three M arms of Pm-3m), so a direct coordinate lookup
+    fails for the other arms. Returns (g_index, k_rep) where rotation g sends k
+    onto the tabulated point k_rep (k' = k R, modulo reciprocal-lattice
+    translations); None when k is not in any tabulated star. ``rotations`` must
+    be in the same (primitive) basis as k and the tabulated points.
+    """
+    kpoint = np.asarray(kpoint, dtype=float)
+    for k_rep in special_points:
+        target = np.asarray(k_rep, dtype=float)
+        for g_index, rotation in enumerate(rotations):
+            diff = kpoint @ rotation - target
+            if (np.abs(diff - np.rint(diff)) < 1e-6).all():
+                return g_index, list(k_rep)
+    return None
+
+
+def conjugated_little_group_map(
+    rotations: NDArray[np.int_],
+    translations: NDArray[np.float64],
+    g_index: int,
+    k_rep: list[float] | NDArray[np.float64],
+    little_indices: NDArray[np.int_] | list[int],
+) -> tuple[list[int], NDArray[np.complex128]] | None:
+    """Transport little-group operations of k onto those of k_rep = k g.
+
+    Conjugation h -> g^-1 h g is an isomorphism of the little group of k onto
+    that of k_rep, so the small-irrep characters at k are those at k_rep
+    evaluated at the conjugated operations: chi_k(h) = chi_rep(g^-1 h g). The
+    conjugated operation matches a listed operation up to a lattice translation
+    Delta, which contributes the Bloch phase e^{-2 pi i k_rep . Delta}.
+
+    ``little_indices`` selects the little-group operations of k within
+    ``rotations``/``translations``. Returns (indices, phases) with one entry
+    per selected operation: the index of g^-1 h g within ``rotations`` and its
+    phase factor; None when the conjugation cannot be resolved.
+    """
+    rotation_g = rotations[g_index]
+    translation_g = translations[g_index]
+    rotation_g_inv = np.rint(np.linalg.inv(rotation_g)).astype(int)
+    k_rep = np.asarray(k_rep, dtype=float)
+
+    indices: list[int] = []
+    phases: list[complex] = []
+    for idx in little_indices:
+        rotation_h = rotations[idx]
+        translation_h = translations[idx]
+        rotation_conj = rotation_g_inv @ rotation_h @ rotation_g
+        translation_conj = rotation_g_inv @ (rotation_h @ translation_g + translation_h - translation_g)
+
+        conj_index = None
+        for j, rotation in enumerate(rotations):
+            if (rotation == rotation_conj).all():
+                conj_index = j
+                break
+        if conj_index is None:
+            return None
+        delta = translation_conj - translations[conj_index]
+        delta_int = np.rint(delta)
+        if not np.allclose(delta, delta_int, atol=1e-5):
+            return None
+        indices.append(conj_index)
+        phases.append(np.exp(-2j * np.pi * float(k_rep @ delta_int)))
+    return indices, np.array(phases, dtype=complex)
