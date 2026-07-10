@@ -187,8 +187,22 @@ crystod-phonon --modulation --yaml example/modulation/ScF3_Pm-3m/phonopy_params.
   --qpoint2 0.5 0.5 0 --mode2 1 --amplitude2 0.3 
 ```
 
+When `--mode` is omitted (since v0.3.1), only the mode table (mode number, frequency,
+irrep, degeneracy) and the star of q are printed, so you can inspect the modes at a
+q point first and then choose which mode(s) to apply:
+
+```bash
+crystod-phonon --modulation --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint 0.5 0.5 0.5
+```
+
 If `phonopy_params.yaml` exists in the current directory, `--yaml` can be omitted.
 If a single amplitude is given, it is applied to all selected modes.
+When `--output` is omitted (since v0.3.1), the file is auto-named
+`MPOSCAR_{q}_{mode}_{irrep}_{subgroup}` — e.g. `MPOSCAR_R_mode1+2+3_R4+_R-3c` —
+with one `{q}_{mode}_{irrep}` group per term in multi-q runs. Any arm of a
+special-point star is recognized (e.g. all three M arms of Pm-3m are labeled
+`M`); for a genuinely non-special q the label falls back to the coordinates
+and the irrep tag is dropped.
 Different q-points can also be combined by using numbered argument sets such as
 `--qpoint1/--mode1/--amplitude1`, `--qpoint2/--mode2/--amplitude2`, and so on.
 Example:
@@ -487,7 +501,7 @@ Each basis vector is exported as `POSCAR_<formula>_spin_<irrep>_<dipole|octupole
 - `crystod-phonon --irreps --dim "nx ny nz" -c POSCAR [--readfc]`
 - `crystod-phonon --vector --dim "nx ny nz" -c POSCAR --qpoint QLABEL_OR_QX QY QZ [--mode N1 N2 ...] [--readfc] [--conventional]`
 - `crystod-phonon --vibration -c POSCAR --qpoint QLABEL_OR_QX QY QZ [--mode-index N]`
-- `crystod-phonon --modulation --qpoint qx qy qz --mode MODE1 MODE2 ... [--yaml phonopy_params.yaml]`
+- `crystod-phonon --modulation --qpoint qx qy qz [--mode MODE1 MODE2 ...] [--yaml phonopy_params.yaml]` (without `--mode`: mode table + star of q only)
 - `crystod-phonon --modulation --qpoint1 qx1 qy1 qz1 --mode1 ... --qpoint2 qx2 qy2 qz2 --mode2 ... [--amplitude1 ... --amplitude2 ...]`
 - `crystod-group --product IRREP1 IRREP2 ... --point-group PG`
 - `crystod-group --decompose --point-group PG [--characters X1 X2 ...]`
@@ -517,6 +531,14 @@ Each basis vector is exported as `POSCAR_<formula>_spin_<irrep>_<dipole|octupole
 - We recommend to run `python testsuite.py` (in the repository root, inside the `crystod` environment) for operation check.
 
 ## Changelog
+
+### v0.3.1
+
+- `crystod-phonon --modulation` can now be run with `--qpoint` only (no `--mode`): it prints the mode table (mode number, frequency, irrep, degeneracy) and the star of q, then exits without generating a structure — useful for inspecting the modes at a q point before choosing which to apply.
+- **Fixed**: the frequencies in the `--modulation` mode table were wrong whenever an irrep occurs more than once at the q point (each irrep-projected block was diagonalized on its own, dropping the coupling between blocks carrying equivalent irreps — e.g. every X-point mode of Sr3Ti2O7 except the singly-occurring X1-/X2+ irreps). The dynamical matrix is now block-diagonalized with the same equivalent-irrep clustering as `crystod-phonon --vector`, the mode vectors are true eigenvectors, and every run is verified internally against the plain phonopy spectrum. Mode numbers at affected q points differ from v0.3.0 accordingly; the frequencies now agree with `crystod-phonon --irreps` (phonon_irreps.yaml).
+- The `--modulation` mode table now shows CDML irrep labels (`X3-(1)`, `GM5-(2)`, ...) from irreptables — the same labeling as `crystod-phonon --vector`/`--irreps` — instead of internal block indices (the column header changed from `Irrep Block` to `Irrep`; labels fall back to `-` when irreptables labeling is unavailable, e.g. at non-special q points).
+- Irrep and k-point labeling now works at EVERY arm of a special-point star, not only at the single arm tabulated in irreptables/seekpath — across ALL label lookups: the SALC analysis (`crystod -c ... --element/--orbital`), `--atomic-orbital` hybridization, `--visualize`, `--star-of-k` (the header now shows e.g. `X [0.0, 0.5, 0.5]` instead of `custom`), `crystod-mag`, `crystod-phonon --vibration`, `--vector` (q label in the report and VESTA file names), and `--modulation`. E.g. all three X arms (1/2,0,0)/(0,1/2,0)/(0,0,1/2) of Pm-3m, and both X arms (0,0,1/2)/(1/2,1/2,0) of the I4/mmm primitive cell, now get X labels; previously only the tabulated arm was labeled (the SALC decomposition fell back to generic `irrep_N` names). For the phonon commands the k point is mapped onto the tabulated arm (star-arm spectra are identical band by band); for the SALC/orbital analyses, which compare little-group characters operation by operation, the characters are transported by the conjugation isomorphism `h -> g^-1 h g` between the little groups, including the Bloch phase from lattice-translation offsets (verified at the X and W stars of nonsymmorphic Fd-3m Si).
+- The `--modulation` default output name is now `MPOSCAR_{q}_{mode}_{irrep}_{subgroup}` (e.g. `MPOSCAR_R_mode1+2+3_R4+_R-3c`; one `{q}_{mode}_{irrep}` group per term in multi-q runs) instead of `POSCAR_modulated`; `--output` still overrides it.
 
 ### v0.3.0
 

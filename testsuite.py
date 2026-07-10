@@ -310,6 +310,11 @@ def test_07_vibration() -> None:
     report("mode spaces numbered from 1", "Mode Space  1:" in out and "Mode Space  0:" not in out, out)
     report("high-symmetry q-point list shown", "Available high-symmetry q-points" in out, out)
 
+    # (0, 0.5, 0.5) is an M arm; irreptables tabulates only (0.5, 0.5, 0)
+    code, out = run_phonon(["--vibration", "-c", POSCAR_ScF3, "--qpoint", "0", "0.5", "0.5"])
+    report("non-representative M arm labeled via star mapping",
+           code == 0 and "M5+(2)" in out and "irrep_" not in out, out)
+
     with tempfile.TemporaryDirectory() as tmp:
         out_poscar = os.path.join(tmp, "POSCAR_vibration")
         code, out = run_phonon(
@@ -330,15 +335,39 @@ def test_08_modulation() -> None:
         return
 
     with tempfile.TemporaryDirectory() as tmp:
-        out_poscar = os.path.join(tmp, "POSCAR_R-3c")
+        # preview mode: no --mode prints the mode table and the star of q only
+        code, out = run_phonon(
+            ["--modulation", "--yaml", yaml_path, "--qpoint", "0.5", "0.5", "0.5"],
+            cwd=tmp,
+        )
+        report("preview (no --mode) exit 0", code == 0, out)
+        report("preview shows mode table", "Phonon modes at q" in out and "Irrep" in out, out)
+        report("mode table header uses 'Irrep' (not 'Irrep Block')", "Irrep Block" not in out, out)
+        report("mode table shows CDML irrep labels", "R4+(3)" in out, out)
+        report("R4+ soft modes are the lowest three", out.count("R4+(3)") == 3, out)
+        report("preview shows star of q", "Star of q" in out, out)
+        report("preview writes no structure", not os.listdir(tmp), out)
+
+        # star-arm mapping: (0, 0.5, 0.5) is an M arm; irreptables tabulates
+        # only (0.5, 0.5, 0), so labeling must map the arm onto that point
+        code, out = run_phonon(
+            ["--modulation", "--yaml", yaml_path, "--qpoint", "0", "0.5", "0.5"],
+            cwd=tmp,
+        )
+        report("non-representative M arm labeled via star mapping",
+               code == 0 and "M3+(1)" in out, out)
+
+        # default output name: MPOSCAR_{q}_{mode}_{irrep}_{subgroup}
         code, out = run_phonon(
             ["--modulation", "--yaml", yaml_path, "--qpoint", "0.5", "0.5", "0.5",
-             "--mode", "1", "2", "3", "--amplitude", "0.3", "--output", out_poscar]
+             "--mode", "1", "2", "3", "--amplitude", "0.3"],
+            cwd=tmp,
         )
         report("R4+(a,a,a) exit 0", code == 0, out)
         report("R4+(a,a,a) -> R-3c", "R-3c" in out, out)
         report("star of q displayed", "Star of q" in out, out)
-        report("POSCAR written", os.path.isfile(out_poscar))
+        report("default name MPOSCAR_R_mode1+2+3_R4+_R-3c",
+               os.path.isfile(os.path.join(tmp, "MPOSCAR_R_mode1+2+3_R4+_R-3c")), out)
 
         out_poscar = os.path.join(tmp, "POSCAR_I4mcm")
         code, out = run_phonon(
@@ -369,6 +398,11 @@ def test_09_star_of_k() -> None:
 
     code, out = run_cli(["--star-of-k", "-c", POSCAR_ScF3, "--kpoint", "0.5", "0.5", "0.5"])
     report("R point: |star of k| = 1", code == 0 and "|star of k| = 1" in out, out)
+
+    # (0, 0.5, 0.5) is an M arm; the header should name it M, not "custom"
+    code, out = run_cli(["--star-of-k", "-c", POSCAR_ScF3, "--kpoint", "0", "0.5", "0.5"])
+    report("non-representative M arm labeled in header",
+           code == 0 and "M [0.0, 0.5, 0.5]" in out and "custom" not in out, out)
 
     code, out = run_cli(["--star-of-k", "-c", "NO_SUCH_POSCAR", "--kpoint", "0", "0", "0"])
     report("missing POSCAR gives clear error (no traceback)",
@@ -1374,6 +1408,13 @@ def test_27_main_command() -> None:
     code, out = run_cli(["-c", POSCAR_ScF3, "--element", "F", "--orbital", "p",
                          "--kpoint", "1/2", "1/2", "0"])
     report("fractional --kpoint accepted", code == 0 and "M5+(2)" in out, out)
+
+    # (0.5, 0, 0) is an X arm; irreptables tabulates only (0, 0.5, 0), so the
+    # labels must be transported from the representative arm by conjugation
+    code, out = run_cli(["-c", POSCAR_ScF3, "--element", "F", "--orbital", "p",
+                         "--kpoint", "0.5", "0", "0"])
+    report("SALC at non-representative X arm labeled via star mapping",
+           code == 0 and "X5-(2)" in out and "irrep_" not in out, out)
 
     code, out = run_cli(["-c", POSCAR_SrTiO3, "--atomic-orbital", "Ti_d", "O_p",
                          "--kpoint", "0", "0", "0"])
