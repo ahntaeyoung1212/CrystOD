@@ -1,5 +1,5 @@
 # example of code execution #
-Y Mochizuki % crystod --vibration --poscar 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode-index 2 --output POSCAR_modulated --export-npz vibration.npz
+Y Mochizuki % crystod-phonon --vibration -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode-index 3 --output POSCAR_modulated --export-npz vibration.npz
 
  ### Inputed cell was converted into primitive cell. ###
 Available high-symmetry q-points:
