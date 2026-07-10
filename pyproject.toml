@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CrystOD"
-version = "0.2.3"
+version = "0.3.0"
 authors = [
   {name = "Yasuhide Mochizuki"},
   {email = "mochizuki@rs.tus.ac.jp"},
@@ -30,9 +30,14 @@ dependencies = [
 
 [project.scripts]
 crystod = "crystod.cli:main"
+crystod-bz = "crystod.cli.bz:main"
+crystod-md = "crystod.cli.md:main"
+crystod-mag = "crystod.cli.mag:main"
+crystod-phonon = "crystod.cli.phonon:main"
+crystod-group = "crystod.cli.group:main"
 
 [tool.setuptools]
-packages = ["crystod"]
+packages = ["crystod", "crystod.cli"]
 
 [project.urls]
 Homepage = "https://mochizuki-tus.github.io/"
