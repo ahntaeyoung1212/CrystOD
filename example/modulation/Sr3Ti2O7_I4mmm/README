@@ -1,0 +1,60 @@
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0 0 0.5
+
+Loading 'phonopy_params.yaml' at q = [0.0, 0.0, 0.5]...
+
+ ### Inputed cell was converted into primitive cell. ###
+
+Phonon modes at q = [0.  0.  0.5]
+ Mode    Freq (THz)         Irrep   Degeneracy
+--------------------------------------------------
+    1        2.2105        X3-(1)            1
+    2        2.6519        X4-(1)            1
+    3        3.1120        X1-(1)            1
+    4        3.2560        X3+(1)            1
+    5        3.4220        X2+(1)            1
+    6        3.4749        X4+(1)            1
+    7        3.4768        X3-(1)            1
+    8        3.5443        X2-(1)            1
+    9        3.6427        X4-(1)            1
+   10        4.1211        X3-(1)            1
+   11        4.3933        X2-(1)            1
+   12        4.5038        X1+(1)            1
+   13        4.8212        X4-(1)            1
+   14        4.8338        X3+(1)            1
+   15        6.2962        X2-(1)            1
+   16        6.4490        X4+(1)            1
+   17        6.8091        X3-(1)            1
+   18        7.6292        X4-(1)            1
+   19        9.6887        X1+(1)            1
+   20       10.7529        X3+(1)            1
+   21       10.9176        X4+(1)            1
+   22       11.8463        X2-(1)            1
+   23       12.1322        X3-(1)            1
+   24       12.2640        X4-(1)            1
+   25       12.5004        X3+(1)            1
+   26       12.5356        X4+(1)            1
+   27       12.9325        X1+(1)            1
+   28       13.0778        X4-(1)            1
+   29       13.1042        X3-(1)            1
+   30       13.2236        X2-(1)            1
+   31       13.7427        X1+(1)            1
+   32       14.0144        X2-(1)            1
+   33       15.3257        X1-(1)            1
+   34       15.3933        X2+(1)            1
+   35       22.8936        X1+(1)            1
+   36       23.1297        X2-(1)            1
+
+Star of q (arms related by the space-group rotations):
+  |G| = 16, |G_k| = 8, |star of k| = 2
+  arm 1: k = [+0, +0, +0.5]
+  arm 2: k = [+0.5, +0.5, +0]
+
+No --mode given. Choose mode number(s) from the table above and rerun with
+--mode (and optionally --amplitude) to generate a modulated structure.
+
+
+
+
+# Generate the modulated structure according to the X3- mode (mode 1)
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0 0 0.5 --mode 1 --amplitude 0.3
+
