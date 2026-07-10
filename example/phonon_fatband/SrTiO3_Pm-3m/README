@@ -1,5 +1,5 @@
 # Plot the fatband without LO-TO splitting
-crystod --phonon-fatband --poscar 221_PPOSCAR_SrTiO3 --dim 4 4 4
+crystod-phonon --fatband -c 221_PPOSCAR_SrTiO3 --dim 4 4 4
 
 Space group: Pm-3m (#221)
 k-path (seekpath): $\Gamma$-X-M-$\Gamma$-R-X  R-M
