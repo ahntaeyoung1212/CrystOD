@@ -1,0 +1,1 @@
+crystod-mag -c 139_PPOSCAR_La2CuO4 --element Cu --qpoint 0 0 0.5 --conventional
