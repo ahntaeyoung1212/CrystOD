@@ -1,2 +1,2 @@
-crystod --phonon-lt --poscar 221_PPOSCAR_ScF3 --dim 4 4 4          # → phonon_band_LT.pdf
-crystod --phonon-lt --poscar 221_PPOSCAR_ScF3 --dim 4 4 4 --nac    # → phonon_band_LT_nac.pdf
+crystod-phonon --lt -c 221_PPOSCAR_ScF3 --dim 4 4 4          # → phonon_band_LT.pdf
+crystod-phonon --lt -c 221_PPOSCAR_ScF3 --dim 4 4 4 --nac    # → phonon_band_LT_nac.pdf
