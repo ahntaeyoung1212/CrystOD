@@ -27,6 +27,7 @@ crystod-phonon --irreps --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --readfc
 crystod-phonon --fatband --dim "4 4 4" -c 221_PPOSCAR_ScF3 --nac
 crystod-phonon --lt --dim "4 4 4" -c 221_PPOSCAR_ScF3
 crystod-phonon --vector --dim "4 4 4" -c 227_PPOSCAR_Si --readfc --qpoint GM
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5   (list modes and star of q only)
 crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
 crystod-phonon --vibration -c 221_PPOSCAR_ScF3 --qpoint R
 """
@@ -137,7 +138,8 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         type=int,
         default=None,
-        help="Mode number(s) for --vector/--modulation (1-based, as in the printed mode table).",
+        help="Mode number(s) for --vector/--modulation (1-based, as in the printed mode table).\n"
+        "If omitted in --modulation, only the mode table and the star of q are printed.",
     )
     parser.add_argument(
         "--mode-index",
@@ -331,8 +333,6 @@ def main(argv: list[str] | None = None) -> None:
         )
         if not args.qpoint and not has_numbered_modulation_args:
             parser.error("--modulation requires --qpoint, or numbered arguments such as --qpoint1.")
-        if not args.mode and not has_numbered_modulation_args:
-            parser.error("--modulation requires --mode, or numbered arguments such as --mode1.")
 
         dispatch_argv = ["--yaml", args.yaml]
         if args.qpoint:
