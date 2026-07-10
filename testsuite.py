@@ -942,6 +942,49 @@ def test_21_spin_basis() -> None:
                out.count("k point (primitive)") >= 4
                and "2.0 [GM4+(3)]" in out and "R4+" in out, out)
 
+    # 2-dim irreps with circular complex partners (x + iy, x - iy) must export
+    # two ORTHOGONAL real components (x and y), not the same file twice
+    poscar_327 = os.path.join(ROOT, "example", "spin_basis", "La3Ni2O7_I4mmm", "139_PPOSCAR_La3Ni2O7")
+    if not os.path.isfile(poscar_327):
+        report("La3Ni2O7 example POSCAR found", False, poscar_327)
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        shutil.copy(poscar_327, tmp)
+        code, out = run_mag(["-c", "139_PPOSCAR_La3Ni2O7", "--element", "Ni",
+                             "--qpoint", "0", "0", "0"], cwd=tmp)
+        report("GM exit 0 (La3Ni2O7)", code == 0, out)
+        x_file = os.path.join(tmp, "POSCAR_La3Ni2O7_spin_GM5+_dipole_x.vesta")
+        y_file = os.path.join(tmp, "POSCAR_La3Ni2O7_spin_GM5+_dipole_y.vesta")
+        report("2-dim GM5+ exports orthogonal x/y partners (no duplicated _2 file)",
+               os.path.isfile(x_file) and os.path.isfile(y_file)
+               and not os.path.isfile(os.path.join(tmp, "POSCAR_La3Ni2O7_spin_GM5+_dipole_x_2.vesta")),
+               out)
+        if os.path.isfile(x_file) and os.path.isfile(y_file):
+            report("x and y partner files differ",
+                   open(x_file).read() != open(y_file).read(), out)
+
+    # hexagonal K/H points carry 1/3 coordinates: the labels must not fall
+    # back to generic irrep_N names (the old 0.333333-rounding problem)
+    poscar_hex = os.path.join(ROOT, "example", "spin_basis", "LuFeO3_P63cm", "185_PPOSCAR_LuFeO3")
+    if not os.path.isfile(poscar_hex):
+        report("LuFeO3 example POSCAR found", False, poscar_hex)
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        shutil.copy(poscar_hex, tmp)
+        code, out = run_mag(["-c", "185_PPOSCAR_LuFeO3", "--element", "Fe"], cwd=tmp)
+        report("hexagonal survey labels K and H points (1/3 handled exactly)",
+               code == 0 and "K3(2)" in out and "H3(2)" in out and "irrep_" not in out, out)
+
+        code, out = run_mag(["-c", "185_PPOSCAR_LuFeO3", "--element", "Fe",
+                             "--qpoint", "1/3", "1/3", "0"], cwd=tmp)
+        report("--qpoint accepts fractions (1/3 1/3 0 -> K)",
+               code == 0 and "Selected q-point: K" in out and "K3(2)" in out, out)
+
+        code, out = run_mag(["-c", "185_PPOSCAR_LuFeO3", "--element", "Fe",
+                             "--qpoint", "0.333333", "0.333333", "0.5"], cwd=tmp)
+        report("decimal 0.333333 snapped to 1/3 (-> H)",
+               code == 0 and "Selected q-point: H" in out and "H3(2)" in out, out)
+
 
 # ---------------------------------------------------------------- 20. ligand-field-split
 def test_20_ligand_field_split() -> None:
