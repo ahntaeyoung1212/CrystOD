@@ -6,25 +6,25 @@ phonopy-init -d -c 221_PPOSCAR_ScF3 --dim 4 4 4
 phonopy phonopy_disp.yaml --sp
 
 # generate modulated POSCAR_R-3c transforming as irrep R4+(a,a,a)
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 0 1 2 --amplitude 0.3 --output POSCAR_R-3c
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3 --output POSCAR_R-3c
 
 # generate modulated POSCAR_I4mcm_{0,1,2} transforming as irreps R4+(0,0,a), R4+(a,0,0), R4+(0,a,0), respectively
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 0 --amplitude 0.3 --output POSCAR_I4mcm_0
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 --amplitude 0.3 --output POSCAR_I4mcm_1
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 2 --amplitude 0.3 --output POSCAR_I4mcm_2
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 --amplitude 0.3 --output POSCAR_I4mcm_1
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 2 --amplitude 0.3 --output POSCAR_I4mcm_2
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 3 --amplitude 0.3 --output POSCAR_I4mcm_3
 
 # generate modulated POSCAR_Imma_{0,1,2} transforming as irreps R4+(a,0,a), R4+(a,a,0), R4+(0,a,a), respectively
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 0 1 --amplitude 0.3 --output POSCAR_Imma_0
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 --amplitude 0.3 --output POSCAR_Imma_1
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 2 0 --amplitude 0.3 --output POSCAR_Imma_2
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 --amplitude 0.3 --output POSCAR_Imma_1
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 2 3 --amplitude 0.3 --output POSCAR_Imma_2
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 3 1 --amplitude 0.3 --output POSCAR_Imma_3
 
 # generate modulated POSCAR_P4mbm_{0,1,2} transforming as irreps M3+(0;0;a), M3+(0;a;0), M3+(a;0;0), respectively
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0 --mode 0 --amplitude 0.3 --output POSCAR_P4mbm_0
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0.5 0 0.5 --mode 0 --amplitude 0.3 --output POSCAR_P4mbm_1
-crystod --modulation --yaml phonopy_params.yaml --qpoint 0 0.5 0.5 --mode 0 --amplitude 0.3 --output POSCAR_P4mbm_2
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0 --mode 1 --amplitude 0.3 --output POSCAR_P4mbm_1
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0 0.5 --mode 1 --amplitude 0.3 --output POSCAR_P4mbm_2
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0 0.5 0.5 --mode 1 --amplitude 0.3 --output POSCAR_P4mbm_3
 
 # generate modulated POSCAR_I4mmm transforming as irrep M3+(a;a;0)
-crystod --modulation --yaml phonopy_params.yaml --qpoint1 0 0.5 0.5 --mode1 0 --amplitude1 0.3 --qpoint2 0.5 0 0.5 --mode2 0 --amplitude2 0.3 --output POSCAR_I4mmm
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint1 0 0.5 0.5 --mode1 1 --amplitude1 0.3 --qpoint2 0.5 0 0.5 --mode2 1 --amplitude2 0.3 --output POSCAR_I4mmm
 
 # generate modulated POSCAR_Im-3 transforming as irrep M3+(a;a;a)
-crystod --modulation --yaml phonopy_params.yaml --qpoint1 0.5 0.5 0 --mode1 0 --amplitude1 0.3 --qpoint2 0.5 0 0.5 --mode2 0 --amplitude2 0.3 --qpoint3 0 0.5 0.5 --mode3 0 --amplitude3 0.3 --output POSCAR_Im-3
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint1 0.5 0.5 0 --mode1 1 --amplitude1 0.3 --qpoint2 0.5 0 0.5 --mode2 1 --amplitude2 0.3 --qpoint3 0 0.5 0.5 --mode3 1 --amplitude3 0.3 --output POSCAR_Im-3
