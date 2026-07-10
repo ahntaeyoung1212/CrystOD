@@ -1,6 +1,9 @@
 # Decompose a reducible representation into irreducible representations for point group 3m
 
-crystod --decompose-irrep --point-group 3m
+crystod-group --decompose --point-group 3m  
+
+* Point group *
+3m
 
 * Reducible representation *
 
@@ -12,6 +15,11 @@ crystod --decompose-irrep --point-group 3m
 2(A1) + 1(E)
 
 
+
+
+* Point group *
+3m
+
 * Reducible representation *
 
 1E: 5
@@ -21,6 +29,11 @@ crystod --decompose-irrep --point-group 3m
 * Result *
 2(A1) + 1(A2) + 1(E)
 
+
+
+
+* Point group *
+3m
 
 * Reducible representation *
 
@@ -34,9 +47,7 @@ crystod --decompose-irrep --point-group 3m
 
 
 
-# Decompose a reducible representation into irreducible representations for point group 432
-
-crystod --decompose-irrep --point-group 432 
+crystod-group --decompose --point-group 432     
 
 * Point group *
 432
@@ -55,7 +66,9 @@ crystod --decompose-irrep --point-group 432
 
 
 
-# Decompose a reducible representation into irreducible representations for point group m-3m
+
+
+crystod-group --decompose --point-group m-3m     
 
 * Point group *
 m-3m
