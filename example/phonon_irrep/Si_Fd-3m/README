@@ -1,1 +1,0 @@
-crystod-phonon --irreps --dim 4 4 4 -c 227_PPOSCAR_Si --readfc

@@ -1,1 +1,0 @@
-crystod-phonon --irreps --dim 4 4 4 -c 221_PPOSCAR_SrTiO3 --readfc
