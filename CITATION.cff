@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use CrystOD in your research, please cite the article below (preferred-citation)."
+title: "CrystOD"
+version: 0.3.1
+license: GPL-3.0
+authors:
+  - family-names: Mochizuki
+    given-names: Yasuhide
+    email: ahntaeyoung1212@gmail.com
+    affiliation: "Tokyo University of Science"
+  - family-names: Koiso
+    given-names: Hiroki
+    email: akabane0308koiso@gmail.com
+    affiliation: "Institute of Science Tokyo"
+preferred-citation:
+  type: article
+  title: "Thermal expansion and phase stability of BF3 (B = Sc, Y, La, Al, Ga, In) from first principles"
+  authors:
+    - family-names: Koiso
+      given-names: Hiroki
+    - family-names: Yoshida
+      given-names: Suguru
+    - family-names: Nagai
+      given-names: Takayuki
+    - family-names: Isobe
+      given-names: Toshihiro
+    - family-names: Nakajima
+      given-names: Akira
+    - family-names: Mochizuki
+      given-names: Yasuhide
+  journal: "Physical Review B"
+  volume: 110
+  start: "064104"
+  year: 2024
+  doi: 10.1103/PhysRevB.110.064104
