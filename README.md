@@ -182,8 +182,8 @@ python3 vibration_viewer.py --npz mode_data.npz --write-trajectory vibration.xyz
 Example:
 
 ```bash
-crystod-phonon --modulation --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
-crystod-phonon --modulation --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint1 0.5 0.5 0.5 --mode1 1 2 3 --amplitude1 0.3 \
+crystod-phonon --modulation --yaml example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
+crystod-phonon --modulation --yaml example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint1 0.5 0.5 0.5 --mode1 1 2 3 --amplitude1 0.3 \
   --qpoint2 0.5 0.5 0 --mode2 1 --amplitude2 0.3 
 ```
 
@@ -192,7 +192,7 @@ irrep, degeneracy) and the star of q are printed, so you can inspect the modes a
 q point first and then choose which mode(s) to apply:
 
 ```bash
-crystod-phonon --modulation --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint 0.5 0.5 0.5
+crystod-phonon --modulation --yaml example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint 0.5 0.5 0.5
 ```
 
 If `phonopy_params.yaml` exists in the current directory, `--yaml` can be omitted.
@@ -209,7 +209,7 @@ Example:
 
 ```bash
 crystod-phonon --modulation \
-  --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml \
+  --yaml example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml \
   --qpoint1 0 0.5 0.5 --mode1 1 --amplitude1 0.3 \
   --qpoint2 0.5 0 0.5 --mode2 1 --amplitude2 0.3 \
   --qpoint3 0.5 0.5 0 --mode3 1 --amplitude3 0.3 \
@@ -265,7 +265,7 @@ The star of q is also displayed automatically in `--modulation` mode for each se
 
 ```bash
 crystod-phonon --modulation \
-  --yaml example/modulation/ScF3_Pm-3m/phonopy_params.yaml \
+  --yaml example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml \
   --qpoint1 0.5 0.5 0.5 --mode1 2 3 --amplitude1 0.3 \
   --qpoint2 0.5 0.5 0 --mode2 1 --amplitude2 0.3 \
   --output POSCAR_Pbnm
@@ -330,7 +330,7 @@ Note: if the input cell differs from the seekpath standardized primitive cell, t
 Visualize phonon states obtained from force data (`FORCE_SETS`, or `FORCE_CONSTANTS` with `--readfc`) and a POSCAR — the same inputs as `--phonon-irrep`. The dynamical matrix is diagonalized directly at the selected q-point via the `phonopy` API (no `band.yaml` generation needed), the modes are listed with their frequencies and irrep labels, and the selected eigenvectors are exported as `.vesta` files with per-atom displacement arrows:
 
 ```bash
-cd example/phonon_irrep/Si_Fd-3m
+cd example/17_phonon_irrep/Si_Fd-3m
 
 # List the modes (frequencies + irrep labels) at GM and export ALL of them
 # as individual VESTA files; the mode table is also saved as
@@ -391,7 +391,7 @@ The class order and multiplicities follow the prompt (e.g. `1E`, `2C3`, `3sgv` f
 Compute the time-averaged structure and anisotropic displacement parameters (ADPs, U_ij) from a molecular-dynamics `XDATCAR` trajectory and write them as a CIF file:
 
 ```bash
-cd example/xdatcar2adp/ScF3_Pm-3m_NpT_300K
+cd example/26_xdatcar2adp/ScF3_Pm-3m_NpT_300K
 crystod-md --adp --dim 4 4 4 --start-step 1000 --xdatcar XDATCAR --output ADP.cif
 ```
 
@@ -415,7 +415,7 @@ Based on `script/xdatcar_to_adp.py` by Ko Sato; the crystod port reproduces its 
 Plot phonon fatbands colored by the element-projected phonon density (sum of squared eigenvector components over each element's atoms), directly from POSCAR + `FORCE_SETS` (or `FORCE_CONSTANTS` with `--readfc`):
 
 ```bash
-cd example/phonon_fatband/ScF3_Pm-3m
+cd example/18_phonon_fatband/ScF3_Pm-3m
 crystod-phonon --fatband -c 221_PPOSCAR_ScF3 --dim 4 4 4
 ```
 
@@ -447,7 +447,7 @@ If `--output` is omitted, the plot is saved as `BZ_supercell_{POSCAR name}.html`
 Plot the phonon band structure colored by the longitudinal/transverse character of each mode (red = longitudinal, blue = transverse, white = mixed or Gamma), from POSCAR + `FORCE_SETS` (or `FORCE_CONSTANTS` with `--readfc`):
 
 ```bash
-cd example/phonon_lt/ScF3_Pm-3m
+cd example/19_phonon_lt/ScF3_Pm-3m
 crystod-phonon --lt -c 221_PPOSCAR_ScF3 --dim 4 4 4
 crystod-phonon --lt -c 221_PPOSCAR_ScF3 --dim 4 4 4 --nac
 ```
@@ -543,6 +543,7 @@ Each basis vector is exported as `POSCAR_<formula>_spin_<irrep>_<dipole|octupole
 - **Fixed**: special k points with 1/3-type coordinates (K/H of hexagonal groups, ...) were rounded to 0.333333 in the table-derived k-point lists, which silently broke the little-group detection — e.g. the `crystod-mag` survey printed a wrong decomposition with generic `irrep_N` labels at K/H. Table-derived coordinates are now snapped to exact fractions, and k/q-point input across the commands accepts fractions (`--qpoint 1/3 1/3 0`) while near-fraction decimals are snapped (0.333333 -> 1/3).
 - **Fixed**: `crystod-mag` exported the SAME spin structure twice (e.g. `..._GM5+_dipole_x_conv.vesta` and an identical `..._x_conv_2.vesta`) when a 2-dim irrep space came out of the projection in the circular complex basis (x + iy, x - iy): taking the real part folded both partners onto the same vector. Such spaces are now recombined unitarily into a real orthonormal basis (possible whenever the space is closed under complex conjugation), so the two components export as orthogonal partners (`..._dipole_x` and `..._dipole_y`), matching the 2-dim order parameter (found for the in-plane Ni dipoles/quadrupoles of I4/mmm La3Ni2O7).
 - The `--modulation` default output name is now `MPOSCAR_{q}_{mode}_{irrep}_{subgroup}` (e.g. `MPOSCAR_R_mode1+2+3_R4+_R-3c`; one `{q}_{mode}_{irrep}` group per term in multi-q runs) instead of `POSCAR_modulated`; `--output` still overrides it.
+- `testsuite.py` sections are renumbered by command group (1 library core, 2-6 `crystod`, 7-13 `crystod-group`, 14-16 `crystod-bz`, 17-23 `crystod-phonon`, 24-25 `crystod-mag`, 26-27 `crystod-md`; each group closes with that command's CLI regression section), and every `example/` directory is prefixed with its section number (`example/20_phonon_vector` <-> `python testsuite.py 20`). New example directories with captured output were added for the previously undocumented features: `01_wigner_d` (library demo), `04_star_of_k`, `07_direct_product`, `10_basis_function`, `11_generate_basis_function`, `12_show_coset`, and `15_bz_supercell`. See `example/README` for the full map.
 
 ### v0.3.0
 
