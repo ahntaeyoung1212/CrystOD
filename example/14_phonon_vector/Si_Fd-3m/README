@@ -1,0 +1,7 @@
+# Visualize all the phonon modes for Si in primitive and conventional cells
+crystod-phonon --vector --dim 4 4 4 --poscar 227_PPOSCAR_Si --qpoint GM
+crystod-phonon --vector --dim 4 4 4 --poscar 227_PPOSCAR_Si --qpoint GM --conventional
+
+# Visualize the phonon mode transforming as irrep GM5+(a,a,a) for Si in primitive and conventional cells
+crystod-phonon --vector --dim "4 4 4" --poscar 227_PPOSCAR_Si --qpoint 0 0 0 --mode 4 5 6
+crystod-phonon --vector --dim "4 4 4" --poscar 227_PPOSCAR_Si --qpoint 0 0 0 --mode 4 5 6 --conventional
