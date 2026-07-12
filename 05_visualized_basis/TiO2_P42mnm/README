@@ -1,2 +1,0 @@
-crystod --visualize -c 136_PPOSCAR_TiO2 --element Ti --orbital d --kpoint 0 0 0 --bond Ti O 3 --real-coefficient
-crystod --visualize -c 136_PPOSCAR_TiO2 --element O --orbital p --kpoint 0 0 0 --bond Ti O 3 --real-coefficient
