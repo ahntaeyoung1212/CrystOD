@@ -1,0 +1,6 @@
+# Plot the Brillouin zone for the relevant POSCARs
+crystod-bz -c ../test_POSCARs/227_PPOSCAR_Si
+crystod-bz -c ../test_POSCARs/221_PPOSCAR_ScF3
+crystod-bz -c ../test_POSCARs/139_PPOSCAR_Sr3Ti2O7
+
+# Supercell (folded) Brillouin zones: see ../18_bz_supercell
