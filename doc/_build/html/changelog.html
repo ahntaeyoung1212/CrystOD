@@ -1,0 +1,498 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Changelog &#8212; CrystOD v0.3.1</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'changelog';</script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Citation" href="citation.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.3.1" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">CrystOD v0.3.1</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="index.html">
+                    CrystOD
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick start</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Commands</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="crystod.html">crystod (main command)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-group.html">crystod-group</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-bz.html">crystod-bz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="citation.html">Citation</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Changelog</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/changelog.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Changelog</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-3-1">v0.3.1</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-3-0">v0.3.0</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-2-3">v0.2.3</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-2-2">v0.2.2</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-2-1">v0.2.1</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="changelog">
+<h1>Changelog<a class="headerlink" href="#changelog" title="Link to this heading">#</a></h1>
+<section id="v0-3-1">
+<h2>v0.3.1<a class="headerlink" href="#v0-3-1" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--modulation</span></code> workflow overhaul — corrected frequencies, CDML irrep labels, a mode-table preview, and informative default file names — plus star-arm-aware k-point/irrep labeling across all commands.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--modulation</span></code> can now be run with <code class="docutils literal notranslate"><span class="pre">--qpoint</span></code> only (no <code class="docutils literal notranslate"><span class="pre">--mode</span></code>): it prints the mode table (mode number, frequency, irrep, degeneracy) and the star of q, then exits without generating a structure — useful for inspecting the modes at a q point before choosing which to apply.</p></li>
+<li><p><strong>Fixed</strong>: the frequencies in the <code class="docutils literal notranslate"><span class="pre">--modulation</span></code> mode table were wrong whenever an irrep occurs more than once at the q point (each irrep-projected block was diagonalized on its own, dropping the coupling between blocks carrying equivalent irreps — e.g. every X-point mode of Sr3Ti2O7 except the singly-occurring X1-/X2+ irreps). The dynamical matrix is now block-diagonalized with the same equivalent-irrep clustering as <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--vector</span></code>, the mode vectors are true eigenvectors, and every run is verified internally against the plain phonopy spectrum. Mode numbers at affected q points differ from v0.3.0 accordingly; the frequencies now agree with <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--irreps</span></code> (phonon_irreps.yaml).</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">--modulation</span></code> mode table now shows CDML irrep labels (<code class="docutils literal notranslate"><span class="pre">X3-(1)</span></code>, <code class="docutils literal notranslate"><span class="pre">GM5-(2)</span></code>, …) from irreptables — the same labeling as <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--vector</span></code>/<code class="docutils literal notranslate"><span class="pre">--irreps</span></code> — instead of internal block indices (the column header changed from <code class="docutils literal notranslate"><span class="pre">Irrep</span> <span class="pre">Block</span></code> to <code class="docutils literal notranslate"><span class="pre">Irrep</span></code>; labels fall back to <code class="docutils literal notranslate"><span class="pre">-</span></code> when irreptables labeling is unavailable, e.g. at non-special q points).</p></li>
+<li><p>Irrep and k-point labeling now works at EVERY arm of a special-point star, not only at the single arm tabulated in irreptables/seekpath — across ALL label lookups: the SALC analysis (<code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">-c</span> <span class="pre">...</span> <span class="pre">--element/--orbital</span></code>), <code class="docutils literal notranslate"><span class="pre">--atomic-orbital</span></code> hybridization, <code class="docutils literal notranslate"><span class="pre">--visualize</span></code>, <code class="docutils literal notranslate"><span class="pre">--star-of-k</span></code> (the header now shows e.g. <code class="docutils literal notranslate"><span class="pre">X</span> <span class="pre">[0.0,</span> <span class="pre">0.5,</span> <span class="pre">0.5]</span></code> instead of <code class="docutils literal notranslate"><span class="pre">custom</span></code>), <code class="docutils literal notranslate"><span class="pre">crystod-mag</span></code>, <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--vibration</span></code>, <code class="docutils literal notranslate"><span class="pre">--vector</span></code> (q label in the report and VESTA file names), and <code class="docutils literal notranslate"><span class="pre">--modulation</span></code>. E.g. all three X arms (1/2,0,0)/(0,1/2,0)/(0,0,1/2) of Pm-3m, and both X arms (0,0,1/2)/(1/2,1/2,0) of the I4/mmm primitive cell, now get X labels; previously only the tabulated arm was labeled (the SALC decomposition fell back to generic <code class="docutils literal notranslate"><span class="pre">irrep_N</span></code> names). For the phonon commands the k point is mapped onto the tabulated arm (star-arm spectra are identical band by band); for the SALC/orbital analyses, which compare little-group characters operation by operation, the characters are transported by the conjugation isomorphism <code class="docutils literal notranslate"><span class="pre">h</span> <span class="pre">-&gt;</span> <span class="pre">g^-1</span> <span class="pre">h</span> <span class="pre">g</span></code> between the little groups, including the Bloch phase from lattice-translation offsets (verified at the X and W stars of nonsymmorphic Fd-3m Si).</p></li>
+<li><p><strong>Fixed</strong>: special k points with 1/3-type coordinates (K/H of hexagonal groups, …) were rounded to 0.333333 in the table-derived k-point lists, which silently broke the little-group detection — e.g. the <code class="docutils literal notranslate"><span class="pre">crystod-mag</span></code> survey printed a wrong decomposition with generic <code class="docutils literal notranslate"><span class="pre">irrep_N</span></code> labels at K/H. Table-derived coordinates are now snapped to exact fractions, and k/q-point input across the commands accepts fractions (<code class="docutils literal notranslate"><span class="pre">--qpoint</span> <span class="pre">1/3</span> <span class="pre">1/3</span> <span class="pre">0</span></code>) while near-fraction decimals are snapped (0.333333 -&gt; 1/3).</p></li>
+<li><p><strong>Fixed</strong>: <code class="docutils literal notranslate"><span class="pre">crystod-mag</span></code> exported the SAME spin structure twice (e.g. <code class="docutils literal notranslate"><span class="pre">..._GM5+_dipole_x_conv.vesta</span></code> and an identical <code class="docutils literal notranslate"><span class="pre">..._x_conv_2.vesta</span></code>) when a 2-dim irrep space came out of the projection in the circular complex basis (x + iy, x - iy): taking the real part folded both partners onto the same vector. Such spaces are now recombined unitarily into a real orthonormal basis (possible whenever the space is closed under complex conjugation), so the two components export as orthogonal partners (<code class="docutils literal notranslate"><span class="pre">..._dipole_x</span></code> and <code class="docutils literal notranslate"><span class="pre">..._dipole_y</span></code>), matching the 2-dim order parameter (found for the in-plane Ni dipoles/quadrupoles of I4/mmm La3Ni2O7).</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">--modulation</span></code> default output name is now <code class="docutils literal notranslate"><span class="pre">MPOSCAR_{q}_{mode}_{irrep}_{subgroup}</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">MPOSCAR_R_mode1+2+3_R4+_R-3c</span></code>; one <code class="docutils literal notranslate"><span class="pre">{q}_{mode}_{irrep}</span></code> group per term in multi-q runs) instead of <code class="docutils literal notranslate"><span class="pre">POSCAR_modulated</span></code>; <code class="docutils literal notranslate"><span class="pre">--output</span></code> still overrides it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">testsuite.py</span></code> sections are renumbered by command group (1 library core, 2-6 <code class="docutils literal notranslate"><span class="pre">crystod</span></code>, 7-13 <code class="docutils literal notranslate"><span class="pre">crystod-group</span></code>, 14-16 <code class="docutils literal notranslate"><span class="pre">crystod-bz</span></code>, 17-23 <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span></code>, 24-25 <code class="docutils literal notranslate"><span class="pre">crystod-mag</span></code>, 26-27 <code class="docutils literal notranslate"><span class="pre">crystod-md</span></code>; each group closes with that command’s CLI regression section), and every <code class="docutils literal notranslate"><span class="pre">example/</span></code> directory is prefixed with its section number (<code class="docutils literal notranslate"><span class="pre">example/20_phonon_vector</span></code> &lt;-&gt; <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">testsuite.py</span> <span class="pre">20</span></code>). New example directories with captured output were added for the previously undocumented features: <code class="docutils literal notranslate"><span class="pre">01_wigner_d</span></code> (library demo), <code class="docutils literal notranslate"><span class="pre">04_star_of_k</span></code>, <code class="docutils literal notranslate"><span class="pre">07_direct_product</span></code>, <code class="docutils literal notranslate"><span class="pre">10_basis_function</span></code>, <code class="docutils literal notranslate"><span class="pre">11_generate_basis_function</span></code>, <code class="docutils literal notranslate"><span class="pre">12_show_coset</span></code>, and <code class="docutils literal notranslate"><span class="pre">15_bz_supercell</span></code>. See <code class="docutils literal notranslate"><span class="pre">example/README</span></code> for the full map.</p></li>
+</ul>
+</section>
+<section id="v0-3-0">
+<h2>v0.3.0<a class="headerlink" href="#v0-3-0" title="Link to this heading">#</a></h2>
+<p>CrystOD has been restructured into sectioned commands (phonopy style: one main <code class="docutils literal notranslate"><span class="pre">crystod</span></code> command plus per-domain <code class="docutils literal notranslate"><span class="pre">crystod-*</span></code> commands), with phonopy-aligned option names (<code class="docutils literal notranslate"><span class="pre">-c</span></code>/<code class="docutils literal notranslate"><span class="pre">--cell</span></code> for the structure file, with <code class="docutils literal notranslate"><span class="pre">--poscar</span></code> kept as an alias). The old <code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--&lt;mode&gt;</span></code> flat forms were removed; invoking one prints an error with the equivalent sectioned command.</p>
+<ul class="simple">
+<li><p>Mode numbering is now 1-based across ALL commands and outputs: <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--vector</span> <span class="pre">--mode</span></code>, <code class="docutils literal notranslate"><span class="pre">--modulation</span> <span class="pre">--mode</span></code>/<code class="docutils literal notranslate"><span class="pre">--modeN</span></code>, <code class="docutils literal notranslate"><span class="pre">--vibration</span> <span class="pre">--mode-index</span></code>/<code class="docutils literal notranslate"><span class="pre">--component-index</span></code> (the component default is now 1), <code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--visualize</span> <span class="pre">--mode-index</span></code>, and every printed mode table / Mode Space / component listing. A <code class="docutils literal notranslate"><span class="pre">0</span></code> or out-of-range number is rejected with a clear 1-based message.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--visualize</span></code> HTML redesigned as an interactive viewer modeled after Henrique Miranda’s <a class="reference external" href="https://henriquemiranda.github.io/phononwebsite/">phonon website</a> (BSD-3-Clause; design imitated, no code copied): sidebar with structure summary, irreducible decomposition, a clickable SALC-basis table replacing the dropdown, lobe-opacity / cell / atom display controls, and a credit link in the page. New <code class="docutils literal notranslate"><span class="pre">--conventional</span></code> displays the SALC in the conventional cell (primitive-to-conventional matrix from the detected centring, as in <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--vector</span></code>). New <code class="docutils literal notranslate"><span class="pre">--bond</span> <span class="pre">EL1</span> <span class="pre">EL2</span> <span class="pre">MAX</span></code> (repeatable) draws bonds within the cutoff and VESTA-style translucent coordination polyhedra around the EL1 atoms, with boundary atoms completed so polyhedra at the cell edge are not cut off.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--visualize</span></code> now always writes the interactive 3D HTML, auto-named <code class="docutils literal notranslate"><span class="pre">SALC_{element}_{orbital}_{kpoint}.html</span></code> when <code class="docutils literal notranslate"><span class="pre">--output</span></code> is omitted (previously nothing was written without <code class="docutils literal notranslate"><span class="pre">--output</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--vector</span></code> usability update: mode numbering is now 1-based, matching the printed table (<code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">0</span></code> is rejected with a clear message); the q-point mode table (space group, q-points, frequencies, irreps) is automatically saved as <code class="docutils literal notranslate"><span class="pre">phonon_modes_&lt;formula&gt;_&lt;qlabel&gt;.txt</span></code>; and omitting <code class="docutils literal notranslate"><span class="pre">--mode</span></code> now exports ALL modes as individual VESTA files (<code class="docutils literal notranslate"><span class="pre">--mode</span></code> still selects specific modes, summed into one file). VESTA file names now carry the irrep label and zero-padded mode numbers (<code class="docutils literal notranslate"><span class="pre">POSCAR_&lt;formula&gt;_&lt;qlabel&gt;_mode&lt;NN&gt;_&lt;irrep&gt;.vesta</span></code>) so that <code class="docutils literal notranslate"><span class="pre">ls</span></code> lists them in order.</p></li>
+<li><p>Redesigned the main <code class="docutils literal notranslate"><span class="pre">crystod</span></code> command: the flagship SALC analysis runs without a mode flag (<code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">-c</span> <span class="pre">POSCAR</span> <span class="pre">--element</span> <span class="pre">Ti</span> <span class="pre">--orbital</span> <span class="pre">d</span></code>; hybridization via <code class="docutils literal notranslate"><span class="pre">--atomic-orbital</span></code>), <code class="docutils literal notranslate"><span class="pre">--visualize</span></code> merges the former <code class="docutils literal notranslate"><span class="pre">--visualize-basis</span></code>, and <code class="docutils literal notranslate"><span class="pre">--star-of-k</span></code> stays as the symmetry-information option. <code class="docutils literal notranslate"><span class="pre">--kpoint</span></code> now also accepts high-symmetry labels (GM/X/M/R) in <code class="docutils literal notranslate"><span class="pre">--star-of-k</span></code>/<code class="docutils literal notranslate"><span class="pre">--visualize</span></code> mode — the documented <code class="docutils literal notranslate"><span class="pre">--kpoint</span> <span class="pre">M</span></code> form previously failed to parse. Added <code class="docutils literal notranslate"><span class="pre">--version</span></code>; <code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--help</span></code> lists all sectioned commands.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">crystod-bz</span></code> (first sectioned command), merging <code class="docutils literal notranslate"><span class="pre">--bz</span></code> and <code class="docutils literal notranslate"><span class="pre">--bz-supercell</span></code>: with the default identity <code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code> it plots the unit-cell BZ with an automatic (seekpath) or manual (<code class="docutils literal notranslate"><span class="pre">--band</span></code>/<code class="docutils literal notranslate"><span class="pre">--band-labels</span></code>) k-path; with any non-identity <code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code> it plots the unit-cell BZ together with the folded BZ of the transformed (super)lattice.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">crystod-md</span></code> (MD section) with two modes: <code class="docutils literal notranslate"><span class="pre">--adp</span></code> (replacing <code class="docutils literal notranslate"><span class="pre">--xdatcar2adp</span></code>) writes atomic displacement parameters as a CIF; <code class="docutils literal notranslate"><span class="pre">--summary</span></code> (based on <code class="docutils literal notranslate"><span class="pre">script/md_summary.py</span></code>) reports time-averaged lattice parameters and cell volume with standard deviations over a step range (<code class="docutils literal notranslate"><span class="pre">--start-step</span></code>/<code class="docutils literal notranslate"><span class="pre">--end-step</span></code>). <code class="docutils literal notranslate"><span class="pre">--dim</span></code> now also accepts a nine-value diagonal matrix (quoted or unquoted); <code class="docutils literal notranslate"><span class="pre">--format</span></code> selects the trajectory format (<code class="docutils literal notranslate"><span class="pre">vasp</span></code>; LAMMPS planned). A missing trajectory file is reported cleanly instead of a traceback.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span></code> (phonon section), merging the six flat phonon modes as <code class="docutils literal notranslate"><span class="pre">--irreps</span></code> (old <code class="docutils literal notranslate"><span class="pre">--phonon-irrep</span></code>, renamed to match phonopy), <code class="docutils literal notranslate"><span class="pre">--fatband</span></code>, <code class="docutils literal notranslate"><span class="pre">--lt</span></code>, <code class="docutils literal notranslate"><span class="pre">--vector</span></code>, <code class="docutils literal notranslate"><span class="pre">--modulation</span></code>, and <code class="docutils literal notranslate"><span class="pre">--vibration</span></code> (force-data-free). <code class="docutils literal notranslate"><span class="pre">--dim</span></code> accepts three values or a nine-value diagonal matrix, quoted or unquoted; <code class="docutils literal notranslate"><span class="pre">--band-labels</span></code> is the primary spelling (<code class="docutils literal notranslate"><span class="pre">--label</span></code> kept as alias); numbered <code class="docutils literal notranslate"><span class="pre">--qpoint1/--mode1/...</span></code> arguments still work in <code class="docutils literal notranslate"><span class="pre">--modulation</span></code>.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">crystod-group</span></code> (representation-theory section) for point AND space groups, merging six flat modes: <code class="docutils literal notranslate"><span class="pre">--product</span></code> (old <code class="docutils literal notranslate"><span class="pre">--direct-product</span></code>), <code class="docutils literal notranslate"><span class="pre">--table</span></code> (character-table display, formerly <code class="docutils literal notranslate"><span class="pre">--direct-product</span> <span class="pre">--show-irrep-table</span></code> without irreps), <code class="docutils literal notranslate"><span class="pre">--decompose</span></code> (old <code class="docutils literal notranslate"><span class="pre">--decompose-irrep</span></code>), <code class="docutils literal notranslate"><span class="pre">--ligand-field</span> <span class="pre">ORBITAL</span></code> (old <code class="docutils literal notranslate"><span class="pre">--ligand-field-split</span> <span class="pre">--orbital</span></code>), <code class="docutils literal notranslate"><span class="pre">--basis</span></code> (old <code class="docutils literal notranslate"><span class="pre">--basis-function</span></code>), <code class="docutils literal notranslate"><span class="pre">--generate-basis</span></code> (old <code class="docutils literal notranslate"><span class="pre">--generate-basis-function</span></code>), and <code class="docutils literal notranslate"><span class="pre">--coset</span></code> (old <code class="docutils literal notranslate"><span class="pre">--show-coset</span></code>). <code class="docutils literal notranslate"><span class="pre">--pg</span></code>/<code class="docutils literal notranslate"><span class="pre">--sg</span></code> are provided as short aliases of <code class="docutils literal notranslate"><span class="pre">--point-group</span></code>/<code class="docutils literal notranslate"><span class="pre">--space-group</span></code>; labels starting with a minus sign (<code class="docutils literal notranslate"><span class="pre">-43m</span></code>, <code class="docutils literal notranslate"><span class="pre">-1</span></code>, …) are handled.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-mag</span> <span class="pre">--conventional</span></code> exports the symmetry-adapted spin structures in the conventional cell (primitive-to-conventional matrix from the detected centring; <code class="docutils literal notranslate"><span class="pre">_conv</span></code>-suffixed VESTA files).</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">crystod-mag</span></code> (magnetism section), replacing <code class="docutils literal notranslate"><span class="pre">--spin-basis</span></code>: symmetry-adapted spin bases as the default action, with per-atom spin directions and the noncollinear magnetization input printed by default (no <code class="docutils literal notranslate"><span class="pre">--show-spin-direction</span></code> needed). New <code class="docutils literal notranslate"><span class="pre">--format</span> <span class="pre">vasp|qe</span></code> selects the printed input: a VASP <code class="docutils literal notranslate"><span class="pre">MAGMOM</span></code> line, or the Quantum ESPRESSO <code class="docutils literal notranslate"><span class="pre">&amp;SYSTEM</span></code> counterpart (<code class="docutils literal notranslate"><span class="pre">noncolin</span></code>, per-type <code class="docutils literal notranslate"><span class="pre">starting_magnetization</span></code>/<code class="docutils literal notranslate"><span class="pre">angle1</span></code>/<code class="docutils literal notranslate"><span class="pre">angle2</span></code>, with the magnetic element split into one type per spin direction).</p></li>
+<li><p>Removed the old flat forms of all sectioned modes — <code class="docutils literal notranslate"><span class="pre">--salc</span></code>, <code class="docutils literal notranslate"><span class="pre">--visualize-basis</span></code>, <code class="docutils literal notranslate"><span class="pre">--bz</span></code>, <code class="docutils literal notranslate"><span class="pre">--bz-supercell</span></code>, <code class="docutils literal notranslate"><span class="pre">--xdatcar2adp</span></code>, <code class="docutils literal notranslate"><span class="pre">--spin-basis</span></code>, <code class="docutils literal notranslate"><span class="pre">--phonon-irrep</span></code>, <code class="docutils literal notranslate"><span class="pre">--phonon-fatband</span></code>, <code class="docutils literal notranslate"><span class="pre">--phonon-lt</span></code>, <code class="docutils literal notranslate"><span class="pre">--phonon-vector</span></code>, <code class="docutils literal notranslate"><span class="pre">--modulation</span></code>, <code class="docutils literal notranslate"><span class="pre">--vibration</span></code>, <code class="docutils literal notranslate"><span class="pre">--direct-product</span></code>, <code class="docutils literal notranslate"><span class="pre">--decompose-irrep</span></code>, <code class="docutils literal notranslate"><span class="pre">--ligand-field-split</span></code>, <code class="docutils literal notranslate"><span class="pre">--basis-function</span></code>, <code class="docutils literal notranslate"><span class="pre">--generate-basis-function</span></code>, and <code class="docutils literal notranslate"><span class="pre">--show-coset</span></code>. Invoking one prints an error naming the sectioned replacement.</p></li>
+</ul>
+</section>
+<section id="v0-2-3">
+<h2>v0.2.3<a class="headerlink" href="#v0-2-3" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--phonon-vector</span></code>: phonon-eigenvector visualization as VESTA files with displacement arrows, from the same POSCAR + FORCE_SETS/FORCE_CONSTANTS inputs as <code class="docutils literal notranslate"><span class="pre">--phonon-irrep</span></code>. Modes are listed with frequencies and irrep labels; the commensurate supercell and Bloch phase factors are applied automatically for fractional q-points. Degenerate modes are exported as symmetry-adapted eigenvectors (aligned along symmetry-dictated directions, as in <code class="docutils literal notranslate"><span class="pre">--modulation</span></code>) rather than arbitrary eigensolver combinations. <code class="docutils literal notranslate"><span class="pre">--conventional</span></code> switches the output from the primitive to the conventional cell.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--decompose-irrep</span></code>: interactive decomposition of a reducible representation into point-group irreps from user-entered characters (based on <code class="docutils literal notranslate"><span class="pre">script/decomose_to_irreps.py</span></code> by Hiroki Koiso), with a non-interactive <code class="docutils literal notranslate"><span class="pre">--characters</span></code> option.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--ligand-field-split</span></code>: ligand-field splitting of an atomic orbital (s-i) into point-group irreps (based on <code class="docutils literal notranslate"><span class="pre">script/ligand_field_spliting.py</span></code> by Hiroki Koiso).</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--xdatcar2adp</span></code>: time-averaged structure and symmetry-constrained ADPs (U_ij) from an MD XDATCAR trajectory as a CIF (based on <code class="docutils literal notranslate"><span class="pre">script/xdatcar_to_adp.py</span></code> by Ko Sato), with a fast built-in XDATCAR parser instead of pymatgen.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--phonon-fatband</span></code>: element-projected phonon fatbands (PDF per element) along an automatic seekpath k-path, computed directly from POSCAR + FORCE_SETS/FORCE_CONSTANTS via the phonopy API. Colored with VESTA default element colors; <code class="docutils literal notranslate"><span class="pre">--nac</span></code> applies the non-analytical term correction (LO/TO splitting) from a <code class="docutils literal notranslate"><span class="pre">BORN</span></code> file.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--bz-supercell</span></code>: interactive 3D plot of the unit-cell BZ together with the BZ of a transformed (super)lattice, tiled at the |det T| folded supercell reciprocal-lattice points (based on <code class="docutils literal notranslate"><span class="pre">script/supercell_BZ.py</span></code> by Hiroki Koiso).</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--phonon-lt</span></code>: phonon bands colored by longitudinal/transverse character with an optional <code class="docutils literal notranslate"><span class="pre">--nac</span></code> correction (based on <code class="docutils literal notranslate"><span class="pre">script/LT_phonon_band.py</span></code>, after Qijing Zheng), using the exact eigenvector projection onto the propagation direction so that diagonal path segments are also colored correctly.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--spin-basis</span></code>: symmetry-adapted spin bases (cluster multipoles / SAMM, after M.-T. Suzuki et al.) with FM/AFM separation, multipole-rank naming, per-atom spin directions with a VASP MAGMOM line (<code class="docutils literal notranslate"><span class="pre">--show-spin-direction</span></code>), VESTA export, and automatic magnetic supercells for q != 0. Omitting <code class="docutils literal notranslate"><span class="pre">--qpoint</span></code> lists the spin-multipole irreps at all special k points (as in the <code class="docutils literal notranslate"><span class="pre">crystod</span></code> SALC survey).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--basis-function</span></code> now supports the axial-vector components <code class="docutils literal notranslate"><span class="pre">Rx</span></code>, <code class="docutils literal notranslate"><span class="pre">Ry</span></code>, <code class="docutils literal notranslate"><span class="pre">Rz</span></code> (transforming with det(R) R, like magnetic moments), including mixed polar-axial products such as the toroidal <code class="docutils literal notranslate"><span class="pre">x*Ry</span> <span class="pre">-</span> <span class="pre">y*Rx</span></code>. In space-group mode, omitting <code class="docutils literal notranslate"><span class="pre">--kpoint</span></code> now analyzes all special k points automatically (as in the <code class="docutils literal notranslate"><span class="pre">crystod</span></code> SALC survey).</p></li>
+<li><p>Fixed point-group labels starting with a minus sign (<code class="docutils literal notranslate"><span class="pre">-43m</span></code>, <code class="docutils literal notranslate"><span class="pre">-42m</span></code>, <code class="docutils literal notranslate"><span class="pre">-6m2</span></code>, <code class="docutils literal notranslate"><span class="pre">-1</span></code>, …) being rejected by the argument parser in all <code class="docutils literal notranslate"><span class="pre">--point-group</span></code>/<code class="docutils literal notranslate"><span class="pre">--subgroup</span></code> modes; both <code class="docutils literal notranslate"><span class="pre">--point-group</span> <span class="pre">-43m</span></code> and <code class="docutils literal notranslate"><span class="pre">--point-group=&quot;-43m&quot;</span></code> now work.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--dim</span></code> now also accepts unquoted values (<code class="docutils literal notranslate"><span class="pre">--dim</span> <span class="pre">4</span> <span class="pre">4</span> <span class="pre">4</span></code>) in all modes.</p></li>
+<li><p>Fixed <code class="docutils literal notranslate"><span class="pre">--phonon-irrep</span></code> with phonopy &gt;= 2.21, where the removed <code class="docutils literal notranslate"><span class="pre">IrReps.frequencies</span></code> property caused an <code class="docutils literal notranslate"><span class="pre">AttributeError</span></code>.</p></li>
+</ul>
+</section>
+<section id="v0-2-2">
+<h2>v0.2.2<a class="headerlink" href="#v0-2-2" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--bz</span></code>: interactive 3D Brillouin-zone plot (HTML) with automatic space-group detection and a seekpath-generated high-symmetry k-path, or a manual path via <code class="docutils literal notranslate"><span class="pre">--band</span></code>/<code class="docutils literal notranslate"><span class="pre">--label</span></code>. Based on <code class="docutils literal notranslate"><span class="pre">script/brillouin_zone_plot.py</span></code> by Hiroki Koiso.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">seekpath</span></code> and <code class="docutils literal notranslate"><span class="pre">scipy</span></code> to the package dependencies.</p></li>
+</ul>
+</section>
+<section id="v0-2-1">
+<h2>v0.2.1<a class="headerlink" href="#v0-2-1" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--visualize-basis</span></code>: SALC coefficients and interactive 3D HTML visualization, with the <code class="docutils literal notranslate"><span class="pre">--real-coefficient</span></code> option for real-type degenerate irreps.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--star-of-k</span></code> as a standalone command, and automatic star-of-q display in <code class="docutils literal notranslate"><span class="pre">--modulation</span></code>.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--show-coset</span></code>: left-coset decomposition G = sum g_i H (point groups) and right-coset decomposition G = sum G_k g_i (space groups, one coset per star arm).</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">--generate-basis-function</span></code>: automatic 1st-3rd order polynomial basis functions classified by irrep.</p></li>
+<li><p>Rewrote the Wigner-D routines in <code class="docutils literal notranslate"><span class="pre">operations.py</span></code> with pure NumPy (no sympy) and fixed several bugs: the parity factor for improper operations (det vs det^l), the beta = pi Euler-angle branch, the p_y row sign in the complex-to-real transform, and a float-determinant perturbation that broke the Euler-angle extraction.</p></li>
+<li><p>Fixed numerical-noise blowup in space-group basis-function coefficients (<code class="docutils literal notranslate"><span class="pre">--basis-function</span></code> / <code class="docutils literal notranslate"><span class="pre">--generate-basis-function</span></code>).</p></li>
+<li><p>Improved compatibility with recent phonopy <code class="docutils literal notranslate"><span class="pre">PhonopyAtoms</span></code> (removed remaining ASE-style getter calls).</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="citation.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Citation</p>
+      </div>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-3-1">v0.3.1</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-3-0">v0.3.0</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-2-3">v0.2.3</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-2-2">v0.2.2</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-2-1">v0.2.1</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Yasuhide Mochizuki and Hiroki Koiso
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026, Yasuhide Mochizuki and Hiroki Koiso.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

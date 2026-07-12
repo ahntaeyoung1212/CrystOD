@@ -1,0 +1,570 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>crystod-group &#8212; CrystOD v0.3.1</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'crystod-group';</script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="crystod-bz" href="crystod-bz.html" />
+    <link rel="prev" title="crystod (main command)" href="crystod.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.3.1" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">CrystOD v0.3.1</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="index.html">
+                    CrystOD
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick start</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Commands</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="crystod.html">crystod (main command)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">crystod-group</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-bz.html">crystod-bz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="citation.html">Citation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/crystod-group.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>crystod-group</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-products-of-point-group-irreps-product">7. Direct products of point-group irreps (<code class="docutils literal notranslate"><span class="pre">--product</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reducible-representation-decomposition-decompose">8. Reducible-representation decomposition (<code class="docutils literal notranslate"><span class="pre">--decompose</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ligand-field-splitting-ligand-field">9. Ligand-field splitting (<code class="docutils literal notranslate"><span class="pre">--ligand-field</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#basis-functions-basis">10. Basis functions (<code class="docutils literal notranslate"><span class="pre">--basis</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#automatic-generation-of-polynomial-basis-functions-generate-basis">11. Automatic generation of polynomial basis functions (<code class="docutils literal notranslate"><span class="pre">--generate-basis</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coset-decomposition-coset">12. Coset decomposition (<code class="docutils literal notranslate"><span class="pre">--coset</span></code>)</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="crystod-group">
+<h1>crystod-group<a class="headerlink" href="#crystod-group" title="Link to this heading">#</a></h1>
+<p>The point/space-group representation-theory calculator. One mode flag per task:
+<code class="docutils literal notranslate"><span class="pre">--product</span></code>, <code class="docutils literal notranslate"><span class="pre">--table</span></code>, <code class="docutils literal notranslate"><span class="pre">--decompose</span></code>, <code class="docutils literal notranslate"><span class="pre">--ligand-field</span></code>, <code class="docutils literal notranslate"><span class="pre">--basis</span></code>,
+<code class="docutils literal notranslate"><span class="pre">--generate-basis</span></code>, <code class="docutils literal notranslate"><span class="pre">--coset</span></code>. Point groups are selected with <code class="docutils literal notranslate"><span class="pre">--pg</span></code>/<code class="docutils literal notranslate"><span class="pre">--point-group</span></code>
+and space groups with <code class="docutils literal notranslate"><span class="pre">--sg</span></code>/<code class="docutils literal notranslate"><span class="pre">--space-group</span></code> (labels starting with <code class="docutils literal notranslate"><span class="pre">-</span></code>, such as
+<code class="docutils literal notranslate"><span class="pre">-43m</span></code>, are accepted).</p>
+<section id="direct-products-of-point-group-irreps-product">
+<h2>7. Direct products of point-group irreps (<code class="docutils literal notranslate"><span class="pre">--product</span></code>)<a class="headerlink" href="#direct-products-of-point-group-irreps-product" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/07_direct_product</span></code> (testsuite section 7)</em></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--product<span class="w"> </span>T2g<span class="w"> </span>T2g<span class="w"> </span>T1u<span class="w"> </span>--point-group<span class="w"> </span>m-3m
+</pre></div>
+</div>
+<p>Show the point-group character table:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--table<span class="w"> </span>--point-group<span class="w"> </span>3m
+</pre></div>
+</div>
+<p>Show both the table and the direct-product decomposition:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--product<span class="w"> </span>T2g<span class="w"> </span>T2g<span class="w"> </span>T1u<span class="w"> </span>--point-group<span class="w"> </span>m-3m<span class="w"> </span>--show-irrep-table
+</pre></div>
+</div>
+</section>
+<section id="reducible-representation-decomposition-decompose">
+<h2>8. Reducible-representation decomposition (<code class="docutils literal notranslate"><span class="pre">--decompose</span></code>)<a class="headerlink" href="#reducible-representation-decomposition-decompose" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/08_decompose_irrep</span></code> (testsuite section 8)</em></p>
+<p>Decompose a reducible representation into the irreps of a point group by entering
+its characters class by class (educational / hand-analysis companion to <code class="docutils literal notranslate"><span class="pre">--product</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--decompose<span class="w"> </span>--point-group<span class="w"> </span>3m
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">Reducible</span> <span class="n">representation</span> <span class="o">*</span>
+
+<span class="mi">1</span><span class="n">E</span><span class="p">:</span> <span class="mi">3</span>
+<span class="mi">2</span><span class="n">C3</span><span class="p">:</span> <span class="mi">0</span>
+<span class="mi">3</span><span class="n">sgv</span><span class="p">:</span> <span class="mi">1</span>
+
+<span class="o">*</span> <span class="n">Result</span> <span class="o">*</span>
+<span class="mi">1</span><span class="p">(</span><span class="n">A1</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">(</span><span class="n">E</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The characters can also be given at once for non-interactive use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--decompose<span class="w"> </span>--point-group<span class="w"> </span>3m<span class="w"> </span>--characters<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">1</span>
+</pre></div>
+</div>
+<p>The class order and multiplicities follow the prompt (e.g. <code class="docutils literal notranslate"><span class="pre">1E</span></code>, <code class="docutils literal notranslate"><span class="pre">2C3</span></code>, <code class="docutils literal notranslate"><span class="pre">3sgv</span></code> for
+3m); the character table can be checked with <code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--table</span></code>.
+Based on <code class="docutils literal notranslate"><span class="pre">script/decomose_to_irreps.py</span></code> by Hiroki Koiso.</p>
+</section>
+<section id="ligand-field-splitting-ligand-field">
+<h2>9. Ligand-field splitting (<code class="docutils literal notranslate"><span class="pre">--ligand-field</span></code>)<a class="headerlink" href="#ligand-field-splitting-ligand-field" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/09_ligand_field_split</span></code> (testsuite section 9)</em></p>
+<p>Decompose an atomic orbital (s, p, d, f, g, h, i) into the irreps of a point
+group — the crystal-field / ligand-field splitting of the orbital in the given
+point-symmetric environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--ligand-field<span class="w"> </span>d<span class="w"> </span>--point-group<span class="w"> </span>m-3m
+<span class="c1"># * Result *  1(Eg) + 1(T2g)</span>
+
+crystod-group<span class="w"> </span>--ligand-field<span class="w"> </span>f<span class="w"> </span>--point-group<span class="w"> </span><span class="m">4</span>/mmm
+<span class="c1"># * Result *  1(A2u) + 1(B1u) + 1(B2u) + 2(Eu)</span>
+</pre></div>
+</div>
+<p>The characters of the (2l+1)-dimensional orbital representation are generated
+from the standard angular-momentum formulas
+(chi(C(a)) = sin((l+1/2)a)/sin(a/2), chi(S(a)) = cos((l+1/2)a)/cos(a/2)) and
+decomposed with the same reduction engine as <code class="docutils literal notranslate"><span class="pre">--decompose</span></code>.
+Based on <code class="docutils literal notranslate"><span class="pre">script/ligand_field_spliting.py</span></code> by Hiroki Koiso.</p>
+</section>
+<section id="basis-functions-basis">
+<h2>10. Basis functions (<code class="docutils literal notranslate"><span class="pre">--basis</span></code>)<a class="headerlink" href="#basis-functions-basis" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/10_basis_function</span></code> (testsuite section 10)</em></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--basis<span class="w"> </span>x<span class="w"> </span>y<span class="w"> </span>z<span class="w"> </span>--point-group<span class="w"> </span>m-3m
+crystod-group<span class="w"> </span>--basis<span class="w"> </span>x<span class="w"> </span>y<span class="w"> </span>z<span class="w"> </span>--space-group<span class="w"> </span>Pm-3m<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>
+crystod-group<span class="w"> </span>--basis<span class="w"> </span>xyz<span class="w"> </span>--space-group<span class="w"> </span>Pm-3m<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="m">0</span><span class="w"> </span>--show-irrep-table
+crystod-group<span class="w"> </span>--basis<span class="w"> </span><span class="s2">&quot;x(y^2-z^2)&quot;</span><span class="w"> </span>--point-group<span class="o">=</span><span class="s2">&quot;m-3m&quot;</span>
+crystod-group<span class="w"> </span>--basis<span class="w"> </span><span class="s2">&quot;x^2-y^2&quot;</span><span class="w"> </span><span class="s2">&quot;2z^2-x^2-y^2&quot;</span><span class="w"> </span>xy<span class="w"> </span>yz<span class="w"> </span>zx<span class="w"> </span>--space-group<span class="o">=</span><span class="s2">&quot;Pm-3m&quot;</span><span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>
+</pre></div>
+</div>
+<p>The input functions are automatically closed under the selected point group or
+the little group of the selected space-group k point, then decomposed into
+irreps. When the k point is listed in <code class="docutils literal notranslate"><span class="pre">irreptables</span></code>, physical labels such as
+<code class="docutils literal notranslate"><span class="pre">GM4-(3)</span></code> are shown; otherwise <code class="docutils literal notranslate"><span class="pre">spgrep</span></code> generic labels such as <code class="docutils literal notranslate"><span class="pre">irrep_2(1)</span></code> are used.</p>
+<p>Besides the polar coordinates x, y, z, the <strong>axial-vector components
+<code class="docutils literal notranslate"><span class="pre">Rx</span></code>, <code class="docutils literal notranslate"><span class="pre">Ry</span></code>, <code class="docutils literal notranslate"><span class="pre">Rz</span></code></strong> (rotations, angular momenta, magnetic moments) are supported;
+they transform with <code class="docutils literal notranslate"><span class="pre">det(R)</span> <span class="pre">R</span></code> and therefore land in the parity partners of the
+polar bases:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--basis<span class="w"> </span>Rx<span class="w"> </span>Ry<span class="w"> </span>Rz<span class="w"> </span>--point-group<span class="w"> </span>m-3m<span class="w">                  </span><span class="c1"># -&gt; T1g (x y z gives T1u)</span>
+crystod-group<span class="w"> </span>--basis<span class="w"> </span>Rx<span class="w"> </span>Ry<span class="w"> </span>Rz<span class="w"> </span>--space-group<span class="w"> </span>Pm-3m<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w">  </span><span class="c1"># -&gt; GM4+</span>
+crystod-group<span class="w"> </span>--basis<span class="w"> </span><span class="s2">&quot;x*Ry - y*Rx&quot;</span><span class="w"> </span>--point-group<span class="w"> </span>m-3m<span class="w">             </span><span class="c1"># toroidal component -&gt; T1u</span>
+</pre></div>
+</div>
+<p>This makes the magnetic (spin) irreps directly comparable with the
+<code class="docutils literal notranslate"><span class="pre">crystod-mag</span></code> labels (e.g. the GM4+ cluster dipole of AlNi3).</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">--kpoint</span></code> is omitted in space-group mode, all special k points of the
+space group are analyzed automatically (as in the <code class="docutils literal notranslate"><span class="pre">crystod</span></code> SALC survey):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--basis<span class="w"> </span>Rx<span class="w"> </span>Ry<span class="w"> </span>Rz<span class="w"> </span>--space-group<span class="w"> </span>Pm-3m
+<span class="c1"># -&gt; GM4+(3), R4+(3), M3+(1) + M5+(2), X3+(1) + X5+(2)</span>
+</pre></div>
+</div>
+</section>
+<section id="automatic-generation-of-polynomial-basis-functions-generate-basis">
+<h2>11. Automatic generation of polynomial basis functions (<code class="docutils literal notranslate"><span class="pre">--generate-basis</span></code>)<a class="headerlink" href="#automatic-generation-of-polynomial-basis-functions-generate-basis" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/11_generate_basis_function</span></code> (testsuite section 11)</em></p>
+<p>Automatically generate 1st-3rd order polynomial basis functions
+(<code class="docutils literal notranslate"><span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">z</span></code> / <code class="docutils literal notranslate"><span class="pre">x^2,</span> <span class="pre">...,</span> <span class="pre">zx</span></code> / <code class="docutils literal notranslate"><span class="pre">x^3,</span> <span class="pre">...,</span> <span class="pre">xyz</span></code>) classified by irreducible representation:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--generate-basis<span class="w"> </span>--point-group<span class="w"> </span>m-3m
+crystod-group<span class="w"> </span>--generate-basis<span class="w"> </span>--point-group<span class="w"> </span>m-3m<span class="w"> </span>--order<span class="w"> </span><span class="m">2</span>
+crystod-group<span class="w"> </span>--generate-basis<span class="w"> </span>--space-group<span class="w"> </span>Pm-3m<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>
+crystod-group<span class="w"> </span>--generate-basis<span class="w"> </span>--space-group<span class="w"> </span>Pm-3m<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>--order<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span>--show-irrep-table
+</pre></div>
+</div>
+<p>This is the automated counterpart of <code class="docutils literal notranslate"><span class="pre">--basis</span></code>: for each requested order, all
+monomials of that degree are decomposed into the irreps of the point group, or
+of the little group of the selected space-group k point.</p>
+</section>
+<section id="coset-decomposition-coset">
+<h2>12. Coset decomposition (<code class="docutils literal notranslate"><span class="pre">--coset</span></code>)<a class="headerlink" href="#coset-decomposition-coset" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/12_show_coset</span></code> (testsuite section 12)</em></p>
+<p>Point-group mode decomposes G into left cosets g H of a subgroup H:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--coset<span class="w"> </span>--point-group<span class="w"> </span>m-3m<span class="w"> </span>--subgroup<span class="w"> </span><span class="m">4</span>/mmm
+</pre></div>
+</div>
+<p>Space-group mode decomposes the rotation group of G into right cosets G_k g of
+the little co-group of a k point (one coset per arm of the star of k):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--coset<span class="w"> </span>--space-group<span class="w"> </span>Pm-3m<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>
+</pre></div>
+</div>
+<p>For the point-group mode, H must be expressed in the same axes convention as G;
+a clear error message is printed otherwise. The index <code class="docutils literal notranslate"><span class="pre">[G:H]</span></code>
+(or <code class="docutils literal notranslate"><span class="pre">[G:G_k]</span> <span class="pre">=</span> <span class="pre">|star</span> <span class="pre">of</span> <span class="pre">k|</span></code>) and the members of each coset are listed.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="crystod.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">crystod (main command)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="crystod-bz.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">crystod-bz</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-products-of-point-group-irreps-product">7. Direct products of point-group irreps (<code class="docutils literal notranslate"><span class="pre">--product</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reducible-representation-decomposition-decompose">8. Reducible-representation decomposition (<code class="docutils literal notranslate"><span class="pre">--decompose</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ligand-field-splitting-ligand-field">9. Ligand-field splitting (<code class="docutils literal notranslate"><span class="pre">--ligand-field</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#basis-functions-basis">10. Basis functions (<code class="docutils literal notranslate"><span class="pre">--basis</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#automatic-generation-of-polynomial-basis-functions-generate-basis">11. Automatic generation of polynomial basis functions (<code class="docutils literal notranslate"><span class="pre">--generate-basis</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coset-decomposition-coset">12. Coset decomposition (<code class="docutils literal notranslate"><span class="pre">--coset</span></code>)</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Yasuhide Mochizuki and Hiroki Koiso
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026, Yasuhide Mochizuki and Hiroki Koiso.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

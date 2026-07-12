@@ -1,0 +1,745 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>crystod (main command) &#8212; CrystOD v0.3.1</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'crystod';</script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="crystod-group" href="crystod-group.html" />
+    <link rel="prev" title="Quick start" href="quickstart.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.3.1" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">CrystOD v0.3.1</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="index.html">
+                    CrystOD
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick start</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Commands</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">crystod (main command)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-group.html">crystod-group</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-bz.html">crystod-bz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="citation.html">Citation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/crystod.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>crystod (main command)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#wigner-d-matrices-and-the-projection-operator-theoretical-background">1. Wigner D matrices and the projection operator (theoretical background)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-a-representation-matrix">1.1 What is a representation matrix?</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-crystod-computes-d-for-any-l">1.2 How CrystOD computes D for any l</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-matrices-to-irreps-characters-and-the-reduction-formula">1.3 From matrices to irreps: characters and the reduction formula</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-irreps-to-basis-functions-the-projection-operator">1.4 From irreps to basis functions: the projection operator</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#irreps-of-salc-for-a-selected-element-and-orbital">2. Irreps of SALC for a selected element and orbital</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hybridization-analysis">3. Hybridization analysis</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#star-of-k">4. Star of k</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="crystod-main-command">
+<h1>crystod (main command)<a class="headerlink" href="#crystod-main-command" title="Link to this heading">#</a></h1>
+<p>The main command performs the SALC (symmetry-adapted linear combination)
+analysis of crystal orbitals — no mode flag is needed. It also hosts the
+interactive SALC viewer (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>) and the star-of-k display (<code class="docutils literal notranslate"><span class="pre">--star-of-k</span></code>).
+Section 1 below summarizes the theoretical background on which every command
+of this page (and of <code class="docutils literal notranslate"><span class="pre">crystod-group</span></code> / <code class="docutils literal notranslate"><span class="pre">crystod-mag</span></code>) is built.</p>
+<section id="wigner-d-matrices-and-the-projection-operator-theoretical-background">
+<h2>1. Wigner D matrices and the projection operator (theoretical background)<a class="headerlink" href="#wigner-d-matrices-and-the-projection-operator-theoretical-background" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/01_wigner_d</span></code> (testsuite section 1)</em></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This section is theoretical background, <strong>not a command-line mode</strong>: there is
+no CLI flag for it. Everything described here is what CrystOD evaluates
+internally every time one of the commands is executed; the machinery is exposed
+through the Python API only (<code class="docutils literal notranslate"><span class="pre">crystod.operations.wigner_D_real</span></code>). No prior
+familiarity with group theory is assumed.</p>
+</div>
+<section id="what-is-a-representation-matrix">
+<h3>1.1 What is a representation matrix?<a class="headerlink" href="#what-is-a-representation-matrix" title="Link to this heading">#</a></h3>
+<p>Take a symmetry operation of a crystal — say a 90-degree rotation about the z
+axis, <code class="docutils literal notranslate"><span class="pre">C4z</span></code> (x -&gt; y, y -&gt; -x, z -&gt; z). Apply it to the three p orbitals, which
+have the same shapes as the functions x, y, z:</p>
+<ul class="simple">
+<li><p>p_x -&gt; p_y, p_y -&gt; -p_x, p_z -&gt; p_z.</p></li>
+</ul>
+<p>Each orbital turns into a <em>linear combination</em> of the orbitals of the same
+shell. Collecting the coefficients into a matrix gives the <strong>representation
+matrix</strong> <code class="docutils literal notranslate"><span class="pre">D(R)</span></code> of the operation on that shell. For p orbitals it is simply the
+3x3 rotation matrix itself:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">D</span><span class="o">^</span><span class="p">(</span><span class="mi">1</span><span class="p">)(</span><span class="n">C4z</span><span class="p">)</span> <span class="o">=</span>  <span class="p">[</span> <span class="mi">0</span> <span class="o">-</span><span class="mi">1</span>  <span class="mi">0</span> <span class="p">]</span>      <span class="p">(</span><span class="n">basis</span> <span class="n">order</span><span class="p">:</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+              <span class="p">[</span> <span class="mi">1</span>  <span class="mi">0</span>  <span class="mi">0</span> <span class="p">]</span>
+              <span class="p">[</span> <span class="mi">0</span>  <span class="mi">0</span>  <span class="mi">1</span> <span class="p">]</span>
+</pre></div>
+</div>
+<p>For d orbitals the same idea gives a 5x5 matrix. Under <code class="docutils literal notranslate"><span class="pre">C4z</span></code>:
+xy -&gt; -xy, yz -&gt; -xz, z^2 -&gt; z^2, xz -&gt; yz, x^2-y^2 -&gt; -(x^2-y^2), so</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">D</span><span class="o">^</span><span class="p">(</span><span class="mi">2</span><span class="p">)(</span><span class="n">C4z</span><span class="p">)</span> <span class="o">=</span>  <span class="p">[</span><span class="o">-</span><span class="mi">1</span>  <span class="mi">0</span>  <span class="mi">0</span>  <span class="mi">0</span>  <span class="mi">0</span> <span class="p">]</span>      <span class="p">(</span><span class="n">basis</span> <span class="n">order</span><span class="p">:</span> <span class="n">xy</span><span class="p">,</span> <span class="n">yz</span><span class="p">,</span> <span class="n">z</span><span class="o">^</span><span class="mi">2</span><span class="p">,</span> <span class="n">xz</span><span class="p">,</span> <span class="n">x</span><span class="o">^</span><span class="mi">2</span><span class="o">-</span><span class="n">y</span><span class="o">^</span><span class="mi">2</span><span class="p">)</span>
+              <span class="p">[</span> <span class="mi">0</span>  <span class="mi">0</span>  <span class="mi">0</span> <span class="o">-</span><span class="mi">1</span>  <span class="mi">0</span> <span class="p">]</span>
+              <span class="p">[</span> <span class="mi">0</span>  <span class="mi">0</span>  <span class="mi">1</span>  <span class="mi">0</span>  <span class="mi">0</span> <span class="p">]</span>
+              <span class="p">[</span> <span class="mi">0</span>  <span class="mi">1</span>  <span class="mi">0</span>  <span class="mi">0</span>  <span class="mi">0</span> <span class="p">]</span>
+              <span class="p">[</span> <span class="mi">0</span>  <span class="mi">0</span>  <span class="mi">0</span>  <span class="mi">0</span> <span class="o">-</span><span class="mi">1</span> <span class="p">]</span>
+</pre></div>
+</div>
+<p>These matrices for the orbital shells (any <code class="docutils literal notranslate"><span class="pre">l</span></code>) are the <strong>Wigner D matrices</strong>
+on real spherical harmonics. <code class="docutils literal notranslate"><span class="pre">crystod.operations.wigner_D_real(l,</span> <span class="pre">R)</span></code> returns
+them for an arbitrary O(3) operation <code class="docutils literal notranslate"><span class="pre">R</span></code> (rotation, rotoinversion, or mirror):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">crystod.operations</span><span class="w"> </span><span class="kn">import</span> <span class="n">wigner_D_real</span>
+
+<span class="n">c4z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]])</span>
+
+<span class="n">wigner_D_real</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">c4z</span><span class="p">)</span>           <span class="c1"># l = 1 (p): equals the 3x3 rotation matrix itself</span>
+<span class="n">wigner_D_real</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">c4z</span><span class="p">)</span>           <span class="c1"># l = 2 (d): the 5x5 matrix above</span>
+<span class="n">np</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">wigner_D_real</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">c4z</span><span class="p">))</span> <span class="c1"># character of C4z on the d shell: -1</span>
+<span class="n">wigner_D_real</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>    <span class="c1"># inversion: (-1)^l x identity (parity), here -1 x 1(7)</span>
+</pre></div>
+</div>
+<p>Key properties (verified in testsuite section 1):</p>
+<ul class="simple">
+<li><p>for proper rotations at <code class="docutils literal notranslate"><span class="pre">l</span></code> = 1 the matrix equals <code class="docutils literal notranslate"><span class="pre">R</span></code> itself;</p></li>
+<li><p>inversion is represented by <code class="docutils literal notranslate"><span class="pre">(-1)^l</span></code> times the identity — even shells
+(s, d, …) are unchanged, odd shells (p, f, …) flip sign (the <em>parity</em> of
+the orbital);</p></li>
+<li><p>the map is a group homomorphism, <code class="docutils literal notranslate"><span class="pre">D(AB)</span> <span class="pre">=</span> <span class="pre">D(A)</span> <span class="pre">D(B)</span></code> — performing two
+operations in sequence is the same as multiplying their matrices;</p></li>
+<li><p>all matrices are orthogonal, <code class="docutils literal notranslate"><span class="pre">D</span> <span class="pre">D^T</span> <span class="pre">=</span> <span class="pre">1</span></code>.</p></li>
+</ul>
+</section>
+<section id="how-crystod-computes-d-for-any-l">
+<h3>1.2 How CrystOD computes D for any l<a class="headerlink" href="#how-crystod-computes-d-for-any-l" title="Link to this heading">#</a></h3>
+<p>Rotation matrices act directly on (x, y, z), so <code class="docutils literal notranslate"><span class="pre">l</span></code> = 1 is trivial — but how do
+we get the 5x5, 7x7, … matrices for d, f, … shells without working out every
+monomial by hand? CrystOD follows the classic quantum-mechanics route
+(prototyped in <code class="docutils literal notranslate"><span class="pre">matsym/wigner_d.ipynb</span></code> by Hiroki Koiso):</p>
+<ol class="arabic simple">
+<li><p><strong>Split off the inversion.</strong> Any O(3) operation is a proper rotation times
+(possibly) the inversion: <code class="docutils literal notranslate"><span class="pre">R</span> <span class="pre">=</span> <span class="pre">det(R)</span> <span class="pre">x</span> <span class="pre">R_proper</span></code>. Work with the proper
+rotation <code class="docutils literal notranslate"><span class="pre">R_proper</span> <span class="pre">=</span> <span class="pre">det(R)</span> <span class="pre">R</span></code> first.</p></li>
+<li><p><strong>Convert the rotation to Euler angles</strong> (alpha, beta, gamma) in the ZYZ
+convention.</p></li>
+<li><p><strong>Evaluate Wigner’s formula</strong> for the complex D matrix <code class="docutils literal notranslate"><span class="pre">D^(l)(alpha,</span> <span class="pre">beta,</span> <span class="pre">gamma)</span></code> — the standard result for how the complex spherical harmonics
+<code class="docutils literal notranslate"><span class="pre">Y_l^m</span></code> (m = -l..l) transform under rotations. This works for <em>any</em> l.</p></li>
+<li><p><strong>Change basis from complex to real orbitals.</strong> The real orbitals are fixed
+linear combinations of <code class="docutils literal notranslate"><span class="pre">Y_l^m</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">p_x</span> <span class="pre">=</span> <span class="pre">(Y_1^-1</span> <span class="pre">-</span> <span class="pre">Y_1^1)/sqrt(2)</span></code>), so a
+unitary matrix <code class="docutils literal notranslate"><span class="pre">C</span></code> converts the complex D matrix to the real-orbital one:
+<code class="docutils literal notranslate"><span class="pre">D_real</span> <span class="pre">=</span> <span class="pre">C</span> <span class="pre">D_complex</span> <span class="pre">C^-1</span></code>.</p></li>
+<li><p><strong>Restore the parity.</strong> If the original operation was improper
+(<code class="docutils literal notranslate"><span class="pre">det(R)</span> <span class="pre">=</span> <span class="pre">-1</span></code>), multiply by the inversion eigenvalue <code class="docutils literal notranslate"><span class="pre">(-1)^l</span></code>.</p></li>
+</ol>
+<p>The production implementation in <code class="docutils literal notranslate"><span class="pre">crystod/operations.py</span></code> performs these steps
+in pure NumPy (no symbolic algebra), with the orbital ordering
+p: (x, y, z) / d: (xy, yz, z^2, xz, x^2-y^2) / f: (7 components).</p>
+</section>
+<section id="from-matrices-to-irreps-characters-and-the-reduction-formula">
+<h3>1.3 From matrices to irreps: characters and the reduction formula<a class="headerlink" href="#from-matrices-to-irreps-characters-and-the-reduction-formula" title="Link to this heading">#</a></h3>
+<p>The trace of a representation matrix, <code class="docutils literal notranslate"><span class="pre">chi(R)</span> <span class="pre">=</span> <span class="pre">tr</span> <span class="pre">D(R)</span></code>, is called the
+<strong>character</strong> of the operation. Characters are the workhorse of applied group
+theory because they do not depend on the basis choice, and because tabulated
+<strong>character tables</strong> list the characters <code class="docutils literal notranslate"><span class="pre">chi_Gamma(R)</span></code> of each <em>irreducible
+representation</em> (irrep) Gamma — the elementary building blocks into which any
+representation decomposes. The number of times an irrep appears is given by the
+reduction formula</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">n_Gamma</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="o">/|</span><span class="n">G</span><span class="o">|</span><span class="p">)</span> <span class="o">*</span> <span class="n">sum_g</span>  <span class="n">chi_Gamma</span><span class="p">(</span><span class="n">g</span><span class="p">)</span><span class="o">*</span> <span class="n">chi</span><span class="p">(</span><span class="n">g</span><span class="p">),</span>
+</pre></div>
+</div>
+<p>an average over all <code class="docutils literal notranslate"><span class="pre">|G|</span></code> operations of the group. This is exactly how the
+ligand-field splitting works (section 9): the characters of the d shell in the
+m-3m field, <code class="docutils literal notranslate"><span class="pre">chi(g)</span> <span class="pre">=</span> <span class="pre">tr</span> <span class="pre">D^(2)(g)</span></code>, reduce to <code class="docutils literal notranslate"><span class="pre">Eg</span> <span class="pre">+</span> <span class="pre">T2g</span></code> — the familiar
+two-below-three splitting of d orbitals in an octahedral crystal field.</p>
+<p>In a crystal, a space-group operation <code class="docutils literal notranslate"><span class="pre">g</span> <span class="pre">=</span> <span class="pre">{R</span> <span class="pre">|</span> <span class="pre">t}</span></code> does two things to an
+atomic orbital: it moves the atom to a symmetry-equivalent site, and it mixes
+the orbital components on that site with <code class="docutils literal notranslate"><span class="pre">D^(l)(R)</span></code>. The character of the
+crystal-orbital representation at a k point is therefore the trace of
+<code class="docutils literal notranslate"><span class="pre">D^(l)(R)</span></code> summed over the atoms that <code class="docutils literal notranslate"><span class="pre">g</span></code> maps onto themselves (modulo a
+lattice translation), weighted by the Bloch phase <code class="docutils literal notranslate"><span class="pre">exp(-ik.t)</span></code> of that
+translation. Reducing these characters against the little-group irrep table
+gives the irrep content printed by sections 2-3.</p>
+</section>
+<section id="from-irreps-to-basis-functions-the-projection-operator">
+<h3>1.4 From irreps to basis functions: the projection operator<a class="headerlink" href="#from-irreps-to-basis-functions-the-projection-operator" title="Link to this heading">#</a></h3>
+<p>Knowing <em>how many times</em> an irrep appears is half the story; the other half is
+<em>what the symmetry-adapted functions look like</em>. They are extracted with the
+<strong>projection operator</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">P</span><span class="o">^</span><span class="p">(</span><span class="n">Gamma</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">d_Gamma</span><span class="o">/|</span><span class="n">G</span><span class="o">|</span><span class="p">)</span> <span class="o">*</span> <span class="n">sum_g</span>  <span class="n">chi_Gamma</span><span class="p">(</span><span class="n">g</span><span class="p">)</span><span class="o">*</span> <span class="n">O</span><span class="p">(</span><span class="n">g</span><span class="p">),</span>
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">O(g)</span></code> is the representation matrix of <code class="docutils literal notranslate"><span class="pre">g</span></code> on some convenient trial basis
+and <code class="docutils literal notranslate"><span class="pre">d_Gamma</span></code> is the irrep dimension. Applied to a trial function, <code class="docutils literal notranslate"><span class="pre">P^(Gamma)</span></code>
+kills every component except the part transforming as Gamma.</p>
+<p>The workflow — prototyped in <code class="docutils literal notranslate"><span class="pre">matsym/get_basis_functions.ipynb</span></code> by Hiroki
+Koiso — is the engine of <code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--basis</span></code> / <code class="docutils literal notranslate"><span class="pre">--generate-basis</span></code>
+(sections 10-11):</p>
+<ol class="arabic simple">
+<li><p>get the symmetry operations from <strong>spglib</strong> and the irreps from <strong>spgrep</strong>;</p></li>
+<li><p>build the representation matrices <code class="docutils literal notranslate"><span class="pre">O(g)</span></code> of the trial basis — for the linear
+monomials (x, y, z) these are the rotation matrices themselves; for the
+quadratic monomials (x^2, y^2, z^2, xy, yz, zx) a 6x6 matrix follows from
+substituting the rotated coordinates into each monomial, and so on;</p></li>
+<li><p>project with <code class="docutils literal notranslate"><span class="pre">P^(Gamma)</span></code> (spgrep’s <code class="docutils literal notranslate"><span class="pre">project_to_irrep</span></code>) and read off the
+symmetry-adapted polynomials — e.g. in m-3m the quadratic monomials separate
+into <code class="docutils literal notranslate"><span class="pre">x^2+y^2+z^2</span></code> (A1g), <code class="docutils literal notranslate"><span class="pre">(2z^2-x^2-y^2,</span> <span class="pre">x^2-y^2)</span></code> (Eg), and
+<code class="docutils literal notranslate"><span class="pre">(xy,</span> <span class="pre">yz,</span> <span class="pre">zx)</span></code> (T2g).</p></li>
+</ol>
+<p>It is worth <em>looking</em> at the matrices of step 2 before projecting. The two
+galleries below (regenerated from the notebook by
+<code class="docutils literal notranslate"><span class="pre">doc/make_rep_matrix_figures.py</span></code>) show <code class="docutils literal notranslate"><span class="pre">O(g)</span></code> for <strong>all 48 operations</strong> of the
+Pm-3m point group of ScF3 at the Gamma point — one small panel per operation,
+with red = +1, blue = -1, white = 0.</p>
+<figure class="align-default" id="fig-rep-linear">
+<a class="reference internal image-reference" href="_images/rep_matrices_linear.png"><img alt="_images/rep_matrices_linear.png" src="_images/rep_matrices_linear.png" style="width: 85%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">The 48 representation matrices on the linear basis (x, y, z) — i.e. the 3x3
+rotation matrices themselves. Red = +1, blue = -1, white = 0.</span><a class="headerlink" href="#fig-rep-linear" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<p>Two things are immediately visible. First, every panel has exactly one colored
+cell per row and per column: for a high-symmetry (cubic) group the operations
+do nothing more exotic than <strong>permute the basis functions and flip signs</strong> —
+these are <em>signed permutation matrices</em> (the first panel, the identity, is the
+plain red diagonal). Second, no single monomial stays put in every panel, which
+is the visual way of saying that x, y, z individually are <em>not</em>
+symmetry-adapted: they mix, and only the projection operator can disentangle
+the combinations that transform cleanly.</p>
+<figure class="align-default" id="fig-rep-quadratic">
+<a class="reference internal image-reference" href="_images/rep_matrices_quadratic.png"><img alt="_images/rep_matrices_quadratic.png" src="_images/rep_matrices_quadratic.png" style="width: 85%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">The same 48 operations on the quadratic basis (x^2, y^2, z^2, xy, yz, zx) —
+now 6x6 signed permutation matrices.</span><a class="headerlink" href="#fig-rep-quadratic" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<p>The quadratic gallery shows one more feature: a <strong>block structure</strong>. The
+upper-left 3x3 block (x^2, y^2, z^2) and the lower-right 3x3 block
+(xy, yz, zx) never mix — a rotation can turn x^2 into y^2, or xy into -yz, but
+never a square into a product. Note also that the squares block is <em>always
+red</em>: a square can never acquire a minus sign, which is why the totally
+symmetric average <code class="docutils literal notranslate"><span class="pre">x^2+y^2+z^2</span></code> (A1g) survives. The projection operator is
+nothing but a weighted average of these 48 panels — multiply each panel by the
+irrep character <code class="docutils literal notranslate"><span class="pre">chi_Gamma(g)*</span></code> and sum — and the block structure you see here
+is exactly what reappears in the result: the squares block yields
+<code class="docutils literal notranslate"><span class="pre">A1g</span> <span class="pre">+</span> <span class="pre">Eg</span></code>, the products block yields <code class="docutils literal notranslate"><span class="pre">T2g</span></code>, reproducing step 3 above (and the
+<code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--generate-basis</span> <span class="pre">--order</span> <span class="pre">2</span></code> output of section 11).</p>
+<p>The SALCs of the main command (section 5) come from the <em>same</em> projection with
+the trial basis replaced by the atomic orbitals on all symmetry-equivalent
+sites — <code class="docutils literal notranslate"><span class="pre">O(g)</span></code> then combines the site permutation, the Bloch phases, and
+<code class="docutils literal notranslate"><span class="pre">D^(l)(R)</span></code> from section 1.2. And replacing <code class="docutils literal notranslate"><span class="pre">D^(1)(R)</span> <span class="pre">=</span> <span class="pre">R</span></code> by the axial-vector
+representation <code class="docutils literal notranslate"><span class="pre">det(R)</span> <span class="pre">R</span></code> (magnetic moments do not flip under inversion) turns
+the same machinery into the spin-multipole bases of <code class="docutils literal notranslate"><span class="pre">crystod-mag</span></code> (section 24).</p>
+<p><em>Further reading:</em> B. Souvignier, “Representations of crystallographic groups”
+(<a class="reference external" href="https://www.crystallography.fr/mathcryst/pdf/nancy2010/Souvignier_irrep_slides.pdf">MaThCryst summer school notes, Nancy 2010</a>);
+the spgrep documentation, e.g. the
+<a class="reference external" href="https://spglib.github.io/spgrep/examples/symmetry_adapted_tensor.html">symmetry-adapted tensor example</a>.
+Run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">demo_wigner_d.py</span></code> in <code class="docutils literal notranslate"><span class="pre">example/01_wigner_d</span></code> for a printed walk-through.</p>
+</section>
+</section>
+<section id="irreps-of-salc-for-a-selected-element-and-orbital">
+<h2>2. Irreps of SALC for a selected element and orbital<a class="headerlink" href="#irreps-of-salc-for-a-selected-element-and-orbital" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/02_salc</span></code> (testsuite section 2)</em></p>
+<p>Decompose the crystal orbitals built from a selected element/orbital into the
+irreducible representations of the little group at each special k point:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_SrTiO3<span class="w"> </span>--element<span class="w"> </span>Ti<span class="w"> </span>--orbital<span class="w"> </span>d
+</pre></div>
+</div>
+<p>Spinor example with irrep table:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_SrTiO3<span class="w"> </span>--element<span class="w"> </span>Ti<span class="w"> </span>--orbital<span class="w"> </span>d<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--spinor<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>--show-irrep-table
+</pre></div>
+</div>
+<p>When <code class="docutils literal notranslate"><span class="pre">--kpoint</span></code> is omitted, all special k points of the space group are analyzed.
+Any arm of a special-point star is labeled correctly (since v0.3.1).</p>
+</section>
+<section id="hybridization-analysis">
+<h2>3. Hybridization analysis<a class="headerlink" href="#hybridization-analysis" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/02_salc</span></code> (testsuite section 3)</em></p>
+<p>Analyze the hybridization between selected atomic orbitals (<code class="docutils literal notranslate"><span class="pre">ELEMENT_ORBITAL</span></code> pairs):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_SrTiO3<span class="w"> </span>--atomic-orbital<span class="w"> </span>Ti_d<span class="w"> </span>O_p<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>
+</pre></div>
+</div>
+</section>
+<section id="star-of-k">
+<h2>4. Star of k<a class="headerlink" href="#star-of-k" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/04_star_of_k</span></code> (testsuite section 4)</em></p>
+<p>Display the star of k: the set of inequivalent k points generated from a given
+k point by the space-group rotations (<code class="docutils literal notranslate"><span class="pre">k'</span> <span class="pre">=</span> <span class="pre">k</span> <span class="pre">R</span></code>, modulo reciprocal lattice):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>--star-of-k<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>
+crystod<span class="w"> </span>--star-of-k<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span>--kpoint<span class="w"> </span>M
+</pre></div>
+</div>
+<p>The output shows <code class="docutils literal notranslate"><span class="pre">|G|</span></code>, the little co-group order <code class="docutils literal notranslate"><span class="pre">|G_k|</span></code>, <code class="docutils literal notranslate"><span class="pre">|star</span> <span class="pre">of</span> <span class="pre">k|</span></code>, and each
+arm with its coset-representative operation in Seitz notation.</p>
+<p>The star of q is also displayed automatically in <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--modulation</span></code>
+for each selected q point, which is useful when combining arms of the same star
+in multi-q modulations.</p>
+</section>
+<section id="salc-basis-visualization-visualize">
+<h2>5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)<a class="headerlink" href="#salc-basis-visualization-visualize" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/05_visualized_basis</span></code> (testsuite section 5)</em></p>
+<p>Build the SALCs of a selected element/orbital at a k point, print the
+irreducible decomposition and per-atom SALC coefficients, and export an
+interactive 3D HTML visualization:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span>--element<span class="w"> </span>F<span class="w"> </span>--orbital<span class="w"> </span>p<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>--visualize
+crystod<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span>--element<span class="w"> </span>Sc<span class="w"> </span>--orbital<span class="w"> </span>d<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>--real-coefficient<span class="w"> </span>--visualize
+crystod<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span>--element<span class="w"> </span>F<span class="w"> </span>--orbital<span class="w"> </span>p<span class="w"> </span>--kpoint<span class="w"> </span>GM<span class="w"> </span>--output<span class="w"> </span>SALC_F-p_GM.html<span class="w"> </span>--visualize
+</pre></div>
+</div>
+<p>The irreducible decomposition is consistent with the plain SALC analysis
+(e.g. <code class="docutils literal notranslate"><span class="pre">2.0</span> <span class="pre">[GM4-(3)]</span> <span class="pre">+</span> <span class="pre">1.0</span> <span class="pre">[GM5-(3)]</span></code> for F_p at GM in Pm-3m ScF3).
+<code class="docutils literal notranslate"><span class="pre">--kpoint</span></code> accepts either three primitive reciprocal coordinates or a
+high-symmetry label such as <code class="docutils literal notranslate"><span class="pre">GM</span></code>, <code class="docutils literal notranslate"><span class="pre">X</span></code>, <code class="docutils literal notranslate"><span class="pre">M</span></code>, or <code class="docutils literal notranslate"><span class="pre">R</span></code>. For k != 0, the commensurate
+supercell is built automatically and the Bloch phase factor is applied to the
+displayed coefficients.</p>
+<p>The HTML file is always written, auto-named <code class="docutils literal notranslate"><span class="pre">SALC_{element}_{orbital}_{kpoint}.html</span></code>
+(<code class="docutils literal notranslate"><span class="pre">--output</span></code> overrides the path). It is a standalone interactive viewer (plotly via
+CDN): a sidebar shows the structure summary, the irreducible decomposition, and a
+clickable table of all SALC basis vectors (mode space / irrep / component); the
+main viewport shows the orbital lobes at each atom, colored by sign in the VESTA
+convention (positive = yellow, negative = blue) and rendered opaque with
+VESTA-like lighting by default, so the front/back occlusion of overlapping lobes
+is always correct. The lobe-opacity slider switches to a translucent view, where
+a distance-based fade keeps near/far lobes distinguishable. Cell/atom display
+controls and a camera-synchronized a/b/c compass (a red, b green, c blue) sit in
+the sidebar and the lower-left corner.</p>
+<p><strong>The viewer layout is modeled after the
+<a class="reference external" href="https://henriquemiranda.github.io/phononwebsite/">phonon website</a> by Henrique
+Miranda (<a class="reference external" href="https://github.com/henriquemiranda/phononwebsite">github.com/henriquemiranda/phononwebsite</a>,
+BSD-3-Clause) — CrystOD imitates its sidebar-plus-viewport design (no code is
+copied; the 3D rendering uses plotly).</strong></p>
+<p>Further options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--mode-index</span> <span class="pre">N</span></code> restricts the output to one irrep-grouped mode space (1-based).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--conventional</span></code> displays the SALC in the conventional cell instead of the
+primitive cell (the primitive-to-conventional matrix is derived from the
+detected centring, exactly as in <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--vector</span></code>; file names get a
+<code class="docutils literal notranslate"><span class="pre">_conv</span></code> suffix, and for k != 0 the conventional cell is multiplied until the
+Bloch phase is commensurate).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--bond</span> <span class="pre">EL1</span> <span class="pre">EL2</span> <span class="pre">MAX</span></code> (repeatable, e.g. <code class="docutils literal notranslate"><span class="pre">--bond</span> <span class="pre">Sc</span> <span class="pre">F</span> <span class="pre">2.3</span></code>) draws bonds between
+the two elements up to MAX Angstroms and renders the coordination polyhedra
+around the EL1 atoms as translucent convex hulls, as in VESTA’s Polyhedral
+style; atoms at the cell boundary are completed VESTA-style so the polyhedra
+are not cut off:</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>--visualize<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--element<span class="w"> </span>F<span class="w"> </span>--orbital<span class="w"> </span>p<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">1</span>/2<span class="w"> </span><span class="m">1</span>/2<span class="w"> </span><span class="m">1</span>/2<span class="w"> </span>--real-coefficient<span class="w"> </span>--bond<span class="w"> </span>Sc<span class="w"> </span>F<span class="w"> </span><span class="m">2</span>.3
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--real-coefficient</span></code> re-combines degenerate SALC components into
+real-coefficient form whenever the projected space is closed under complex
+conjugation (real-type irreps at k = -k points). For example, the GM3+ (Eg)
+SALCs of Sc_d, which are otherwise produced as <code class="docutils literal notranslate"><span class="pre">(d_z2</span> <span class="pre">+/-</span> <span class="pre">i</span> <span class="pre">d_x2-y2)/sqrt(2)</span></code>,
+become <code class="docutils literal notranslate"><span class="pre">d_z2</span></code> and <code class="docutils literal notranslate"><span class="pre">d_x2-y2</span></code>. The spanned space is unchanged; only the unitary
+basis choice within the irrep space is rotated.</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="quickstart.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Quick start</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="crystod-group.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">crystod-group</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#wigner-d-matrices-and-the-projection-operator-theoretical-background">1. Wigner D matrices and the projection operator (theoretical background)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-a-representation-matrix">1.1 What is a representation matrix?</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-crystod-computes-d-for-any-l">1.2 How CrystOD computes D for any l</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-matrices-to-irreps-characters-and-the-reduction-formula">1.3 From matrices to irreps: characters and the reduction formula</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-irreps-to-basis-functions-the-projection-operator">1.4 From irreps to basis functions: the projection operator</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#irreps-of-salc-for-a-selected-element-and-orbital">2. Irreps of SALC for a selected element and orbital</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hybridization-analysis">3. Hybridization analysis</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#star-of-k">4. Star of k</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Yasuhide Mochizuki and Hiroki Koiso
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026, Yasuhide Mochizuki and Hiroki Koiso.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

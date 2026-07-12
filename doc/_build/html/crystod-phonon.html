@@ -1,0 +1,605 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>crystod-phonon &#8212; CrystOD v0.3.1</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'crystod-phonon';</script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="crystod-mag" href="crystod-mag.html" />
+    <link rel="prev" title="crystod-bz" href="crystod-bz.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.3.1" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">CrystOD v0.3.1</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="index.html">
+                    CrystOD
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick start</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Commands</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="crystod.html">crystod (main command)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-group.html">crystod-group</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-bz.html">crystod-bz</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">crystod-phonon</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="citation.html">Citation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/crystod-phonon.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>crystod-phonon</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-irreducible-representations-irreps">17. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#element-projected-phonon-fatbands-fatband">18. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#longitudinal-transverse-resolved-phonon-bands-lt">19. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-eigenvector-visualization-vector">20. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-adapted-phonon-modulation-modulation">21. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-only-vibration-bases-vibration">22. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="crystod-phonon">
+<h1>crystod-phonon<a class="headerlink" href="#crystod-phonon" title="Link to this heading">#</a></h1>
+<p>Phonon analyses on top of <a class="reference external" href="https://phonopy.github.io/phonopy/">phonopy</a> data
+(POSCAR + <code class="docutils literal notranslate"><span class="pre">FORCE_SETS</span></code>, or <code class="docutils literal notranslate"><span class="pre">FORCE_CONSTANTS</span></code> with <code class="docutils literal notranslate"><span class="pre">--readfc</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">phonopy_params.yaml</span></code>). Six mode flags: <code class="docutils literal notranslate"><span class="pre">--irreps</span></code>, <code class="docutils literal notranslate"><span class="pre">--fatband</span></code>, <code class="docutils literal notranslate"><span class="pre">--lt</span></code>,
+<code class="docutils literal notranslate"><span class="pre">--vector</span></code>, <code class="docutils literal notranslate"><span class="pre">--modulation</span></code>, <code class="docutils literal notranslate"><span class="pre">--vibration</span></code>.</p>
+<section id="phonon-irreducible-representations-irreps">
+<h2>17. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)<a class="headerlink" href="#phonon-irreducible-representations-irreps" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/17_phonon_irrep</span></code> (testsuite section 17)</em></p>
+<p>Label the phonon modes at the special q points with their irreducible
+representations and write <code class="docutils literal notranslate"><span class="pre">phonon_irreps.yaml</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--irreps<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_SrTiO3<span class="w"> </span>--dim<span class="o">=</span><span class="s2">&quot;4 4 4&quot;</span><span class="w"> </span>--readfc
+</pre></div>
+</div>
+</section>
+<section id="element-projected-phonon-fatbands-fatband">
+<h2>18. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)<a class="headerlink" href="#element-projected-phonon-fatbands-fatband" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/18_phonon_fatband</span></code> (testsuite section 18)</em></p>
+<p>Plot phonon fatbands colored by the element-projected phonon density (sum of
+squared eigenvector components over each element’s atoms), directly from
+POSCAR + <code class="docutils literal notranslate"><span class="pre">FORCE_SETS</span></code> (or <code class="docutils literal notranslate"><span class="pre">FORCE_CONSTANTS</span></code> with <code class="docutils literal notranslate"><span class="pre">--readfc</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/18_phonon_fatband/ScF3_Pm-3m
+crystod-phonon<span class="w"> </span>--fatband<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span>
+</pre></div>
+</div>
+<p>The space group is detected, the high-symmetry k-path is generated automatically
+with seekpath, the phonon band structure is computed with eigenvectors and band
+connection via the phonopy API (no <code class="docutils literal notranslate"><span class="pre">band.yaml</span></code> needed), and one
+<code class="docutils literal notranslate"><span class="pre">fatband_&lt;element&gt;.pdf</span></code> is written per element, colored with the VESTA default
+element colors and with dot sizes proportional to the projected weight. For ScF3
+this cleanly separates the F-dominated soft rotational branches (R/M points)
+from the Sc-dominated mid-frequency bands.</p>
+<p>Options: <code class="docutils literal notranslate"><span class="pre">--element</span> <span class="pre">F</span></code> restricts the output to one element; <code class="docutils literal notranslate"><span class="pre">--nac</span></code> applies the
+non-analytical term correction (LO/TO splitting) using a <code class="docutils literal notranslate"><span class="pre">BORN</span></code> file in the
+current directory; <code class="docutils literal notranslate"><span class="pre">--band</span></code>/<code class="docutils literal notranslate"><span class="pre">--band-labels</span></code> supply a manual k-path instead of
+seekpath; <code class="docutils literal notranslate"><span class="pre">--npoints</span></code> sets the q-point density per path leg (default 51);
+<code class="docutils literal notranslate"><span class="pre">--projection-direction</span> <span class="pre">&quot;0</span> <span class="pre">0</span> <span class="pre">1&quot;</span></code> projects the displacements onto a direction in
+reduced coordinates before squaring.
+Plotting style based on <code class="docutils literal notranslate"><span class="pre">script/phonon_fatband.py</span></code> by Hiroki Koiso.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--fatband<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span>--nac
+</pre></div>
+</div>
+<p>NAC is applied only when <code class="docutils literal notranslate"><span class="pre">--nac</span></code> is given. With <code class="docutils literal notranslate"><span class="pre">--nac</span></code> the output files are
+named <code class="docutils literal notranslate"><span class="pre">fatband_nac_&lt;element&gt;.pdf</span></code>, so corrected and uncorrected fatbands can
+coexist side by side.</p>
+</section>
+<section id="longitudinal-transverse-resolved-phonon-bands-lt">
+<h2>19. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)<a class="headerlink" href="#longitudinal-transverse-resolved-phonon-bands-lt" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/19_phonon_lt</span></code> (testsuite section 19)</em></p>
+<p>Plot the phonon band structure colored by the longitudinal/transverse character
+of each mode (red = longitudinal, blue = transverse, white = mixed or Gamma):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/19_phonon_lt/ScF3_Pm-3m
+crystod-phonon<span class="w"> </span>--lt<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span>
+crystod-phonon<span class="w"> </span>--lt<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span>--nac
+</pre></div>
+</div>
+<p>The longitudinal character of a mode is
+<code class="docutils literal notranslate"><span class="pre">sqrt(sum_atoms</span> <span class="pre">|q_hat</span> <span class="pre">.</span> <span class="pre">e_atom|^2)</span></code>, i.e. the norm of the eigenvector
+projection onto the propagation direction (valid along any path direction,
+including diagonal segments such as GM-R). Output: <code class="docutils literal notranslate"><span class="pre">phonon_band_LT.pdf</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">phonon_band_LT_nac.pdf</span></code> with <code class="docutils literal notranslate"><span class="pre">--nac</span></code> — with NAC the split-off LO branches show
+up as purely red. Based on <code class="docutils literal notranslate"><span class="pre">script/LT_phonon_band.py</span></code> maintained by Hiroki
+Koiso, after Qijing Zheng.</p>
+</section>
+<section id="phonon-eigenvector-visualization-vector">
+<h2>20. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)<a class="headerlink" href="#phonon-eigenvector-visualization-vector" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/20_phonon_vector</span></code> (testsuite section 20)</em></p>
+<p>Diagonalize the dynamical matrix directly at the selected q point via the
+phonopy API, list the modes with their frequencies and irrep labels, and export
+the selected eigenvectors as <code class="docutils literal notranslate"><span class="pre">.vesta</span></code> files with per-atom displacement arrows:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/20_phonon_vector/Si_Fd-3m
+
+<span class="c1"># List the modes at GM and export ALL of them as individual VESTA files;</span>
+<span class="c1"># the mode table is also saved as phonon_modes_Si_GM.txt</span>
+crystod-phonon<span class="w"> </span>--vector<span class="w"> </span>--dim<span class="w"> </span><span class="s2">&quot;4 4 4&quot;</span><span class="w"> </span>-c<span class="w"> </span>227_PPOSCAR_Si<span class="w"> </span>--qpoint<span class="w"> </span>GM
+
+<span class="c1"># Export one optical GM5+ mode only (mode numbers are 1-based)</span>
+crystod-phonon<span class="w"> </span>--vector<span class="w"> </span>--dim<span class="w"> </span><span class="s2">&quot;4 4 4&quot;</span><span class="w"> </span>-c<span class="w"> </span>227_PPOSCAR_Si<span class="w"> </span>--qpoint<span class="w"> </span>GM<span class="w"> </span>--mode<span class="w"> </span><span class="m">4</span>
+
+<span class="c1"># Multiple selected modes are summed into one displacement pattern</span>
+crystod-phonon<span class="w"> </span>--vector<span class="w"> </span>--dim<span class="w"> </span><span class="s2">&quot;4 4 4&quot;</span><span class="w"> </span>-c<span class="w"> </span>227_PPOSCAR_Si<span class="w"> </span>--qpoint<span class="w"> </span>GM<span class="w"> </span>--mode<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="m">6</span>
+
+<span class="c1"># X point: the commensurate supercell (2x1x2) and Bloch phases are applied automatically</span>
+crystod-phonon<span class="w"> </span>--vector<span class="w"> </span>--dim<span class="w"> </span><span class="s2">&quot;4 4 4&quot;</span><span class="w"> </span>-c<span class="w"> </span>227_PPOSCAR_Si<span class="w"> </span>--qpoint<span class="w"> </span>X<span class="w"> </span>--mode<span class="w"> </span><span class="m">1</span><span class="w"> </span>--readfc
+
+<span class="c1"># Conventional-cell output (POSCAR_Si_GM_mode4+5+6_GM5+_conv.vesta etc.)</span>
+crystod-phonon<span class="w"> </span>--vector<span class="w"> </span>--dim<span class="w"> </span><span class="s2">&quot;4 4 4&quot;</span><span class="w"> </span>-c<span class="w"> </span>227_PPOSCAR_Si<span class="w"> </span>--qpoint<span class="w"> </span>GM<span class="w"> </span>--mode<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="m">6</span><span class="w"> </span>--conventional
+</pre></div>
+</div>
+<p>Output files are auto-named <code class="docutils literal notranslate"><span class="pre">POSCAR_&lt;formula&gt;_&lt;qlabel&gt;_mode&lt;N&gt;_&lt;irrep&gt;.vesta</span></code>
+(mode numbers zero-padded so <code class="docutils literal notranslate"><span class="pre">ls</span></code> lists them in order) and open directly in
+<a class="reference external" href="https://jp-minerals.org/vesta/">VESTA</a>, showing the equilibrium structure with
+red arrows for the real part of the mass-weighted eigenvector displacement.</p>
+<p>Degenerate modes are exported as <strong>symmetry-adapted</strong> eigenvectors: the
+dynamical matrix is block-diagonalized in the spgrep irrep-projected basis (the
+same construction as <code class="docutils literal notranslate"><span class="pre">--modulation</span></code>), so that, e.g., the three degenerate GM5+
+optical modes of Si point exactly along the cubic axes instead of the arbitrary
+tilted combinations a plain eigensolver returns. The exported vectors are exact
+eigenvectors of the phonopy dynamical matrix (verified internally against the
+phonopy spectrum).</p>
+<p><code class="docutils literal notranslate"><span class="pre">--conventional</span></code> outputs the structure and arrows in the conventional cell
+(<code class="docutils literal notranslate"><span class="pre">_conv</span></code> file-name suffix); for fractional q points the conventional cell is
+multiplied until the Bloch phase is commensurate. <code class="docutils literal notranslate"><span class="pre">--qpoint</span></code> accepts a
+high-symmetry label (<code class="docutils literal notranslate"><span class="pre">GM</span></code>, <code class="docutils literal notranslate"><span class="pre">X</span></code>, <code class="docutils literal notranslate"><span class="pre">L</span></code>, …) or three primitive reciprocal
+coordinates (fractions allowed). When <code class="docutils literal notranslate"><span class="pre">--mode</span></code> is omitted, ALL modes are
+exported as individual VESTA files. Arrows are rescaled so that the largest
+total displacement equals <code class="docutils literal notranslate"><span class="pre">--amplitude</span></code> (default 1.5 Angstrom).</p>
+</section>
+<section id="symmetry-adapted-phonon-modulation-modulation">
+<h2>21. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)<a class="headerlink" href="#symmetry-adapted-phonon-modulation-modulation" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/21_modulation</span></code> (testsuite section 21)</em></p>
+<p>Generate modulated (displaced) structures from symmetry-adapted phonon modes:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--modulation<span class="w"> </span>--yaml<span class="w"> </span>example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--qpoint<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--mode<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span>--amplitude<span class="w"> </span><span class="m">0</span>.3
+</pre></div>
+</div>
+<p>When <code class="docutils literal notranslate"><span class="pre">--mode</span></code> is omitted, only the mode table (mode number, frequency, irrep,
+degeneracy) and the star of q are printed, so you can inspect the modes at a q
+point first and then choose which mode(s) to apply:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--modulation<span class="w"> </span>--yaml<span class="w"> </span>example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml<span class="w"> </span>--qpoint<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">phonopy_params.yaml</span></code> exists in the current directory, <code class="docutils literal notranslate"><span class="pre">--yaml</span></code> can be
+omitted. If a single amplitude is given, it is applied to all selected modes.
+When <code class="docutils literal notranslate"><span class="pre">--output</span></code> is omitted, the file is auto-named
+<code class="docutils literal notranslate"><span class="pre">MPOSCAR_{q}_{mode}_{irrep}_{subgroup}</span></code> — e.g. <code class="docutils literal notranslate"><span class="pre">MPOSCAR_R_mode1+2+3_R4+_R-3c</span></code>.
+The space group of the modulated structure is detected and printed
+(e.g. R4+(a,a,a) of Pm-3m ScF3 gives R-3c).</p>
+<p>Different q points can be combined with numbered argument sets
+(<code class="docutils literal notranslate"><span class="pre">--qpoint1/--mode1/--amplitude1</span></code>, <code class="docutils literal notranslate"><span class="pre">--qpoint2/--mode2/--amplitude2</span></code>, …):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--modulation<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--yaml<span class="w"> </span>example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--qpoint1<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--mode1<span class="w"> </span><span class="m">1</span><span class="w"> </span>--amplitude1<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--qpoint2<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--mode2<span class="w"> </span><span class="m">1</span><span class="w"> </span>--amplitude2<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--qpoint3<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span><span class="w"> </span>--mode3<span class="w"> </span><span class="m">1</span><span class="w"> </span>--amplitude3<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output<span class="w"> </span>POSCAR_multi_q_arms
+</pre></div>
+</div>
+<p>The star of q is displayed for each selected q point, which is useful when
+combining arms of the same star in multi-q modulations.</p>
+</section>
+<section id="symmetry-only-vibration-bases-vibration">
+<h2>22. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)<a class="headerlink" href="#symmetry-only-vibration-bases-vibration" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/22_vibration</span></code> (testsuite section 22)</em></p>
+<p>List the available high-symmetry q points and irrep-grouped vibration spaces
+from crystal symmetry alone (no force data needed):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--vibration<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span>--qpoint<span class="w"> </span>R
+crystod-phonon<span class="w"> </span>--vibration<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span>--qpoint<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>
+</pre></div>
+</div>
+<p>Select one symmetry-allowed mode component, build the commensurate supercell,
+and export a displaced structure:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--vibration<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--qpoint<span class="w"> </span>R<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--mode-index<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--component-index<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output<span class="w"> </span>POSCAR_vibration
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">--qpoint</span></code> accepts either three primitive reciprocal coordinates or a
+high-symmetry label. Add <code class="docutils literal notranslate"><span class="pre">--export-npz</span> <span class="pre">mode_data.npz</span></code> to save positions,
+displacement vectors, symbols, and lattice for notebook-side visualization
+(<code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">vibration_viewer.py</span> <span class="pre">--npz</span> <span class="pre">mode_data.npz</span></code> converts or inspects it).</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="crystod-bz.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">crystod-bz</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="crystod-mag.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">crystod-mag</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-irreducible-representations-irreps">17. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#element-projected-phonon-fatbands-fatband">18. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#longitudinal-transverse-resolved-phonon-bands-lt">19. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-eigenvector-visualization-vector">20. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-adapted-phonon-modulation-modulation">21. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-only-vibration-bases-vibration">22. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Yasuhide Mochizuki and Hiroki Koiso
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026, Yasuhide Mochizuki and Hiroki Koiso.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
