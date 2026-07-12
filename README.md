@@ -74,7 +74,28 @@ Check whether CrystOD works successfully or not:
 python3 testsuite.py
 ```
 
-The feature sections below are numbered by the shared numbering of `testsuite.py` and the `example/` directories, grouped by command (2-6 `crystod`, 7-13 `crystod-group`, 14-16 `crystod-bz`, 17-23 `crystod-phonon`, 24-25 `crystod-mag`, 26-27 `crystod-md`): section N is tested by `python testsuite.py N` and demonstrated in `example/<N>_*`. The numbers missing here (1, 6, 13, 16, 23, 25, 27) are the library-core and per-command CLI-regression testsuite sections, which have no feature section of their own; see `example/README` for the full map.
+The sections below are numbered by the shared numbering of `testsuite.py` and the `example/` directories, grouped by command (1 library core, 2-6 `crystod`, 7-13 `crystod-group`, 14-16 `crystod-bz`, 17-23 `crystod-phonon`, 24-25 `crystod-mag`, 26-27 `crystod-md`): section N is tested by `python testsuite.py N` and demonstrated in `example/<N>_*`. The numbers missing here (6, 13, 16, 23, 25, 27) are the per-command CLI-regression testsuite sections, which have no feature section of their own; see `example/README` for the full map.
+
+
+## 1. Wigner D Matrices on Real Spherical Harmonics (library core; not a command-line mode)
+
+*Example directory: [`example/01_wigner_d`](example/01_wigner_d) (testsuite section 1)*
+
+This section describes the mathematical core of the package, not a command: there is no CLI mode for it, and it is used through the Python API only. `crystod.operations.wigner_D_real(l, R)` returns the `(2l+1) x (2l+1)` matrix representing an O(3) operation `R` (a 3x3 Cartesian rotation, rotoinversion, or mirror matrix) on the real spherical harmonics of angular momentum `l` (s, p, d, f, ... orbitals for `l` = 0, 1, 2, 3, ...). Every orbital-symmetry feature of CrystOD is built on these matrices: the SALC/crystal-orbital characters (sections 2-3, 5), the ligand-field splitting (section 9), the polynomial basis classification (sections 10-11), and the spin-multipole bases of `crystod-mag` (section 24, through the axial-vector representation).
+
+```python
+import numpy as np
+from crystod.operations import wigner_D_real
+
+c4z = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])
+
+wigner_D_real(1, c4z)           # l = 1 (p): equals the 3x3 rotation matrix itself
+wigner_D_real(2, c4z)           # l = 2 (d): 5x5 representation matrix
+np.trace(wigner_D_real(2, c4z)) # character of C4z on the d shell: -1
+wigner_D_real(3, -np.eye(3))    # inversion: (-1)^l x identity (parity), here -1 x 1(7)
+```
+
+Key properties (verified in testsuite section 1): for proper rotations at `l` = 1 the matrix equals `R` itself; inversion is represented by `(-1)^l` times the identity (parity of the orbital); the map is a group homomorphism, `D(AB) = D(A) D(B)`; and all matrices are orthogonal, `D D^T = 1`. Run `python demo_wigner_d.py` in the example directory for a printed walk-through.
 
 
 ## 2. IrReps (Irreducible Representations) of SALC (Symmetry-Adapted Linear Combination) for a Selected Element and Orbital (main command; no mode flag since v0.3.0)
