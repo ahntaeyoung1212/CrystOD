@@ -1,39 +1,55 @@
-# CrystOD v0.3.0 examples
+# CrystOD v0.3.1 examples
 #
 # Each directory is prefixed with the section number of testsuite.py that
 # exercises the same feature, so `python testsuite.py <N>` and
 # `example/<NN>_*` always point at the same functionality.
+# Sections are grouped by command:
+#   1 library core / 2-6 crystod / 7-13 crystod-group / 14-16 crystod-bz /
+#   17-23 crystod-phonon / 24-25 crystod-mag / 26-27 crystod-md
 
+# -- library core --
 01_wigner_d                  Wigner D matrices on real spherical harmonics (library API)
-02-03_salc                   crystod (SALC: crystal-orbital irreps, hybridization)
-04_basis_function            crystod-group --basis
-05_direct_product            crystod-group --product / --table
-06_phonon_irrep              crystod-phonon --irreps
-07_vibration                 crystod-phonon --vibration
-08_modulation                crystod-phonon --modulation
-09_star_of_k                 crystod --star-of-k
-10_show_coset                crystod-group --coset
+
+# -- crystod (main command) --
+02_salc                      crystod (SALC: crystal-orbital irreps, hybridization)
+04_star_of_k                 crystod --star-of-k
+05_visualized_basis          crystod --visualize (SALC viewer HTML)
+
+# -- crystod-group --
+07_direct_product            crystod-group --product / --table
+08_decompose_irrep           crystod-group --decompose
+09_ligand_field_split        crystod-group --ligand-field
+10_basis_function            crystod-group --basis
 11_generate_basis_function   crystod-group --generate-basis
-12_visualized_basis          crystod --visualize (SALC viewer HTML)
-13_brillouin_zone            crystod-bz
-14_phonon_vector             crystod-phonon --vector
-15_decompose_irrep           crystod-group --decompose
-16_xdatcar2adp               crystod-md --adp (and --summary on the same XDATCAR)
-17_phonon_fatband            crystod-phonon --fatband
-18_bz_supercell              crystod-bz --trans-mat
+12_show_coset                crystod-group --coset
+
+# -- crystod-bz --
+14_brillouin_zone            crystod-bz
+15_bz_supercell              crystod-bz --trans-mat
+
+# -- crystod-phonon --
+17_phonon_irrep              crystod-phonon --irreps
+18_phonon_fatband            crystod-phonon --fatband
 19_phonon_lt                 crystod-phonon --lt
-20_ligand_field_split        crystod-group --ligand-field
-21_spin_basis                crystod-mag
+20_phonon_vector             crystod-phonon --vector
+21_modulation                crystod-phonon --modulation
+22_vibration                 crystod-phonon --vibration
+
+# -- crystod-mag --
+24_spin_basis                crystod-mag
+
+# -- crystod-md --
+26_xdatcar2adp               crystod-md --adp (and --summary on the same XDATCAR)
 
 test_POSCARs                 shared input structures used by the examples and testsuite
 
-# Sections 22-27 of testsuite.py are command-line interface regression tests
-# of the six sectioned commands (crystod-bz / -md / -mag / -phonon / -group /
-# crystod main). They re-run the features above through every argument form,
-# so they have no example directories of their own:
-#   22 crystod-bz      -> 13, 18
-#   23 crystod-md      -> 16
-#   24 crystod-mag     -> 21
-#   25 crystod-phonon  -> 06, 07, 08, 14, 17, 19
-#   26 crystod-group   -> 04, 05, 10, 11, 15, 20
-#   27 crystod (main)  -> 02-03, 09, 12
+# Sections 6, 13, 16, 23, 25, and 27 of testsuite.py are command-line
+# interface regression tests (every argument form + removed-flag errors) of
+# the command whose group they close. They re-run the features above, so
+# they have no example directories of their own:
+#    6 crystod (main)  -> 02, 04, 05
+#   13 crystod-group   -> 07 .. 12
+#   16 crystod-bz      -> 14, 15
+#   23 crystod-phonon  -> 17 .. 22
+#   25 crystod-mag     -> 24
+#   27 crystod-md      -> 26
