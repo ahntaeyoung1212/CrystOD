@@ -1,0 +1,11 @@
+# Plot the fatband without LO-TO splitting
+crystod-phonon --fatband -c 221_PPOSCAR_SrTiO3 --dim 4 4 4
+
+Space group: Pm-3m (#221)
+k-path (seekpath): $\Gamma$-X-M-$\Gamma$-R-X  R-M
+
+Computing phonon band structure with eigenvectors (306 q-points)...
+Fatband for Sr written to: fatband_Sr.pdf
+Fatband for Ti written to: fatband_Ti.pdf
+Fatband for O written to: fatband_O.pdf
+

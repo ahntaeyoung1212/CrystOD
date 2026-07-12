@@ -1,0 +1,22 @@
+# Plot the fatband without LO-TO splitting
+crystod-phonon --fatband -c 221_PPOSCAR_ScF3 --dim 4 4 4
+
+Space group: Pm-3m (#221)
+k-path (seekpath): $\Gamma$-X-M-$\Gamma$-R-X  R-M
+
+Computing phonon band structure with eigenvectors (306 q-points)...
+Fatband for Sc written to: fatband_Sc.pdf
+Fatband for F written to: fatband_F.pdf
+
+
+
+# Plot the fatband with LO-TO splitting
+crystod-phonon --fatband -c 221_PPOSCAR_ScF3 --dim 4 4 4 --nac
+
+NAC (LO/TO splitting) enabled: Born effective charges read from BORN.
+Space group: Pm-3m (#221)
+k-path (seekpath): $\Gamma$-X-M-$\Gamma$-R-X  R-M
+
+Computing phonon band structure with eigenvectors (306 q-points)...
+Fatband for Sc written to: fatband_nac_Sc.pdf
+Fatband for F written to: fatband_nac_F.pdf
