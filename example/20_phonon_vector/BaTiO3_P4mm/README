@@ -1,0 +1,1 @@
+crystod-phonon --vector --dim 4 4 4 -c 99_PPOSCAR_BaTiO3 --qpoint 0 0 0
