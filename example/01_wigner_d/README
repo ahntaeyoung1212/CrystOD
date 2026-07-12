@@ -1,0 +1,27 @@
+# Wigner D matrices on real spherical harmonics (library-level demo)
+# Section 1 of testsuite.py checks this function directly (no CLI command):
+# wigner_D_real(l, R) is the core engine behind every orbital-symmetry
+# analysis in CrystOD (SALC, ligand field, basis functions, ...).
+
+python demo_wigner_d.py
+
+* l = 1 (p orbitals): D(C4z) equals the 3x3 rotation matrix itself *
+[[ 0. -1.  0.]
+ [ 1.  0.  0.]
+ [ 0.  0.  1.]]
+
+* l = 2 (d orbitals): D(C4z) *
+[[-1.  0.  0.  0.  0.]
+ [ 0.  0.  0.  1.  0.]
+ [ 0.  0.  1.  0.  0.]
+ [ 0. -1.  0.  0.  0.]
+ [-0.  0.  0.  0. -1.]]
+
+* inversion on l = 0..3: D(-E) = (-1)^l x identity (parity) *
+  l = 0: D = +1 x identity(1)
+  l = 1: D = -1 x identity(3)
+  l = 2: D = +1 x identity(5)
+  l = 3: D = -1 x identity(7)
+
+* character of C4z on the d shell (trace of D): expected -1 *
+  chi_d(C4z) = -1.0
