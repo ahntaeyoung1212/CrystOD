@@ -41,24 +41,9 @@ conda activate crystod
 unzip ~/Downloads/CrystOD-main.zip
 mv ~/Downloads/CrystOD-main ~
 cd ~/CrystOD-main
-pip install phonopy spglib spgrep irrep irreptables ase seekpath numpy openpyxl pandas
-
-python3 -m pip install -e ~/CrystOD-main --no-deps --no-build-isolation
+pip install -e .
 ```
 
-If your default Python environment uses an old `setuptools`, avoid `--no-build-isolation` for editable install.
-
-Example:
-
-```bash
-python3 -m pip install -e . --no-deps
-```
-
-If needed, upgrade the build backend first:
-
-```bash
-python3 -m pip install -U "setuptools>=68" wheel
-```
 
 ## Quick Start
 
