@@ -28,9 +28,16 @@ With a non-identity --trans-mat, the unit-cell BZ (default: 1 0 0  0 1 0  0 0 1)
 is drawn together with the first BZ of the transformed (super)lattice, including
 the |det T| unit-cell q-points that fold onto the supercell Gamma point.
 
+With --show-kpoint, no plot is produced; instead the special (high-symmetry)
+k points of the space group given by --space-group are printed in the
+primitive reciprocal basis (and additionally in the conventional basis for
+centred lattices such as Fm-3m, where the two definitions differ).
+
 # Command Examples:
 crystod-bz -c 227_PPOSCAR_Si
 crystod-bz -c 221_PPOSCAR_ScF3 --output BZ_ScF3_Pm-3m.html
+crystod-bz --show-kpoint --space-group Pnma
+crystod-bz --show-kpoint --space-group Fm-3m
 crystod-bz -c 221_PPOSCAR_ScF3 \\
     --band "0 0 0  0 1/2 0  1/2 1/2 0  0 0 0  1/2 1/2 1/2  0 1/2 0, 1/2 1/2 0  1/2 1/2 1/2" \\
     --band-labels "GM X M GM R X  M R"
@@ -45,6 +52,22 @@ def build_parser() -> ArgumentParser:
         prog="crystod-bz", description=desc, formatter_class=RawTextHelpFormatter
     )
     add_cell_argument(parser)
+    parser.add_argument(
+        "--show-kpoint",
+        "--show-kpoints",
+        dest="show_kpoint",
+        action="store_true",
+        help=(
+            "Print the special k points of the space group given by --space-group\n"
+            "(primitive basis; conventional basis as well for centred lattices)\n"
+            "instead of plotting a Brillouin zone."
+        ),
+    )
+    parser.add_argument(
+        "--space-group",
+        default=None,
+        help='Space-group symbol for --show-kpoint, e.g. "Pnma" or "Fm-3m".',
+    )
     parser.add_argument(
         "--trans-mat",
         "--trans-matrix",
@@ -105,6 +128,16 @@ def _parse_trans_mat(parser: ArgumentParser, text: str) -> list[float]:
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.show_kpoint:
+        if not args.space_group:
+            parser.error("--show-kpoint requires --space-group.")
+        from ..show_kpoints import main as show_kpoints_main
+
+        show_kpoints_main([f"--space-group={args.space_group}"])
+        return
+    if args.space_group:
+        parser.error("--space-group is only available with --show-kpoint.")
 
     if args.band_labels and not args.band:
         parser.error("--band-labels requires --band.")
