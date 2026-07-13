@@ -12,7 +12,7 @@ per research domain.
 |---|---|
 | `crystod` | crystal-orbital SALC analysis (main command), `--visualize`, `--star-of-k` |
 | `crystod-group` | point/space-group representation-theory calculator |
-| `crystod-bz` | Brillouin-zone plots (unit cell and supercell folding) |
+| `crystod-bz` | Brillouin-zone plots (unit cell and supercell folding), special-k-point tables |
 | `crystod-phonon` | phonon analyses (irreps, fatband, LT bands, eigenvectors, modulation, vibration) |
 | `crystod-mag` | symmetry-adapted spin bases (cluster multipoles / SAMM) |
 | `crystod-md` | MD-trajectory analyses (ADPs, lattice summary) |

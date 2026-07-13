@@ -54,6 +54,7 @@ section of their own.
 - `crystod-group --coset --space-group SG --kpoint kx ky kz`
 - `crystod-bz -c POSCAR [--band ... --band-labels ...] [--output FILE.html]`
 - `crystod-bz -c POSCAR --trans-mat "t11 t12 t13  t21 t22 t23  t31 t32 t33"`
+- `crystod-bz --show-kpoint --space-group SG`
 - `crystod-phonon --irreps --dim "nx ny nz" -c POSCAR [--readfc]`
 - `crystod-phonon --fatband --dim nx ny nz -c POSCAR [--element EL] [--nac]`
 - `crystod-phonon --lt --dim nx ny nz -c POSCAR [--nac]`

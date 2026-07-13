@@ -2,7 +2,9 @@
 
 Interactive 3D Brillouin-zone plots — automatic (seekpath) or manual
 high-symmetry k-path, and, with a non-identity `--trans-mat`, the unit-cell BZ
-together with the folded BZ of a transformed (super)lattice.
+together with the folded BZ of a transformed (super)lattice. With
+`--show-kpoint --space-group SG`, the special k points of any space group are
+printed instead (primitive and, for centred lattices, conventional coordinates).
 
 ## 14. Brillouin zone plot
 
@@ -43,6 +45,58 @@ Note: if the input cell differs from the seekpath standardized primitive cell,
 the Brillouin zone and k-path are drawn for the standardized primitive cell
 (a NOTE is printed in that case). Manual `--band` coordinates always refer to
 the reciprocal basis of the input structure.
+
+### Special k points of a space group (`--show-kpoint`)
+
+With `--show-kpoint`, no plot is produced; instead the special (high-symmetry)
+k points of the space group given by `--space-group` are printed:
+
+```bash
+crystod-bz --show-kpoint --space-group Pnma
+```
+
+```
+* Space group *
+Pnma (No. 62)
+
+* K points (primitive) *
+GM: (0, 0, 0)
+X: (1/2, 0, 0)
+Y: (0, 1/2, 0)
+Z: (0, 0, 1/2)
+S: (1/2, 1/2, 0)
+T: (0, 1/2, 1/2)
+U: (1/2, 0, 1/2)
+R: (1/2, 1/2, 1/2)
+```
+
+The k points and their CDML labels are taken from `irreptables` — the same
+definition used by the SALC/irrep analyses (`crystod`, `crystod-mag`,
+`crystod-group`, `crystod-phonon --irreps`) — and are given in the primitive
+reciprocal basis. For centred lattices (F, I, C, A, B, R), whose conventional
+and primitive cells differ, the coordinates in the conventional reciprocal
+basis are printed as well:
+
+```bash
+crystod-bz --show-kpoint --space-group Fm-3m
+```
+
+```
+* Space group *
+Fm-3m (No. 225)
+
+* K points (primitive) *
+GM: (0, 0, 0)
+X: (1/2, 0, 1/2)
+L: (1/2, 1/2, 1/2)
+W: (1/2, 1/4, 3/4)
+
+* K points (conventional) *
+GM: (0, 0, 0)
+X: (0, 1, 0)
+L: (1/2, 1/2, 1/2)
+W: (1/2, 1, 0)
+```
 
 ## 15. Supercell Brillouin zone (`--trans-mat`)
 
