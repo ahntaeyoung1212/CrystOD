@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from .common import add_cell_argument
+from .common import add_cell_argument, banner
 
 desc = """\
 Construct symmetry-adapted spin bases (cluster multipoles / SAMM) for the
@@ -37,7 +37,9 @@ crystod-mag -c 221_PPOSCAR_AlNi3 --element Ni    # survey: all special k points
 
 def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
-        prog="crystod-mag", description=desc, formatter_class=RawTextHelpFormatter
+        prog="crystod-mag",
+        description=f"{banner()}\n\n{desc}",
+        formatter_class=RawTextHelpFormatter,
     )
     add_cell_argument(parser)
     parser.add_argument(

@@ -21,7 +21,7 @@ from __future__ import annotations
 from argparse import ArgumentParser, RawTextHelpFormatter
 from fractions import Fraction
 
-from .common import add_cell_argument, add_output_argument
+from .common import add_cell_argument, add_output_argument, banner
 
 # Flat mode flags of the pre-v0.3.0 interface, removed in v0.3.0: each maps
 # to the guidance shown in the error message. --star-of-k is absent on
@@ -68,8 +68,11 @@ Sectioned commands (see crystod-<section> --help):
   crystod-md       MD-trajectory analyses (--adp/--summary)
   crystod-bz       Brillouin-zone plots (unit cell, or + supercell via --trans-mat)
 
-The pre-v0.3.0 flat modes (--salc, --phonon-irrep, --bz, ...) still work and
-print their sectioned replacement; they will be removed in v1.0.
+The pre-v0.3.0 flat modes (--salc, --phonon-irrep, --bz, ...) were removed in
+v0.3.0; invoking one prints the equivalent sectioned command.
+
+If you use CrystOD in your research, please cite:
+  H. Koiso et al., Phys. Rev. B 110, 064104 (2024). https://doi.org/10.1103/PhysRevB.110.064104
 """
 
 
@@ -85,7 +88,7 @@ def build_parser() -> ArgumentParser:
 
     parser = ArgumentParser(
         prog="crystod",
-        description=desc,
+        description=f"{banner()}\n\n{desc}",
         epilog=epilog,
         formatter_class=RawTextHelpFormatter,
     )

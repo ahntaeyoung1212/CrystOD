@@ -24,6 +24,8 @@ from __future__ import annotations
 from argparse import ArgumentParser, RawTextHelpFormatter
 from fractions import Fraction
 
+from .common import banner
+
 desc = """\
 Representation-theory calculator for point and space groups (no structure
 file needed; select the group with --pg/--point-group or --sg/--space-group).
@@ -50,7 +52,9 @@ def _parse_fractional_float(value: str) -> float:
 
 def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
-        prog="crystod-group", description=desc, formatter_class=RawTextHelpFormatter
+        prog="crystod-group",
+        description=f"{banner()}\n\n{desc}",
+        formatter_class=RawTextHelpFormatter,
     )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(

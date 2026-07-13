@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from .common import add_output_argument
+from .common import add_output_argument, banner
 
 desc = """\
 Analyze an MD trajectory:
@@ -37,7 +37,9 @@ crystod-md --summary --start-step 1000 --xdatcar XDATCAR --format vasp
 
 def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
-        prog="crystod-md", description=desc, formatter_class=RawTextHelpFormatter
+        prog="crystod-md",
+        description=f"{banner()}\n\n{desc}",
+        formatter_class=RawTextHelpFormatter,
     )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(

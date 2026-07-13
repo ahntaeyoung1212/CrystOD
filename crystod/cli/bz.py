@@ -17,7 +17,7 @@ import sys
 from argparse import ArgumentParser, RawTextHelpFormatter
 from fractions import Fraction
 
-from .common import add_cell_argument, add_output_argument
+from .common import add_cell_argument, add_output_argument, banner
 
 desc = """\
 Plot the first Brillouin zone of a crystal structure as an interactive 3D HTML file.
@@ -49,7 +49,9 @@ IDENTITY_MATRIX = "1 0 0  0 1 0  0 0 1"
 
 def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
-        prog="crystod-bz", description=desc, formatter_class=RawTextHelpFormatter
+        prog="crystod-bz",
+        description=f"{banner()}\n\n{desc}",
+        formatter_class=RawTextHelpFormatter,
     )
     add_cell_argument(parser)
     parser.add_argument(
