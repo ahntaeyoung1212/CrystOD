@@ -28,7 +28,7 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
   -- crystod-bz --
   14. crystod-bz                Brillouin-zone plot (seekpath auto k-path)
   15. crystod-bz --trans-mat    unit-cell + supercell Brillouin-zone plot
-  16. crystod-bz                sectioned-command extras (identity/errors/removed flags)
+  16. crystod-bz                sectioned-command extras (--show-kpoint/identity/errors/removed flags)
   -- crystod-phonon --
   17. crystod-phonon --irreps   phonon irrep labeling (phonopy data)
   18. crystod-phonon --fatband  element-projected phonon fatbands (phonopy data)
@@ -782,6 +782,33 @@ def test_16_bz_command() -> None:
             code, out = run_cli([flag])
             report(f"removed {flag} flag points to crystod-bz",
                    code != 0 and "removed in v0.3.0" in out and "crystod-bz" in out, out)
+
+        # --show-kpoint: special k points of a space group (CDML convention)
+        code, out = run_bz(["--show-kpoint", "--space-group", "Pnma"])
+        report("--show-kpoint Pnma exit 0", code == 0, out)
+        report("Pnma primitive k points listed",
+               "Pnma (No. 62)" in out and "* K points (primitive) *" in out
+               and "X: (1/2, 0, 0)" in out and "R: (1/2, 1/2, 1/2)" in out, out)
+        report("Pnma (P lattice) prints no conventional section",
+               "(conventional)" not in out, out)
+
+        code, out = run_bz(["--show-kpoint", "--space-group", "Fm-3m"])
+        report("--show-kpoint Fm-3m primitive + conventional",
+               code == 0 and "X: (1/2, 0, 1/2)" in out and "W: (1/2, 1/4, 3/4)" in out
+               and "* K points (conventional) *" in out and "X: (0, 1, 0)" in out, out)
+
+        code, out = run_bz(["--show-kpoint"])
+        report("--show-kpoint without --space-group rejected cleanly",
+               code != 0 and "requires --space-group" in out and "Traceback" not in out, out)
+
+        code, out = run_bz(["--space-group", "Pnma"])
+        report("--space-group without --show-kpoint rejected cleanly",
+               code != 0 and "only available with --show-kpoint" in out
+               and "Traceback" not in out, out)
+
+        code, out = run_bz(["--show-kpoint", "--space-group", "NotASpaceGroup"])
+        report("unknown space-group symbol rejected cleanly",
+               code != 0 and "not recognized" in out and "Traceback" not in out, out)
 
 
 # ---------------------------------------------------------------- 17. crystod-phonon --irreps

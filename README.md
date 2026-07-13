@@ -14,7 +14,7 @@
 - `crystod-group --basis` for classifying polynomial basis functions into point-group irreps.
 - `crystod-group --generate-basis` for automatic 1st-3rd order polynomial basis functions classified by irrep. (v0.2.1)
 - `crystod-group --coset` for coset decompositions of point groups and space-group little co-groups. (v0.2.1)
-- `crystod-bz` for interactive 3D Brillouin-zone plots — automatic (seekpath) or manual high-symmetry k-path, and, with a non-identity `--trans-mat`, the unit-cell BZ together with the folded BZ of a transformed (super)lattice. (v0.3.0; replaces `crystod --bz` and `crystod --bz-supercell`)
+- `crystod-bz` for interactive 3D Brillouin-zone plots — automatic (seekpath) or manual high-symmetry k-path, and, with a non-identity `--trans-mat`, the unit-cell BZ together with the folded BZ of a transformed (super)lattice; `--show-kpoint --space-group SG` prints the special k points of any space group (primitive and, for centred lattices, conventional coordinates). (v0.3.0; replaces `crystod --bz` and `crystod --bz-supercell`; `--show-kpoint` since v0.3.2)
 - `crystod-phonon --irreps` for phonon irrep labeling from `phonopy` data.
 - `crystod-phonon --fatband` for element-projected phonon fatbands along an automatic seekpath k-path. (v0.2.3)
 - `crystod-phonon --lt` for phonon bands colored by longitudinal/transverse character. (v0.2.3)
@@ -73,6 +73,18 @@ Check whether CrystOD works successfully or not:
 ```bash
 python3 testsuite.py
 ```
+
+## Documentation
+
+The full documentation is a Sphinx site (phonopy-style: MyST Markdown + sphinx-book-theme) in `doc/`. Build it locally with:
+
+```bash
+pip install -e ".[doc]"                      # installs sphinx, myst-parser, sphinx-book-theme, sphinx-copybutton
+python -m sphinx -b html doc doc/_build/html # (python -m avoids picking up a sphinx-build from another environment)
+open doc/_build/html/index.html
+```
+
+When the repository is published on GitHub, `.github/workflows/docs.yml` builds and deploys the site to GitHub Pages on every push to `main` (enable it once via Settings > Pages > Source = "GitHub Actions").
 
 The sections below are numbered by the shared numbering of `testsuite.py` and the `example/` directories, grouped by command (1 library core, 2-6 `crystod`, 7-13 `crystod-group`, 14-16 `crystod-bz`, 17-23 `crystod-phonon`, 24-25 `crystod-mag`, 26-27 `crystod-md`): section N is tested by `python testsuite.py N` and demonstrated in `example/<N>_*`. The numbers missing here (6, 13, 16, 23, 25, 27) are the per-command CLI-regression testsuite sections, which have no feature section of their own; see `example/README` for the full map.
 
@@ -332,6 +344,52 @@ crystod-bz -c 221_PPOSCAR_ScF3 \
 ```
 
 Note: if the input cell differs from the seekpath standardized primitive cell, the Brillouin zone and k-path are drawn for the standardized primitive cell (a NOTE is printed in that case). Manual `--band` coordinates always refer to the reciprocal basis of the input structure.
+
+### Special k points of a space group (`--show-kpoint`; v0.3.2)
+
+With `--show-kpoint`, no plot is produced; instead the special (high-symmetry) k points of the space group given by `--space-group` are printed:
+
+```bash
+crystod-bz --show-kpoint --space-group Pnma
+```
+
+```
+* Space group *
+Pnma (No. 62)
+
+* K points (primitive) *
+GM: (0, 0, 0)
+X: (1/2, 0, 0)
+Y: (0, 1/2, 0)
+Z: (0, 0, 1/2)
+S: (1/2, 1/2, 0)
+T: (0, 1/2, 1/2)
+U: (1/2, 0, 1/2)
+R: (1/2, 1/2, 1/2)
+```
+
+The k points and their CDML labels are taken from `irreptables` — the same definition used by the SALC/irrep analyses (`crystod`, `crystod-mag`, `crystod-group`, `crystod-phonon --irreps`) — and are given in the primitive reciprocal basis. For centred lattices (F, I, C, A, B, R), whose conventional and primitive cells differ, the coordinates in the conventional reciprocal basis are printed as well:
+
+```bash
+crystod-bz --show-kpoint --space-group Fm-3m
+```
+
+```
+* Space group *
+Fm-3m (No. 225)
+
+* K points (primitive) *
+GM: (0, 0, 0)
+X: (1/2, 0, 1/2)
+L: (1/2, 1/2, 1/2)
+W: (1/2, 1/4, 3/4)
+
+* K points (conventional) *
+GM: (0, 0, 0)
+X: (0, 1, 0)
+L: (1/2, 1/2, 1/2)
+W: (1/2, 1, 0)
+```
 
 
 ## 15. Supercell Brillouin Zone (v0.2.3; merged into `crystod-bz` since v0.3.0)
@@ -599,6 +657,7 @@ Based on `script/xdatcar_to_adp.py` by Ko Sato; the crystod port reproduces its 
 - `crystod-bz -c POSCAR [--output FILE.html]`
 - `crystod-bz -c POSCAR --band "kx ky kz  kx ky kz ..., ..." --band-labels "GM X M ..."`
 - `crystod-bz -c POSCAR --trans-mat "t11 t12 t13  t21 t22 t23  t31 t32 t33" [--output FILE.html]`
+- `crystod-bz --show-kpoint --space-group SG`
 - `crystod-md --adp --dim nx ny nz [--start-step N] [--xdatcar XDATCAR] [--output ADP.cif] [--format vasp]`
 - `crystod-md --summary [--start-step N] [--end-step M] [--xdatcar XDATCAR] [--format vasp]`
 - `crystod-phonon --fatband --dim nx ny nz -c POSCAR [--element EL] [--nac] [--readfc] [--band ... --band-labels ...]`
@@ -614,6 +673,10 @@ Based on `script/xdatcar_to_adp.py` by Ko Sato; the crystod port reproduces its 
 - We recommend to run `python testsuite.py` (in the repository root, inside the `crystod` environment) for operation check.
 
 ## Changelog
+
+### v0.3.2
+
+- Added `crystod-bz --show-kpoint --space-group SG`: prints the special (high-symmetry) k points of a space group with their CDML labels (from `irreptables`, the same k-point definition as the SALC/irrep analyses) in the primitive reciprocal basis, and additionally in the conventional reciprocal basis for centred lattices (F, I, C, A, B, R) such as Fm-3m, where the two definitions differ.
 
 ### v0.3.1
 

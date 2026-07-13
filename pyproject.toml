@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CrystOD"
-version = "0.3.1"
+version = "0.3.2"
 authors = [
   {name = "Yasuhide Mochizuki"},
   {email = "mochizuki@rs.tus.ac.jp"},
@@ -26,6 +26,14 @@ dependencies = [
   "sympy",
   "scipy",
   "seekpath",
+]
+
+[project.optional-dependencies]
+doc = [
+  "sphinx",
+  "myst-parser",
+  "sphinx-book-theme",
+  "sphinx-copybutton",
 ]
 
 [project.scripts]
