@@ -39,3 +39,151 @@ irrep  E(1)  C3(2)  sgv(3)
    A1     1      1       1
    A2     1      1      -1
     E     2     -1       0
+
+
+############################################################################
+# Space-group irrep direct products (v0.3.2): crystod-group --product --sg
+############################################################################
+
+crystod-group --product R4- R5+ --sg Pm-3m
+
+* Space group *
+Pm-3m (No. 221)
+
+* K points (primitive basis) *
+R: (1/2, 1/2, 1/2)   star of 1 arm(s)
+GM: (0, 0, 0)   star of 1 arm(s)
+
+* Direct product (full space-group irreps) *
+R4- x R5+ = GM2- + GM3- + GM4- + GM5-
+
+* Dimension check (star size x small dim) *
+3 x 3 = 9 -> 1 + 2 + 3 + 3 = 9
+
+Cross-validated against the Bilbao Crystallographic Server DIRPRO:
+M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
+
+
+crystod-group --product X5+ X5+ --sg Pm-3m
+
+* Space group *
+Pm-3m (No. 221)
+
+* K points (primitive basis) *
+X: (0, 1/2, 0)   star of 3 arm(s)
+GM: (0, 0, 0)   star of 1 arm(s)
+M: (1/2, 1/2, 0)   star of 3 arm(s)
+
+* Direct product (full space-group irreps) *
+X5+ x X5+ = GM1+ + GM2+ + 2GM3+ + GM4+ + GM5+ + M1+ + M2+ + M3+ + M4+ + 2M5+
+
+* Dimension check (star size x small dim) *
+6 x 6 = 36 -> 1 + 1 + 2x2 + 3 + 3 + 3 + 3 + 3 + 3 + 2x6 = 36
+
+Cross-validated against the Bilbao Crystallographic Server DIRPRO:
+M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
+
+
+crystod-group --product X1- W4 --sg Fm-3m
+
+* Space group *
+Fm-3m (No. 225)
+
+* K points (primitive basis) *
+X: (1/2, 0, 1/2)   star of 3 arm(s)
+W: (1/2, 1/4, 3/4)   star of 6 arm(s)
+DT: (0, 1/4, 1/4)   star of 6 arm(s)  [non-tabulated]
+
+* Direct product (full space-group irreps) *
+X1- x W4 = W1 + DT1 + DT2
+
+* Dimension check (star size x small dim) *
+3 x 6 = 18 -> 6 + 6 + 6 = 18
+
+Cross-validated against the Bilbao Crystallographic Server DIRPRO:
+M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
+
+
+crystod-group --product P1 PA1 --sg I-43m
+
+* Space group *
+I-43m (No. 217)
+
+* K points (primitive basis) *
+P: (1/4, 1/4, 1/4)   star of 1 arm(s)
+PA: (3/4, 3/4, 3/4)   star of 1 arm(s)
+GM: (0, 0, 0)   star of 1 arm(s)
+
+* Direct product (full space-group irreps) *
+P1 x PA1 = GM1
+
+* Dimension check (star size x small dim) *
+1 x 1 = 1 -> 1 = 1
+
+Cross-validated against the Bilbao Crystallographic Server DIRPRO:
+M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
+
+
+crystod-group --product K5 M2+ H1 --sg P6_3/mmc
+
+* Space group *
+P6_3/mmc (No. 194)
+
+* K points (primitive basis) *
+K: (1/3, 1/3, 0)   star of 2 arm(s)
+M: (1/2, 0, 0)   star of 3 arm(s)
+H: (1/3, 1/3, 1/2)   star of 2 arm(s)
+L: (1/2, 0, 1/2)   star of 3 arm(s)
+S: (1/6, 1/6, 1/2)   star of 6 arm(s)  [non-tabulated]
+
+* Direct product (full space-group irreps) *
+K5 x M2+ x H1 = 2L1 + 2L2 + 2S1
+
+* Dimension check (star size x small dim) *
+4 x 3 x 4 = 48 -> 2x6 + 2x6 + 2x12 = 48
+
+Cross-validated against the Bilbao Crystallographic Server DIRPRO:
+M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
+
+
+############################################################################
+# Validation against the Bilbao Crystallographic Server DIRPRO
+############################################################################
+
+The implementation was validated line by line against the reference tables in
+the repository directory DIRPRO/ (obtained from the Bilbao Crystallographic
+Server DIRPRO program, https://cryst.ehu.es/rep/dirpro.html):
+
+  20 space groups covering all Bravais classes
+  (P-1, P2/m, C2/c, Pnma, Cmcm, Fmmm, P4/mmm, I4/mmm, P-3m1, R-3c,
+   P6/mmm, P6_3/mmc, P2_13, P-43m, F-43m, I-43m, Pm-3m, Fm-3m, Im-3m, Ia-3d)
+  9007 reference product lines in total
+  8721 exact matches (96.8%); 13 of the 20 space groups match 100%
+
+Every one of the remaining 286 lines (in SG 15, 123, 139, 194, 198, 217, 229,
+230) was analyzed individually. They all fall into blocks of the form
+"1-arm-star (x) multi-arm-star" (e.g. H x N and P x N of Im-3m, M x X of
+P4/mmm) plus a few P x P / N x N lines of Ia-3d, and in each case the
+reference line is inconsistent with representation theory itself, not merely
+with a labeling convention:
+
+ 1. crystod's induced characters were verified to be orthonormal class
+    functions (true irreps), and the disputed products were recomputed as
+    exact pointwise class-function products - the results are forced.
+ 2. No relabeling can reconcile the blocks: multiplication by the 1-arm-star
+    character permutes the multi-arm-star irreps with a fixed cycle type
+    (e.g. it swaps N3 <-> N4 of Im-3m while fixing N1, N2); the reference
+    would require the identity permutation instead, and cycle types are
+    invariant under any bijective relabeling.
+ 3. Several reference lines fail plain dimension counting (e.g. SG 230
+    P3 x P3 requires total dimension 64 but its right-hand side sums to 44).
+
+The affected reference lines are listed in the per-space-group notes of the
+validation harness output. If in doubt, the disputed products can be
+re-checked directly on the Bilbao server; a convenient test case is
+Im-3m (No. 229): H1+ x N3+, for which crystod gives N4+.
+
+Citation (required by the Bilbao Crystallographic Server for DIRPRO):
+  M. I. Aroyo, A. Kirov, C. Capillas, J. M. Perez-Mato and H. Wondratschek,
+  "Bilbao Crystallographic Server II: Representations of crystallographic
+  point groups and space groups", Acta Cryst. A62, 115-128 (2006).
