@@ -18,31 +18,38 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
    5. crystod --visualize       SALC coefficients + 3D HTML viewer
    6. crystod main command      extras (aliases/errors/removed flags)
   -- crystod-group --
-   7. crystod-group --product   point-group direct products
+   7. crystod-group --product   point-group and space-group irrep direct products
    8. crystod-group --decompose reducible-representation decomposition
    9. crystod-group --ligand-field orbital splitting in a point-group field
   10. crystod-group --basis     polynomial basis classification
   11. crystod-group --generate-basis automatic polynomial bases
   12. crystod-group --coset     coset decompositions
-  13. crystod-group             seven-mode extras
+  13. crystod-group --supergroup  isotropy subgroups of space-group irreps
+  14. crystod-group --multiplet   spin multiplicities of irrep-shell configurations
+  15. crystod-group --poscar2cif / --cif2poscar  POSCAR <-> Bilbao-style CIF
+  16. crystod-group --supergroup-cif  symmetry-mode (AMPLIMODES-style) analysis
+  17. crystod-group             eleven-mode extras
   -- crystod-bz --
-  14. crystod-bz                Brillouin-zone plot (seekpath auto k-path)
-  15. crystod-bz --trans-mat    unit-cell + supercell Brillouin-zone plot
-  16. crystod-bz                sectioned-command extras (--show-kpoint/identity/errors/removed flags)
+  18. crystod-bz                Brillouin-zone plot (seekpath auto k-path)
+  19. crystod-bz --trans-mat    unit-cell + supercell Brillouin-zone plot
+  20. crystod-bz                sectioned-command extras (--show-kpoint/identity/errors/removed flags)
   -- crystod-phonon --
-  17. crystod-phonon --irreps   phonon irrep labeling (phonopy data)
-  18. crystod-phonon --fatband  element-projected phonon fatbands (phonopy data)
-  19. crystod-phonon --lt       longitudinal/transverse-resolved phonon band
-  20. crystod-phonon --vector   phonon eigenvector VESTA export (phonopy data)
-  21. crystod-phonon --modulation modulated structures (known space groups)
-  22. crystod-phonon --vibration symmetry-only vibration bases
-  23. crystod-phonon            six-mode extras
+  21. crystod-phonon --irreps   phonon irrep labeling (phonopy data)
+  22. crystod-phonon --fatband  element-projected phonon fatbands (phonopy data)
+  23. crystod-phonon --lt       longitudinal/transverse-resolved phonon band
+  24. crystod-phonon --vector   phonon eigenvector VESTA export (phonopy data)
+  25. crystod-phonon --modulation modulated structures (known space groups)
+  26. crystod-phonon --vibration symmetry-only vibration bases
+  27. crystod-phonon            six-mode extras
   -- crystod-mag --
-  24. crystod-mag               symmetry-adapted spin bases (cluster multipoles / SAMM)
-  25. crystod-mag               --format qe / --conventional extras
+  28. crystod-mag               symmetry-adapted spin bases (cluster multipoles / SAMM)
+  29. crystod-mag               --format qe / --conventional extras
   -- crystod-md --
-  26. crystod-md --adp          ADPs from an MD XDATCAR trajectory
-  27. crystod-md                --adp / --summary extras
+  30. crystod-md --adp          ADPs from an MD XDATCAR trajectory
+  31. crystod-md                --adp / --summary extras
+  -- crystod-mol --
+  32. crystod-mol               molecular point groups and molecular SALCs
+  33. crystod-mol               --align / --show-matrix / --visualize / error extras
 """
 
 from __future__ import annotations
@@ -59,12 +66,13 @@ import numpy as np
 ROOT = os.path.dirname(os.path.abspath(__file__))
 POSCAR_ScF3 = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_ScF3")
 POSCAR_SrTiO3 = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_SrTiO3")
-MODULATION_DIR = os.path.join(ROOT, "example", "21_modulation", "ScF3_Pm-3m")
-PHONON_IRREP_DIR = os.path.join(ROOT, "example", "17_phonon_irrep", "SrTiO3_Pm-3m")
-PHONON_VECTOR_DIR = os.path.join(ROOT, "example", "20_phonon_vector", "Si_Fd-3m")
-XDATCAR_ADP_DIR = os.path.join(ROOT, "example", "26_xdatcar2adp", "ScF3_Pm-3m_NpT_300K")
-PHONON_FATBAND_DIR = os.path.join(ROOT, "example", "18_phonon_fatband", "ScF3_Pm-3m")
-PHONON_LT_DIR = os.path.join(ROOT, "example", "19_phonon_lt", "ScF3_Pm-3m")
+MODULATION_DIR = os.path.join(ROOT, "example", "25_modulation", "ScF3_Pm-3m")
+PHONON_IRREP_DIR = os.path.join(ROOT, "example", "21_phonon_irrep", "SrTiO3_Pm-3m")
+PHONON_VECTOR_DIR = os.path.join(ROOT, "example", "24_phonon_vector", "Si_Fd-3m")
+XDATCAR_ADP_DIR = os.path.join(ROOT, "example", "30_xdatcar2adp", "ScF3_Pm-3m_NpT_300K")
+PHONON_FATBAND_DIR = os.path.join(ROOT, "example", "22_phonon_fatband", "ScF3_Pm-3m")
+PHONON_LT_DIR = os.path.join(ROOT, "example", "23_phonon_lt", "ScF3_Pm-3m")
+XYZ_DIR = os.path.join(ROOT, "example", "test_XYZs")
 
 PASS = 0
 FAIL = 0
@@ -426,6 +434,45 @@ def test_07_direct_product() -> None:
     report("character table of 3m exit 0", code == 0, out)
     report("table lists A1 and E", "A1" in out and "E" in out, out)
 
+    # ---- space-group irrep products (--sg; validated against Bilbao DIRPRO)
+    code, out = run_group(["--product", "R4-", "R5+", "--sg", "Pm-3m"])
+    report("R4- x R5+ in Pm-3m exit 0", code == 0, out)
+    report("R4- x R5+ = GM2- + GM3- + GM4- + GM5-",
+           "R4- x R5+ = GM2- + GM3- + GM4- + GM5-" in out, out)
+    report("dimension check printed (9 = 9)", "3 x 3 = 9 -> 1 + 2 + 3 + 3 = 9" in out, out)
+    report("Bilbao DIRPRO citation printed", "Acta Cryst. A62" in out, out)
+
+    code, out = run_group(["--product", "X5+", "X5+", "--space-group", "Pm-3m"])
+    report("X5+ x X5+ multi-arm star product with multiplicities",
+           code == 0 and "GM1+ + GM2+ + 2GM3+ + GM4+ + GM5+" in out
+           and "2M5+" in out, out)
+
+    code, out = run_group(["--product", "X1-", "W4", "--sg", "Fm-3m"])
+    report("X1- x W4 lands on the DT line with CDML names",
+           code == 0 and "DT1" in out and "DT2" in out and "W1" in out
+           and "non-tabulated" in out, out)
+
+    code, out = run_group(["--product", "P1", "PA1", "--sg", "I-43m"])
+    report("P1 x PA1 = GM1 (synthesized -k star of a polar group)",
+           code == 0 and "P1 x PA1 = GM1" in out, out)
+
+    code, out = run_group(["--product", "K5", "M2+", "H1", "--sg", "P6_3/mmc"])
+    report("triple space-group product K5 x M2+ x H1 (dims 48 = 48)",
+           code == 0 and "2L1 + 2L2 + 2S1" in out and "= 48" in out, out)
+
+    code, out = run_group(["--product", "H1", "P1", "--sg", "230"])
+    report("space group by number; broken-table P star substituted (SG230)",
+           code == 0 and "H1 x P1 = P1 + P2" in out, out)
+
+    code, out = run_group(["--product", "R4-", "Q9", "--sg", "Pm-3m"])
+    report("unknown space-group irrep label rejected with available list",
+           code != 0 and "not tabulated" in out and "Available irreps" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m", "--sg", "Pm-3m"])
+    report("--product with both --pg and --sg rejected cleanly",
+           code != 0 and "exactly one" in out and "Traceback" not in out, out)
+
 
 # ---------------------------------------------------------------- 8. crystod-group --decompose
 def test_08_decompose_irrep() -> None:
@@ -574,9 +621,9 @@ def test_12_show_coset() -> None:
     report("index [G:G_k] = |star of k| = 3", "= 3" in out and "G_k" in out, out)
 
 
-# ---------------------------------------------------------------- 13. crystod-group extras
-def test_13_group_command() -> None:
-    print("\n[13] crystod-group (sectioned command: 7 group-theory modes)")
+# ---------------------------------------------------------------- 17. crystod-group extras
+def test_17_group_command() -> None:
+    print("\n[17] crystod-group (sectioned command: 7 group-theory modes)")
 
     def run_group(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.group", args, cwd)
@@ -627,8 +674,8 @@ def test_13_group_command() -> None:
 
     # error handling
     code, out = run_group(["--product", "T2g", "T2g"])
-    report("--product without --pg rejected cleanly",
-           code != 0 and "requires --pg" in out and "Traceback" not in out, out)
+    report("--product without --pg/--sg rejected cleanly",
+           code != 0 and "exactly one" in out and "Traceback" not in out, out)
     code, out = run_group(["--basis", "x", "--pg", "m-3m", "--sg", "Pm-3m"])
     report("--basis with both --pg and --sg rejected cleanly",
            code != 0 and "exactly one" in out and "Traceback" not in out, out)
@@ -647,9 +694,9 @@ def test_13_group_command() -> None:
                code != 0 and "removed in v0.3.0" in out and "crystod-group" in out, out)
 
 
-# ---------------------------------------------------------------- 14. crystod-bz
-def test_14_bz() -> None:
-    print("\n[14] crystod-bz (Brillouin-zone plot)")
+# ---------------------------------------------------------------- 18. crystod-bz
+def test_18_bz() -> None:
+    print("\n[18] crystod-bz (Brillouin-zone plot)")
     with tempfile.TemporaryDirectory() as tmp:
         html = os.path.join(tmp, "BZ_ScF3.html")
         code, out = run_bz(["-c", POSCAR_ScF3, "--output", html])
@@ -692,9 +739,9 @@ def test_14_bz() -> None:
                code != 0 and "ERROR" in out and "Traceback" not in out, out)
 
 
-# ---------------------------------------------------------------- 15. crystod-bz --trans-mat
-def test_15_bz_supercell() -> None:
-    print("\n[15] crystod-bz --trans-mat (ScF3, Pm-3m -> transformed lattice)")
+# ---------------------------------------------------------------- 19. crystod-bz --trans-mat
+def test_19_bz_supercell() -> None:
+    print("\n[19] crystod-bz --trans-mat (ScF3, Pm-3m -> transformed lattice)")
     with tempfile.TemporaryDirectory() as tmp:
         code, out = run_bz(
             ["-c", POSCAR_ScF3,
@@ -721,9 +768,9 @@ def test_15_bz_supercell() -> None:
                code != 0 and "requires nine numbers" in out and "Traceback" not in out, out)
 
 
-# ---------------------------------------------------------------- 16. crystod-bz extras
-def test_16_bz_command() -> None:
-    print("\n[16] crystod-bz (sectioned command: unit-cell / supercell BZ)")
+# ---------------------------------------------------------------- 20. crystod-bz extras
+def test_20_bz_command() -> None:
+    print("\n[20] crystod-bz (sectioned command: unit-cell / supercell BZ)")
 
     def run_bz(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.bz", args, cwd)
@@ -811,16 +858,16 @@ def test_16_bz_command() -> None:
                code != 0 and "not recognized" in out and "Traceback" not in out, out)
 
 
-# ---------------------------------------------------------------- 17. crystod-phonon --irreps
-def test_17_phonon_irrep() -> None:
-    print("\n[17] crystod-phonon --irreps (SrTiO3, 4x4x4 FORCE_SETS)")
+# ---------------------------------------------------------------- 21. crystod-phonon --irreps
+def test_21_phonon_irrep() -> None:
+    print("\n[21] crystod-phonon --irreps (SrTiO3, 4x4x4 FORCE_SETS)")
     if not os.path.isdir(PHONON_IRREP_DIR):
         report("example data found", False, PHONON_IRREP_DIR)
         return
     with tempfile.TemporaryDirectory() as tmp:
         # copy inputs so phonon_irreps.yaml in the example folder is not overwritten
         # (--readfc / FORCE_CONSTANTS input is covered by the Si runs in
-        # sections 20 and 23; the SrTiO3 example ships FORCE_SETS only)
+        # sections 24 and 27; the SrTiO3 example ships FORCE_SETS only)
         for name in ("221_PPOSCAR_SrTiO3", "FORCE_SETS"):
             shutil.copy(os.path.join(PHONON_IRREP_DIR, name), tmp)
         code, out = run_phonon(
@@ -836,9 +883,9 @@ def test_17_phonon_irrep() -> None:
             report("yaml contains R point irreps", "R" in text, text[:500])
 
 
-# ---------------------------------------------------------------- 18. crystod-phonon --fatband
-def test_18_phonon_fatband() -> None:
-    print("\n[18] crystod-phonon --fatband (ScF3, 4x4x4 FORCE_SETS)")
+# ---------------------------------------------------------------- 22. crystod-phonon --fatband
+def test_22_phonon_fatband() -> None:
+    print("\n[22] crystod-phonon --fatband (ScF3, 4x4x4 FORCE_SETS)")
     if not os.path.isdir(PHONON_FATBAND_DIR):
         report("example data found", False, PHONON_FATBAND_DIR)
         return
@@ -896,9 +943,9 @@ def test_18_phonon_fatband() -> None:
             report("BORN example found (skipping --nac run)", False, born_path)
 
 
-# ---------------------------------------------------------------- 19. crystod-phonon --lt
-def test_19_phonon_lt() -> None:
-    print("\n[19] crystod-phonon --lt (ScF3, 4x4x4 FORCE_SETS)")
+# ---------------------------------------------------------------- 23. crystod-phonon --lt
+def test_23_phonon_lt() -> None:
+    print("\n[23] crystod-phonon --lt (ScF3, 4x4x4 FORCE_SETS)")
     if not os.path.isdir(PHONON_LT_DIR):
         report("example data found", False, PHONON_LT_DIR)
         return
@@ -949,9 +996,9 @@ def test_19_phonon_lt() -> None:
            str(ratio[acoustic]))
 
 
-# ---------------------------------------------------------------- 20. crystod-phonon --vector
-def test_20_phonon_vector() -> None:
-    print("\n[20] crystod-phonon --vector (Si, 4x4x4 FC)")
+# ---------------------------------------------------------------- 24. crystod-phonon --vector
+def test_24_phonon_vector() -> None:
+    print("\n[24] crystod-phonon --vector (Si, 4x4x4 FC)")
     if not os.path.isdir(PHONON_VECTOR_DIR):
         report("example data found", False, PHONON_VECTOR_DIR)
         return
@@ -1064,9 +1111,9 @@ def test_20_phonon_vector() -> None:
            str(freqs))
 
 
-# ---------------------------------------------------------------- 21. crystod-phonon --modulation
-def test_21_modulation() -> None:
-    print("\n[21] crystod-phonon --modulation (known space groups from example/21_modulation README)")
+# ---------------------------------------------------------------- 25. crystod-phonon --modulation
+def test_25_modulation() -> None:
+    print("\n[25] crystod-phonon --modulation (known space groups from example/25_modulation README)")
     yaml_path = os.path.join(MODULATION_DIR, "phonopy_params.yaml")
     if not os.path.isfile(yaml_path):
         report("phonopy_params.yaml found", False, yaml_path)
@@ -1127,9 +1174,9 @@ def test_21_modulation() -> None:
         report("star of q displayed for each q", out.count("Star of q") >= 2, out)
 
 
-# ---------------------------------------------------------------- 22. crystod-phonon --vibration
-def test_22_vibration() -> None:
-    print("\n[22] crystod-phonon --vibration")
+# ---------------------------------------------------------------- 26. crystod-phonon --vibration
+def test_26_vibration() -> None:
+    print("\n[26] crystod-phonon --vibration")
     code, out = run_phonon(["--vibration", "-c", POSCAR_ScF3, "--qpoint", "R"])
     report("ScF3 q = R exit 0", code == 0, out)
     report("irrep-grouped mode spaces listed", "Mode Space" in out, out)
@@ -1152,9 +1199,9 @@ def test_22_vibration() -> None:
         report("displaced POSCAR written", os.path.isfile(out_poscar))
 
 
-# ---------------------------------------------------------------- 23. crystod-phonon extras
-def test_23_phonon_command() -> None:
-    print("\n[23] crystod-phonon (sectioned command: 6 phonon modes)")
+# ---------------------------------------------------------------- 27. crystod-phonon extras
+def test_27_phonon_command() -> None:
+    print("\n[27] crystod-phonon (sectioned command: 6 phonon modes)")
 
     def run_phonon(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.phonon", args, cwd)
@@ -1263,9 +1310,9 @@ def test_23_phonon_command() -> None:
                code != 0 and "removed in v0.3.0" in out and "crystod-phonon" in out, out)
 
 
-# ---------------------------------------------------------------- 24. crystod-mag
-def test_24_spin_basis() -> None:
-    print("\n[24] crystod-mag (AlNi3, Ni 3c cluster, Mn3Ir-type)")
+# ---------------------------------------------------------------- 28. crystod-mag
+def test_28_spin_basis() -> None:
+    print("\n[28] crystod-mag (AlNi3, Ni 3c cluster, Mn3Ir-type)")
     poscar = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_AlNi3")
     if not os.path.isfile(poscar):
         report("example POSCAR found", False, poscar)
@@ -1318,7 +1365,7 @@ def test_24_spin_basis() -> None:
 
     # 2-dim irreps with circular complex partners (x + iy, x - iy) must export
     # two ORTHOGONAL real components (x and y), not the same file twice
-    poscar_327 = os.path.join(ROOT, "example", "24_spin_basis", "La3Ni2O7_I4mmm", "139_PPOSCAR_La3Ni2O7")
+    poscar_327 = os.path.join(ROOT, "example", "28_spin_basis", "La3Ni2O7_I4mmm", "139_PPOSCAR_La3Ni2O7")
     if not os.path.isfile(poscar_327):
         report("La3Ni2O7 example POSCAR found", False, poscar_327)
         return
@@ -1339,7 +1386,7 @@ def test_24_spin_basis() -> None:
 
     # hexagonal K/H points carry 1/3 coordinates: the labels must not fall
     # back to generic irrep_N names (the old 0.333333-rounding problem)
-    poscar_hex = os.path.join(ROOT, "example", "24_spin_basis", "LuFeO3_P63cm", "185_PPOSCAR_LuFeO3")
+    poscar_hex = os.path.join(ROOT, "example", "28_spin_basis", "LuFeO3_P63cm", "185_PPOSCAR_LuFeO3")
     if not os.path.isfile(poscar_hex):
         report("LuFeO3 example POSCAR found", False, poscar_hex)
         return
@@ -1360,9 +1407,9 @@ def test_24_spin_basis() -> None:
                code == 0 and "Selected q-point: H" in out and "H3(2)" in out, out)
 
 
-# ---------------------------------------------------------------- 25. crystod-mag extras
-def test_25_mag_command() -> None:
-    print("\n[25] crystod-mag (sectioned command: symmetry-adapted spin bases)")
+# ---------------------------------------------------------------- 29. crystod-mag extras
+def test_29_mag_command() -> None:
+    print("\n[29] crystod-mag (sectioned command: symmetry-adapted spin bases)")
     poscar = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_AlNi3")
     if not os.path.isfile(poscar):
         report("example POSCAR found", False, poscar)
@@ -1435,9 +1482,9 @@ def test_25_mag_command() -> None:
                code != 0 and "removed in v0.3.0" in out and "crystod-mag" in out, out)
 
 
-# ---------------------------------------------------------------- 26. crystod-md --adp
-def test_26_xdatcar2adp() -> None:
-    print("\n[26] crystod-md --adp (ScF3 NpT 300K, truncated trajectory)")
+# ---------------------------------------------------------------- 30. crystod-md --adp
+def test_30_xdatcar2adp() -> None:
+    print("\n[30] crystod-md --adp (ScF3 NpT 300K, truncated trajectory)")
     source = os.path.join(XDATCAR_ADP_DIR, "XDATCAR")
     if not os.path.isfile(source):
         report("example data found", False, source)
@@ -1468,9 +1515,9 @@ def test_26_xdatcar2adp() -> None:
                    text[:600])
 
 
-# ---------------------------------------------------------------- 27. crystod-md extras
-def test_27_md_command() -> None:
-    print("\n[27] crystod-md (sectioned command: MD trajectory -> ADPs / summary)")
+# ---------------------------------------------------------------- 31. crystod-md extras
+def test_31_md_command() -> None:
+    print("\n[31] crystod-md (sectioned command: MD trajectory -> ADPs / summary)")
 
     def run_md(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.md", args, cwd)
@@ -1491,7 +1538,7 @@ def test_27_md_command() -> None:
         report("example data found", False, source)
         return
     with tempfile.TemporaryDirectory() as tmp:
-        # truncated trajectory (293 frames), as in section 26
+        # truncated trajectory (293 frames), as in section 30
         destination = os.path.join(tmp, "XDATCAR")
         with open(source) as fin, open(destination, "w") as fout:
             for line_number, line in enumerate(fin):
@@ -1568,6 +1615,626 @@ def test_27_md_command() -> None:
                code != 0 and "removed in v0.3.0" in out and "crystod-md" in out, out)
 
 
+# ---------------------------------------------------------------- 32. crystod-mol
+def test_32_mol() -> None:
+    print("\n[32] crystod-mol (molecular point groups and molecular SALCs)")
+
+    def run_mol(args: list[str], cwd: str | None = None) -> tuple[int, str]:
+        return run_module("crystod.cli.mol", args, cwd)
+
+    xyz_o2 = os.path.join(XYZ_DIR, "XYZ_O2.xyz")
+    xyz_h2o = os.path.join(XYZ_DIR, "XYZ_H2O.xyz")
+    xyz_nh3 = os.path.join(XYZ_DIR, "XYZ_NH3.xyz")
+    xyz_ch4 = os.path.join(XYZ_DIR, "XYZ_CH4.xyz")
+    for path in (xyz_o2, xyz_h2o, xyz_nh3, xyz_ch4):
+        if not os.path.isfile(path):
+            report("example data found", False, path)
+            return
+
+    # --symmetry: point-group detection
+    code, out = run_mol(["--symmetry", "--xyz", xyz_o2])
+    report("--symmetry O2 exit 0", code == 0, out)
+    report("O2 detected as linear D*h", "D*h" in out and "linear" in out, out)
+
+    code, out = run_mol(["--symmetry", "--xyz", xyz_nh3])
+    report("NH3 detected as C3v (3m)", code == 0 and "C3v" in out and "3m" in out, out)
+    report("NH3 classes listed (E, 2C3, 3sgv)", "2C3" in out and "3sgv" in out, out)
+
+    code, out = run_mol(["--symmetry", "--xyz", xyz_ch4])
+    report("CH4 detected as Td (-43m)", code == 0 and "Td" in out and "-43m" in out, out)
+
+    code, out = run_mol(["--symmetry", "--xyz", xyz_h2o])
+    report("H2O detected as C2v (mm2)", code == 0 and "C2v" in out and "mm2" in out, out)
+
+    # SALC mode: character analysis and explicit SALCs
+    code, out = run_mol(["--xyz", xyz_nh3, "--element", "H", "--orbital", "s"])
+    report("NH3 H s SALC exit 0", code == 0, out)
+    report("NH3 H s characters (chi_perm = 3, 0, 1)",
+           re.search(r"chi\(perm\):\s+3\s+0\s+1", out) is not None, out)
+    report("NH3 H s decomposition A1 + E", "Gamma = 1(A1) + 1(E)" in out, out)
+    report("NH3 H s A1 SALC is the in-phase sum",
+           "A1: [s(H1) + s(H2) + s(H3)]" in out, out)
+
+    code, out = run_mol(["--xyz", xyz_ch4, "--element", "H", "--orbital", "s"])
+    report("CH4 H s decomposition A1 + T2",
+           code == 0 and "Gamma = 1(A1) + 1(T2)" in out, out)
+    report("CH4 H s characters (chi_perm(8C3) = 1)",
+           re.search(r"chi\(perm\):\s+4\s+1\s+0\s+0\s+2", out) is not None, out)
+
+    code, out = run_mol(["--xyz", xyz_h2o, "--element", "H", "--orbital", "s"])
+    report("H2O H s decomposition A1 + B1",
+           code == 0 and "Gamma = 1(A1) + 1(B1)" in out, out)
+
+    # orbital characters multiply in (perm x p)
+    code, out = run_mol(["--xyz", xyz_nh3, "--element", "H", "--orbital", "p"])
+    report("NH3 H p decomposition 2A1 + A2 + 3E",
+           code == 0 and "Gamma = 2(A1) + 1(A2) + 3(E)" in out, out)
+
+    code, out = run_mol(["--xyz", xyz_nh3, "--element", "N", "--orbital", "p"])
+    report("NH3 N p splits into A1 (pz) + E (px, py)",
+           code == 0 and "Gamma = 1(A1) + 1(E)" in out
+           and "A1: [pz(N1)]" in out and "E: [px(N1), py(N1)]" in out, out)
+
+
+# ---------------------------------------------------------------- 33. crystod-mol extras
+def test_33_mol_command() -> None:
+    print("\n[33] crystod-mol (extras: --align / --show-matrix / --visualize / errors)")
+
+    def run_mol(args: list[str], cwd: str | None = None) -> tuple[int, str]:
+        return run_module("crystod.cli.mol", args, cwd)
+
+    xyz_o2 = os.path.join(XYZ_DIR, "XYZ_O2.xyz")
+    xyz_nh3 = os.path.join(XYZ_DIR, "XYZ_NH3.xyz")
+    xyz_ch4 = os.path.join(XYZ_DIR, "XYZ_CH4.xyz")
+
+    # --align: textbook axis convention (CH4 in this file is arbitrarily rotated)
+    code, out = run_mol(["--xyz", xyz_ch4, "--element", "C", "--orbital", "d", "--align"])
+    report("--align exit 0", code == 0, out)
+    report("CH4 C d crystal-field splitting E (dz2, dx2-y2) + T2 (dxy, dyz, dxz)",
+           "E: [dz2(C1), dx2-y2(C1)]" in out and "T2: [dxy(C1), dyz(C1), dxz(C1)]" in out,
+           out)
+    report("--align frame is announced", "standard point-group axes" in out, out)
+
+    # --show-matrix: permutation matrices are printed per class
+    code, out = run_mol(["--xyz", xyz_nh3, "--element", "H", "--orbital", "s",
+                         "--show-matrix"])
+    report("--show-matrix prints the site-permutation matrices",
+           code == 0 and "Site-permutation matrices" in out, out)
+
+    # --tolerance forwarded (loose tolerance still detects C3v)
+    code, out = run_mol(["--symmetry", "--xyz", xyz_nh3, "--tolerance", "0.1"])
+    report("--tolerance accepted", code == 0 and "C3v" in out, out)
+
+    # --visualize: standalone HTML viewer (same page as crystod --visualize)
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_mol(["--xyz", xyz_nh3, "--element", "H", "--orbital", "p",
+                             "--visualize", "--bond", "N", "H", "1.2"], cwd=tmp)
+        html_path = os.path.join(tmp, "SALC_XYZ_NH3_H_p.html")
+        report("--visualize exit 0 and default file name", code == 0 and os.path.isfile(html_path), out)
+        if os.path.isfile(html_path):
+            with open(html_path) as handle:
+                html = handle.read()
+            report("viewer shows the point group and decomposition",
+                   "C3v (3m)" in html and "2(A1) + 1(A2) + 3(E)" in html, html_path)
+            report("viewer has one mode row per SALC (9 for H p)",
+                   html.count("mode-row") >= 9, html_path)
+            report("viewer draws N-H bonds and xyz compass",
+                   "N-H bonds" in html and "show xyz axes" in html, html_path)
+            report("molecule viewer hides the vacuum-box cell edges",
+                   "show cell edges" not in html, html_path)
+
+        code, out = run_mol(["--xyz", xyz_ch4, "--element", "C", "--orbital", "d",
+                             "--align", "--visualize", "--output", "d_salc.html"], cwd=tmp)
+        report("--visualize --output custom name",
+               code == 0 and os.path.isfile(os.path.join(tmp, "d_salc.html")), out)
+
+    code, out = run_mol(["--xyz", xyz_nh3, "--element", "H", "--orbital", "s",
+                         "--output", "x.html"])
+    report("--output without --visualize rejected cleanly",
+           code != 0 and "only available with --visualize" in out and "Traceback" not in out,
+           out)
+
+    code, out = run_mol(["--symmetry", "--xyz", xyz_nh3, "--visualize"])
+    report("--visualize with --symmetry rejected cleanly",
+           code != 0 and "only available in SALC mode" in out and "Traceback" not in out, out)
+
+    # errors
+    code, out = run_mol(["--xyz", xyz_nh3])
+    report("missing --element/--orbital rejected cleanly",
+           code != 0 and "either use --symmetry" in out and "Traceback" not in out, out)
+
+    code, out = run_mol(["--symmetry", "--xyz", xyz_nh3, "--element", "H"])
+    report("--symmetry with --element rejected cleanly",
+           code != 0 and "cannot be combined" in out and "Traceback" not in out, out)
+
+    code, out = run_mol(["--xyz", xyz_o2, "--element", "O", "--orbital", "s"])
+    report("linear-molecule SALC rejected with guidance",
+           code != 0 and "crystallographic point" in out and "Traceback" not in out, out)
+
+    code, out = run_mol(["--xyz", xyz_nh3, "--element", "Fe", "--orbital", "s"])
+    report("unknown element rejected cleanly",
+           code != 0 and "not in the molecule" in out and "Traceback" not in out, out)
+
+    code, out = run_mol(["--xyz", xyz_nh3, "--element", "H", "--orbital", "q"])
+    report("unknown orbital rejected cleanly",
+           code != 0 and "not supported" in out and "Traceback" not in out, out)
+
+    code, out = run_mol(["--xyz", os.path.join(XYZ_DIR, "missing.xyz"),
+                         "--symmetry"])
+    report("missing file rejected cleanly",
+           code != 0 and "not found" in out and "Traceback" not in out, out)
+
+
+# ------------------------------------------- 13. crystod-group --supergroup
+def test_13_isotropy() -> None:
+    print("\n[13] crystod-group --supergroup (isotropy subgroups)")
+
+    import spglib
+
+    if tuple(int(x) for x in spglib.__version__.split(".")[:2]) < (2, 4):
+        print(f"  [SKIP] spglib {spglib.__version__} < 2.4: subgroup identification "
+              "is unreliable in old spglib; run this section in the crystod env.")
+        return
+
+    # single order-parameter directions (the ISOSUBGROUP reference cases)
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "GM4-",
+                           "--order-parameter", "0", "0", "a"])
+    report("GM4- (0,0,a) -> P4mm", code == 0 and "P4mm (No. 99)" in out, out)
+    report("index 6 and conventional basis printed",
+           "index 6" in out and "conventional basis" in out, out)
+
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "GM4-",
+                           "--order-parameter", "a", "a", "0"])
+    report("GM4- (a,a,0) -> Amm2", code == 0 and "Amm2 (No. 38)" in out, out)
+
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "GM4-",
+                           "--order-parameter", "a", "a", "a"])
+    report("GM4- (a,a,a) -> R3m", code == 0 and "R3m (No. 160)" in out, out)
+
+    # full enumeration (validated against the ISOSUBGROUP table for Pm-3m GM)
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "GM4-"])
+    report("GM4- enumeration exit 0", code == 0, out)
+    report("GM4- enumerates P4mm/R3m/Amm2/Pm/Cm/P1",
+           all(name in out for name in
+               ("99 P4mm", "160 R3m", "38 Amm2", "6 Pm", "8 Cm", "1 P1")), out)
+
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "GM3+"])
+    report("GM3+ -> P4/mmm + Pmmm (indices 3, 6)",
+           code == 0 and "123 P4/mmm" in out and "47 Pmmm" in out, out)
+
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "GM1+"])
+    report("GM1+ (identity irrep) keeps the supergroup",
+           code == 0 and "221 Pm-3m" in out, out)
+
+    # zone-boundary irreps: cell enlargement (perovskite octahedral tilts)
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "R4+"])
+    report("R4+ tilt subgroups I4/mcm + R-3c + Imma (Howard-Stokes)",
+           code == 0 and "140 I4/mcm" in out and "167 R-3c" in out
+           and "74 Imma" in out, out)
+    report("R4+ doubles the cell (size 2)",
+           re.search(r"140 I4/mcm\s+2\s+6", out) is not None, out)
+
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "M3+"])
+    report("M3+ tilt subgroups P4/mbm + Im-3 + I4/mmm",
+           code == 0 and "127 P4/mbm" in out and "204 Im-3" in out
+           and "139 I4/mmm" in out, out)
+
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "M3+",
+                           "--order-parameter", "a", "a", "a"])
+    report("M3+ (a,a,a) -> Im-3 with 2x2x2 cell (size 4)",
+           code == 0 and "Im-3 (No. 204)" in out and "cell size 4" in out, out)
+
+    # errors
+    code, out = run_group(["--supergroup", "Pm-3m"])
+    report("--supergroup without --irrep rejected cleanly",
+           code != 0 and "requires --irrep" in out and "Traceback" not in out, out)
+
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "QQ9"])
+    report("unknown irrep rejected with available list",
+           code != 0 and "not tabulated" in out and "Available irreps" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "GM4-",
+                           "--order-parameter", "0", "0"])
+    report("wrong order-parameter length rejected cleanly",
+           code != 0 and "needs 3 components" in out and "Traceback" not in out, out)
+
+    code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m",
+                           "--irrep", "GM4-"])
+    report("--irrep outside --supergroup rejected cleanly",
+           code != 0 and "only used with --supergroup" in out
+           and "Traceback" not in out, out)
+
+
+def test_14_multiplet() -> None:
+    print("\n[14] crystod-group --multiplet (multi-electron terms)")
+
+    # single shells in Oh (textbook Tanabe-Sugano/Griffith terms; sorted by
+    # descending spin multiplicity, so the Hund ground term comes first)
+    code, out = run_group(["--multiplet", "T2g^2", "--pg", "m-3m"])
+    report("(t2g)^2 = ^3T1g + ^1A1g + ^1Eg + ^1T2g",
+           code == 0 and "* Term Symbols *" in out
+           and "(T2g)^2 = ^3T1g + ^1A1g + ^1Eg + ^1T2g" in out, out)
+    report("(t2g)^2 state count C(6,2) = 15",
+           "check: 15 states = C(6,2) = 15" in out, out)
+
+    code, out = run_group(["--multiplet", "Eg2", "--pg", "m-3m"])
+    report("(eg)^2 = ^3A2g + ^1A1g + ^1Eg (quoting-free Eg2 token)",
+           code == 0 and "(Eg)^2 = ^3A2g + ^1A1g + ^1Eg" in out, out)
+
+    code, out = run_group(["--multiplet", "T2g^3", "--pg", "m-3m"])
+    report("(t2g)^3 = ^4A2g + ^2Eg + ^2T1g + ^2T2g",
+           code == 0 and "(T2g)^3 = ^4A2g + ^2Eg + ^2T1g + ^2T2g" in out
+           and "20 states" in out, out)
+
+    code, out = run_group(["--multiplet", "T2g^4", "--pg", "m-3m"])
+    report("(t2g)^4 = (t2g)^2 terms (hole equivalence)",
+           code == 0 and "(T2g)^4 = ^3T1g + ^1A1g + ^1Eg + ^1T2g" in out, out)
+
+    code, out = run_group(["--multiplet", "T2g^6", "--pg", "m-3m"])
+    report("(t2g)^6 closed shell = ^1A1g",
+           code == 0 and "(T2g)^6 = ^1A1g" in out, out)
+
+    # two inequivalent shells + ligand-field check of the parent orbital
+    code, out = run_group(["--multiplet", "T2g1", "Eg1", "--pg", "m-3m"])
+    report("(t2g)^1(eg)^1 = ^3T1g + ^3T2g + ^1T1g + ^1T2g",
+           code == 0
+           and "(T2g)^1 (Eg)^1 = ^3T1g + ^3T2g + ^1T1g + ^1T2g" in out, out)
+
+    code, out = run_group(["--multiplet", "T2g2", "Eg1", "--pg", "m-3m",
+                           "--orbital", "d"])
+    report("(t2g)^2(eg)^1 quartets first: ^4T1g + ^4T2g + doublets",
+           code == 0 and "= ^4T1g + ^4T2g + ^2A1g" in out and "2(^2Eg)" in out
+           and "60 states" in out, out)
+    report("--orbital d prints the ligand-field splitting",
+           "1(Eg) + 1(T2g)" in out, out)
+
+    # other point groups (dash-value merge for -43m; digit-suffix irrep A1)
+    code, out = run_group(["--multiplet", "E^2", "--pg", "3m"])
+    report("C3v (e)^2 = ^3A2 + ^1A1 + ^1E",
+           code == 0 and "(E)^2 = ^3A2 + ^1A1 + ^1E" in out, out)
+
+    code, out = run_group(["--multiplet", "E2", "--pg", "-43m"])
+    report("Td (e)^2 = ^3A2 + ^1A1 + ^1E",
+           code == 0 and "(E)^2 = ^3A2 + ^1A1 + ^1E" in out, out)
+
+    code, out = run_group(["--multiplet", "A12", "--pg", "422"])
+    report("digit-suffix irrep token A12 parsed as (A1)^2",
+           code == 0 and "(A1)^2 = ^1A1" in out, out)
+
+    # Racah multiplet energies (--orbital; validated vs Tanabe-Sugano/Griffith)
+    code, out = run_group(["--multiplet", "T2g3", "--pg", "m-3m",
+                           "--orbital", "d"])
+    report("(t2g)^3 Racah energies (Tanabe-Sugano table)",
+           code == 0 and "^4A2g: 3A - 15B" in out
+           and "^2Eg : 3A - 6B + 3C" in out
+           and "^2T1g: 3A - 6B + 3C" in out
+           and "^2T2g: 3A + 5C" in out, out)
+    report("(t2g)^3 ground state ^4A2g for any B, C > 0",
+           "^4A2g   (lowest for any B > 0, C > 0)" in out, out)
+
+    code, out = run_group(["--multiplet", "T2g2", "--pg", "m-3m",
+                           "--orbital", "d"])
+    report("(t2g)^2 energies A-5B / A+B+2C / A+10B+5C",
+           code == 0 and "^3T1g: A - 5B" in out
+           and "^1A1g: A + 10B + 5C" in out
+           and "^1Eg : A + B + 2C" in out, out)
+
+    code, out = run_group(["--multiplet", "Eg2", "--pg", "m-3m",
+                           "--orbital", "d"])
+    report("(eg)^2 energies A-8B / A+2C / A+8B+4C",
+           code == 0 and "^3A2g: A - 8B" in out and "^1Eg : A + 2C" in out
+           and "^1A1g: A + 8B + 4C" in out, out)
+
+    code, out = run_group(["--multiplet", "T2g1", "Eg1", "--pg", "m-3m",
+                           "--orbital", "d"])
+    report("(t2g)^1(eg)^1 ground ^3T2g = A-8B (resolves the Hund tie)",
+           code == 0 and "^3T2g: A - 8B" in out and "^3T1g: A + 4B" in out
+           and "^3T2g   (lowest for any B > 0, C > 0)" in out, out)
+
+    code, out = run_group(["--multiplet", "T2g2", "Eg1", "--pg", "m-3m",
+                           "--orbital", "d"])
+    report("(t2g)^2(eg)^1 quartets 3A-15B / 3A-3B + CI blocks",
+           code == 0 and "^4T2g: 3A - 15B" in out and "^4T1g: 3A - 3B" in out
+           and "+- 3sqrt(2)B" in out and "configuration mixing" in out, out)
+
+    code, out = run_group(["--multiplet", "T1u2", "--pg", "m-3m",
+                           "--orbital", "p"])
+    report("(p)^2 free-ion limit F0-5F2 / F0+F2 / F0+10F2",
+           code == 0 and "^3T1g: F0 - 5F2" in out and "^1A1g: F0 + 10F2" in out
+           and "^1Eg : F0 + F2" in out and "^1T2g: F0 + F2" in out, out)
+
+    # f shells: reduced Slater parameters F0/F2/F4/F6, hydrogenic-ratio CI
+    code, out = run_group(["--multiplet", "T1u2", "--pg", "m-3m",
+                           "--orbital", "f"])
+    report("f-shell (T1u)^2 energies in reduced F0/F2/F4/F6",
+           code == 0 and "^3T1g: F0 - (35/4)F2 - (63/2)F4 - (1235/4)F6" in out
+           and "^1A1g: F0 + (35/2)F2 + 126F4 + (1535/2)F6" in out
+           and "(lowest for any positive Slater parameters)" in out, out)
+
+    code, out = run_group(["--multiplet", "T1u3", "--pg", "m-3m",
+                           "--orbital", "f"])
+    report("f-shell (T1u)^3 = ^4A1u ground (t2g^3 analogue)",
+           code == 0 and "(T1u)^3 = ^4A1u + ^2Eu + ^2T1u + ^2T2u" in out
+           and "^4A1u: 3F0 - (105/4)F2 - (189/2)F4 - (3705/4)F6" in out, out)
+
+    code, out = run_group(["--multiplet", "T1u2", "T2u2", "--pg", "m-3m",
+                           "--orbital", "f"])
+    report("f-shell (T1u)^2(T2u)^2 quintets + hydrogenic-ratio CI blocks",
+           code == 0 and "^5A1g: 6F0 - 60F2 - 198F4 - 1716F6" in out
+           and "^5Eg : 6F0 - 75F2 - 216F4 - 1443F6" in out
+           and "hydrogenic 4f ratios" in out
+           and "225 states" in out, out)
+
+    # ground-state line without --orbital (Hund's rules)
+    code, out = run_group(["--multiplet", "T2g3", "--pg", "m-3m"])
+    report("Hund ground state ^4A2g printed without --orbital",
+           code == 0 and "Ground-state Term Symbol (Hund's rules)" in out
+           and "^4A2g" in out, out)
+
+    code, out = run_group(["--multiplet", "T2g1", "Eg1", "--pg", "m-3m"])
+    report("Hund tie lists candidates ^3T1g, ^3T2g",
+           code == 0 and "candidates: ^3T1g, ^3T2g" in out, out)
+
+    code, out = run_group(["--multiplet", "E2", "--pg", "3m", "--orbital", "d"])
+    report("shell with multiplicity in the orbital splitting rejected cleanly",
+           code != 0 and "not defined by symmetry alone" in out
+           and "Traceback" not in out, out)
+
+    # errors
+    code, out = run_group(["--multiplet", "T2g^7", "--pg", "m-3m"])
+    report("overfilled shell rejected cleanly",
+           code != 0 and "holds 1 to 6 electrons" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_group(["--multiplet", "Xx^2", "--pg", "m-3m"])
+    report("unknown irrep rejected with available list",
+           code != 0 and "not an irrep" in out and "Choose from" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_group(["--multiplet", "T2g^2", "--pg", "m-3m",
+                           "--orbital", "p"])
+    report("shell missing from the parent-orbital splitting rejected",
+           code != 0 and "does not occur in the p-orbital splitting" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_group(["--multiplet", "T2g^2", "--sg", "Pm-3m"])
+    report("--multiplet without --pg rejected cleanly",
+           code != 0 and "requires --pg" in out and "Traceback" not in out, out)
+
+    code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m",
+                           "--orbital", "d"])
+    report("--orbital outside --multiplet rejected cleanly",
+           code != 0 and "only used with --multiplet" in out
+           and "Traceback" not in out, out)
+
+
+def test_15_poscar2cif() -> None:
+    print("\n[15] crystod-group --poscar2cif / --cif2poscar (Bilbao-style CIF)")
+
+    def cif_ops(text: str) -> set:
+        return set(
+            line.split()[1]
+            for line in text.splitlines()
+            if line[:4].strip().isdigit()
+        )
+
+    reference_path = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_ScF3.cif")
+    with tempfile.TemporaryDirectory() as tmp:
+        poscar = os.path.join(tmp, "221_PPOSCAR_ScF3")
+        shutil.copy(POSCAR_ScF3, poscar)
+        code, out = run_group(["--poscar2cif", "-c", poscar])
+        cif_path = poscar + ".cif"
+        report("ScF3 conversion exits 0 and writes <POSCAR>.cif",
+               code == 0 and os.path.isfile(cif_path)
+               and "Pm-3m (No. 221)" in out, out)
+        content = open(cif_path).read()
+        report("Bilbao layout: aligned keys, quoted H-M, 4-decimal cell",
+               "_symmetry_Int_Tables_number        221" in content
+               and '_symmetry_space_group_name_H-M     "Pm-3m"' in content
+               and "_cell_length_a                     4.0696" in content, content)
+        reference = open(reference_path).read()
+        report("48 operations, set identical to the Bilbao reference CIF",
+               len(cif_ops(content)) == 48
+               and cif_ops(content) == cif_ops(reference), content)
+        report("compact unquoted operator strings ('   1   x,y,z')",
+               "   1   x,y,z" in content and "'x" not in content, content)
+        report("one representative site per orbit (F1 + Sc1, occupancy 1.0000)",
+               re.search(r"F1 F 0\.\d{5} 0\.\d{5} 0\.\d{5} 1\.0000", content)
+               is not None
+               and "Sc1 Sc 0.00000 0.00000 0.00000 1.0000" in content, content)
+
+        # nonsymmorphic: ITA-standard Pnma operators (spglib standardization)
+        poscar = os.path.join(tmp, "62_PPOSCAR_CaTiO3")
+        shutil.copy(os.path.join(ROOT, "example", "test_POSCARs", "62_PPOSCAR_CaTiO3"),
+                    poscar)
+        code, out = run_group(["--poscar2cif", "-c", poscar])
+        content = open(poscar + ".cif").read()
+        ita_pnma = {"x,y,z", "-x+1/2,-y,z+1/2", "x+1/2,-y+1/2,-z+1/2",
+                    "-x,y+1/2,-z", "-x,-y,-z", "x+1/2,y,-z+1/2",
+                    "-x+1/2,y+1/2,z+1/2", "x,-y+1/2,z"}
+        report("CaTiO3 Pnma: ITA general-position operators",
+               code == 0 and '"Pnma"' in content
+               and cif_ops(content) == ita_pnma, content)
+
+        # centred lattice: conventional cell with the centring translations
+        poscar = os.path.join(tmp, "225_PPOSCAR_NaCl")
+        shutil.copy(os.path.join(ROOT, "example", "test_POSCARs", "225_PPOSCAR_NaCl"),
+                    poscar)
+        code, out = run_group(["--poscar2cif", "-c", poscar])
+        content = open(poscar + ".cif").read()
+        report("NaCl Fm-3m: 192 conventional-cell operations with centring",
+               code == 0 and '"Fm-3m"' in content
+               and len(cif_ops(content)) == 192
+               and "x,y+1/2,z+1/2" in cif_ops(content), content)
+
+        # --output override
+        target = os.path.join(tmp, "custom_name.cif")
+        code, out = run_group(["--poscar2cif", "-c", poscar, "--output", target])
+        report("--output overrides the default <POSCAR>.cif path",
+               code == 0 and os.path.isfile(target), out)
+
+        # --cif2poscar: inverse conversion (round trip)
+        poscar = os.path.join(tmp, "221_PPOSCAR_SrTiO3")
+        shutil.copy(POSCAR_SrTiO3, poscar)
+        run_group(["--poscar2cif", "-c", poscar])
+        os.remove(poscar)
+        code, out = run_group(["--cif2poscar", "-c", poscar + ".cif"])
+        report("--cif2poscar writes the input path without .cif (primitive)",
+               code == 0 and os.path.isfile(poscar)
+               and "primitive cell, 5 atoms" in out, out)
+        content = open(poscar).read()
+        report("POSCAR format: species lines, 'direct', element-tagged coords",
+               "Sr Ti O" in content and "direct" in content
+               and "0.500000 0.500000 0.500000 Ti" in content, content)
+
+        bilbao = os.path.join(tmp, "ref_ScF3.cif")
+        shutil.copy(reference_path, bilbao)
+        code, out = run_group(["--cif2poscar", "-c", bilbao])
+        report("genuine Bilbao CIF converts (ScF3, 4-atom primitive cell)",
+               code == 0 and "Pm-3m (No. 221)" in out
+               and "primitive cell, 4 atoms" in out, out)
+
+        code, out = run_group(["--cif2poscar", "-c",
+                               os.path.join(tmp, "225_PPOSCAR_NaCl.cif")])
+        report("NaCl CIF -> 2-atom primitive cell by default",
+               code == 0 and "primitive cell, 2 atoms" in out, out)
+
+        code, out = run_group(["--cif2poscar", "-c",
+                               os.path.join(tmp, "225_PPOSCAR_NaCl.cif"),
+                               "--conventional",
+                               "--output", os.path.join(tmp, "NaCl_conv")])
+        report("--conventional -> 8-atom conventional cell",
+               code == 0 and "conventional cell, 8 atoms" in out
+               and os.path.isfile(os.path.join(tmp, "NaCl_conv")), out)
+
+    # errors
+    code, out = run_group(["--cif2poscar"])
+    report("--cif2poscar without -c rejected cleanly",
+           code != 0 and "requires -c/--cell" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m",
+                           "--conventional"])
+    report("--conventional outside --cif2poscar rejected cleanly",
+           code != 0 and "only used" in out and "Traceback" not in out, out)
+
+    code, out = run_group(["--poscar2cif"])
+    report("--poscar2cif without -c rejected cleanly",
+           code != 0 and "requires -c/--cell" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_group(["--poscar2cif", "-c", "no_such_POSCAR_file"])
+    report("missing POSCAR rejected cleanly",
+           code != 0 and "not found" in out and "Traceback" not in out, out)
+
+    code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m",
+                           "-c", "POSCAR"])
+    report("-c outside --poscar2cif rejected cleanly",
+           code != 0 and "only used" in out and "Traceback" not in out, out)
+
+
+def test_16_symmetry_mode() -> None:
+    print("\n[16] crystod-group --supergroup-cif (symmetry-mode analysis)")
+
+    import spglib
+
+    if tuple(int(x) for x in spglib.__version__.split(".")[:2]) < (2, 4):
+        print(f"  [SKIP] spglib {spglib.__version__} < 2.4: subgroup "
+              "identification is unreliable in old spglib; run this section "
+              "in the crystod env.")
+        return
+
+    example = os.path.join(ROOT, "example", "16_symmetry_mode")
+    parent = os.path.join(example, "221_PPOSCAR_SrTiO3.cif")
+    child = os.path.join(example, "140_PPOSCAR_SrTiO3.cif")
+
+    # the AMPLIMODES reference case (Bilbao PDF in ~/CrystOD-main/AMPLIMODES)
+    code, out = run_group(["--supergroup-cif", parent, "--subgroup-cif", child])
+    report("SrTiO3 Pm-3m -> I4/mcm exits 0 and identifies both groups",
+           code == 0 and "Pm-3m (No. 221)" in out
+           and "I4/mcm (No. 140)" in out, out)
+    report("R5- mode at R with amplitude 0.3303 A (AMPLIMODES value)",
+           "R5-" in out and "(1/2,1/2,1/2)" in out
+           and re.search(r"R5-\s+\S+\s+140 I4/mcm\s+1\s+0\.3303", out)
+           is not None, out)
+    report("max displacement 0.1651 A and total distortion 0.3303 A",
+           "maximum atomic displacement: 0.1651 A" in out
+           and "total distortion amplitude : 0.3303 A" in out, out)
+    report("cell multiplication 2 and AMPLIMODES citation printed",
+           "primitive cell multiplication: 2" in out
+           and "J. Appl. Cryst. 42, 820-833 (2009)" in out, out)
+
+    # F-centred parent (ZrO2 fluorite -> tetragonal; second AMPLIMODES PDF)
+    code, out = run_group(["--supergroup-cif",
+                           os.path.join(example, "225_PPOSCAR_ZrO2.cif"),
+                           "--subgroup-cif",
+                           os.path.join(example, "137_PPOSCAR_ZrO2.cif")])
+    report("ZrO2 Fm-3m -> P4_2/nmc: X2- with amplitude 0.5773 A",
+           code == 0 and "(1/2,0,1/2)" in out
+           and re.search(r"X2-\s+\S+\s+137 P4_2/nmc\s+1\s+0\.5773", out)
+           is not None, out)
+
+    # polar subgroup: acoustic (free-origin) component removed
+    code, out = run_group(["--supergroup-cif",
+                           os.path.join(example, "221_PPOSCAR_BaTiO3.cif"),
+                           "--subgroup-cif",
+                           os.path.join(example, "99_PPOSCAR_BaTiO3.cif")])
+    report("BaTiO3 Pm-3m -> P4mm: polar GM4- with minimum-distortion origin",
+           code == 0 and "(0,0,0)" in out
+           and re.search(r"GM4-\s+\S+\s+99 P4mm\s+4\s+0\.2032", out)
+           is not None, out)
+
+    # strongly tilted child (14% lattice strain; displaced-species anchor)
+    code, out = run_group(["--supergroup-cif",
+                           os.path.join(example, "221_PPOSCAR_AlF3.cif"),
+                           "--subgroup-cif",
+                           os.path.join(example, "167_PPOSCAR_AlF3.cif")])
+    report("AlF3 Pm-3m -> R-3c: large-tilt R4+ (index 2, strained lattice)",
+           code == 0
+           and re.search(r"R4\+\s+\S+\s+167 R-3c\s+1\s+0\.80", out)
+           is not None, out)
+
+    # cross-checks against crystod-phonon --modulation structures (section 25)
+    modulation = os.path.join(ROOT, "example", "25_modulation", "ScF3_Pm-3m")
+    parent_scf3 = os.path.join(modulation, "221_PPOSCAR_ScF3")
+
+    code, out = run_group(["--supergroup-cif", parent_scf3,
+                           "--subgroup-cif",
+                           os.path.join(modulation, "POSCAR_R-3c")])
+    report("ScF3 R-3c: R4+ (a,a,a) -> 167 R-3c (modulation cross-check)",
+           code == 0 and re.search(r"R4\+\s+\(a,a,a\)\s+167 R-3c", out)
+           is not None, out)
+
+    code, out = run_group(["--supergroup-cif", parent_scf3,
+                           "--subgroup-cif",
+                           os.path.join(modulation, "POSCAR_Pbnm")])
+    report("ScF3 Pbnm: two active modes R4+ -> Imma + M3+ -> P4/mbm",
+           code == 0
+           and re.search(r"R4\+\s+\S+\s+74 Imma\s+1\s+0\.8485", out) is not None
+           and re.search(r"M3\+\s+\S+\s+127 P4/mbm\s+1\s+0\.6000", out)
+           is not None, out)
+    report("ScF3 Pbnm: inactive secondary X5+ listed with amplitude 0",
+           re.search(r"X5\+\s+\S+\s+63 Cmcm\s+1\s+0\.0000", out) is not None, out)
+
+    # errors
+    code, out = run_group(["--supergroup-cif", parent])
+    report("--supergroup-cif without --subgroup-cif rejected cleanly",
+           code != 0 and "requires --subgroup-cif" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_group(["--supergroup-cif", parent,
+                           "--subgroup-cif", "no_such_file.cif"])
+    report("missing structure file rejected cleanly",
+           code != 0 and "not found" in out and "Traceback" not in out, out)
+
+    code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m",
+                           "--subgroup-cif", child])
+    report("--subgroup-cif outside --supergroup-cif rejected cleanly",
+           code != 0 and "only used with --supergroup-cif" in out
+           and "Traceback" not in out, out)
+
+
 SECTIONS = {
     1: test_01_wigner_d,
     2: test_02_salc,
@@ -1581,21 +2248,27 @@ SECTIONS = {
     10: test_10_basis_function,
     11: test_11_generate_basis_function,
     12: test_12_show_coset,
-    13: test_13_group_command,
-    14: test_14_bz,
-    15: test_15_bz_supercell,
-    16: test_16_bz_command,
-    17: test_17_phonon_irrep,
-    18: test_18_phonon_fatband,
-    19: test_19_phonon_lt,
-    20: test_20_phonon_vector,
-    21: test_21_modulation,
-    22: test_22_vibration,
-    23: test_23_phonon_command,
-    24: test_24_spin_basis,
-    25: test_25_mag_command,
-    26: test_26_xdatcar2adp,
-    27: test_27_md_command,
+    13: test_13_isotropy,
+    14: test_14_multiplet,
+    15: test_15_poscar2cif,
+    16: test_16_symmetry_mode,
+    17: test_17_group_command,
+    18: test_18_bz,
+    19: test_19_bz_supercell,
+    20: test_20_bz_command,
+    21: test_21_phonon_irrep,
+    22: test_22_phonon_fatband,
+    23: test_23_phonon_lt,
+    24: test_24_phonon_vector,
+    25: test_25_modulation,
+    26: test_26_vibration,
+    27: test_27_phonon_command,
+    28: test_28_spin_basis,
+    29: test_29_mag_command,
+    30: test_30_xdatcar2adp,
+    31: test_31_md_command,
+    32: test_32_mol,
+    33: test_33_mol_command,
 }
 
 

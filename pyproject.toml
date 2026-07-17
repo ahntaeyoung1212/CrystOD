@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CrystOD"
-version = "0.3.2"
+version = "0.3.3"
 authors = [
   {name = "Yasuhide Mochizuki"},
   {email = "mochizuki@rs.tus.ac.jp"},
@@ -26,6 +26,7 @@ dependencies = [
   "sympy",
   "scipy",
   "seekpath",
+  "pymatgen",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +42,7 @@ crystod = "crystod.cli:main"
 crystod-bz = "crystod.cli.bz:main"
 crystod-md = "crystod.cli.md:main"
 crystod-mag = "crystod.cli.mag:main"
+crystod-mol = "crystod.cli.mol:main"
 crystod-phonon = "crystod.cli.phonon:main"
 crystod-group = "crystod.cli.group:main"
 
