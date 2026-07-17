@@ -1,0 +1,245 @@
+# Multi-electron term symbols (crystod-group --multiplet); testsuite section 14
+# Spin multiplicities 2S+1, sorted by descending multiplicity (Hund ground term first).
+# Shell tokens: T2g2 = T2g^2 (the ^-free form needs no quoting in zsh).
+# With --orbital, exact Coulomb multiplet energies (Racah A, B, C for d shells;
+# reduced Slater-Condon F0/F2/F4/F6 for f shells) and the ground state are printed.
+
+$ crystod-group --multiplet T2g3 --pg m-3m --orbital d
+
+* Point group *
+m-3m
+
+* Ligand-field splitting of the d orbital *
+1(Eg) + 1(T2g)
+
+* Configuration *
+(T2g)^3
+
+* Term Symbols *
+(T2g)^3 = ^4A2g + ^2Eg + ^2T1g + ^2T2g
+
+check: 20 states = C(6,3) = 20
+
+* Multiplet Energies (Racah parameters A, B, C; Coulomb part only) *
+^4A2g: 3A - 15B
+^2Eg : 3A - 6B + 3C
+^2T1g: 3A - 6B + 3C
+^2T2g: 3A + 5C
+(the one-electron / crystal-field part is an additive constant within the configuration)
+
+* Ground-state Term Symbol (within this configuration) *
+^4A2g   (lowest for any B > 0, C > 0)
+
+
+$ crystod-group --multiplet T2g2 --pg m-3m --orbital d
+
+* Point group *
+m-3m
+
+* Ligand-field splitting of the d orbital *
+1(Eg) + 1(T2g)
+
+* Configuration *
+(T2g)^2
+
+* Term Symbols *
+(T2g)^2 = ^3T1g + ^1A1g + ^1Eg + ^1T2g
+
+check: 15 states = C(6,2) = 15
+
+* Multiplet Energies (Racah parameters A, B, C; Coulomb part only) *
+^3T1g: A - 5B
+^1A1g: A + 10B + 5C
+^1Eg : A + B + 2C
+^1T2g: A + B + 2C
+(the one-electron / crystal-field part is an additive constant within the configuration)
+
+* Ground-state Term Symbol (within this configuration) *
+^3T1g   (lowest for any B > 0, C > 0)
+
+
+$ crystod-group --multiplet T2g1 Eg1 --pg m-3m --orbital d
+
+* Point group *
+m-3m
+
+* Ligand-field splitting of the d orbital *
+1(Eg) + 1(T2g)
+
+* Configuration *
+(T2g)^1 (Eg)^1
+
+* Term Symbols *
+(T2g)^1 (Eg)^1 = ^3T1g + ^3T2g + ^1T1g + ^1T2g
+
+check: 24 states = C(6,1) x C(4,1) = 24
+
+* Multiplet Energies (Racah parameters A, B, C; Coulomb part only) *
+^3T1g: A + 4B
+^3T2g: A - 8B
+^1T1g: A + 4B + 2C
+^1T2g: A + 2C
+(the one-electron / crystal-field part is an additive constant within the configuration)
+
+* Ground-state Term Symbol (within this configuration) *
+^3T2g   (lowest for any B > 0, C > 0)
+
+
+$ crystod-group --multiplet T2g2 Eg1 --pg m-3m --orbital d
+
+* Point group *
+m-3m
+
+* Ligand-field splitting of the d orbital *
+1(Eg) + 1(T2g)
+
+* Configuration *
+(T2g)^2 (Eg)^1
+
+* Term Symbols *
+(T2g)^2 (Eg)^1 = ^4T1g + ^4T2g + ^2A1g + ^2A2g + 2(^2Eg) + 2(^2T1g) + 2(^2T2g)
+
+check: 60 states = C(6,2) x C(4,1) = 60
+
+* Multiplet Energies (Racah parameters A, B, C; Coulomb part only) *
+^4T1g: 3A - 3B
+^4T2g: 3A - 15B
+^2A1g: 3A - 11B + 3C
+^2A2g: 3A + 9B + 3C
+^2Eg : 3A + (7/2)B + (9/2)C +- (1/2)sqrt(481B^2 + 54BC + 9C^2)   (x2, configuration mixing)
+^2T1g: 3A - 3B + 3C +- 3sqrt(2)B   (x2, configuration mixing)
+^2T2g: 3A - B + 3C +- sqrt(34)B   (x2, configuration mixing)
+(numeric CI blocks evaluated at C/B = 4.5, typical for 3d ions)
+(the one-electron / crystal-field part is an additive constant within the configuration)
+
+* Ground-state Term Symbol (within this configuration) *
+^4T2g   (lowest at C/B = 4.5, typical for 3d ions)
+
+
+$ crystod-group --multiplet T1u2 --pg m-3m --orbital p
+
+* Point group *
+m-3m
+
+* Ligand-field splitting of the p orbital *
+1(T1u)
+
+* Configuration *
+(T1u)^2
+
+* Term Symbols *
+(T1u)^2 = ^3T1g + ^1A1g + ^1Eg + ^1T2g
+
+check: 15 states = C(6,2) = 15
+
+* Multiplet Energies (Slater-Condon parameters F0, F2 (reduced); Coulomb part only) *
+^3T1g: F0 - 5F2
+^1A1g: F0 + 10F2
+^1Eg : F0 + F2
+^1T2g: F0 + F2
+(the one-electron / crystal-field part is an additive constant within the configuration)
+
+* Ground-state Term Symbol (within this configuration) *
+^3T1g   (lowest for any positive Slater parameters)
+
+
+$ crystod-group --multiplet T1u3 --pg m-3m --orbital f
+
+* Point group *
+m-3m
+
+* Ligand-field splitting of the f orbital *
+1(A2u) + 1(T1u) + 1(T2u)
+
+* Configuration *
+(T1u)^3
+
+* Term Symbols *
+(T1u)^3 = ^4A1u + ^2Eu + ^2T1u + ^2T2u
+
+check: 20 states = C(6,3) = 20
+
+* Multiplet Energies (Slater-Condon parameters F0, F2, F4, F6 (reduced); Coulomb part only) *
+^4A1u: 3F0 - (105/4)F2 - (189/2)F4 - (3705/4)F6
+^2Eu : 3F0 - 24F2 + (81/2)F4 - 375F6
+^2T1u: 3F0 + 63F4 + 150F6
+^2T2u: 3F0 - (3/2)F2 - 27F4 - (435/2)F6
+(the one-electron / crystal-field part is an additive constant within the configuration)
+
+* Ground-state Term Symbol (within this configuration) *
+^4A1u   (lowest for any positive Slater parameters)
+
+
+$ crystod-group --multiplet T1u2 T2u2 --pg m-3m --orbital f
+
+* Point group *
+m-3m
+
+* Ligand-field splitting of the f orbital *
+1(A2u) + 1(T1u) + 1(T2u)
+
+* Configuration *
+(T1u)^2 (T2u)^2
+
+* Term Symbols *
+(T1u)^2 (T2u)^2 = ^5A1g + ^5Eg + ^5T1g + ^5T2g + ^3A1g + 2(^3A2g) + 3(^3Eg) + 7(^3T1g) + 5(^3T2g) + 4(^1A1g) + ^1A2g + 5(^1Eg) + 4(^1T1g) + 6(^1T2g)
+
+check: 225 states = C(6,2) x C(6,2) = 225
+
+* Multiplet Energies (Slater-Condon parameters F0, F2, F4, F6 (reduced); Coulomb part only) *
+^5A1g: 6F0 - 60F2 - 198F4 - 1716F6
+^5Eg : 6F0 - 75F2 - 216F4 - 1443F6
+^5T1g: 6F0 - 65F2 - 204F4 - 1625F6
+^5T2g: 6F0 - (75/2)F2 - 171F4 - (4251/2)F6
+^3A1g: 6F0 - 20F2 - 108F4 - 848F6
+^3A2g: 6F0 - 38F2 - 145F4 - 428F6 +- (1/2)sqrt(2896F2^2 - 12000F2F4 + 8288F2F6 + 12484F4^2 - 17808F4F6 + 7840F6^2)   (x2, configuration mixing)
+^3Eg : [-71.162, -59.247, -32.883]  (x3, configuration mixing; numeric)
+^3T1g: [-76.899, -68.224, -55.871, -49.664, -31.950, -9.080, +16.354]  (x7, configuration mixing; numeric)
+^3T2g: [-75.090, -67.539, -51.994, -40.137, -14.120]  (x5, configuration mixing; numeric)
+^1A1g: [-52.651, -30.567, -3.818, +86.590]  (x4, configuration mixing; numeric)
+^1A2g: 6F0 - 6F2 + 46F4 - 1002F6
+^1Eg : [-53.501, -40.354, -20.322, +24.757, +51.164]  (x5, configuration mixing; numeric)
+^1T1g: [-54.101, -41.484, -8.467, -1.821]  (x4, configuration mixing; numeric)
+^1T2g: [-49.617, -30.913, -17.438, +9.486, +24.245, +52.278]  (x6, configuration mixing; numeric)
+(numeric CI blocks evaluated at hydrogenic 4f ratios F4/F2 = 0.138, F6/F2 = 0.0151)
+(the one-electron / crystal-field part is an additive constant within the configuration)
+
+* Ground-state Term Symbol (within this configuration) *
+^5Eg   (lowest at hydrogenic 4f ratios F4/F2 = 0.138, F6/F2 = 0.0151)
+
+
+$ crystod-group --multiplet Eg2 --pg m-3m
+
+* Point group *
+m-3m
+
+* Configuration *
+(Eg)^2
+
+* Term Symbols *
+(Eg)^2 = ^3A2g + ^1A1g + ^1Eg
+
+check: 6 states = C(4,2) = 6
+
+* Ground-state Term Symbol (Hund's rules) *
+^3A2g
+(exact Coulomb multiplet energies in Racah/Slater parameters: add --orbital s|p|d|f of the parent shell)
+
+
+$ crystod-group --multiplet E2 --pg 3m
+
+* Point group *
+3m
+
+* Configuration *
+(E)^2
+
+* Term Symbols *
+(E)^2 = ^3A2 + ^1A1 + ^1E
+
+check: 6 states = C(4,2) = 6
+
+* Ground-state Term Symbol (Hund's rules) *
+^3A2
+(exact Coulomb multiplet energies in Racah/Slater parameters: add --orbital s|p|d|f of the parent shell)
+
