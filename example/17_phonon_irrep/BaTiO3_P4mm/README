@@ -1,5 +1,0 @@
-# Generate yaml file that shows irreps for phonons using FORCE_SETS
-crystod-phonon --irreps --dim 4 4 4 -c 99_PPOSCAR_BaTiO3
-
-# Generate yaml file that shows irreps for phonons using FORCE_CONSTANTS
-crystod-phonon --irreps --dim 4 4 4 -c 99_PPOSCAR_BaTiO3 --readfc
