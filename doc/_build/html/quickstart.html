@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Quick start &#8212; CrystOD v0.3.1</title>
+    <title>Quick start &#8212; CrystOD v0.3.3</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/documentation_options.js?v=94d292f4"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -53,7 +53,7 @@
     <link rel="prev" title="Installation" href="install.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.1" />
+  <meta name="docsearch:version" content="0.3.3" />
   </head>
   
   
@@ -128,7 +128,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.1</p>
+    <p class="title logo__title">CrystOD v0.3.3</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -161,6 +161,7 @@
 <li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mol.html">crystod-mol</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="nav bd-sidenav">
@@ -361,30 +362,34 @@ at every special k point:</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">crystod</span></code></p></td>
 <td><p>2–3 SALC &amp; hybridization, 4 star of k, 5 SALC viewer, 6 CLI regression</p></td>
 </tr>
-<tr class="row-even"><td><p>7–13</p></td>
+<tr class="row-even"><td><p>7–17</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span></code></p></td>
-<td><p>7 product, 8 decompose, 9 ligand field, 10 basis, 11 generate-basis, 12 coset, 13 CLI regression</p></td>
+<td><p>7 product, 8 decompose, 9 ligand field, 10 basis, 11 generate-basis, 12 coset, 13 isotropy subgroups (<code class="docutils literal notranslate"><span class="pre">--supergroup</span></code>), 14 multi-electron terms (<code class="docutils literal notranslate"><span class="pre">--multiplet</span></code>), 15 POSCAR &lt;-&gt; Bilbao-style CIF (<code class="docutils literal notranslate"><span class="pre">--poscar2cif</span></code> / <code class="docutils literal notranslate"><span class="pre">--cif2poscar</span></code>), 16 symmetry-mode analysis (<code class="docutils literal notranslate"><span class="pre">--supergroup-cif</span></code>), 17 CLI regression</p></td>
 </tr>
-<tr class="row-odd"><td><p>14–16</p></td>
+<tr class="row-odd"><td><p>18–20</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">crystod-bz</span></code></p></td>
-<td><p>14 Brillouin zone, 15 supercell BZ, 16 CLI regression</p></td>
+<td><p>18 Brillouin zone, 19 supercell BZ, 20 CLI regression</p></td>
 </tr>
-<tr class="row-even"><td><p>17–23</p></td>
+<tr class="row-even"><td><p>21–27</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">crystod-phonon</span></code></p></td>
-<td><p>17 irreps, 18 fatband, 19 LT bands, 20 eigenvectors, 21 modulation, 22 vibration, 23 CLI regression</p></td>
+<td><p>21 irreps, 22 fatband, 23 LT bands, 24 eigenvectors, 25 modulation, 26 vibration, 27 CLI regression</p></td>
 </tr>
-<tr class="row-odd"><td><p>24–25</p></td>
+<tr class="row-odd"><td><p>28–29</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">crystod-mag</span></code></p></td>
-<td><p>24 spin bases, 25 CLI regression</p></td>
+<td><p>28 spin bases, 29 CLI regression</p></td>
 </tr>
-<tr class="row-even"><td><p>26–27</p></td>
+<tr class="row-even"><td><p>30–31</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">crystod-md</span></code></p></td>
-<td><p>26 ADPs (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>) and <code class="docutils literal notranslate"><span class="pre">--summary</span></code>, 27 CLI regression</p></td>
+<td><p>30 ADPs (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>) and <code class="docutils literal notranslate"><span class="pre">--summary</span></code>, 31 CLI regression</p></td>
+</tr>
+<tr class="row-odd"><td><p>32–33</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span></code></p></td>
+<td><p>32 molecular point groups &amp; SALCs, 33 CLI regression</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Sections 6, 13, 16, 23, 25, and 27 are command-line-interface regression tests
+<p>Sections 6, 17, 20, 27, 29, 31, and 33 are command-line-interface regression tests
 (every argument form plus removed-flag errors); they have no documentation
 section of their own.</p>
 </section>
@@ -396,6 +401,7 @@ section of their own.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--visualize</span> <span class="pre">-c</span> <span class="pre">POSCAR</span> <span class="pre">--element</span> <span class="pre">EL</span> <span class="pre">--orbital</span> <span class="pre">ORB</span> <span class="pre">--kpoint</span> <span class="pre">kx</span> <span class="pre">ky</span> <span class="pre">kz</span> <span class="pre">[--real-coefficient]</span> <span class="pre">[--bond</span> <span class="pre">EL1</span> <span class="pre">EL2</span> <span class="pre">MAX]</span> <span class="pre">[--conventional]</span> <span class="pre">[--output</span> <span class="pre">FILE.html]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--star-of-k</span> <span class="pre">-c</span> <span class="pre">POSCAR</span> <span class="pre">--kpoint</span> <span class="pre">QLABEL_OR_KX</span> <span class="pre">KY</span> <span class="pre">KZ</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--product</span> <span class="pre">IRREP1</span> <span class="pre">IRREP2</span> <span class="pre">...</span> <span class="pre">--point-group</span> <span class="pre">PG</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--product</span> <span class="pre">IRREP1</span> <span class="pre">IRREP2</span> <span class="pre">...</span> <span class="pre">--space-group</span> <span class="pre">SG</span></code>   (full space-group irreps, e.g. R4- R5+ for Pm-3m)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--table</span> <span class="pre">--point-group</span> <span class="pre">PG</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--decompose</span> <span class="pre">--point-group</span> <span class="pre">PG</span> <span class="pre">[--characters</span> <span class="pre">X1</span> <span class="pre">X2</span> <span class="pre">...]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--ligand-field</span> <span class="pre">ORBITAL</span> <span class="pre">--point-group</span> <span class="pre">PG</span></code></p></li>
@@ -404,6 +410,11 @@ section of their own.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--generate-basis</span> <span class="pre">--point-group</span> <span class="pre">PG</span> <span class="pre">[--order</span> <span class="pre">1</span> <span class="pre">2</span> <span class="pre">3]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--coset</span> <span class="pre">--point-group</span> <span class="pre">PG</span> <span class="pre">--subgroup</span> <span class="pre">H</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--coset</span> <span class="pre">--space-group</span> <span class="pre">SG</span> <span class="pre">--kpoint</span> <span class="pre">kx</span> <span class="pre">ky</span> <span class="pre">kz</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--supergroup</span> <span class="pre">SG</span> <span class="pre">--irrep</span> <span class="pre">IR</span> <span class="pre">[--order-parameter</span> <span class="pre">0</span> <span class="pre">0</span> <span class="pre">a]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--multiplet</span> <span class="pre">IRREP^N|IRREPN</span> <span class="pre">[IRREP^N|IRREPN</span> <span class="pre">...]</span> <span class="pre">--point-group</span> <span class="pre">PG</span> <span class="pre">[--orbital</span> <span class="pre">s|p|d|f]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--poscar2cif</span> <span class="pre">-c</span> <span class="pre">POSCAR</span> <span class="pre">[--tolerance</span> <span class="pre">0.01]</span> <span class="pre">[--output</span> <span class="pre">FILE.cif]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--cif2poscar</span> <span class="pre">-c</span> <span class="pre">FILE.cif</span> <span class="pre">[--conventional]</span> <span class="pre">[--tolerance</span> <span class="pre">0.01]</span> <span class="pre">[--output</span> <span class="pre">POSCAR]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--supergroup-cif</span> <span class="pre">HIGH.cif</span> <span class="pre">--subgroup-cif</span> <span class="pre">LOW.cif</span> <span class="pre">[--tolerance</span> <span class="pre">0.01]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-bz</span> <span class="pre">-c</span> <span class="pre">POSCAR</span> <span class="pre">[--band</span> <span class="pre">...</span> <span class="pre">--band-labels</span> <span class="pre">...]</span> <span class="pre">[--output</span> <span class="pre">FILE.html]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-bz</span> <span class="pre">-c</span> <span class="pre">POSCAR</span> <span class="pre">--trans-mat</span> <span class="pre">&quot;t11</span> <span class="pre">t12</span> <span class="pre">t13</span>&#160; <span class="pre">t21</span> <span class="pre">t22</span> <span class="pre">t23</span>&#160; <span class="pre">t31</span> <span class="pre">t32</span> <span class="pre">t33&quot;</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-bz</span> <span class="pre">--show-kpoint</span> <span class="pre">--space-group</span> <span class="pre">SG</span></code></p></li>
@@ -415,6 +426,8 @@ section of their own.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--vibration</span> <span class="pre">-c</span> <span class="pre">POSCAR</span> <span class="pre">--qpoint</span> <span class="pre">Q</span> <span class="pre">[--mode-index</span> <span class="pre">N]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-mag</span> <span class="pre">-c</span> <span class="pre">POSCAR</span> <span class="pre">--element</span> <span class="pre">EL</span> <span class="pre">[--qpoint</span> <span class="pre">Q]</span> <span class="pre">[--format</span> <span class="pre">vasp|qe]</span> <span class="pre">[--conventional]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-md</span> <span class="pre">--adp</span> <span class="pre">--dim</span> <span class="pre">nx</span> <span class="pre">ny</span> <span class="pre">nz</span> <span class="pre">[--start-step</span> <span class="pre">N]</span> <span class="pre">[--xdatcar</span> <span class="pre">XDATCAR]</span> <span class="pre">[--output</span> <span class="pre">ADP.cif]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span> <span class="pre">--symmetry</span> <span class="pre">--xyz</span> <span class="pre">FILE.xyz</span> <span class="pre">[--tolerance</span> <span class="pre">TOL]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span> <span class="pre">--xyz</span> <span class="pre">FILE.xyz</span> <span class="pre">--element</span> <span class="pre">EL</span> <span class="pre">--orbital</span> <span class="pre">s|p|d|f</span> <span class="pre">[--align]</span> <span class="pre">[--show-matrix]</span> <span class="pre">[--visualize]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-md</span> <span class="pre">--summary</span> <span class="pre">[--start-step</span> <span class="pre">N]</span> <span class="pre">[--end-step</span> <span class="pre">M]</span> <span class="pre">[--xdatcar</span> <span class="pre">XDATCAR]</span></code></p></li>
 </ul>
 </section>

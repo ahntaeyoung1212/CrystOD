@@ -1,0 +1,549 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>crystod-mol &#8212; CrystOD v0.3.3</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=94d292f4"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'crystod-mol';</script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Citation" href="citation.html" />
+    <link rel="prev" title="crystod-md" href="crystod-md.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.3.3" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">CrystOD v0.3.3</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="index.html">
+                    CrystOD
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick start</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Commands</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="crystod.html">crystod (main command)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-group.html">crystod-group</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-bz.html">crystod-bz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">crystod-mol</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="citation.html">Citation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/crystod-mol.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>crystod-mol</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#molecular-point-groups-and-molecular-salcs">32. Molecular point groups and molecular SALCs</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#point-group-detection-symmetry">Point-group detection (<code class="docutils literal notranslate"><span class="pre">--symmetry</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#molecular-salcs-element-orbital">Molecular SALCs (<code class="docutils literal notranslate"><span class="pre">--element</span></code>/<code class="docutils literal notranslate"><span class="pre">--orbital</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#d-visualization-visualize">3D visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="crystod-mol">
+<h1>crystod-mol<a class="headerlink" href="#crystod-mol" title="Link to this heading">#</a></h1>
+<p>Molecular point-group detection and molecular SALCs — the molecular
+counterpart of the crystalline analyses, working on molecules (XYZ files)
+instead of periodic structures.</p>
+<section id="molecular-point-groups-and-molecular-salcs">
+<h2>32. Molecular point groups and molecular SALCs<a class="headerlink" href="#molecular-point-groups-and-molecular-salcs" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/32_molecular_salc</span></code> (testsuite section 32;
+molecule files in <code class="docutils literal notranslate"><span class="pre">example/test_XYZs</span></code>)</em></p>
+<section id="point-group-detection-symmetry">
+<h3>Point-group detection (<code class="docutils literal notranslate"><span class="pre">--symmetry</span></code>)<a class="headerlink" href="#point-group-detection-symmetry" title="Link to this heading">#</a></h3>
+<p>Detect the point group of a molecule — the molecular analogue of
+<code class="docutils literal notranslate"><span class="pre">phonopy</span> <span class="pre">--symmetry</span></code> for crystals — using pymatgen’s <code class="docutils literal notranslate"><span class="pre">PointGroupAnalyzer</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-mol<span class="w"> </span>--symmetry<span class="w"> </span>--xyz<span class="w"> </span>XYZ_O2.xyz
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">Molecule</span> <span class="o">*</span>
+<span class="n">XYZ_O2</span><span class="o">.</span><span class="n">xyz</span> <span class="p">(</span><span class="n">O2</span><span class="p">,</span> <span class="mi">2</span> <span class="n">atoms</span><span class="p">)</span>
+
+<span class="o">*</span> <span class="n">Point</span> <span class="n">group</span> <span class="o">*</span>
+<span class="n">D</span><span class="o">*</span><span class="n">h</span> <span class="p">(</span><span class="n">linear</span> <span class="n">molecule</span><span class="p">;</span> <span class="n">continuous</span> <span class="n">non</span><span class="o">-</span><span class="n">crystallographic</span> <span class="n">group</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>For the 32 crystallographic point groups, the Hermann-Mauguin symbol and the
+symmetry operations grouped by class are printed as well (e.g. NH3:
+<code class="docutils literal notranslate"><span class="pre">C3v</span> <span class="pre">(Hermann-Mauguin:</span> <span class="pre">3m)</span></code>, <code class="docutils literal notranslate"><span class="pre">E,</span> <span class="pre">2C3,</span> <span class="pre">3sgv</span></code>). <code class="docutils literal notranslate"><span class="pre">--tolerance</span></code> (Angstrom,
+default 0.3 as in pymatgen) controls the symmetry detection, like
+<code class="docutils literal notranslate"><span class="pre">phonopy</span> <span class="pre">--tolerance</span></code>.</p>
+</section>
+<section id="molecular-salcs-element-orbital">
+<h3>Molecular SALCs (<code class="docutils literal notranslate"><span class="pre">--element</span></code>/<code class="docutils literal notranslate"><span class="pre">--orbital</span></code>)<a class="headerlink" href="#molecular-salcs-element-orbital" title="Link to this heading">#</a></h3>
+<p>Build the molecular SALCs (symmetry-adapted linear combinations of atomic
+orbitals) for the sites of an element: the site-permutation representation of
+the selected sites is constructed, its characters are multiplied class by
+class by the characters of the atomic orbital (s/p/d/f), the product is
+decomposed into the irreps of the molecular point group, and the explicit
+SALCs are projected out with the projection-operator technique:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-mol<span class="w"> </span>--xyz<span class="w"> </span>XYZ_NH3.xyz<span class="w"> </span>--element<span class="w"> </span>H<span class="w"> </span>--orbital<span class="w"> </span>s
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">Molecule</span> <span class="o">*</span>
+<span class="n">XYZ_NH3</span><span class="o">.</span><span class="n">xyz</span> <span class="p">(</span><span class="n">H3N</span><span class="p">,</span> <span class="mi">4</span> <span class="n">atoms</span><span class="p">)</span>
+
+<span class="o">*</span> <span class="n">Point</span> <span class="n">group</span> <span class="o">*</span>
+<span class="n">C3v</span> <span class="p">(</span><span class="n">Hermann</span><span class="o">-</span><span class="n">Mauguin</span><span class="p">:</span> <span class="mi">3</span><span class="n">m</span><span class="p">)</span>
+
+<span class="o">*</span> <span class="n">Target</span> <span class="n">sites</span> <span class="p">(</span><span class="n">H</span><span class="p">,</span> <span class="mi">3</span> <span class="n">sites</span><span class="p">;</span> <span class="n">center</span><span class="o">-</span><span class="n">of</span><span class="o">-</span><span class="n">mass</span> <span class="n">frame</span><span class="p">)</span> <span class="o">*</span>
+<span class="n">H1</span><span class="p">:</span> <span class="p">(</span> <span class="mf">0.807734</span><span class="p">,</span>  <span class="mf">0.466331</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.298390</span><span class="p">)</span>
+<span class="n">H2</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.807709</span><span class="p">,</span>  <span class="mf">0.466374</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.298391</span><span class="p">)</span>
+<span class="n">H3</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.000025</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.932662</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.298459</span><span class="p">)</span>
+
+<span class="o">*</span> <span class="n">Reducible</span> <span class="n">representation</span> <span class="p">(</span><span class="n">H</span> <span class="n">sites</span> <span class="n">x</span> <span class="n">s</span> <span class="n">orbital</span><span class="p">)</span> <span class="o">*</span>
+<span class="n">class</span><span class="p">:</span>               <span class="n">E</span>   <span class="mi">2</span><span class="n">C3</span>  <span class="mi">3</span><span class="n">sgv</span>
+<span class="n">chi</span><span class="p">(</span><span class="n">perm</span><span class="p">):</span>           <span class="mi">3</span>     <span class="mi">0</span>     <span class="mi">1</span>
+<span class="n">chi</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>              <span class="mi">1</span>     <span class="mi">1</span>     <span class="mi">1</span>
+<span class="n">chi</span><span class="p">(</span><span class="n">total</span><span class="p">):</span>          <span class="mi">3</span>     <span class="mi">0</span>     <span class="mi">1</span>
+
+<span class="o">*</span> <span class="n">Decomposition</span> <span class="o">*</span>
+<span class="n">Gamma</span> <span class="o">=</span> <span class="mi">1</span><span class="p">(</span><span class="n">A1</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">(</span><span class="n">E</span><span class="p">)</span>
+
+<span class="o">*</span> <span class="n">SALCs</span> <span class="p">(</span><span class="n">orbital</span> <span class="n">axes</span> <span class="o">=</span> <span class="nb">input</span> <span class="n">Cartesian</span> <span class="n">axes</span><span class="p">)</span> <span class="o">*</span>
+<span class="n">A1</span><span class="p">:</span> <span class="p">[</span><span class="n">s</span><span class="p">(</span><span class="n">H1</span><span class="p">)</span> <span class="o">+</span> <span class="n">s</span><span class="p">(</span><span class="n">H2</span><span class="p">)</span> <span class="o">+</span> <span class="n">s</span><span class="p">(</span><span class="n">H3</span><span class="p">)]</span>
+<span class="n">E</span><span class="p">:</span> <span class="p">[</span><span class="n">s</span><span class="p">(</span><span class="n">H1</span><span class="p">)</span> <span class="o">-</span> <span class="n">s</span><span class="p">(</span><span class="n">H3</span><span class="p">),</span> <span class="n">s</span><span class="p">(</span><span class="n">H1</span><span class="p">)</span> <span class="o">-</span> <span class="mi">2</span> <span class="n">s</span><span class="p">(</span><span class="n">H2</span><span class="p">)</span> <span class="o">+</span> <span class="n">s</span><span class="p">(</span><span class="n">H3</span><span class="p">)]</span>
+</pre></div>
+</div>
+<p>The irrep labels come from the same point-group character tables as
+<code class="docutils literal notranslate"><span class="pre">crystod-group</span></code> (<code class="docutils literal notranslate"><span class="pre">--decompose</span></code>/<code class="docutils literal notranslate"><span class="pre">--ligand-field</span></code>), so molecular and crystalline
+analyses share one labeling convention. The detected Schoenflies group is
+mapped to its Hermann-Mauguin symbol, the molecular symmetry operations are
+matched onto the exact character-table matrices (which also removes the
+numerical noise of the input geometry from the SALC coefficients), and for
+p/d/f orbitals the site-permutation representation is multiplied by the
+real-orbital Wigner-D representation (<code class="docutils literal notranslate"><span class="pre">wigner_D_real</span></code>, section 1 of
+<a class="reference internal" href="crystod.html"><span class="doc">crystod (main command)</span></a>), so the SALCs mix orbital components correctly — e.g. NH3
+<code class="docutils literal notranslate"><span class="pre">--element</span> <span class="pre">N</span> <span class="pre">--orbital</span> <span class="pre">p</span></code> gives <code class="docutils literal notranslate"><span class="pre">A1:</span> <span class="pre">[pz(N1)]</span></code>, <code class="docutils literal notranslate"><span class="pre">E:</span> <span class="pre">[px(N1),</span> <span class="pre">py(N1)]</span></code>.</p>
+<p>Options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--align</span></code> rotates the molecule into the standard point-group orientation
+(principal axis along z) before the analysis, so the SALC coefficients
+follow the textbook axis convention — e.g. the (arbitrarily rotated) CH4
+example with <code class="docutils literal notranslate"><span class="pre">--element</span> <span class="pre">C</span> <span class="pre">--orbital</span> <span class="pre">d</span> <span class="pre">--align</span></code> gives the clean crystal-field
+splitting <code class="docutils literal notranslate"><span class="pre">E:</span> <span class="pre">[dz2,</span> <span class="pre">dx2-y2]</span></code>, <code class="docutils literal notranslate"><span class="pre">T2:</span> <span class="pre">[dxy,</span> <span class="pre">dyz,</span> <span class="pre">dxz]</span></code>;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--show-matrix</span></code> prints the site-permutation matrix of every symmetry
+operation;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--tolerance</span></code> as in <code class="docutils literal notranslate"><span class="pre">--symmetry</span></code>.</p></li>
+</ul>
+</section>
+<section id="d-visualization-visualize">
+<h3>3D visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)<a class="headerlink" href="#d-visualization-visualize" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">--visualize</span></code> additionally writes the SALCs as a standalone interactive 3D
+HTML page — the same viewer as the crystalline <code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--visualize</span></code>
+(section 5 of <a class="reference internal" href="crystod.html"><span class="doc">crystod (main command)</span></a>), with the orbital lobes drawn at each site
+(+ yellow / − cyan, VESTA style), a sidebar listing every SALC basis vector
+by irrep for one-click switching, and a camera-synced x/y/z compass:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-mol<span class="w"> </span>--xyz<span class="w"> </span>XYZ_NH3.xyz<span class="w"> </span>--element<span class="w"> </span>H<span class="w"> </span>--orbital<span class="w"> </span>p<span class="w"> </span>--visualize<span class="w"> </span>--bond<span class="w"> </span>N<span class="w"> </span>H<span class="w"> </span><span class="m">1</span>.2
+<span class="c1"># -&gt; SALC_XYZ_NH3_H_p.html</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">--output</span></code> selects the HTML file name (default:
+<code class="docutils literal notranslate"><span class="pre">SALC_{molecule}_{element}_{orbital}.html</span></code>); <code class="docutils literal notranslate"><span class="pre">--bond</span> <span class="pre">EL1</span> <span class="pre">EL2</span> <span class="pre">MAX</span></code> draws bonds
+up to <code class="docutils literal notranslate"><span class="pre">MAX</span></code> Angstroms (repeatable). Since the viewer works on a molecule
+rather than a crystal, no cell edges are drawn and the compass shows the
+Cartesian x/y/z axes; combining with <code class="docutils literal notranslate"><span class="pre">--align</span></code> shows the SALCs in the
+standard point-group orientation.</p>
+<p>The SALC analysis supports the 32 crystallographic point groups; for linear
+molecules (D*h/C*v) analyze a finite subgroup with <code class="docutils literal notranslate"><span class="pre">crystod-group</span> <span class="pre">--decompose</span></code> instead.</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="crystod-md.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">crystod-md</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="citation.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Citation</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#molecular-point-groups-and-molecular-salcs">32. Molecular point groups and molecular SALCs</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#point-group-detection-symmetry">Point-group detection (<code class="docutils literal notranslate"><span class="pre">--symmetry</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#molecular-salcs-element-orbital">Molecular SALCs (<code class="docutils literal notranslate"><span class="pre">--element</span></code>/<code class="docutils literal notranslate"><span class="pre">--orbital</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#d-visualization-visualize">3D visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Yasuhide Mochizuki and Hiroki Koiso
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026, Yasuhide Mochizuki and Hiroki Koiso.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

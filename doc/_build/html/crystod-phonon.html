@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>crystod-phonon &#8212; CrystOD v0.3.1</title>
+    <title>crystod-phonon &#8212; CrystOD v0.3.3</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/documentation_options.js?v=94d292f4"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -53,7 +53,7 @@
     <link rel="prev" title="crystod-bz" href="crystod-bz.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.1" />
+  <meta name="docsearch:version" content="0.3.3" />
   </head>
   
   
@@ -128,7 +128,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.1</p>
+    <p class="title logo__title">CrystOD v0.3.3</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -161,6 +161,7 @@
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">crystod-phonon</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mol.html">crystod-mol</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="nav bd-sidenav">
@@ -311,12 +312,12 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-irreducible-representations-irreps">17. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#element-projected-phonon-fatbands-fatband">18. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#longitudinal-transverse-resolved-phonon-bands-lt">19. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-eigenvector-visualization-vector">20. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-adapted-phonon-modulation-modulation">21. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-only-vibration-bases-vibration">22. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-irreducible-representations-irreps">21. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#element-projected-phonon-fatbands-fatband">22. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#longitudinal-transverse-resolved-phonon-bands-lt">23. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-eigenvector-visualization-vector">24. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-adapted-phonon-modulation-modulation">25. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-only-vibration-bases-vibration">26. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)</a></li>
 </ul>
             </nav>
         </div>
@@ -335,8 +336,8 @@
 <code class="docutils literal notranslate"><span class="pre">phonopy_params.yaml</span></code>). Six mode flags: <code class="docutils literal notranslate"><span class="pre">--irreps</span></code>, <code class="docutils literal notranslate"><span class="pre">--fatband</span></code>, <code class="docutils literal notranslate"><span class="pre">--lt</span></code>,
 <code class="docutils literal notranslate"><span class="pre">--vector</span></code>, <code class="docutils literal notranslate"><span class="pre">--modulation</span></code>, <code class="docutils literal notranslate"><span class="pre">--vibration</span></code>.</p>
 <section id="phonon-irreducible-representations-irreps">
-<h2>17. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)<a class="headerlink" href="#phonon-irreducible-representations-irreps" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/17_phonon_irrep</span></code> (testsuite section 17)</em></p>
+<h2>21. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)<a class="headerlink" href="#phonon-irreducible-representations-irreps" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/21_phonon_irrep</span></code> (testsuite section 21)</em></p>
 <p>Label the phonon modes at the special q points with their irreducible
 representations and write <code class="docutils literal notranslate"><span class="pre">phonon_irreps.yaml</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--irreps<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_SrTiO3<span class="w"> </span>--dim<span class="o">=</span><span class="s2">&quot;4 4 4&quot;</span><span class="w"> </span>--readfc
@@ -344,12 +345,12 @@ representations and write <code class="docutils literal notranslate"><span class
 </div>
 </section>
 <section id="element-projected-phonon-fatbands-fatband">
-<h2>18. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)<a class="headerlink" href="#element-projected-phonon-fatbands-fatband" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/18_phonon_fatband</span></code> (testsuite section 18)</em></p>
+<h2>22. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)<a class="headerlink" href="#element-projected-phonon-fatbands-fatband" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/22_phonon_fatband</span></code> (testsuite section 22)</em></p>
 <p>Plot phonon fatbands colored by the element-projected phonon density (sum of
 squared eigenvector components over each element’s atoms), directly from
 POSCAR + <code class="docutils literal notranslate"><span class="pre">FORCE_SETS</span></code> (or <code class="docutils literal notranslate"><span class="pre">FORCE_CONSTANTS</span></code> with <code class="docutils literal notranslate"><span class="pre">--readfc</span></code>):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/18_phonon_fatband/ScF3_Pm-3m
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/22_phonon_fatband/ScF3_Pm-3m
 crystod-phonon<span class="w"> </span>--fatband<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
@@ -375,11 +376,11 @@ named <code class="docutils literal notranslate"><span class="pre">fatband_nac_&
 coexist side by side.</p>
 </section>
 <section id="longitudinal-transverse-resolved-phonon-bands-lt">
-<h2>19. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)<a class="headerlink" href="#longitudinal-transverse-resolved-phonon-bands-lt" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/19_phonon_lt</span></code> (testsuite section 19)</em></p>
+<h2>23. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)<a class="headerlink" href="#longitudinal-transverse-resolved-phonon-bands-lt" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/23_phonon_lt</span></code> (testsuite section 23)</em></p>
 <p>Plot the phonon band structure colored by the longitudinal/transverse character
 of each mode (red = longitudinal, blue = transverse, white = mixed or Gamma):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/19_phonon_lt/ScF3_Pm-3m
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/23_phonon_lt/ScF3_Pm-3m
 crystod-phonon<span class="w"> </span>--lt<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span>
 crystod-phonon<span class="w"> </span>--lt<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span>--nac
 </pre></div>
@@ -393,12 +394,12 @@ up as purely red. Based on <code class="docutils literal notranslate"><span clas
 Koiso, after Qijing Zheng.</p>
 </section>
 <section id="phonon-eigenvector-visualization-vector">
-<h2>20. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)<a class="headerlink" href="#phonon-eigenvector-visualization-vector" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/20_phonon_vector</span></code> (testsuite section 20)</em></p>
+<h2>24. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)<a class="headerlink" href="#phonon-eigenvector-visualization-vector" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/24_phonon_vector</span></code> (testsuite section 24)</em></p>
 <p>Diagonalize the dynamical matrix directly at the selected q point via the
 phonopy API, list the modes with their frequencies and irrep labels, and export
 the selected eigenvectors as <code class="docutils literal notranslate"><span class="pre">.vesta</span></code> files with per-atom displacement arrows:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/20_phonon_vector/Si_Fd-3m
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/24_phonon_vector/Si_Fd-3m
 
 <span class="c1"># List the modes at GM and export ALL of them as individual VESTA files;</span>
 <span class="c1"># the mode table is also saved as phonon_modes_Si_GM.txt</span>
@@ -437,17 +438,17 @@ exported as individual VESTA files. Arrows are rescaled so that the largest
 total displacement equals <code class="docutils literal notranslate"><span class="pre">--amplitude</span></code> (default 1.5 Angstrom).</p>
 </section>
 <section id="symmetry-adapted-phonon-modulation-modulation">
-<h2>21. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)<a class="headerlink" href="#symmetry-adapted-phonon-modulation-modulation" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/21_modulation</span></code> (testsuite section 21)</em></p>
+<h2>25. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)<a class="headerlink" href="#symmetry-adapted-phonon-modulation-modulation" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/25_modulation</span></code> (testsuite section 25)</em></p>
 <p>Generate modulated (displaced) structures from symmetry-adapted phonon modes:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--modulation<span class="w"> </span>--yaml<span class="w"> </span>example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--modulation<span class="w"> </span>--yaml<span class="w"> </span>example/25_modulation/ScF3_Pm-3m/phonopy_params.yaml<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--qpoint<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--mode<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span>--amplitude<span class="w"> </span><span class="m">0</span>.3
 </pre></div>
 </div>
 <p>When <code class="docutils literal notranslate"><span class="pre">--mode</span></code> is omitted, only the mode table (mode number, frequency, irrep,
 degeneracy) and the star of q are printed, so you can inspect the modes at a q
 point first and then choose which mode(s) to apply:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--modulation<span class="w"> </span>--yaml<span class="w"> </span>example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml<span class="w"> </span>--qpoint<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--modulation<span class="w"> </span>--yaml<span class="w"> </span>example/25_modulation/ScF3_Pm-3m/phonopy_params.yaml<span class="w"> </span>--qpoint<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5
 </pre></div>
 </div>
 <p>If <code class="docutils literal notranslate"><span class="pre">phonopy_params.yaml</span></code> exists in the current directory, <code class="docutils literal notranslate"><span class="pre">--yaml</span></code> can be
@@ -459,7 +460,7 @@ The space group of the modulated structure is detected and printed
 <p>Different q points can be combined with numbered argument sets
 (<code class="docutils literal notranslate"><span class="pre">--qpoint1/--mode1/--amplitude1</span></code>, <code class="docutils literal notranslate"><span class="pre">--qpoint2/--mode2/--amplitude2</span></code>, …):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--modulation<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--yaml<span class="w"> </span>example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--yaml<span class="w"> </span>example/25_modulation/ScF3_Pm-3m/phonopy_params.yaml<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--qpoint1<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--mode1<span class="w"> </span><span class="m">1</span><span class="w"> </span>--amplitude1<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--qpoint2<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--mode2<span class="w"> </span><span class="m">1</span><span class="w"> </span>--amplitude2<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--qpoint3<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span><span class="w"> </span>--mode3<span class="w"> </span><span class="m">1</span><span class="w"> </span>--amplitude3<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
@@ -470,8 +471,8 @@ The space group of the modulated structure is detected and printed
 combining arms of the same star in multi-q modulations.</p>
 </section>
 <section id="symmetry-only-vibration-bases-vibration">
-<h2>22. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)<a class="headerlink" href="#symmetry-only-vibration-bases-vibration" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/22_vibration</span></code> (testsuite section 22)</em></p>
+<h2>26. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)<a class="headerlink" href="#symmetry-only-vibration-bases-vibration" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/26_vibration</span></code> (testsuite section 26)</em></p>
 <p>List the available high-symmetry q points and irrep-grouped vibration spaces
 from crystal symmetry alone (no force data needed):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-phonon<span class="w"> </span>--vibration<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span>--qpoint<span class="w"> </span>R
@@ -542,12 +543,12 @@ displacement vectors, symbols, and lattice for notebook-side visualization
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-irreducible-representations-irreps">17. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#element-projected-phonon-fatbands-fatband">18. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#longitudinal-transverse-resolved-phonon-bands-lt">19. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-eigenvector-visualization-vector">20. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-adapted-phonon-modulation-modulation">21. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-only-vibration-bases-vibration">22. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-irreducible-representations-irreps">21. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#element-projected-phonon-fatbands-fatband">22. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#longitudinal-transverse-resolved-phonon-bands-lt">23. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phonon-eigenvector-visualization-vector">24. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-adapted-phonon-modulation-modulation">25. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-only-vibration-bases-vibration">26. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)</a></li>
 </ul>
   </nav></div>
 

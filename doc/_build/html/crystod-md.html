@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>crystod-md &#8212; CrystOD v0.3.1</title>
+    <title>crystod-md &#8212; CrystOD v0.3.3</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/documentation_options.js?v=94d292f4"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -49,11 +49,11 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'crystod-md';</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Citation" href="citation.html" />
+    <link rel="next" title="crystod-mol" href="crystod-mol.html" />
     <link rel="prev" title="crystod-mag" href="crystod-mag.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.1" />
+  <meta name="docsearch:version" content="0.3.3" />
   </head>
   
   
@@ -128,7 +128,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.1</p>
+    <p class="title logo__title">CrystOD v0.3.3</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -161,6 +161,7 @@
 <li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">crystod-md</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mol.html">crystod-mol</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="nav bd-sidenav">
@@ -311,7 +312,7 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adps-from-an-md-trajectory-adp">26. ADPs from an MD trajectory (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adps-from-an-md-trajectory-adp">30. ADPs from an MD trajectory (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#trajectory-summary-summary">Trajectory summary (<code class="docutils literal notranslate"><span class="pre">--summary</span></code>)</a></li>
 </ul>
             </nav>
@@ -329,12 +330,12 @@
 <p>MD-trajectory analyses. Two mode flags: <code class="docutils literal notranslate"><span class="pre">--adp</span></code> (atomic displacement parameters
 as CIF) and <code class="docutils literal notranslate"><span class="pre">--summary</span></code> (time-averaged lattice statistics).</p>
 <section id="adps-from-an-md-trajectory-adp">
-<h2>26. ADPs from an MD trajectory (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>)<a class="headerlink" href="#adps-from-an-md-trajectory-adp" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/26_xdatcar2adp</span></code> (testsuite section 26)</em></p>
+<h2>30. ADPs from an MD trajectory (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>)<a class="headerlink" href="#adps-from-an-md-trajectory-adp" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/30_xdatcar2adp</span></code> (testsuite section 30)</em></p>
 <p>Compute the time-averaged structure and anisotropic displacement parameters
 (ADPs, U_ij) from a molecular-dynamics <code class="docutils literal notranslate"><span class="pre">XDATCAR</span></code> trajectory and write them as a
 CIF file:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/26_xdatcar2adp/ScF3_Pm-3m_NpT_300K
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>example/30_xdatcar2adp/ScF3_Pm-3m_NpT_300K
 crystod-md<span class="w"> </span>--adp<span class="w"> </span>--dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">4</span><span class="w"> </span>--start-step<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--xdatcar<span class="w"> </span>XDATCAR<span class="w"> </span>--output<span class="w"> </span>ADP.cif
 </pre></div>
 </div>
@@ -359,7 +360,7 @@ output exactly while replacing the pymatgen reader with a fast built-in parser.<
 </section>
 <section id="trajectory-summary-summary">
 <h2>Trajectory summary (<code class="docutils literal notranslate"><span class="pre">--summary</span></code>)<a class="headerlink" href="#trajectory-summary-summary" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/26_xdatcar2adp</span></code> (testsuite section 27)</em></p>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/30_xdatcar2adp</span></code> (testsuite sections 30-31: <code class="docutils literal notranslate"><span class="pre">--summary</span></code> runs in the CLI-regression section)</em></p>
 <p><code class="docutils literal notranslate"><span class="pre">crystod-md</span> <span class="pre">--summary</span></code> reports summary statistics of the same trajectory: the
 time-averaged lattice parameters (a, b, c, alpha, beta, gamma) and cell volume
 with standard deviations over the selected step range — useful for extracting
@@ -396,11 +397,11 @@ scope of <code class="docutils literal notranslate"><span class="pre">--summary<
       </div>
     </a>
     <a class="right-next"
-       href="citation.html"
+       href="crystod-mol.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Citation</p>
+        <p class="prev-next-title">crystod-mol</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -422,7 +423,7 @@ scope of <code class="docutils literal notranslate"><span class="pre">--summary<
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adps-from-an-md-trajectory-adp">26. ADPs from an MD trajectory (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adps-from-an-md-trajectory-adp">30. ADPs from an MD trajectory (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#trajectory-summary-summary">Trajectory summary (<code class="docutils literal notranslate"><span class="pre">--summary</span></code>)</a></li>
 </ul>
   </nav></div>

@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Installation &#8212; CrystOD v0.3.1</title>
+    <title>Installation &#8212; CrystOD v0.3.3</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/documentation_options.js?v=94d292f4"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -53,7 +53,7 @@
     <link rel="prev" title="CrystOD" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.1" />
+  <meta name="docsearch:version" content="0.3.3" />
   </head>
   
   
@@ -128,7 +128,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.1</p>
+    <p class="title logo__title">CrystOD v0.3.3</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -161,6 +161,7 @@
 <li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mol.html">crystod-mol</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="nav bd-sidenav">
@@ -333,7 +334,7 @@
 <li><p>Python 3.9 or later</p></li>
 <li><p>Main Python dependencies:
 <code class="docutils literal notranslate"><span class="pre">phonopy</span></code>, <code class="docutils literal notranslate"><span class="pre">spglib</span></code>, <code class="docutils literal notranslate"><span class="pre">spgrep</span></code>, <code class="docutils literal notranslate"><span class="pre">irrep</span></code>, <code class="docutils literal notranslate"><span class="pre">irreptables</span></code>, <code class="docutils literal notranslate"><span class="pre">ase</span></code>, <code class="docutils literal notranslate"><span class="pre">seekpath</span></code>,
-<code class="docutils literal notranslate"><span class="pre">numpy</span></code>, <code class="docutils literal notranslate"><span class="pre">pandas</span></code>, <code class="docutils literal notranslate"><span class="pre">openpyxl</span></code>, <code class="docutils literal notranslate"><span class="pre">sympy</span></code></p></li>
+<code class="docutils literal notranslate"><span class="pre">pymatgen</span></code>, <code class="docutils literal notranslate"><span class="pre">numpy</span></code>, <code class="docutils literal notranslate"><span class="pre">pandas</span></code>, <code class="docutils literal notranslate"><span class="pre">openpyxl</span></code>, <code class="docutils literal notranslate"><span class="pre">sympy</span></code></p></li>
 </ul>
 </section>
 <section id="recommended-setup-conda">
@@ -344,26 +345,15 @@ conda<span class="w"> </span>activate<span class="w"> </span>crystod
 unzip<span class="w"> </span>~/Downloads/CrystOD-main.zip
 mv<span class="w"> </span>~/Downloads/CrystOD-main<span class="w"> </span>~
 <span class="nb">cd</span><span class="w"> </span>~/CrystOD-main
-pip<span class="w"> </span>install<span class="w"> </span>phonopy<span class="w"> </span>spglib<span class="w"> </span>spgrep<span class="w"> </span>irrep<span class="w"> </span>irreptables<span class="w"> </span>ase<span class="w"> </span>seekpath<span class="w"> </span>numpy<span class="w"> </span>openpyxl<span class="w"> </span>pandas
-
-python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>~/CrystOD-main<span class="w"> </span>--no-deps<span class="w"> </span>--no-build-isolation
-</pre></div>
-</div>
-<p>If your default Python environment uses an old <code class="docutils literal notranslate"><span class="pre">setuptools</span></code>, avoid
-<code class="docutils literal notranslate"><span class="pre">--no-build-isolation</span></code> for the editable install:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.<span class="w"> </span>--no-deps
-</pre></div>
-</div>
-<p>If needed, upgrade the build backend first:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="s2">&quot;setuptools&gt;=68&quot;</span><span class="w"> </span>wheel
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </pre></div>
 </div>
 </section>
 <section id="operation-check">
 <h2>Operation check<a class="headerlink" href="#operation-check" title="Link to this heading">#</a></h2>
 <p>Run the full test suite in the repository root (inside the <code class="docutils literal notranslate"><span class="pre">crystod</span></code> environment):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>testsuite.py<span class="w">           </span><span class="c1"># run everything (27 sections)</span>
-python3<span class="w"> </span>testsuite.py<span class="w"> </span><span class="m">17</span><span class="w"> </span><span class="m">20</span><span class="w">     </span><span class="c1"># run selected sections only</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>testsuite.py<span class="w">           </span><span class="c1"># run everything (33 sections)</span>
+python3<span class="w"> </span>testsuite.py<span class="w"> </span><span class="m">13</span><span class="w"> </span><span class="m">16</span><span class="w">     </span><span class="c1"># run selected sections only</span>
 </pre></div>
 </div>
 <p>Every section number corresponds to one documented feature and one

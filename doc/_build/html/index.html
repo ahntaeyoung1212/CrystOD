@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>CrystOD &#8212; CrystOD v0.3.1</title>
+    <title>CrystOD &#8212; CrystOD v0.3.3</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/documentation_options.js?v=94d292f4"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -52,7 +52,7 @@
     <link rel="next" title="Installation" href="install.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.1" />
+  <meta name="docsearch:version" content="0.3.3" />
   </head>
   
   
@@ -129,7 +129,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.1</p>
+    <p class="title logo__title">CrystOD v0.3.3</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -162,6 +162,7 @@
 <li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mol.html">crystod-mol</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="nav bd-sidenav">
@@ -359,6 +360,9 @@ per research domain.</p>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">crystod-md</span></code></p></td>
 <td><p>MD-trajectory analyses (ADPs, lattice summary)</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span></code></p></td>
+<td><p>molecular point groups and molecular SALCs (XYZ files)</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -384,35 +388,43 @@ feature <em>N</em> is tested by <code class="docutils literal notranslate"><span
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-group.html">crystod-group</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="crystod-group.html#direct-products-of-point-group-irreps-product">7. Direct products of point-group irreps (<code class="docutils literal notranslate"><span class="pre">--product</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-group.html#direct-products-of-point-group-and-space-group-irreps-product">7. Direct products of point-group and space-group irreps (<code class="docutils literal notranslate"><span class="pre">--product</span></code>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="crystod-group.html#reducible-representation-decomposition-decompose">8. Reducible-representation decomposition (<code class="docutils literal notranslate"><span class="pre">--decompose</span></code>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="crystod-group.html#ligand-field-splitting-ligand-field">9. Ligand-field splitting (<code class="docutils literal notranslate"><span class="pre">--ligand-field</span></code>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="crystod-group.html#basis-functions-basis">10. Basis functions (<code class="docutils literal notranslate"><span class="pre">--basis</span></code>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="crystod-group.html#automatic-generation-of-polynomial-basis-functions-generate-basis">11. Automatic generation of polynomial basis functions (<code class="docutils literal notranslate"><span class="pre">--generate-basis</span></code>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="crystod-group.html#coset-decomposition-coset">12. Coset decomposition (<code class="docutils literal notranslate"><span class="pre">--coset</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-group.html#isotropy-subgroups-supergroup-subgroup-relations-supergroup">13. Isotropy subgroups: supergroup-subgroup relations (<code class="docutils literal notranslate"><span class="pre">--supergroup</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-group.html#multi-electron-terms-multiplet">14. Multi-electron terms (<code class="docutils literal notranslate"><span class="pre">--multiplet</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-group.html#poscar-bilbao-style-cif-poscar2cif-cif2poscar">15. POSCAR &lt;-&gt; Bilbao-style CIF (<code class="docutils literal notranslate"><span class="pre">--poscar2cif</span></code> / <code class="docutils literal notranslate"><span class="pre">--cif2poscar</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-group.html#symmetry-mode-analysis-supergroup-cif">16. Symmetry-mode analysis (<code class="docutils literal notranslate"><span class="pre">--supergroup-cif</span></code>)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-bz.html">crystod-bz</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="crystod-bz.html#brillouin-zone-plot">14. Brillouin zone plot</a></li>
-<li class="toctree-l2"><a class="reference internal" href="crystod-bz.html#supercell-brillouin-zone-trans-mat">15. Supercell Brillouin zone (<code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-bz.html#brillouin-zone-plot">18. Brillouin zone plot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-bz.html#supercell-brillouin-zone-trans-mat">19. Supercell Brillouin zone (<code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code>)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#phonon-irreducible-representations-irreps">17. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#element-projected-phonon-fatbands-fatband">18. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#longitudinal-transverse-resolved-phonon-bands-lt">19. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#phonon-eigenvector-visualization-vector">20. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#symmetry-adapted-phonon-modulation-modulation">21. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#symmetry-only-vibration-bases-vibration">22. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#phonon-irreducible-representations-irreps">21. Phonon irreducible representations (<code class="docutils literal notranslate"><span class="pre">--irreps</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#element-projected-phonon-fatbands-fatband">22. Element-projected phonon fatbands (<code class="docutils literal notranslate"><span class="pre">--fatband</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#longitudinal-transverse-resolved-phonon-bands-lt">23. Longitudinal/transverse-resolved phonon bands (<code class="docutils literal notranslate"><span class="pre">--lt</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#phonon-eigenvector-visualization-vector">24. Phonon eigenvector visualization (<code class="docutils literal notranslate"><span class="pre">--vector</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#symmetry-adapted-phonon-modulation-modulation">25. Symmetry-adapted phonon modulation (<code class="docutils literal notranslate"><span class="pre">--modulation</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-phonon.html#symmetry-only-vibration-bases-vibration">26. Symmetry-only vibration bases (<code class="docutils literal notranslate"><span class="pre">--vibration</span></code>)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="crystod-mag.html#symmetry-adapted-spin-bases-cluster-multipoles-samm">24. Symmetry-adapted spin bases: cluster multipoles / SAMM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-mag.html#symmetry-adapted-spin-bases-cluster-multipoles-samm">28. Symmetry-adapted spin bases: cluster multipoles / SAMM</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="crystod-md.html#adps-from-an-md-trajectory-adp">26. ADPs from an MD trajectory (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crystod-md.html#adps-from-an-md-trajectory-adp">30. ADPs from an MD trajectory (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="crystod-md.html#trajectory-summary-summary">Trajectory summary (<code class="docutils literal notranslate"><span class="pre">--summary</span></code>)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mol.html">crystod-mol</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="crystod-mol.html#molecular-point-groups-and-molecular-salcs">32. Molecular point groups and molecular SALCs</a></li>
 </ul>
 </li>
 </ul>

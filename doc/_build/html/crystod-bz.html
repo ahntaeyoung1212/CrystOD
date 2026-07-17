@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>crystod-bz &#8212; CrystOD v0.3.1</title>
+    <title>crystod-bz &#8212; CrystOD v0.3.3</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=385a908f"></script>
+    <script src="_static/documentation_options.js?v=94d292f4"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -53,7 +53,7 @@
     <link rel="prev" title="crystod-group" href="crystod-group.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.1" />
+  <meta name="docsearch:version" content="0.3.3" />
   </head>
   
   
@@ -128,7 +128,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.1</p>
+    <p class="title logo__title">CrystOD v0.3.3</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -161,6 +161,7 @@
 <li class="toctree-l1"><a class="reference internal" href="crystod-phonon.html">crystod-phonon</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-mag.html">crystod-mag</a></li>
 <li class="toctree-l1"><a class="reference internal" href="crystod-md.html">crystod-md</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crystod-mol.html">crystod-mol</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="nav bd-sidenav">
@@ -311,11 +312,11 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brillouin-zone-plot">14. Brillouin zone plot</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brillouin-zone-plot">18. Brillouin zone plot</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#special-k-points-of-a-space-group-show-kpoint">Special k points of a space group (<code class="docutils literal notranslate"><span class="pre">--show-kpoint</span></code>)</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supercell-brillouin-zone-trans-mat">15. Supercell Brillouin zone (<code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supercell-brillouin-zone-trans-mat">19. Supercell Brillouin zone (<code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code>)</a></li>
 </ul>
             </nav>
         </div>
@@ -335,8 +336,8 @@ together with the folded BZ of a transformed (super)lattice. With
 <code class="docutils literal notranslate"><span class="pre">--show-kpoint</span> <span class="pre">--space-group</span> <span class="pre">SG</span></code>, the special k points of any space group are
 printed instead (primitive and, for centred lattices, conventional coordinates).</p>
 <section id="brillouin-zone-plot">
-<h2>14. Brillouin zone plot<a class="headerlink" href="#brillouin-zone-plot" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/14_brillouin_zone</span></code> (testsuite section 14)</em></p>
+<h2>18. Brillouin zone plot<a class="headerlink" href="#brillouin-zone-plot" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/18_brillouin_zone</span></code> (testsuite section 18)</em></p>
 <p>Plot the first Brillouin zone as an interactive 3D HTML file, together with the
 recommended high-symmetry k-path:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-bz<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3
@@ -414,8 +415,8 @@ basis are printed as well:</p>
 </section>
 </section>
 <section id="supercell-brillouin-zone-trans-mat">
-<h2>15. Supercell Brillouin zone (<code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code>)<a class="headerlink" href="#supercell-brillouin-zone-trans-mat" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/15_bz_supercell</span></code> (testsuite section 15)</em></p>
+<h2>19. Supercell Brillouin zone (<code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code>)<a class="headerlink" href="#supercell-brillouin-zone-trans-mat" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/19_bz_supercell</span></code> (testsuite section 19)</em></p>
 <p>Plot the first Brillouin zone of a unit cell (black, dotted) together with the
 Brillouin zone of a transformed (super)lattice (red) as an interactive 3D HTML file:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-bz<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span><span class="se">\</span>
@@ -424,7 +425,7 @@ Brillouin zone of a transformed (super)lattice (red) as an interactive 3D HTML f
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code> is the row-wise unit-cell-to-supercell transformation matrix
 (<code class="docutils literal notranslate"><span class="pre">L_super</span> <span class="pre">=</span> <span class="pre">T</span> <span class="pre">L_unit</span></code>; fractions such as <code class="docutils literal notranslate"><span class="pre">1/2</span></code> are allowed). It defaults to the
-identity matrix, which plots the unit-cell BZ only (section 14); any
+identity matrix, which plots the unit-cell BZ only (section 18); any
 non-identity matrix switches to this combined unit-cell + supercell plot.</p>
 <p>The supercell BZ is automatically tiled at every supercell reciprocal-lattice
 point folded into the unit-cell BZ — exactly the <code class="docutils literal notranslate"><span class="pre">|det</span> <span class="pre">T|</span></code> unit-cell q points
@@ -485,11 +486,11 @@ Based on <code class="docutils literal notranslate"><span class="pre">script/sup
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brillouin-zone-plot">14. Brillouin zone plot</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brillouin-zone-plot">18. Brillouin zone plot</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#special-k-points-of-a-space-group-show-kpoint">Special k points of a space group (<code class="docutils literal notranslate"><span class="pre">--show-kpoint</span></code>)</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supercell-brillouin-zone-trans-mat">15. Supercell Brillouin zone (<code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supercell-brillouin-zone-trans-mat">19. Supercell Brillouin zone (<code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code>)</a></li>
 </ul>
   </nav></div>
 
