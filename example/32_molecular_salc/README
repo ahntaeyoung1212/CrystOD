@@ -1,0 +1,139 @@
+# crystod-mol examples (molecule files: ../test_XYZs)
+# Run from example/test_XYZs (or pass full paths to --xyz).
+
+crystod-mol --symmetry --xyz XYZ_O2.xyz
+
+* Molecule *
+XYZ_O2.xyz (O2, 2 atoms)
+
+* Point group *
+D*h (linear molecule; continuous non-crystallographic group)
+
+
+
+crystod-mol --symmetry --xyz XYZ_NH3.xyz
+
+* Molecule *
+XYZ_NH3.xyz (H3N, 4 atoms)
+
+* Point group *
+C3v (Hermann-Mauguin: 3m)
+
+* Symmetry operations (6) *
+E, 2C3, 3sgv
+
+
+
+crystod-mol --xyz XYZ_NH3.xyz --element H --orbital s
+
+* Molecule *
+XYZ_NH3.xyz (H3N, 4 atoms)
+
+* Point group *
+C3v (Hermann-Mauguin: 3m)
+
+* Target sites (H, 3 sites; center-of-mass frame) *
+H1: ( 0.807734,  0.466331, -0.298390)
+H2: (-0.807709,  0.466374, -0.298391)
+H3: (-0.000025, -0.932662, -0.298459)
+
+* Reducible representation (H sites x s orbital) *
+class:               E   2C3  3sgv
+chi(perm):           3     0     1
+chi(s):              1     1     1
+chi(total):          3     0     1
+
+* Decomposition *
+Gamma = 1(A1) + 1(E)
+
+* SALCs (orbital axes = input Cartesian axes) *
+A1: [s(H1) + s(H2) + s(H3)]
+E: [s(H1) - s(H3), s(H1) - 2 s(H2) + s(H3)]
+
+
+
+crystod-mol --xyz XYZ_CH4.xyz --element H --orbital s
+
+* Molecule *
+XYZ_CH4.xyz (H4C, 5 atoms)
+
+* Point group *
+Td (Hermann-Mauguin: -43m)
+
+* Target sites (H, 4 sites; center-of-mass frame) *
+H1: ( 0.553422,  0.798539,  0.495857)
+H2: ( 0.682447, -0.812363, -0.253268)
+H3: (-0.777180, -0.373037,  0.668318)
+H4: (-0.458693,  0.386865, -0.910906)
+
+* Reducible representation (H sites x s orbital) *
+class:               E   8C3   3C2   6S4  6sgd
+chi(perm):           4     1     0     0     2
+chi(s):              1     1     1     1     1
+chi(total):          4     1     0     0     2
+
+* Decomposition *
+Gamma = 1(A1) + 1(T2)
+
+* SALCs (orbital axes = input Cartesian axes) *
+A1: [s(H1) + s(H2) + s(H3) + s(H4)]
+T2: [s(H1) - s(H4), s(H1) - 2 s(H2) + s(H4), s(H1) + s(H2) - 3 s(H3) + s(H4)]
+
+
+
+crystod-mol --xyz XYZ_NH3.xyz --element N --orbital p
+
+* Molecule *
+XYZ_NH3.xyz (H3N, 4 atoms)
+
+* Point group *
+C3v (Hermann-Mauguin: 3m)
+
+* Target sites (N, 1 sites; center-of-mass frame) *
+N1: (-0.000000, -0.000003,  0.064423)
+
+* Reducible representation (N sites x p orbital) *
+class:               E   2C3  3sgv
+chi(perm):           1     1     1
+chi(p):              3     0     1
+chi(total):          3     0     1
+
+* Decomposition *
+Gamma = 1(A1) + 1(E)
+
+* SALCs (orbital axes = input Cartesian axes) *
+A1: [pz(N1)]
+E: [px(N1), py(N1)]
+
+
+
+crystod-mol --xyz XYZ_CH4.xyz --element C --orbital d --align
+
+* Molecule *
+XYZ_CH4.xyz (H4C, 5 atoms)
+
+* Point group *
+Td (Hermann-Mauguin: -43m)
+
+* Target sites (C, 1 sites; standard point-group frame) *
+C1: (-0.000000,  0.000000, -0.000000)
+
+* Reducible representation (C sites x d orbital) *
+class:               E   8C3   3C2   6S4  6sgd
+chi(perm):           1     1     1     1     1
+chi(d):              5    -1     1    -1     1
+chi(total):          5    -1     1    -1     1
+
+* Decomposition *
+Gamma = 1(E) + 1(T2)
+
+* SALCs (orbital axes = standard point-group axes) *
+E: [dz2(C1), dx2-y2(C1)]
+T2: [dxy(C1), dyz(C1), dxz(C1)]
+
+
+
+crystod-mol --xyz XYZ_NH3.xyz --element H --orbital p --visualize --bond N H 1.2
+(output as above, plus:)
+
+SALC viewer written to SALC_XYZ_NH3_H_p.html
