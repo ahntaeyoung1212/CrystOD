@@ -32,6 +32,11 @@ file needed; select the group with --pg/--point-group or --sg/--space-group).
 
 # Command Examples:
 crystod-group --product T2g T2g T1u --pg m-3m
+crystod-group --product R4- R5+ --sg Pm-3m
+crystod-group --multiplet T2g2 --pg m-3m [--orbital d]
+crystod-group --poscar2cif -c PPOSCAR [--tolerance 0.01]
+crystod-group --cif2poscar -c FILE.cif [--conventional]
+crystod-group --supergroup-cif 221.cif --subgroup-cif 140.cif
 crystod-group --table --pg 3m
 crystod-group --decompose --pg 3m --characters 3 0 1
 crystod-group --ligand-field d --pg m-3m
@@ -100,6 +105,105 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="Coset decomposition of a point group by a subgroup, or of a space "
         "group by the little co-group at k.",
+    )
+    mode.add_argument(
+        "--multiplet",
+        nargs="+",
+        default=None,
+        metavar="IRREP^N",
+        help="Multi-electron term symbols (spin multiplicity + spatial irrep)\n"
+        "of an electron configuration, e.g. --multiplet T2g2 --pg m-3m gives\n"
+        "^3T1g + ^1A1g + ^1Eg + ^1T2g (T2g2 = T2g^2, no quoting needed;\n"
+        "several shells: T2g2 Eg1).",
+    )
+    mode.add_argument(
+        "--poscar2cif",
+        action="store_true",
+        help="Convert a POSCAR into a Bilbao-style CIF (<POSCAR>.cif),\n"
+        "e.g. --poscar2cif -c PPOSCAR [--tolerance 0.01].",
+    )
+    mode.add_argument(
+        "--cif2poscar",
+        action="store_true",
+        help="Convert a CIF into a POSCAR (input path without .cif;\n"
+        "primitive cell by default, --conventional for the conventional cell),\n"
+        "e.g. --cif2poscar -c FILE.cif.",
+    )
+    mode.add_argument(
+        "--supergroup-cif",
+        dest="supergroup_cif",
+        default=None,
+        metavar="FILE",
+        help="Symmetry-mode (AMPLIMODES-style) analysis: decompose the\n"
+        "distortion between a high-symmetry structure (this file) and a\n"
+        "low-symmetry structure (--subgroup-cif) into parent irreps with\n"
+        "mode amplitudes, e.g. --supergroup-cif 221.cif --subgroup-cif 140.cif.",
+    )
+    mode.add_argument(
+        "--supergroup",
+        default=None,
+        metavar="SG",
+        help="Isotropy subgroups: which space group results when a distortion\n"
+        "with a given irrep (and order-parameter direction) condenses,\n"
+        "e.g. --supergroup Pm-3m --irrep GM4- [--order-parameter 0 0 a].",
+    )
+
+    parser.add_argument(
+        "--irrep",
+        default=None,
+        help="CDML irrep label for --supergroup, e.g. GM4- or R4+.",
+    )
+    parser.add_argument(
+        "--order-parameter",
+        nargs="+",
+        default=None,
+        metavar="C",
+        help='Order-parameter direction for --supergroup, e.g. 0 0 a or a a 0\n'
+        "(letters = free parameters). Omit to list every direction.",
+    )
+    parser.add_argument(
+        "--orbital",
+        default=None,
+        help="Parent atomic orbital (s/p/d/f/...) for --multiplet: checks the\n"
+        "occupied shells against its ligand-field splitting and computes the\n"
+        "Coulomb multiplet energies (Racah/Slater parameters).",
+    )
+    parser.add_argument(
+        "--cell",
+        "-c",
+        "--poscar",
+        "--cif",
+        dest="cell",
+        default=None,
+        metavar="FILE",
+        help="Input structure file: POSCAR for --poscar2cif, CIF for --cif2poscar.",
+    )
+    parser.add_argument(
+        "--tolerance",
+        type=float,
+        default=None,
+        help="Symmetry tolerance (symprec, Angstrom) for --poscar2cif/"
+        "--cif2poscar (default: 0.01).",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="Output path for --poscar2cif/--cif2poscar (defaults: <POSCAR>.cif "
+        "/ input without .cif).",
+    )
+    parser.add_argument(
+        "--conventional",
+        action="store_true",
+        help="For --cif2poscar: write the conventional cell instead of the "
+        "primitive cell.",
+    )
+    parser.add_argument(
+        "--subgroup-cif",
+        dest="subgroup_cif",
+        default=None,
+        metavar="FILE",
+        help="Low-symmetry (distorted) structure file for --supergroup-cif.",
     )
 
     parser.add_argument(
@@ -196,8 +300,125 @@ def main(argv: list[str] | None = None) -> None:
                 f"{mode_name} requires exactly one of --pg/--point-group or --sg/--space-group."
             )
 
+    if args.supergroup:
+        if not args.irrep:
+            parser.error("--supergroup requires --irrep (e.g. --irrep GM4-).")
+        if args.point_group or args.space_group:
+            parser.error("--supergroup replaces --pg/--sg; give the space group "
+                         "directly as --supergroup SG.")
+        dispatch_argv = [f"--supergroup={args.supergroup}", f"--irrep={args.irrep}"]
+        if args.order_parameter:
+            dispatch_argv.append("--order-parameter")
+            dispatch_argv.extend(args.order_parameter)
+
+        from ..isotropy_subgroup import main as isotropy_subgroup_main
+
+        isotropy_subgroup_main(dispatch_argv)
+        return
+    if args.irrep or args.order_parameter:
+        parser.error("--irrep/--order-parameter are only used with --supergroup.")
+
+    if args.supergroup_cif:
+        if not args.subgroup_cif:
+            parser.error("--supergroup-cif requires --subgroup-cif "
+                         "(the low-symmetry structure).")
+        if args.point_group or args.space_group:
+            parser.error("--supergroup-cif does not use --pg/--sg.")
+
+        dispatch_argv = [f"--supergroup-cif={args.supergroup_cif}",
+                         f"--subgroup-cif={args.subgroup_cif}"]
+        if args.tolerance is not None:
+            dispatch_argv.append(f"--tolerance={args.tolerance}")
+
+        from ..symmetry_mode import main as symmetry_mode_main
+
+        symmetry_mode_main(dispatch_argv)
+        return
+    if args.subgroup_cif:
+        parser.error("--subgroup-cif is only used with --supergroup-cif.")
+
+    if args.poscar2cif:
+        if not args.cell:
+            parser.error("--poscar2cif requires -c/--cell (the POSCAR file).")
+        if args.point_group or args.space_group:
+            parser.error("--poscar2cif does not use --pg/--sg.")
+
+        dispatch_argv = [f"--cell={args.cell}"]
+        if args.tolerance is not None:
+            dispatch_argv.append(f"--tolerance={args.tolerance}")
+        if args.output:
+            dispatch_argv.append(f"--output={args.output}")
+
+        from ..poscar2cif import main as poscar2cif_main
+
+        poscar2cif_main(dispatch_argv)
+        return
+    if args.cif2poscar:
+        if not args.cell:
+            parser.error("--cif2poscar requires -c/--cell (the CIF file).")
+        if args.point_group or args.space_group:
+            parser.error("--cif2poscar does not use --pg/--sg.")
+
+        dispatch_argv = [f"--cell={args.cell}"]
+        if args.tolerance is not None:
+            dispatch_argv.append(f"--tolerance={args.tolerance}")
+        if args.conventional:
+            dispatch_argv.append("--conventional")
+        if args.output:
+            dispatch_argv.append(f"--output={args.output}")
+
+        from ..poscar2cif import cif2poscar_main
+
+        cif2poscar_main(dispatch_argv)
+        return
+    if args.cell or args.tolerance is not None or args.output or args.conventional:
+        parser.error("-c/--cell, --tolerance, --output, and --conventional are "
+                     "only used with --poscar2cif/--cif2poscar/--supergroup-cif.")
+
+    if args.multiplet:
+        require_point_group("--multiplet")
+        if args.space_group:
+            parser.error("--multiplet works with point groups only (--pg/--point-group).")
+        for name, value in (
+            ("--kpoint", args.kpoint),
+            ("--subgroup", args.subgroup),
+            ("--order", args.order),
+            ("--characters", args.characters),
+        ):
+            if value is not None:
+                parser.error(f"{name} is not used with --multiplet.")
+
+        dispatch_argv = [f"--point-group={args.point_group}", "--config", *args.multiplet]
+        if args.orbital:
+            dispatch_argv.extend(["--orbital", args.orbital])
+
+        from ..multiplet import main as multiplet_main
+
+        multiplet_main(dispatch_argv)
+        return
+    if args.orbital:
+        parser.error("--orbital is only used with --multiplet.")
+
     if args.product:
-        require_point_group("--product")
+        require_exactly_one_group("--product")
+        for name, value in (
+            ("--kpoint", args.kpoint),
+            ("--subgroup", args.subgroup),
+            ("--order", args.order),
+            ("--characters", args.characters),
+        ):
+            if value is not None:
+                parser.error(f"{name} is not used with --product.")
+
+        if args.space_group:
+            if args.show_irrep_table:
+                parser.error("--show-irrep-table is not available for space-group products.")
+            from ..spacegroup_product import main as spacegroup_product_main
+
+            spacegroup_product_main(
+                [f"--space-group={args.space_group}", "--irreps", *args.product]
+            )
+            return
 
         dispatch_argv = [f"--point-group={args.point_group}", "--irreps", *args.product]
         if args.show_irrep_table:
