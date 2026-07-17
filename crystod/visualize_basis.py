@@ -486,7 +486,7 @@ def _orbital_surface(
     }
 
 
-def _axis_traces(lattice: NDArray[np.float64]) -> list[dict]:
+def _axis_traces(lattice: NDArray[np.float64], axis_names: str = "abc") -> list[dict]:
     """VESTA-style a/b/c compass (a red, b green, c blue).
 
     The compass lives in a small second scene pinned to the lower-left corner
@@ -496,7 +496,7 @@ def _axis_traces(lattice: NDArray[np.float64]) -> list[dict]:
     label_positions = []
     label_texts = []
     label_colors = []
-    for name, vector, color in zip("abc", lattice, ("#d62728", "#2ca02c", "#1f77b4")):
+    for name, vector, color in zip(axis_names, lattice, ("#d62728", "#2ca02c", "#1f77b4")):
         direction = vector / np.linalg.norm(vector)
         tip = direction
         traces.append(
@@ -564,6 +564,8 @@ def write_html_visualization(
     info: dict | None = None,
     bonds: list[tuple[str, str, float]] | None = None,
     conventional: bool = False,
+    draw_cell: bool = True,
+    axis_names: str = "abc",
 ) -> None:
     """Write the standalone SALC viewer page.
 
@@ -759,8 +761,8 @@ def write_html_visualization(
         all_positions = np.array(all_positions_list)
 
     atom_traces = _atom_traces(all_positions, all_symbols)
-    static_traces = [_lattice_edge_traces(display_lattice, (1, 1, 1))]
-    static_traces.extend(_axis_traces(lattice))
+    static_traces = [_lattice_edge_traces(display_lattice, (1, 1, 1))] if draw_cell else []
+    static_traces.extend(_axis_traces(lattice, axis_names))
     cell_end = len(static_traces)
     static_traces.extend(atom_traces)
     atoms_end = len(static_traces)
@@ -811,11 +813,18 @@ def write_html_visualization(
 
     layout = {
         "scene": {
+            # full plot area: without an explicit domain, plotly grid-splits
+            # the width between this scene and the compass scene2, squeezing
+            # the structure into the left half of the viewport
+            "domain": {"x": [0.0, 1.0], "y": [0.0, 1.0]},
             "aspectmode": "data",
             "xaxis": {"visible": False},
             "yaxis": {"visible": False},
             "zaxis": {"visible": False},
             "bgcolor": "#ffffff",
+            # start zoomed out (plotly default eye 1.25 sits too close once
+            # the orbital lobes extend beyond the atoms)
+            "camera": {"eye": {"x": 2.5, "y": 2.5, "z": 2.5}},
         },
         # small camera-synced a/b/c compass in the lower-left corner
         "scene2": {
@@ -844,6 +853,7 @@ def write_html_visualization(
         for name, value in (
             ("Compound", info.get("formula", "")),
             ("Space group", info.get("space_group", "")),
+            ("Point group", info.get("point_group", "")),
             ("Orbitals", info.get("element_orbital", "")),
             ("k point", info.get("kpoint", "")),
             ("Display cell", info.get("supercell", "")),
@@ -930,7 +940,7 @@ def write_html_visualization(
         "    <input type=\"range\" id=\"opacity\" min=\"0.1\" max=\"1.0\" step=\"0.05\" value=\"1.0\"\n"
         "           oninput=\"setOpacity(this.value)\"/></div>\n"
         "  <div class=\"control\"><label><input type=\"checkbox\" id=\"show-cell\" checked\n"
-        "           onchange=\"applyVisibility()\"/> show cell edges &amp; abc axes</label></div>\n"
+        f"           onchange=\"applyVisibility()\"/> {'show cell edges &amp; ' + axis_names + ' axes' if draw_cell else 'show ' + axis_names + ' axes'}</label></div>\n"
         "  <div class=\"control\"><label><input type=\"checkbox\" id=\"show-atoms\" checked\n"
         "           onchange=\"applyVisibility()\"/> show atoms</label></div>\n"
         + bond_controls +
