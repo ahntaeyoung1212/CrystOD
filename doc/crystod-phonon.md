@@ -5,9 +5,9 @@ Phonon analyses on top of [phonopy](https://phonopy.github.io/phonopy/) data
 `phonopy_params.yaml`). Six mode flags: `--irreps`, `--fatband`, `--lt`,
 `--vector`, `--modulation`, `--vibration`.
 
-## 17. Phonon irreducible representations (`--irreps`)
+## 21. Phonon irreducible representations (`--irreps`)
 
-*Example directory: `example/17_phonon_irrep` (testsuite section 17)*
+*Example directory: `example/21_phonon_irrep` (testsuite section 21)*
 
 Label the phonon modes at the special q points with their irreducible
 representations and write `phonon_irreps.yaml`:
@@ -16,16 +16,16 @@ representations and write `phonon_irreps.yaml`:
 crystod-phonon --irreps -c example/test_POSCARs/221_PPOSCAR_SrTiO3 --dim="4 4 4" --readfc
 ```
 
-## 18. Element-projected phonon fatbands (`--fatband`)
+## 22. Element-projected phonon fatbands (`--fatband`)
 
-*Example directory: `example/18_phonon_fatband` (testsuite section 18)*
+*Example directory: `example/22_phonon_fatband` (testsuite section 22)*
 
 Plot phonon fatbands colored by the element-projected phonon density (sum of
 squared eigenvector components over each element's atoms), directly from
 POSCAR + `FORCE_SETS` (or `FORCE_CONSTANTS` with `--readfc`):
 
 ```bash
-cd example/18_phonon_fatband/ScF3_Pm-3m
+cd example/22_phonon_fatband/ScF3_Pm-3m
 crystod-phonon --fatband -c 221_PPOSCAR_ScF3 --dim 4 4 4
 ```
 
@@ -53,15 +53,15 @@ NAC is applied only when `--nac` is given. With `--nac` the output files are
 named `fatband_nac_<element>.pdf`, so corrected and uncorrected fatbands can
 coexist side by side.
 
-## 19. Longitudinal/transverse-resolved phonon bands (`--lt`)
+## 23. Longitudinal/transverse-resolved phonon bands (`--lt`)
 
-*Example directory: `example/19_phonon_lt` (testsuite section 19)*
+*Example directory: `example/23_phonon_lt` (testsuite section 23)*
 
 Plot the phonon band structure colored by the longitudinal/transverse character
 of each mode (red = longitudinal, blue = transverse, white = mixed or Gamma):
 
 ```bash
-cd example/19_phonon_lt/ScF3_Pm-3m
+cd example/23_phonon_lt/ScF3_Pm-3m
 crystod-phonon --lt -c 221_PPOSCAR_ScF3 --dim 4 4 4
 crystod-phonon --lt -c 221_PPOSCAR_ScF3 --dim 4 4 4 --nac
 ```
@@ -74,16 +74,16 @@ including diagonal segments such as GM-R). Output: `phonon_band_LT.pdf`, or
 up as purely red. Based on `script/LT_phonon_band.py` maintained by Hiroki
 Koiso, after Qijing Zheng.
 
-## 20. Phonon eigenvector visualization (`--vector`)
+## 24. Phonon eigenvector visualization (`--vector`)
 
-*Example directory: `example/20_phonon_vector` (testsuite section 20)*
+*Example directory: `example/24_phonon_vector` (testsuite section 24)*
 
 Diagonalize the dynamical matrix directly at the selected q point via the
 phonopy API, list the modes with their frequencies and irrep labels, and export
 the selected eigenvectors as `.vesta` files with per-atom displacement arrows:
 
 ```bash
-cd example/20_phonon_vector/Si_Fd-3m
+cd example/24_phonon_vector/Si_Fd-3m
 
 # List the modes at GM and export ALL of them as individual VESTA files;
 # the mode table is also saved as phonon_modes_Si_GM.txt
@@ -123,14 +123,14 @@ coordinates (fractions allowed). When `--mode` is omitted, ALL modes are
 exported as individual VESTA files. Arrows are rescaled so that the largest
 total displacement equals `--amplitude` (default 1.5 Angstrom).
 
-## 21. Symmetry-adapted phonon modulation (`--modulation`)
+## 25. Symmetry-adapted phonon modulation (`--modulation`)
 
-*Example directory: `example/21_modulation` (testsuite section 21)*
+*Example directory: `example/25_modulation` (testsuite section 25)*
 
 Generate modulated (displaced) structures from symmetry-adapted phonon modes:
 
 ```bash
-crystod-phonon --modulation --yaml example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml \
+crystod-phonon --modulation --yaml example/25_modulation/ScF3_Pm-3m/phonopy_params.yaml \
   --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
 ```
 
@@ -139,7 +139,7 @@ degeneracy) and the star of q are printed, so you can inspect the modes at a q
 point first and then choose which mode(s) to apply:
 
 ```bash
-crystod-phonon --modulation --yaml example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint 0.5 0.5 0.5
+crystod-phonon --modulation --yaml example/25_modulation/ScF3_Pm-3m/phonopy_params.yaml --qpoint 0.5 0.5 0.5
 ```
 
 If `phonopy_params.yaml` exists in the current directory, `--yaml` can be
@@ -154,7 +154,7 @@ Different q points can be combined with numbered argument sets
 
 ```bash
 crystod-phonon --modulation \
-  --yaml example/21_modulation/ScF3_Pm-3m/phonopy_params.yaml \
+  --yaml example/25_modulation/ScF3_Pm-3m/phonopy_params.yaml \
   --qpoint1 0 0.5 0.5 --mode1 1 --amplitude1 0.3 \
   --qpoint2 0.5 0 0.5 --mode2 1 --amplitude2 0.3 \
   --qpoint3 0.5 0.5 0 --mode3 1 --amplitude3 0.3 \
@@ -164,9 +164,9 @@ crystod-phonon --modulation \
 The star of q is displayed for each selected q point, which is useful when
 combining arms of the same star in multi-q modulations.
 
-## 22. Symmetry-only vibration bases (`--vibration`)
+## 26. Symmetry-only vibration bases (`--vibration`)
 
-*Example directory: `example/22_vibration` (testsuite section 22)*
+*Example directory: `example/26_vibration` (testsuite section 26)*
 
 List the available high-symmetry q points and irrep-grouped vibration spaces
 from crystal symmetry alone (no force data needed):

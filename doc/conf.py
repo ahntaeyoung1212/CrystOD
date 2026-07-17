@@ -4,7 +4,14 @@ project = "CrystOD"
 copyright = "2024-2026, Yasuhide Mochizuki and Hiroki Koiso"
 author = "Yasuhide Mochizuki and Hiroki Koiso"
 
-version = "0.3.1"
+# single source of truth: the version from pyproject.toml (installed package),
+# with a fallback for building the docs without an installed CrystOD
+try:
+    from importlib.metadata import version as _package_version
+
+    version = _package_version("CrystOD")
+except Exception:
+    version = "0.3.3"
 release = version
 
 extensions = [

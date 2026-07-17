@@ -204,7 +204,7 @@ the trial basis replaced by the atomic orbitals on all symmetry-equivalent
 sites — `O(g)` then combines the site permutation, the Bloch phases, and
 `D^(l)(R)` from section 1.2. And replacing `D^(1)(R) = R` by the axial-vector
 representation `det(R) R` (magnetic moments do not flip under inversion) turns
-the same machinery into the spin-multipole bases of `crystod-mag` (section 24).
+the same machinery into the spin-multipole bases of `crystod-mag` (section 28).
 
 *Further reading:* B. Souvignier, "Representations of crystallographic groups"
 ([MaThCryst summer school notes, Nancy 2010](https://www.crystallography.fr/mathcryst/pdf/nancy2010/Souvignier_irrep_slides.pdf));

@@ -6,9 +6,9 @@ together with the folded BZ of a transformed (super)lattice. With
 `--show-kpoint --space-group SG`, the special k points of any space group are
 printed instead (primitive and, for centred lattices, conventional coordinates).
 
-## 14. Brillouin zone plot
+## 18. Brillouin zone plot
 
-*Example directory: `example/14_brillouin_zone` (testsuite section 14)*
+*Example directory: `example/18_brillouin_zone` (testsuite section 18)*
 
 Plot the first Brillouin zone as an interactive 3D HTML file, together with the
 recommended high-symmetry k-path:
@@ -98,9 +98,9 @@ L: (1/2, 1/2, 1/2)
 W: (1/2, 1, 0)
 ```
 
-## 15. Supercell Brillouin zone (`--trans-mat`)
+## 19. Supercell Brillouin zone (`--trans-mat`)
 
-*Example directory: `example/15_bz_supercell` (testsuite section 15)*
+*Example directory: `example/19_bz_supercell` (testsuite section 19)*
 
 Plot the first Brillouin zone of a unit cell (black, dotted) together with the
 Brillouin zone of a transformed (super)lattice (red) as an interactive 3D HTML file:
@@ -112,7 +112,7 @@ crystod-bz -c example/test_POSCARs/221_PPOSCAR_ScF3 \
 
 `--trans-mat` is the row-wise unit-cell-to-supercell transformation matrix
 (`L_super = T L_unit`; fractions such as `1/2` are allowed). It defaults to the
-identity matrix, which plots the unit-cell BZ only (section 14); any
+identity matrix, which plots the unit-cell BZ only (section 18); any
 non-identity matrix switches to this combined unit-cell + supercell plot.
 
 The supercell BZ is automatically tiled at every supercell reciprocal-lattice
