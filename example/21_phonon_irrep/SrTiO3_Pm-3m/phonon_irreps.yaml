@@ -1,0 +1,120 @@
+space_group: Pm-3m
+special_points:
+- # GM
+  q_position: [0.0, 0.0, 0.0]
+- # R
+  q_position: [0.5, 0.5, 0.5]
+- # M
+  q_position: [0.5, 0.5, 0.0]
+- # X
+  q_position: [0.0, 0.5, 0.0]
+
+irreps:
+- q_label: GM
+  q_position: [0.0, 0.0, 0.0]
+  - # 1 2 3
+    irrep_label: ['GM4-(3)']
+    frequency:  -0.0085601752
+  - # 4 5 6
+    irrep_label: ['GM4-(3)']
+    frequency:   2.6568568377
+  - # 7 8 9
+    irrep_label: ['GM4-(3)']
+    frequency:   4.7149891180
+  - # 10 11 12
+    irrep_label: ['GM5-(3)']
+    frequency:   7.3464877330
+  - # 13 14 15
+    irrep_label: ['GM4-(3)']
+    frequency:  15.3053905547
+
+- q_label: R
+  q_position: [0.5, 0.5, 0.5]
+  - # 1 2 3
+    irrep_label: ['R5-(3)']
+    frequency:  -1.0867091467
+  - # 4 5 6
+    irrep_label: ['R4-(3)']
+    frequency:   3.9890930819
+  - # 7 8 9
+    irrep_label: ['R5+(3)']
+    frequency:  11.6887064913
+  - # 10 11 12
+    irrep_label: ['R4-(3)']
+    frequency:  12.6621462200
+  - # 13 14
+    irrep_label: ['R3-(2)']
+    frequency:  14.8133485734
+  - # 15
+    irrep_label: ['R2-(1)']
+    frequency:  23.2301542061
+
+- q_label: M
+  q_position: [0.5, 0.5, 0.0]
+  - # 1
+    irrep_label: ['M2+(1)']
+    frequency:   1.7234480295
+  - # 2
+    irrep_label: ['M3-(1)']
+    frequency:   3.0662011634
+  - # 3 4
+    irrep_label: ['M5-(2)']
+    frequency:   3.3562395045
+  - # 5
+    irrep_label: ['M2-(1)']
+    frequency:   3.5013065298
+  - # 6 7
+    irrep_label: ['M5-(2)']
+    frequency:   7.4462375351
+  - # 8 9
+    irrep_label: ['M5+(2)']
+    frequency:   9.2178674799
+  - # 10
+    irrep_label: ['M2-(1)']
+    frequency:  12.7399491145
+  - # 11 12
+    irrep_label: ['M5-(2)']
+    frequency:  12.8629196088
+  - # 13
+    irrep_label: ['M1+(1)']
+    frequency:  13.1307334101
+  - # 14
+    irrep_label: ['M3+(1)']
+    frequency:  14.9420004423
+  - # 15
+    irrep_label: ['M4+(1)']
+    frequency:  22.4199521798
+
+- q_label: X
+  q_position: [0.0, 0.5, 0.0]
+  - # 1 2
+    irrep_label: ['X5-(2)']
+    frequency:   3.1516406454
+  - # 3 4
+    irrep_label: ['X5+(2)']
+    frequency:   3.7901660555
+  - # 5
+    irrep_label: ['X3-(1)']
+    frequency:   4.6879249603
+  - # 6 7
+    irrep_label: ['X5+(2)']
+    frequency:   5.3845982244
+  - # 8
+    irrep_label: ['X2+(1)']
+    frequency:   7.8416778487
+  - # 9
+    irrep_label: ['X1+(1)']
+    frequency:   7.8497645580
+  - # 10 11
+    irrep_label: ['X5-(2)']
+    frequency:   9.0357308221
+  - # 12
+    irrep_label: ['X1+(1)']
+    frequency:  13.8179585570
+  - # 13 14
+    irrep_label: ['X5+(2)']
+    frequency:  14.2275094944
+  - # 15
+    irrep_label: ['X3-(1)']
+    frequency:  21.2463784299
+
