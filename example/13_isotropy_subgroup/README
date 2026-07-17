@@ -1,0 +1,104 @@
+# Isotropy subgroups (crystod-group --supergroup); testsuite section 13
+# Validated against ISOSUBGROUP (ISOTROPY Software Suite, https://iso.byu.edu)
+
+$ crystod-group --supergroup Pm-3m --irrep GM4- --order-parameter 0 0 a
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+GM4-: order parameter dimension 3
+
+* Isotropy subgroup *
+GM4- (0,0,a) -> P4mm (No. 99)
+cell size 1, index 6
+sublattice basis (parent primitive units): (1,0,0), (0,1,0), (0,0,1)
+conventional basis (parent conventional units): (0,0,1), (1,0,0), (0,1,0)
+origin: (0,0,0)
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+
+$ crystod-group --supergroup Pm-3m --irrep GM4-
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+GM4-: order parameter dimension 3
+
+* Order parameter directions and isotropy subgroups *
+direction            subgroup           size  index
+(0,0,a)              99 P4mm            1     6    
+(a,a,a)              160 R3m            1     8    
+(0,a,a)              38 Amm2            1     12   
+(0,a,b)              6 Pm               1     24   
+(a,a,b)              8 Cm               1     24   
+(a,b,c)              1 P1               1     48   
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+
+$ crystod-group --supergroup Pm-3m --irrep R4+
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+R4+: order parameter dimension 3
+
+* Order parameter directions and isotropy subgroups *
+direction            subgroup           size  index
+(0,0,a)              140 I4/mcm         2     6    
+(a,a,a)              167 R-3c           2     8    
+(0,a,a)              74 Imma            2     12   
+(0,a,b)              12 C2/m            2     24   
+(a,a,b)              15 C2/c            2     24   
+(a,b,c)              2 P-1              2     48   
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+
+$ crystod-group --supergroup Pm-3m --irrep M3+
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+M3+: order parameter dimension 3 (star of 3 arm(s) x small dim 1)
+
+* Order parameter directions and isotropy subgroups *
+direction            subgroup           size  index
+(0,0,a)              127 P4/mbm         2     6    
+(a,a,a)              204 Im-3           4     8    
+(0,a,a)              139 I4/mmm         4     12   
+(a,b,c)              71 Immm            4     24   
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+
+$ crystod-group --supergroup P6_3/mmc --irrep GM2-
+
+* Supergroup *
+P6_3/mmc (No. 194)
+
+* Irrep *
+GM2-: order parameter dimension 1
+
+* Order parameter directions and isotropy subgroups *
+direction            subgroup           size  index
+(a)                  186 P6_3mc         1     2    
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+
