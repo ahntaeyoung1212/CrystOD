@@ -1,8 +1,8 @@
 # crystod-mag
 
-## 24. Symmetry-adapted spin bases: cluster multipoles / SAMM
+## 28. Symmetry-adapted spin bases: cluster multipoles / SAMM
 
-*Example directory: `example/24_spin_basis` (testsuite section 24)*
+*Example directory: `example/28_spin_basis` (testsuite section 28)*
 
 Treat the spins on the sites of a magnetic element as axial-vector degrees of
 freedom and decompose them into space-group irreps at a q point by projection —

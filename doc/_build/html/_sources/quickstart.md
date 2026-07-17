@@ -27,13 +27,14 @@ The numbers are grouped by command:
 |---|---|---|
 | 1 | (library core) | Wigner D matrices — theoretical background, section 1 of {doc}`crystod` |
 | 2–6 | `crystod` | 2–3 SALC & hybridization, 4 star of k, 5 SALC viewer, 6 CLI regression |
-| 7–13 | `crystod-group` | 7 product, 8 decompose, 9 ligand field, 10 basis, 11 generate-basis, 12 coset, 13 CLI regression |
-| 14–16 | `crystod-bz` | 14 Brillouin zone, 15 supercell BZ, 16 CLI regression |
-| 17–23 | `crystod-phonon` | 17 irreps, 18 fatband, 19 LT bands, 20 eigenvectors, 21 modulation, 22 vibration, 23 CLI regression |
-| 24–25 | `crystod-mag` | 24 spin bases, 25 CLI regression |
-| 26–27 | `crystod-md` | 26 ADPs (`--adp`) and `--summary`, 27 CLI regression |
+| 7–17 | `crystod-group` | 7 product, 8 decompose, 9 ligand field, 10 basis, 11 generate-basis, 12 coset, 13 isotropy subgroups (`--supergroup`), 14 multi-electron terms (`--multiplet`), 15 POSCAR <-> Bilbao-style CIF (`--poscar2cif` / `--cif2poscar`), 16 symmetry-mode analysis (`--supergroup-cif`), 17 CLI regression |
+| 18–20 | `crystod-bz` | 18 Brillouin zone, 19 supercell BZ, 20 CLI regression |
+| 21–27 | `crystod-phonon` | 21 irreps, 22 fatband, 23 LT bands, 24 eigenvectors, 25 modulation, 26 vibration, 27 CLI regression |
+| 28–29 | `crystod-mag` | 28 spin bases, 29 CLI regression |
+| 30–31 | `crystod-md` | 30 ADPs (`--adp`) and `--summary`, 31 CLI regression |
+| 32–33 | `crystod-mol` | 32 molecular point groups & SALCs, 33 CLI regression |
 
-Sections 6, 13, 16, 23, 25, and 27 are command-line-interface regression tests
+Sections 6, 17, 20, 27, 29, 31, and 33 are command-line-interface regression tests
 (every argument form plus removed-flag errors); they have no documentation
 section of their own.
 
@@ -44,6 +45,7 @@ section of their own.
 - `crystod --visualize -c POSCAR --element EL --orbital ORB --kpoint kx ky kz [--real-coefficient] [--bond EL1 EL2 MAX] [--conventional] [--output FILE.html]`
 - `crystod --star-of-k -c POSCAR --kpoint QLABEL_OR_KX KY KZ`
 - `crystod-group --product IRREP1 IRREP2 ... --point-group PG`
+- `crystod-group --product IRREP1 IRREP2 ... --space-group SG`   (full space-group irreps, e.g. R4- R5+ for Pm-3m)
 - `crystod-group --table --point-group PG`
 - `crystod-group --decompose --point-group PG [--characters X1 X2 ...]`
 - `crystod-group --ligand-field ORBITAL --point-group PG`
@@ -52,8 +54,14 @@ section of their own.
 - `crystod-group --generate-basis --point-group PG [--order 1 2 3]`
 - `crystod-group --coset --point-group PG --subgroup H`
 - `crystod-group --coset --space-group SG --kpoint kx ky kz`
+- `crystod-group --supergroup SG --irrep IR [--order-parameter 0 0 a]`
+- `crystod-group --multiplet IRREP^N|IRREPN [IRREP^N|IRREPN ...] --point-group PG [--orbital s|p|d|f]`
+- `crystod-group --poscar2cif -c POSCAR [--tolerance 0.01] [--output FILE.cif]`
+- `crystod-group --cif2poscar -c FILE.cif [--conventional] [--tolerance 0.01] [--output POSCAR]`
+- `crystod-group --supergroup-cif HIGH.cif --subgroup-cif LOW.cif [--tolerance 0.01]`
 - `crystod-bz -c POSCAR [--band ... --band-labels ...] [--output FILE.html]`
 - `crystod-bz -c POSCAR --trans-mat "t11 t12 t13  t21 t22 t23  t31 t32 t33"`
+- `crystod-bz --show-kpoint --space-group SG`
 - `crystod-phonon --irreps --dim "nx ny nz" -c POSCAR [--readfc]`
 - `crystod-phonon --fatband --dim nx ny nz -c POSCAR [--element EL] [--nac]`
 - `crystod-phonon --lt --dim nx ny nz -c POSCAR [--nac]`
@@ -62,6 +70,8 @@ section of their own.
 - `crystod-phonon --vibration -c POSCAR --qpoint Q [--mode-index N]`
 - `crystod-mag -c POSCAR --element EL [--qpoint Q] [--format vasp|qe] [--conventional]`
 - `crystod-md --adp --dim nx ny nz [--start-step N] [--xdatcar XDATCAR] [--output ADP.cif]`
+- `crystod-mol --symmetry --xyz FILE.xyz [--tolerance TOL]`
+- `crystod-mol --xyz FILE.xyz --element EL --orbital s|p|d|f [--align] [--show-matrix] [--visualize]`
 - `crystod-md --summary [--start-step N] [--end-step M] [--xdatcar XDATCAR]`
 
 ## Notes

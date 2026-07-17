@@ -2,11 +2,13 @@
 
 Interactive 3D Brillouin-zone plots — automatic (seekpath) or manual
 high-symmetry k-path, and, with a non-identity `--trans-mat`, the unit-cell BZ
-together with the folded BZ of a transformed (super)lattice.
+together with the folded BZ of a transformed (super)lattice. With
+`--show-kpoint --space-group SG`, the special k points of any space group are
+printed instead (primitive and, for centred lattices, conventional coordinates).
 
-## 14. Brillouin zone plot
+## 18. Brillouin zone plot
 
-*Example directory: `example/14_brillouin_zone` (testsuite section 14)*
+*Example directory: `example/18_brillouin_zone` (testsuite section 18)*
 
 Plot the first Brillouin zone as an interactive 3D HTML file, together with the
 recommended high-symmetry k-path:
@@ -44,9 +46,61 @@ the Brillouin zone and k-path are drawn for the standardized primitive cell
 (a NOTE is printed in that case). Manual `--band` coordinates always refer to
 the reciprocal basis of the input structure.
 
-## 15. Supercell Brillouin zone (`--trans-mat`)
+### Special k points of a space group (`--show-kpoint`)
 
-*Example directory: `example/15_bz_supercell` (testsuite section 15)*
+With `--show-kpoint`, no plot is produced; instead the special (high-symmetry)
+k points of the space group given by `--space-group` are printed:
+
+```bash
+crystod-bz --show-kpoint --space-group Pnma
+```
+
+```
+* Space group *
+Pnma (No. 62)
+
+* K points (primitive) *
+GM: (0, 0, 0)
+X: (1/2, 0, 0)
+Y: (0, 1/2, 0)
+Z: (0, 0, 1/2)
+S: (1/2, 1/2, 0)
+T: (0, 1/2, 1/2)
+U: (1/2, 0, 1/2)
+R: (1/2, 1/2, 1/2)
+```
+
+The k points and their CDML labels are taken from `irreptables` — the same
+definition used by the SALC/irrep analyses (`crystod`, `crystod-mag`,
+`crystod-group`, `crystod-phonon --irreps`) — and are given in the primitive
+reciprocal basis. For centred lattices (F, I, C, A, B, R), whose conventional
+and primitive cells differ, the coordinates in the conventional reciprocal
+basis are printed as well:
+
+```bash
+crystod-bz --show-kpoint --space-group Fm-3m
+```
+
+```
+* Space group *
+Fm-3m (No. 225)
+
+* K points (primitive) *
+GM: (0, 0, 0)
+X: (1/2, 0, 1/2)
+L: (1/2, 1/2, 1/2)
+W: (1/2, 1/4, 3/4)
+
+* K points (conventional) *
+GM: (0, 0, 0)
+X: (0, 1, 0)
+L: (1/2, 1/2, 1/2)
+W: (1/2, 1, 0)
+```
+
+## 19. Supercell Brillouin zone (`--trans-mat`)
+
+*Example directory: `example/19_bz_supercell` (testsuite section 19)*
 
 Plot the first Brillouin zone of a unit cell (black, dotted) together with the
 Brillouin zone of a transformed (super)lattice (red) as an interactive 3D HTML file:
@@ -58,7 +112,7 @@ crystod-bz -c example/test_POSCARs/221_PPOSCAR_ScF3 \
 
 `--trans-mat` is the row-wise unit-cell-to-supercell transformation matrix
 (`L_super = T L_unit`; fractions such as `1/2` are allowed). It defaults to the
-identity matrix, which plots the unit-cell BZ only (section 14); any
+identity matrix, which plots the unit-cell BZ only (section 18); any
 non-identity matrix switches to this combined unit-cell + supercell plot.
 
 The supercell BZ is automatically tiled at every supercell reciprocal-lattice

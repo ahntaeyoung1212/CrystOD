@@ -3,16 +3,16 @@
 MD-trajectory analyses. Two mode flags: `--adp` (atomic displacement parameters
 as CIF) and `--summary` (time-averaged lattice statistics).
 
-## 26. ADPs from an MD trajectory (`--adp`)
+## 30. ADPs from an MD trajectory (`--adp`)
 
-*Example directory: `example/26_xdatcar2adp` (testsuite section 26)*
+*Example directory: `example/30_xdatcar2adp` (testsuite section 30)*
 
 Compute the time-averaged structure and anisotropic displacement parameters
 (ADPs, U_ij) from a molecular-dynamics `XDATCAR` trajectory and write them as a
 CIF file:
 
 ```bash
-cd example/26_xdatcar2adp/ScF3_Pm-3m_NpT_300K
+cd example/30_xdatcar2adp/ScF3_Pm-3m_NpT_300K
 crystod-md --adp --dim 4 4 4 --start-step 1000 --xdatcar XDATCAR --output ADP.cif
 ```
 
@@ -39,7 +39,7 @@ output exactly while replacing the pymatgen reader with a fast built-in parser.
 
 ## Trajectory summary (`--summary`)
 
-*Example directory: `example/26_xdatcar2adp` (testsuite section 27)*
+*Example directory: `example/30_xdatcar2adp` (testsuite sections 30-31: `--summary` runs in the CLI-regression section)*
 
 `crystod-md --summary` reports summary statistics of the same trajectory: the
 time-averaged lattice parameters (a, b, c, alpha, beta, gamma) and cell volume
