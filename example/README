@@ -1,11 +1,12 @@
-# CrystOD v0.3.1 examples
+# CrystOD v0.3.3 examples
 #
 # Each directory is prefixed with the section number of testsuite.py that
 # exercises the same feature, so `python testsuite.py <N>` and
 # `example/<NN>_*` always point at the same functionality.
 # Sections are grouped by command:
-#   1 library core / 2-6 crystod / 7-13 crystod-group / 14-16 crystod-bz /
-#   17-23 crystod-phonon / 24-25 crystod-mag / 26-27 crystod-md
+#   1 library core / 2-6 crystod / 7-17 crystod-group / 18-20 crystod-bz /
+#   21-27 crystod-phonon / 28-29 crystod-mag / 30-31 crystod-md /
+#   32-33 crystod-mol
 
 # -- library core --
 01_wigner_d                  Wigner D matrices on real spherical harmonics (library API)
@@ -16,40 +17,49 @@
 05_visualized_basis          crystod --visualize (SALC viewer HTML)
 
 # -- crystod-group --
-07_direct_product            crystod-group --product / --table
+07_direct_product            crystod-group --product / --table (point- and space-group irreps)
 08_decompose_irrep           crystod-group --decompose
 09_ligand_field_split        crystod-group --ligand-field
 10_basis_function            crystod-group --basis
 11_generate_basis_function   crystod-group --generate-basis
 12_show_coset                crystod-group --coset
+13_isotropy_subgroup         crystod-group --supergroup (isotropy subgroups)
+14_multiplet                 crystod-group --multiplet (spin multiplicities of irrep-shell configurations)
+15_poscar2cif                crystod-group --poscar2cif / --cif2poscar (POSCAR <-> Bilbao-style CIF)
+16_symmetry_mode             crystod-group --supergroup-cif (AMPLIMODES-style symmetry-mode analysis)
 
 # -- crystod-bz --
-14_brillouin_zone            crystod-bz
-15_bz_supercell              crystod-bz --trans-mat
+18_brillouin_zone            crystod-bz
+19_bz_supercell              crystod-bz --trans-mat
 
 # -- crystod-phonon --
-17_phonon_irrep              crystod-phonon --irreps
-18_phonon_fatband            crystod-phonon --fatband
-19_phonon_lt                 crystod-phonon --lt
-20_phonon_vector             crystod-phonon --vector
-21_modulation                crystod-phonon --modulation
-22_vibration                 crystod-phonon --vibration
+21_phonon_irrep              crystod-phonon --irreps
+22_phonon_fatband            crystod-phonon --fatband
+23_phonon_lt                 crystod-phonon --lt
+24_phonon_vector             crystod-phonon --vector
+25_modulation                crystod-phonon --modulation
+26_vibration                 crystod-phonon --vibration
 
 # -- crystod-mag --
-24_spin_basis                crystod-mag
+28_spin_basis                crystod-mag
 
 # -- crystod-md --
-26_xdatcar2adp               crystod-md --adp (and --summary on the same XDATCAR)
+30_xdatcar2adp               crystod-md --adp (and --summary on the same XDATCAR)
+
+# -- crystod-mol --
+32_molecular_salc            crystod-mol (--symmetry and molecular SALCs)
 
 test_POSCARs                 shared input structures used by the examples and testsuite
+test_XYZs                    shared molecule files (O2, H2O, NH3, CH4) for crystod-mol
 
-# Sections 6, 13, 16, 23, 25, and 27 of testsuite.py are command-line
+# Sections 6, 17, 20, 27, 29, 31, and 33 of testsuite.py are command-line
 # interface regression tests (every argument form + removed-flag errors) of
 # the command whose group they close. They re-run the features above, so
 # they have no example directories of their own:
 #    6 crystod (main)  -> 02, 04, 05
-#   13 crystod-group   -> 07 .. 12
-#   16 crystod-bz      -> 14, 15
-#   23 crystod-phonon  -> 17 .. 22
-#   25 crystod-mag     -> 24
-#   27 crystod-md      -> 26
+#   17 crystod-group   -> 07 .. 16
+#   20 crystod-bz      -> 18, 19
+#   27 crystod-phonon  -> 21 .. 26
+#   29 crystod-mag     -> 28
+#   31 crystod-md      -> 30
+#   33 crystod-mol     -> 32
