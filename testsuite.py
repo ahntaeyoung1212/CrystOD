@@ -49,7 +49,8 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
   31. crystod-md                --adp / --summary extras
   -- crystod-mol --
   32. crystod-mol               molecular point groups and molecular SALCs
-  33. crystod-mol               --align / --show-matrix / --visualize / error extras
+  33. crystod-mol --diagram     MO diagram from symmetry + overlap (extended Hueckel)
+  34. crystod-mol               --align / --show-matrix / --visualize / error extras
 """
 
 from __future__ import annotations
@@ -1676,9 +1677,134 @@ def test_32_mol() -> None:
            and "A1: [pz(N1)]" in out and "E: [px(N1), py(N1)]" in out, out)
 
 
-# ---------------------------------------------------------------- 33. crystod-mol extras
-def test_33_mol_command() -> None:
-    print("\n[33] crystod-mol (extras: --align / --show-matrix / --visualize / errors)")
+# ------------------------------------------------- 33. crystod-mol --diagram
+def test_33_molod() -> None:
+    print("\n[33] crystod-mol --diagram (MO diagram from symmetry + overlap)")
+
+    def run_mol(args: list[str], cwd: str | None = None) -> tuple[int, str]:
+        return run_module("crystod.cli.mol", args, cwd)
+
+    molod_dir = os.path.join(ROOT, "example", "33_molod")
+    xyz_nh3 = os.path.join(molod_dir, "XYZ_NH3.xyz")
+    xyz_ch4 = os.path.join(molod_dir, "XYZ_CH4.xyz")
+    xyz_sf6 = os.path.join(molod_dir, "XYZ_SF6.xyz")
+    for path in (xyz_nh3, xyz_ch4, xyz_sf6):
+        if not os.path.isfile(path):
+            report("example data found", False, path)
+            return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # NH3: fragments, SALCs, overlaps, textbook MO sequence, HTML default
+        code, out = run_mol(["--diagram", "--xyz", xyz_nh3], cwd=tmp)
+        report("--diagram NH3 exit 0", code == 0, out)
+        report("central atom and ligands identified",
+               "central atom: N; ligands: 3 H" in out, out)
+        report("ligand SALCs printed per irrep",
+               "A1: [1s(H1) + 1s(H2) + 1s(H3)]" in out, out)
+        report("SALC | central AO overlap integrals printed",
+               re.search(r"A1:\s+< a1 \(E =\s+-16\.44 eV\) \| N 2s >\s+S = 0\.7205", out)
+               is not None, out)
+        report("NH3 filling (2a1)^2 (1e)^4 (3a1)^2 with core numbering",
+               "(2a1)^2 (1e)^4 (3a1)^2" in out and "N 1s -> a1" in out, out)
+        report("NH3 HOMO is the 3a1 lone pair",
+               "HOMO = 3a1" in out and "LUMO = 2e" in out, out)
+        report("Wolfsberg-Helmholz / Hoffmann citations printed",
+               "J. Chem. Phys. 20, 837 (1952)" in out
+               and "J. Chem. Phys. 39, 1397 (1963)" in out, out)
+        html_path = os.path.join(tmp, "MolOD_XYZ_NH3.html")
+        report("HTML diagram written by default", os.path.isfile(html_path), out)
+        if os.path.isfile(html_path):
+            with open(html_path) as handle:
+                html = handle.read()
+            report("diagram page has the four columns and level details",
+                   "SALCs" in html and "MOs" in html and "Level details" in html,
+                   html_path)
+            report("diagram marks HOMO/LUMO and electron arrows",
+                   "HOMO" in html and "LUMO" in html and "↑" in html,
+                   html_path)
+            report("diagram has the adjustable energy window",
+                   'id="emin"' in html and 'id="emax"' in html
+                   and "Energy window" in html, html_path)
+            report("diagram has the in-panel orbital sketch (hover viewer)",
+                   "oview" in html and "drawSketch" in html
+                   and '"orb":' in html, html_path)
+
+        # CH4: photoelectron-convention labels (matches the textbook diagram)
+        code, out = run_mol(["--diagram", "--xyz", xyz_ch4], cwd=tmp)
+        report("CH4 filling (2a1)^2 (1t2)^6 (C 1s core counted)",
+               code == 0 and "(2a1)^2 (1t2)^6" in out and "C 1s -> a1" in out, out)
+        report("CH4 HOMO 1t2, antibonding 2t2/3a1 empty",
+               "HOMO = 1t2" in out and "LUMO = 2t2" in out, out)
+
+        # SF6: two ligand shells, --center/--output options
+        code, out = run_mol(["--diagram", "--xyz", xyz_sf6, "--center", "S",
+                             "--output", "sf6.html"], cwd=tmp)
+        report("SF6 --center/--output exit 0",
+               code == 0 and os.path.isfile(os.path.join(tmp, "sf6.html")), out)
+        report("SF6 F 2p SALCs span a1g+eg+t1g+t2g+t1u+t2u",
+               all(f"{name}:" in out for name in ("A1g", "Eg", "T1g", "T2g", "T1u", "T2u")),
+               out)
+        report("SF6 48-electron filling ends in the nonbonding F 2p block",
+               "48 valence electrons" in out and "(1t1g)^6" in out, out)
+
+        # --pyscf: quantitative diagrams (three SCF runs in one AO space)
+        try:
+            import pyscf  # noqa: F401
+            has_pyscf = True
+        except ImportError:
+            has_pyscf = False
+        if not has_pyscf:
+            print("  [SKIP] pyscf not installed: --pyscf tests skipped.")
+            return
+
+        xyz_h2o = os.path.join(molod_dir, "XYZ_H2O.xyz")
+        xyz_o2 = os.path.join(molod_dir, "XYZ_O2.xyz")
+        code, out = run_mol(["--diagram", "--xyz", xyz_h2o, "--pyscf",
+                             "--basis", "sto-3g"], cwd=tmp)
+        report("--pyscf H2O exit 0", code == 0, out)
+        report("three SCF calculations reported (H2, O, H2O; all converged)",
+               "H2 (RHF)" in out and "O (RHF)" in out and "H2O (RHF)" in out
+               and "NOT CONVERGED" not in out, out)
+        report("counterpoise-consistent interaction energy printed",
+               "interaction energy" in out and "full molecular basis" in out, out)
+        report("H2O HOMO is 1b2 with crystod irrep labels",
+               "HOMO = 1b2" in out, out)
+        pyscf_html_path = os.path.join(tmp, "MolOD_XYZ_H2O_pyscf.html")
+        report("pyscf HTML written with its own default name",
+               os.path.isfile(pyscf_html_path), out)
+        if os.path.isfile(pyscf_html_path):
+            with open(pyscf_html_path) as handle:
+                pyscf_html = handle.read()
+            report("pyscf diagram also carries the orbital sketches",
+                   '"orb":' in pyscf_html and "oview" in pyscf_html,
+                   pyscf_html_path)
+        report("friendly method/basis wording",
+               "Hartree-Fock method / sto-3g basis" in out, out)
+        report("PySCF citation printed",
+               "WIREs Comput. Mol. Sci. 8, e1340 (2018)" in out, out)
+
+        # O2: triplet, homonuclear partition, sigma/pi labels
+        code, out = run_mol(["--diagram", "--xyz", xyz_o2, "--pyscf",
+                             "--basis", "sto-3g", "--spin", "2",
+                             "--ao-left", "O", "--ao-right", "O"], cwd=tmp)
+        report("--pyscf O2 --ao-left O --ao-right O exit 0", code == 0, out)
+        report("O2 triplet filling (1πu)^4 (1πg)^2 with sigma/pi labels",
+               "(1πu)^4 (1πg)^2" in out and "HOMO = 1πg" in out, out)
+        report("identical fragments disambiguated as O(L)/O(R)",
+               "O(L)" in out and "O(R)" in out, out)
+
+        # fragment partition validation
+        code, out = run_mol(["--diagram", "--xyz", xyz_ch4, "--pyscf",
+                             "--basis", "sto-3g",
+                             "--ao-left", "H3", "--ao-right", "CO"], cwd=tmp)
+        report("non-partitioning --ao-left/--ao-right rejected cleanly",
+               code != 0 and "does not partition" in out and "Traceback" not in out,
+               out)
+
+
+# ---------------------------------------------------------------- 34. crystod-mol extras
+def test_34_mol_command() -> None:
+    print("\n[34] crystod-mol (extras: --align / --show-matrix / --visualize / errors)")
 
     def run_mol(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.mol", args, cwd)
@@ -1763,6 +1889,45 @@ def test_33_mol_command() -> None:
                          "--symmetry"])
     report("missing file rejected cleanly",
            code != 0 and "not found" in out and "Traceback" not in out, out)
+
+    # --diagram argument validation
+    code, out = run_mol(["--diagram", "--symmetry", "--xyz", xyz_nh3])
+    report("--diagram with --symmetry rejected cleanly",
+           code != 0 and "cannot be combined" in out and "Traceback" not in out, out)
+
+    code, out = run_mol(["--diagram", "--xyz", xyz_nh3, "--element", "H"])
+    report("--diagram with --element rejected cleanly",
+           code != 0 and "cannot be combined" in out and "Traceback" not in out, out)
+
+    code, out = run_mol(["--xyz", xyz_nh3, "--element", "H", "--orbital", "s",
+                         "--center", "N"])
+    report("--center without --diagram rejected cleanly",
+           code != 0 and "only available with --diagram" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_mol(["--diagram", "--xyz", xyz_nh3, "--visualize"])
+    report("--diagram with --visualize rejected cleanly",
+           code != 0 and "not available with --diagram" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_mol(["--diagram", "--xyz", xyz_nh3, "--center", "Fe"])
+    report("--diagram with absent central element rejected cleanly",
+           code != 0 and "exactly one" in out and "Traceback" not in out, out)
+
+    code, out = run_mol(["--diagram", "--xyz", xyz_o2])
+    report("--diagram on a linear molecule rejected with guidance",
+           code != 0 and "crystallographic point" in out and "Traceback" not in out,
+           out)
+
+    code, out = run_mol(["--xyz", xyz_nh3, "--element", "H", "--orbital", "s",
+                         "--pyscf"])
+    report("--pyscf without --diagram rejected cleanly",
+           code != 0 and "only available with --diagram" in out
+           and "Traceback" not in out, out)
+
+    code, out = run_mol(["--diagram", "--xyz", xyz_nh3, "--ao-left", "H3"])
+    report("--ao-left without --pyscf rejected cleanly",
+           code != 0 and "require" in out and "Traceback" not in out, out)
 
 
 # ------------------------------------------- 13. crystod-group --supergroup
@@ -2268,7 +2433,8 @@ SECTIONS = {
     30: test_30_xdatcar2adp,
     31: test_31_md_command,
     32: test_32_mol,
-    33: test_33_mol_command,
+    33: test_33_molod,
+    34: test_34_mol_command,
 }
 
 
