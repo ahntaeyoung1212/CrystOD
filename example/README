@@ -6,7 +6,7 @@
 # Sections are grouped by command:
 #   1 library core / 2-6 crystod / 7-17 crystod-group / 18-20 crystod-bz /
 #   21-27 crystod-phonon / 28-29 crystod-mag / 30-31 crystod-md /
-#   32-33 crystod-mol
+#   32-34 crystod-mol
 
 # -- library core --
 01_wigner_d                  Wigner D matrices on real spherical harmonics (library API)
@@ -48,11 +48,12 @@
 
 # -- crystod-mol --
 32_molecular_salc            crystod-mol (--symmetry and molecular SALCs)
+33_molod                     crystod-mol --diagram (MO diagrams: symmetry + overlap, or --pyscf)
 
 test_POSCARs                 shared input structures used by the examples and testsuite
 test_XYZs                    shared molecule files (O2, H2O, NH3, CH4) for crystod-mol
 
-# Sections 6, 17, 20, 27, 29, 31, and 33 of testsuite.py are command-line
+# Sections 6, 17, 20, 27, 29, 31, and 34 of testsuite.py are command-line
 # interface regression tests (every argument form + removed-flag errors) of
 # the command whose group they close. They re-run the features above, so
 # they have no example directories of their own:
@@ -62,4 +63,4 @@ test_XYZs                    shared molecule files (O2, H2O, NH3, CH4) for cryst
 #   27 crystod-phonon  -> 21 .. 26
 #   29 crystod-mag     -> 28
 #   31 crystod-md      -> 30
-#   33 crystod-mol     -> 32
+#   34 crystod-mol     -> 32, 33
