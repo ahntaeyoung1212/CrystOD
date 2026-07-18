@@ -32,9 +32,9 @@ The numbers are grouped by command:
 | 21–27 | `crystod-phonon` | 21 irreps, 22 fatband, 23 LT bands, 24 eigenvectors, 25 modulation, 26 vibration, 27 CLI regression |
 | 28–29 | `crystod-mag` | 28 spin bases, 29 CLI regression |
 | 30–31 | `crystod-md` | 30 ADPs (`--adp`) and `--summary`, 31 CLI regression |
-| 32–33 | `crystod-mol` | 32 molecular point groups & SALCs, 33 CLI regression |
+| 32–34 | `crystod-mol` | 32 molecular point groups & SALCs, 33 MO diagrams (`--diagram`, incl. `--pyscf`), 34 CLI regression |
 
-Sections 6, 17, 20, 27, 29, 31, and 33 are command-line-interface regression tests
+Sections 6, 17, 20, 27, 29, 31, and 34 are command-line-interface regression tests
 (every argument form plus removed-flag errors); they have no documentation
 section of their own.
 
@@ -72,6 +72,8 @@ section of their own.
 - `crystod-md --adp --dim nx ny nz [--start-step N] [--xdatcar XDATCAR] [--output ADP.cif]`
 - `crystod-mol --symmetry --xyz FILE.xyz [--tolerance TOL]`
 - `crystod-mol --xyz FILE.xyz --element EL --orbital s|p|d|f [--align] [--show-matrix] [--visualize]`
+- `crystod-mol --diagram --xyz FILE.xyz [--center EL] [--tolerance TOL] [-o FILE.html]`
+- `crystod-mol --diagram --xyz FILE.xyz --pyscf [--basis BAS] [--theory scf|dft] [--xc XC] [--charge N] [--spin 2S] [--ao-left FORMULA --ao-right FORMULA]`
 - `crystod-md --summary [--start-step N] [--end-step M] [--xdatcar XDATCAR]`
 
 ## Notes

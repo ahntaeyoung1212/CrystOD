@@ -24,7 +24,7 @@ pip install -e .
 Run the full test suite in the repository root (inside the `crystod` environment):
 
 ```bash
-python3 testsuite.py           # run everything (33 sections)
+python3 testsuite.py           # run everything (34 sections)
 python3 testsuite.py 13 16     # run selected sections only
 ```
 
