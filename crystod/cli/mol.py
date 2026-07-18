@@ -30,12 +30,33 @@ the atomic orbital (s/p/d/f), the product is decomposed into the irreps of the
 molecular point group, and the explicit SALCs are printed. The irrep labels
 come from the same point-group character tables as crystod-group.
 
+With --diagram, the molecular-orbital diagram of a single-center molecule
+(central atom + ligands, e.g. NH3, CH4, SF6) is constructed from symmetry and
+overlap alone: the ligand SALCs and central-atom orbitals are combined per
+irrep with the Wolfsberg-Helmholz approximation over exact single-zeta-STO
+overlap integrals (symmetry-adapted extended Hueckel), and the result is
+written as an interactive HTML diagram (ligand AOs | ligand SALCs | MOs |
+central AOs, with correlation lines and electron filling).
+
+With --diagram --pyscf, the diagram becomes quantitative: three PySCF SCF
+calculations in one AO space (the molecule, and the two fragments with ghost
+basis functions on the removed atoms, i.e. counterpoise-consistent) give the
+pre-bonding fragment levels (left | molecule | right) and the exact
+projection of every molecular MO onto them. --ao-left/--ao-right select any
+fragment partition by formula; the default is ligand cage | central atom.
+Options --basis/--theory/--xc/--charge/--spin follow script/calc_pyscf.py.
+
 # Command Examples:
 crystod-mol --symmetry --xyz XYZ_O2.xyz
 crystod-mol --symmetry --xyz XYZ_NH3.xyz --tolerance 0.01
 crystod-mol --xyz XYZ_NH3.xyz --element H --orbital s
 crystod-mol --xyz XYZ_CH4.xyz --element H --orbital s --show-matrix
 crystod-mol --xyz XYZ_NH3.xyz --element H --orbital p --visualize --bond N H 1.2
+crystod-mol --diagram --xyz XYZ_NH3.xyz
+crystod-mol --diagram --xyz XYZ_SF6.xyz --center S --output SF6_MO.html
+crystod-mol --diagram --xyz XYZ_H2O.xyz --pyscf
+crystod-mol --diagram --xyz XYZ_O2.xyz --pyscf --spin 2 --ao-left O --ao-right O
+crystod-mol --diagram --xyz XYZ_CH3OH.xyz --pyscf --ao-left H4 --ao-right CO
 """
 
 
@@ -55,6 +76,75 @@ def build_parser() -> ArgumentParser:
         "--symmetry",
         action="store_true",
         help="Only detect and print the molecular point group.",
+    )
+    parser.add_argument(
+        "--diagram",
+        action="store_true",
+        help="Molecular-orbital diagram of a single-center molecule from\n"
+             "symmetry + overlap (symmetry-adapted extended Hueckel); writes\n"
+             "an interactive HTML diagram by default.",
+    )
+    parser.add_argument(
+        "--center",
+        default=None,
+        metavar="EL",
+        help="Element of the central atom for --diagram\n"
+             "(default: the atom closest to the molecular center).",
+    )
+    parser.add_argument(
+        "--pyscf",
+        action="store_true",
+        help="Quantitative --diagram from three PySCF SCF calculations\n"
+             "(molecule + two fragments in the full molecular basis).",
+    )
+    parser.add_argument(
+        "--basis",
+        default="def2-svp",
+        type=str.lower,
+        metavar="BASIS",
+        help="PySCF basis set for --pyscf (default: def2-svp).",
+    )
+    parser.add_argument(
+        "--theory",
+        default="scf",
+        choices=["scf", "dft"],
+        help="PySCF level of theory for --pyscf (default: scf = Hartree-Fock).",
+    )
+    parser.add_argument(
+        "--xc",
+        default="b3lyp",
+        type=str.lower,
+        metavar="XC",
+        help="Exchange-correlation functional for --pyscf --theory dft\n"
+             "(default: b3lyp).",
+    )
+    parser.add_argument(
+        "--charge",
+        type=int,
+        default=0,
+        help="Total charge of the molecule for --pyscf (default: 0).",
+    )
+    parser.add_argument(
+        "--spin",
+        type=int,
+        default=None,
+        metavar="2S",
+        help="Molecular spin 2S for --pyscf (default: 0 or 1 by electron\n"
+             "parity; e.g. --spin 2 for triplet O2).",
+    )
+    parser.add_argument(
+        "--ao-left",
+        default=None,
+        metavar="FORMULA",
+        help="Left-fragment formula for --pyscf, e.g. H4 or O\n"
+             "(default: the ligand atoms).",
+    )
+    parser.add_argument(
+        "--ao-right",
+        default=None,
+        metavar="FORMULA",
+        help="Right-fragment formula for --pyscf, e.g. CO or O\n"
+             "(default: the central atom).",
     )
     parser.add_argument(
         "--element",
@@ -117,6 +207,43 @@ def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.symmetry and args.diagram:
+        parser.error("--symmetry cannot be combined with --diagram.")
+    if args.diagram and (args.element or args.orbital):
+        parser.error("--diagram cannot be combined with --element/--orbital.")
+    if args.center and not args.diagram:
+        parser.error("--center is only available with --diagram.")
+    if args.pyscf and not args.diagram:
+        parser.error("--pyscf is only available with --diagram.")
+    if not args.pyscf and (args.ao_left or args.ao_right
+                           or args.spin is not None or args.charge):
+        parser.error("--ao-left/--ao-right/--charge/--spin require "
+                     "--diagram --pyscf.")
+    if args.diagram:
+        if args.show_matrix or args.align or args.visualize or args.bond:
+            parser.error("--show-matrix/--align/--visualize/--bond are not "
+                         "available with --diagram (the HTML diagram is "
+                         "written by default).")
+        dispatch_argv = ["--xyz", args.xyz, "--tolerance", str(args.tolerance)]
+        if args.center:
+            dispatch_argv.extend(["--center", args.center])
+        if args.output:
+            dispatch_argv.extend(["--output", args.output])
+        if args.pyscf:
+            dispatch_argv.extend(["--pyscf", "--basis", args.basis,
+                                  "--theory", args.theory, "--xc", args.xc,
+                                  "--charge", str(args.charge)])
+            if args.spin is not None:
+                dispatch_argv.extend(["--spin", str(args.spin)])
+            if args.ao_left:
+                dispatch_argv.extend(["--ao-left", args.ao_left])
+            if args.ao_right:
+                dispatch_argv.extend(["--ao-right", args.ao_right])
+
+        from ..mo_diagram import main as mo_diagram_main
+
+        mo_diagram_main(dispatch_argv)
+        return
     if args.symmetry and (args.element or args.orbital):
         parser.error("--symmetry cannot be combined with --element/--orbital.")
     if not args.symmetry and (args.element is None or args.orbital is None):
