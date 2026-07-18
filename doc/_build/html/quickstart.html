@@ -382,14 +382,14 @@ at every special k point:</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">crystod-md</span></code></p></td>
 <td><p>30 ADPs (<code class="docutils literal notranslate"><span class="pre">--adp</span></code>) and <code class="docutils literal notranslate"><span class="pre">--summary</span></code>, 31 CLI regression</p></td>
 </tr>
-<tr class="row-odd"><td><p>32–33</p></td>
+<tr class="row-odd"><td><p>32–34</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span></code></p></td>
-<td><p>32 molecular point groups &amp; SALCs, 33 CLI regression</p></td>
+<td><p>32 molecular point groups &amp; SALCs, 33 MO diagrams (<code class="docutils literal notranslate"><span class="pre">--diagram</span></code>, incl. <code class="docutils literal notranslate"><span class="pre">--pyscf</span></code>), 34 CLI regression</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Sections 6, 17, 20, 27, 29, 31, and 33 are command-line-interface regression tests
+<p>Sections 6, 17, 20, 27, 29, 31, and 34 are command-line-interface regression tests
 (every argument form plus removed-flag errors); they have no documentation
 section of their own.</p>
 </section>
@@ -428,6 +428,8 @@ section of their own.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-md</span> <span class="pre">--adp</span> <span class="pre">--dim</span> <span class="pre">nx</span> <span class="pre">ny</span> <span class="pre">nz</span> <span class="pre">[--start-step</span> <span class="pre">N]</span> <span class="pre">[--xdatcar</span> <span class="pre">XDATCAR]</span> <span class="pre">[--output</span> <span class="pre">ADP.cif]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span> <span class="pre">--symmetry</span> <span class="pre">--xyz</span> <span class="pre">FILE.xyz</span> <span class="pre">[--tolerance</span> <span class="pre">TOL]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span> <span class="pre">--xyz</span> <span class="pre">FILE.xyz</span> <span class="pre">--element</span> <span class="pre">EL</span> <span class="pre">--orbital</span> <span class="pre">s|p|d|f</span> <span class="pre">[--align]</span> <span class="pre">[--show-matrix]</span> <span class="pre">[--visualize]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span> <span class="pre">--diagram</span> <span class="pre">--xyz</span> <span class="pre">FILE.xyz</span> <span class="pre">[--center</span> <span class="pre">EL]</span> <span class="pre">[--tolerance</span> <span class="pre">TOL]</span> <span class="pre">[-o</span> <span class="pre">FILE.html]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span> <span class="pre">--diagram</span> <span class="pre">--xyz</span> <span class="pre">FILE.xyz</span> <span class="pre">--pyscf</span> <span class="pre">[--basis</span> <span class="pre">BAS]</span> <span class="pre">[--theory</span> <span class="pre">scf|dft]</span> <span class="pre">[--xc</span> <span class="pre">XC]</span> <span class="pre">[--charge</span> <span class="pre">N]</span> <span class="pre">[--spin</span> <span class="pre">2S]</span> <span class="pre">[--ao-left</span> <span class="pre">FORMULA</span> <span class="pre">--ao-right</span> <span class="pre">FORMULA]</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">crystod-md</span> <span class="pre">--summary</span> <span class="pre">[--start-step</span> <span class="pre">N]</span> <span class="pre">[--end-step</span> <span class="pre">M]</span> <span class="pre">[--xdatcar</span> <span class="pre">XDATCAR]</span></code></p></li>
 </ul>
 </section>
