@@ -16,7 +16,7 @@ per research domain.
 | `crystod-phonon` | phonon analyses (irreps, fatband, LT bands, eigenvectors, modulation, vibration) |
 | `crystod-mag` | symmetry-adapted spin bases (cluster multipoles / SAMM) |
 | `crystod-md` | MD-trajectory analyses (ADPs, lattice summary) |
-| `crystod-mol` | molecular point groups and molecular SALCs (XYZ files) |
+| `crystod-mol` | molecular point groups, molecular SALCs, and MO diagrams (XYZ files) |
 
 Every feature carries a shared section number used consistently across this
 documentation, `testsuite.py`, and the `example/` directories of the repository:

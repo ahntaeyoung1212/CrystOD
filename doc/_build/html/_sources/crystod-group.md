@@ -215,10 +215,108 @@ arms x small dimension) and the cell enlargement is detected automatically —
 `--supergroup Pm-3m --irrep R4+` reproduces the complete Howard-Stokes
 octahedral-tilt classification of perovskites. Letters in `--order-parameter`
 are free parameters; omit the option to enumerate every direction type.
+Following ISOTROPY, the order-parameter components are grouped arm by arm:
+`;` separates the star arms and `,` the components within one arm (R4+ of
+Pm-3m: one arm x small dim 3 -> `(a,a,b)`; M3+: three arms x small dim 1 ->
+`(a;b;c)`; X5+: three arms x small dim 2 -> `(a,b;0,0;0,0)`).
+
+### Complex- and pseudoreal-type irreps (doubled real form)
+
+When the Frobenius-Schur indicator of the induced irrep vanishes (complex
+type) or is -1 (pseudoreal type) — as at zone-boundary points of
+non-symmorphic space groups, where the translation phases are genuinely
+complex — the real order parameter transforms as the **physically
+irreducible doubled real form** (the realification of D + D*), the
+dimension doubles, and the output carries the ISOTROPY-style pair label:
+
+```bash
+crystod-group --supergroup Ia-3d --irrep P2
+```
+
+```
+* Irrep *
+P1P2: order parameter dimension 8 (star of 2 arm(s) x small dim 2 x 2; complex-type irrep -> physically irreducible real form)
+
+* Order parameter directions and isotropy subgroups *
+irrep                   subgroup           size  index
+P1P2(a,0,b,0;a,0,b,0)   23 I222            4     48
+P1P2(0,a,0,b;0,a,0,b)   24 I2_12_12_1      4     48
+P1P2(0,0,0,0;0,a,0,b)   82 I-4             4     48
+P1P2(a,b,c,d;-d,a,b,c)  2 P-1              4     96
+P1P2(0,a,0,b;0,c,0,d)   5 C2               4     96
+P1P2(a,b,c,d;a,b,c,d)   5 C2               4     96
+P1P2(a,b,c,d;e,f,g,h)   1 P1               4     192
+```
+
++k/-k pairs whose -k star is tabulated separately pair across the stars
+(I-42d `P1` -> `P1PA1`, P3 `H1` -> `H1HA1`); conjugate-gauge and
+origin-choice tabulations are matched automatically, and real-type irreps
+whose induced matrices are complex (P3 of Ia-3d) are realified exactly
+through the antilinear real structure of the group-averaged intertwiner.
+
+### Coupled order parameters (several irreps)
+
+Giving `--irrep` **several labels** enumerates the isotropy subgroups of the
+**coupled** order parameters — the stabilizers on the direct sum of the
+irreps, i.e. the space groups reached when several distortions condense
+simultaneously:
+
+```bash
+crystod-group --supergroup I4/mmm --irrep X3- X2+
+```
+
+```
+* Order parameter directions and isotropy subgroups (X3- alone) *
+irrep                subgroup           size  index
+X3-(0;a)             63 Cmcm            2     4
+X3-(a;a)             136 P4_2/mnm       4     4
+X3-(a;b)             58 Pnnm            4     8
+
+* Order parameter directions and isotropy subgroups (X2+ alone) *
+irrep                subgroup           size  index
+X2+(0;c)             64 Cmce            2     4
+X2+(c;c)             127 P4/mbm         4     4
+X2+(c;d)             55 Pbam            4     8
+
+* Order parameter directions and isotropy subgroups (coupled) *
+irrep                subgroup           size  index
+X3-(0;a) X2+(0;c)    36 Cmc2_1          2     8
+X3-(0;a) X2+(c;0)    62 Pnma            4     8
+X3-(a;a) X2+(c;c)    38 Amm2            4     16
+X3-(0;a) X2+(c;d)    26 Pmc2_1          4     16
+X3-(a;b) X2+(0;c)    31 Pmn2_1          4     16
+X3-(a;b) X2+(c;d)    6 Pm               4     32
+```
+
+The single-irrep tables of every given irrep are printed first, then the
+coupled table. Its first column groups the components irrep by irrep, and
+every irrep keeps its own free-parameter letters (X3-: a, b; X2+: c, d --
+the amplitudes of different irreps are always independent); every coupled
+direction condenses *all* the irreps with nonzero amplitude (a zero irrep
+would just reproduce the single-irrep tables above). The arm combinations
+matter: for
+the n = 2 Ruddlesden-Popper structure above, condensing the octahedral
+rotation (X2+) and tilt (X3-) at the *same* X arm gives the polar
+hybrid-improper ferroelectric ground state `Cmc2_1` (= A2_1am, as in
+Ca3Ti2O7), while *crossed* arms give nonpolar `Pnma`. `--order-parameter`
+then takes the concatenated components (`--order-parameter 0 a 0 c` above
+resolves to Cmc2_1), and `--supergroup Pm-3m --irrep R4+ M3+` reproduces the
+full Howard-Stokes table of *mixed* perovskite tilt systems (a-a-c+ =
+`R4+(0,a,a) M3+(a;0;0)` -> Pnma, a+a+c- -> P4_2/nmc, a0b-c+ -> Cmcm, ...).
 
 This is the offline counterpart of **ISOSUBGROUP** of the ISOTROPY Software
-Suite (https://iso.byu.edu), and is validated against it (all Pm-3m GM
-irreps, entry by entry). If you use this feature, please cite: H. T. Stokes,
+Suite (https://iso.byu.edu), and is validated against it exhaustively: a
+sweep over the 910 downloaded ISOSUBGROUP tables in `SUBGROUP/` (space
+groups 16-230, every parameter-free high-symmetry k point — 3535 irreps;
+`script/validate_isosubgroup.py`) reproduces the complete (subgroup, size,
+index) multiset of every strata table, 3533 of 3535 irreps agreeing (25 up
+to the enantiomorphic partner — a representative choice within one stratum
+orbit — and 44 up to a verified CDML-vs-ISOTROPY irrep-label swap, recorded
+in `SUBGROUP/VALIDATION.md` and printed as a note under the output whenever
+an affected irrep or an enantiomorphic subgroup appears); the only
+exceptions are the W point of Ibca (spgrep cannot construct its pseudoreal
+small irreps) and the rhombohedral L star of R-3m (not tabulated in
+`irreptables`). If you use this feature, please cite: H. T. Stokes,
 S. van Orden and B. J. Campbell, "Tool for Generating Isotropy Subgroups of
 Crystallographic Space Groups", J. Appl. Cryst. 49, 1849-1853 (2016).
 
@@ -291,6 +389,18 @@ atomic orbital (section 9) and verifies the occupied shells occur in it.
 Every result closes with a state-count check (product of C(2 dim, n)).
 Validated against the standard crystal-field term tables (t2g^n, eg^n,
 t2g^2 eg^1 in Oh; e^2 in Td and C3v).
+
+For two-shell configurations, the doubly-occurring terms (the CI pairs) are additionally printed as their **CI matrix in the coupled-parent basis** |shell1(S1 Gamma1) shell2(S2 Gamma2)> — the representation used by the Tanabe-Sugano/Griffith strong-field tables — e.g. for (t2g)^2(eg)^1: the ^2Eg block is <t2g^2(^1A1g)eg|H|...> = 3A + 8B + 6C, <t2g^2(^1Eg)eg|H|...> = 3A - B + 3C, off-diagonal ±10B, whose eigenvalues are exactly the printed 3A + (7/2)B + (9/2)C ± (1/2)√(481B² + 54BC + 9C²) (the off-diagonal sign is a basis convention; books may differ).
+
+### Visualizing the term eigenstates (`--visualize`)
+
+With `--orbital`, `--visualize` writes the **exact eigenstates of every term** as an interactive HTML page (`Multiplet_{pg}_{config}.html`): the term list in a sidebar (Hund/energy ground state marked), and for the selected term the full **Slater-determinant expansion** — every determinant drawn as an orbital box diagram (t2g: dxy, dyz, dxz | eg: dz2, dx2-y2, identified from the parent orbital) with up/down arrows and the exact expansion coefficient (1, ±1/2, ±1/√2, ±√3/2, ...):
+
+```bash
+crystod-group --multiplet T2g2 Eg1 --pg m-3m --orbital d --visualize
+```
+
+A term eigenstate is in general a superposition of determinants, not a single box configuration — e.g. the ^4A2g of (t2g)^3 *is* the single determinant |dxy↑ dyz↑ dxz↑⟩ (coefficient 1), while a ^4T1g partner of (t2g)^2(eg)^1 is √3/2 |dx2-y2↑; dxy↑ dyz↑⟩ + 1/2 |dz2↑; dxy↑ dyz↑⟩. States are shown at the highest spin projection Ms = S; degenerate spatial partners are switchable (canonicalized, so any orthogonal mixture is equivalent); configuration-mixed terms (the CI pairs, e.g. the two ^2T1g) get one tab per state with its Coulomb energy at the reference parameters. `--output` selects the file name. For f shells, symmetry-mixed basis functions (e.g. the t1u combination of fx(x2-3y2) and fxz2) get short symbols `t1u(1)`, ... in the boxes, expanded in an *Orbital basis functions* legend on the page. Each state also gets a drag-rotatable 3D surface of its **charge and spin density** (angular part), computed exactly from the one-particle reduced density matrix of the term eigenstate: r(θ,φ) ∝ n(θ,φ), colored by the local spin polarization — the real-space picture behind orbital ordering and Jahn-Teller physics (e.g. the (t2g)^3 ^4A2g shows the cubic-symmetric t2g flower, fully spin-polarized, while the ^2Eg partners keep the cubic charge density but carry an anisotropic spin density).
 
 ## 15. POSCAR <-> Bilbao-style CIF (`--poscar2cif` / `--cif2poscar`)
 
