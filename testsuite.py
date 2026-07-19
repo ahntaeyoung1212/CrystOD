@@ -55,6 +55,7 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -1983,11 +1984,102 @@ def test_13_isotropy() -> None:
     report("M3+ tilt subgroups P4/mbm + Im-3 + I4/mmm",
            code == 0 and "127 P4/mbm" in out and "204 Im-3" in out
            and "139 I4/mmm" in out, out)
+    report("direction column carries the irrep label (arms ; separated)",
+           re.search(r"M3\+\(0;0;a\)\s+127 P4/mbm", out) is not None, out)
 
     code, out = run_group(["--supergroup", "Pm-3m", "--irrep", "M3+",
                            "--order-parameter", "a", "a", "a"])
     report("M3+ (a,a,a) -> Im-3 with 2x2x2 cell (size 4)",
            code == 0 and "Im-3 (No. 204)" in out and "cell size 4" in out, out)
+
+    # complex-type irrep at a non-symmorphic zone-boundary point: the
+    # physically irreducible doubled form, paired with the conjugate irrep
+    # (validated entry by entry against ISOSUBGROUP SG230 P tables)
+    code, out = run_group(["--supergroup", "Ia-3d", "--irrep", "P2"])
+    report("complex P2 -> paired P1P2 doubled form (dim 8)",
+           code == 0 and "P1P2: order parameter dimension 8" in out
+           and "complex-type irrep -> physically irreducible real form" in out,
+           out)
+    report("P1P2 subgroups match ISOSUBGROUP (I-4, I222, 2x C2, ...)",
+           all(re.search(p, out) is not None for p in
+               (r"82 I-4\s+4\s+48", r"23 I222\s+4\s+48",
+                r"24 I2_12_12_1\s+4\s+48", r"2 P-1\s+4\s+96",
+                r"1 P1\s+4\s+192"))
+           and len(re.findall(r"5 C2\s+4\s+96", out)) == 2, out)
+
+    # real-type irrep with complex matrices (translation phases e^(i pi/2)):
+    # exercises the antilinear-real-structure realification
+    code, out = run_group(["--supergroup", "Ia-3d", "--irrep", "P3"])
+    report("P3 realified (R32/R-3/R3 subgroups as in ISOSUBGROUP)",
+           code == 0 and re.search(r"155 R32\s+4\s+32", out) is not None
+           and re.search(r"148 R-3\s+4\s+32", out) is not None
+           and re.search(r"146 R3\s+4\s+64", out) is not None, out)
+
+    # +k/-k pairing (the -k star is not in the star of k): P/PA of I-42d,
+    # tabulated in the conjugate gauge
+    code, out = run_group(["--supergroup", "122", "--irrep", "P1"])
+    report("I-42d P1 -> P1PA1 pair (I-4 subgroup as in ISOSUBGROUP)",
+           code == 0 and "P1PA1: order parameter dimension 4" in out
+           and re.search(r"82 I-4\s+4\s+8", out) is not None
+           and re.search(r"1 P1\s+4\s+32", out) is not None, out)
+
+    # broken irreptables gauge at N of I4_132: fitted-name selection of the
+    # spgrep candidate (chiral subgroups P4_122 vs P4_322 distinguish N1/N3)
+    code, out = run_group(["--supergroup", "214", "--irrep", "N1"])
+    report("I4_132 N1 via fitted names -> C222 + P4_122 + R32",
+           code == 0 and re.search(r"21 C222\s+2\s+12", out) is not None
+           and re.search(r"91 P4_122\s+4\s+12", out) is not None
+           and re.search(r"155 R32\s+4\s+16", out) is not None, out)
+    report("enantiomorphic-partner note printed (91 <-> 95)",
+           "91 <-> 95 are enantiomorphic partner types" in out, out)
+
+    # crystod (irreptables/Bilbao) vs ISOTROPY label-convention note
+    code, out = run_group(["--supergroup", "Ia-3d", "--irrep", "N1"])
+    report("Bilbao-vs-ISOTROPY label note at N of Ia-3d",
+           code == 0 and "crystod N1 = ISOTROPY N2" in out
+           and "SUBGROUP/VALIDATION.md" in out, out)
+
+    # mixed translation denominators (H of P3: k = (1/3,1/3,1/2)): the
+    # translation grid must be the lcm (6), not the max (3)
+    code, out = run_group(["--supergroup", "P3", "--irrep", "H1"])
+    report("P3 H1 -> H1HA1 with 6x cell (lcm translation grid)",
+           code == 0 and "H1HA1" in out
+           and re.search(r"143 P3\s+6\s+6", out) is not None, out)
+
+    # coupled irreps (I4/mmm X3- + X2+: n=2 Ruddlesden-Popper rotation+tilt;
+    # hybrid-improper-ferroelectric ground state Cmc2_1 = A2_1am)
+    code, out = run_group(["--supergroup", "I4/mmm", "--irrep", "X3-", "X2+"])
+    report("coupled X3-+X2+ enumeration exit 0", code == 0, out)
+    report("coupled header lists both irreps (dim 2+2)",
+           "* Coupled irreps *" in out
+           and "coupled order parameter dimension 4 (2 + 2)" in out, out)
+    report("single-irrep tables printed before the coupled table",
+           "(X3- alone) *" in out and "(X2+ alone) *" in out
+           and "(coupled) *" in out
+           and re.search(r"X3-\(0;a\)\s+63 Cmcm", out) is not None
+           and re.search(r"X2\+\(0;c\)\s+64 Cmce", out) is not None
+           and re.search(r"X2\+\(c;d\)\s+55 Pbam", out) is not None, out)
+    report("zero-chunk directions omitted from the coupled table",
+           "(0,0)" not in out, out)
+    report("same-arm coupling X3-(0,a) X2+(0,c) -> Cmc2_1 (A2_1am)",
+           re.search(r"X3-\(0;a\) X2\+\(0;c\)\s+36 Cmc2_1", out) is not None, out)
+    report("cross-arm coupling X3-(0,a) X2+(c,0) -> Pnma",
+           re.search(r"X3-\(0;a\) X2\+\(c;0\)\s+62 Pnma", out) is not None, out)
+    report("generic coupled direction -> Pm (index 32)",
+           re.search(r"X3-\(a;b\) X2\+\(c;d\)\s+6 Pm\s+4\s+32", out) is not None,
+           out)
+
+    code, out = run_group(["--supergroup", "I4/mmm", "--irrep", "X3-", "X2+",
+                           "--order-parameter", "0", "a", "0", "c"])
+    report("coupled explicit direction resolves to Cmc2_1",
+           code == 0 and "X3-(0;a) X2+(0;c) -> Cmc2_1 (No. 36)" in out
+           and "cell size 2, index 8" in out, out)
+
+    code, out = run_group(["--supergroup", "I4/mmm", "--irrep", "X3-", "X2+",
+                           "--order-parameter", "0", "a"])
+    report("coupled order-parameter length checked against total dim",
+           code != 0 and "needs 4 components" in out
+           and "X3- + X2+" in out and "Traceback" not in out, out)
 
     # errors
     code, out = run_group(["--supergroup", "Pm-3m"])
@@ -2170,6 +2262,89 @@ def test_14_multiplet() -> None:
     code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m",
                            "--orbital", "d"])
     report("--orbital outside --multiplet rejected cleanly",
+           code != 0 and "only used with --multiplet" in out
+           and "Traceback" not in out, out)
+
+    # --visualize: exact term eigenstates as an HTML page
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_group(["--multiplet", "T2g3", "--pg", "m-3m",
+                               "--orbital", "d", "--visualize"], cwd=tmp)
+        html_path = os.path.join(tmp, "Multiplet_m-3m_T2g3.html")
+        report("--visualize exit 0 and default file name",
+               code == 0 and "Term-state viewer written to" in out
+               and os.path.isfile(html_path), out)
+        if os.path.isfile(html_path):
+            with open(html_path) as handle:
+                html = handle.read()
+            data = json.loads(
+                re.search(r"const DATA = (\{.*?\});\n", html, re.S).group(1)
+            )
+            report("t2g orbitals identified as dxy, dyz, dxz",
+                   data["shells"][0]["labels"] == ["dxy", "dyz", "dxz"],
+                   html_path)
+            ground = data["terms"][0]
+            partner = ground["branches"][0]["partners"][0]
+            report("^4A2g is the single determinant |dxy up, dyz up, dxz up>",
+                   ground["symbol"] == {"mult": "4", "irrep": "A2g"}
+                   and len(partner["dets"]) == 1 and partner["dets"][0]["c"] == "1"
+                   and partner["dets"][0]["boxes"] == [[1, 1, 1]], html_path)
+            norms_ok = all(
+                abs(sum(e["cf"] ** 2
+                        for e in branch["partners"][0]["dets"]) - 1.0) < 1e-4
+                for term in data["terms"] for branch in term["branches"]
+            )
+            report("every term state is normalized", norms_ok, html_path)
+            charge = partner["gc"]
+            diagonal = [round(charge[i][i], 6) for i in range(5)]
+            off_ok = all(
+                abs(charge[i][j]) < 1e-6
+                for i in range(5) for j in range(5) if i != j
+            )
+            report("^4A2g charge density matrix = t2g projector "
+                   "(diag 1,1,0,1,0 over dxy,dyz,dz2,dxz,dx2-y2)",
+                   diagonal == [1.0, 1.0, 0.0, 1.0, 0.0] and off_ok, html_path)
+            report("density surface data present for every term",
+                   all("gc" in branch["partners"][0] and "gs" in branch["partners"][0]
+                       for term in data["terms"] for branch in term["branches"]),
+                   html_path)
+
+        code, out = run_group(["--multiplet", "T2g2", "Eg1", "--pg", "m-3m",
+                               "--orbital", "d", "--visualize",
+                               "--output", "states.html"], cwd=tmp)
+        report("--visualize --output custom name (two-shell configuration)",
+               code == 0 and os.path.isfile(os.path.join(tmp, "states.html")),
+               out)
+        report("coupled-parent CI matrices printed (Tanabe-Sugano basis)",
+               "CI matrices in the coupled-parent basis" in out
+               and "T2g^2(^1A1g) Eg^1(^2Eg)" in out, out)
+        report("^2Eg parent matrix: 3A + 8B + 6C / 3A - B + 3C / +-10B",
+               "<1|H|1> = 3A + 8B + 6C" in out
+               and "<2|H|2> = 3A - B + 3C" in out
+               and "<1|H|2> = +-(10B)" in out, out)
+        report("^2T1g parent off-diagonal 3B (eigenvalues +-3sqrt(2)B)",
+               "<1|H|2> = +-(3B)" in out, out)
+
+        # f shell: mixed basis combinations get short symbols + a legend
+        code, out = run_group(["--multiplet", "T1u2", "--pg", "m-3m",
+                               "--orbital", "f", "--visualize"], cwd=tmp)
+        f_path = os.path.join(tmp, "Multiplet_m-3m_T1u2.html")
+        report("f-shell --visualize exit 0", code == 0 and os.path.isfile(f_path), out)
+        if os.path.isfile(f_path):
+            with open(f_path) as handle:
+                f_html = handle.read()
+            report("mixed f combinations shortened with a legend",
+                   "Orbital basis functions" in f_html
+                   and "t1u(1) = " in f_html and "fz3" in f_html, f_path)
+
+    code, out = run_group(["--multiplet", "T2g2", "--pg", "m-3m",
+                           "--visualize"])
+    report("--visualize without --orbital rejected cleanly",
+           code != 0 and "needs --orbital" in out and "Traceback" not in out,
+           out)
+
+    code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m",
+                           "--visualize"])
+    report("--visualize outside --multiplet rejected cleanly",
            code != 0 and "only used with --multiplet" in out
            and "Traceback" not in out, out)
 
