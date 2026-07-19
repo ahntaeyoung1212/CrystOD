@@ -243,3 +243,103 @@ check: 6 states = C(4,2) = 6
 ^3A2
 (exact Coulomb multiplet energies in Racah/Slater parameters: add --orbital s|p|d|f of the parent shell)
 
+
+
+$ crystod-group --multiplet T2g2 Eg1 --pg m-3m --orbital d --visualize
+
+* Point group *
+m-3m
+
+* Ligand-field splitting of the d orbital *
+1(Eg) + 1(T2g)
+
+* Configuration *
+(T2g)^2 (Eg)^1
+
+* Term Symbols *
+(T2g)^2 (Eg)^1 = ^4T1g + ^4T2g + ^2A1g + ^2A2g + 2(^2Eg) + 2(^2T1g) + 2(^2T2g)
+
+check: 60 states = C(6,2) x C(4,1) = 60
+
+* Multiplet Energies (Racah parameters A, B, C; Coulomb part only) *
+^4T1g: 3A - 3B
+^4T2g: 3A - 15B
+^2A1g: 3A - 11B + 3C
+^2A2g: 3A + 9B + 3C
+^2Eg : 3A + (7/2)B + (9/2)C +- (1/2)sqrt(481B^2 + 54BC + 9C^2)   (x2, configuration mixing)
+^2T1g: 3A - 3B + 3C +- 3sqrt(2)B   (x2, configuration mixing)
+^2T2g: 3A - B + 3C +- sqrt(34)B   (x2, configuration mixing)
+(numeric CI blocks evaluated at C/B = 4.5, typical for 3d ions)
+(the one-electron / crystal-field part is an additive constant within the configuration)
+
+* CI matrices in the coupled-parent basis (strong-field/Tanabe-Sugano tables) *
+^2Eg:
+  |1> = T2g^2(^1A1g) Eg^1(^2Eg)
+  |2> = T2g^2(^1Eg) Eg^1(^2Eg)
+  <1|H|1> = 3A + 8B + 6C
+  <2|H|2> = 3A - B + 3C
+  <1|H|2> = +-(10B)  (sign is a basis convention)
+^2T1g:
+  |1> = T2g^2(^3T1g) Eg^1(^2Eg)
+  |2> = T2g^2(^1T2g) Eg^1(^2Eg)
+  <1|H|1> = 3A + 3C
+  <2|H|2> = 3A - 6B + 3C
+  <1|H|2> = +-(3B)  (sign is a basis convention)
+^2T2g:
+  |1> = T2g^2(^3T1g) Eg^1(^2Eg)
+  |2> = T2g^2(^1T2g) Eg^1(^2Eg)
+  <1|H|1> = 3A - 6B + 3C
+  <2|H|2> = 3A + 4B + 3C
+  <1|H|2> = +-(3B)  (sign is a basis convention)
+
+* Ground-state Term Symbol (within this configuration) *
+^4T2g   (lowest at C/B = 4.5, typical for 3d ions)
+
+Term-state viewer written to Multiplet_m-3m_T2g2_Eg1.html
+
+$ crystod-group --multiplet T1u2 T2u2 --pg m-3m --orbital f --visualize
+
+* Point group *
+m-3m
+
+* Ligand-field splitting of the f orbital *
+1(A2u) + 1(T1u) + 1(T2u)
+
+* Configuration *
+(T1u)^2 (T2u)^2
+
+* Term Symbols *
+(T1u)^2 (T2u)^2 = ^5A1g + ^5Eg + ^5T1g + ^5T2g + ^3A1g + 2(^3A2g) + 3(^3Eg) + 7(^3T1g) + 5(^3T2g) + 4(^1A1g) + ^1A2g + 5(^1Eg) + 4(^1T1g) + 6(^1T2g)
+
+check: 225 states = C(6,2) x C(6,2) = 225
+
+* Multiplet Energies (Slater-Condon parameters F0, F2, F4, F6 (reduced); Coulomb part only) *
+^5A1g: 6F0 - 60F2 - 198F4 - 1716F6
+^5Eg : 6F0 - 75F2 - 216F4 - 1443F6
+^5T1g: 6F0 - 65F2 - 204F4 - 1625F6
+^5T2g: 6F0 - (75/2)F2 - 171F4 - (4251/2)F6
+^3A1g: 6F0 - 20F2 - 108F4 - 848F6
+^3A2g: 6F0 - 38F2 - 145F4 - 428F6 +- (1/2)sqrt(2896F2^2 - 12000F2F4 + 8288F2F6 + 12484F4^2 - 17808F4F6 + 7840F6^2)   (x2, configuration mixing)
+^3Eg : [-71.162, -59.247, -32.883]  (x3, configuration mixing; numeric)
+^3T1g: [-76.899, -68.224, -55.871, -49.664, -31.950, -9.080, +16.354]  (x7, configuration mixing; numeric)
+^3T2g: [-75.090, -67.539, -51.994, -40.137, -14.120]  (x5, configuration mixing; numeric)
+^1A1g: [-52.651, -30.567, -3.818, +86.590]  (x4, configuration mixing; numeric)
+^1A2g: 6F0 - 6F2 + 46F4 - 1002F6
+^1Eg : [-53.501, -40.354, -20.322, +24.757, +51.164]  (x5, configuration mixing; numeric)
+^1T1g: [-54.101, -41.484, -8.467, -1.821]  (x4, configuration mixing; numeric)
+^1T2g: [-49.617, -30.913, -17.438, +9.486, +24.245, +52.278]  (x6, configuration mixing; numeric)
+(numeric CI blocks evaluated at hydrogenic 4f ratios F4/F2 = 0.138, F6/F2 = 0.0151)
+(the one-electron / crystal-field part is an additive constant within the configuration)
+
+* CI matrices in the coupled-parent basis (strong-field/Tanabe-Sugano tables) *
+^3A2g:
+  |1> = T1u^2(^3T1g) T2u^2(^1T2g)
+  |2> = T1u^2(^1T2g) T2u^2(^3T1g)
+  <1|H|1> = 6F0 - 20F2 - 185F4 - 386F6
+  <2|H|2> = 6F0 - 56F2 - 105F4 - 470F6
+  <1|H|2> = +-(-20F2 + 39F4 - 14F6)  (sign is a basis convention)
+
+* Ground-state Term Symbol (within this configuration) *
+^5Eg   (lowest at hydrogenic 4f ratios F4/F2 = 0.138, F6/F2 = 0.0151)
+
+Term-state viewer written to Multiplet_m-3m_T1u2_T2u2.html
