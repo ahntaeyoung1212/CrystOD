@@ -321,8 +321,15 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#basis-functions-basis">10. Basis functions (<code class="docutils literal notranslate"><span class="pre">--basis</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#automatic-generation-of-polynomial-basis-functions-generate-basis">11. Automatic generation of polynomial basis functions (<code class="docutils literal notranslate"><span class="pre">--generate-basis</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coset-decomposition-coset">12. Coset decomposition (<code class="docutils literal notranslate"><span class="pre">--coset</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isotropy-subgroups-supergroup-subgroup-relations-supergroup">13. Isotropy subgroups: supergroup-subgroup relations (<code class="docutils literal notranslate"><span class="pre">--supergroup</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-electron-terms-multiplet">14. Multi-electron terms (<code class="docutils literal notranslate"><span class="pre">--multiplet</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isotropy-subgroups-supergroup-subgroup-relations-supergroup">13. Isotropy subgroups: supergroup-subgroup relations (<code class="docutils literal notranslate"><span class="pre">--supergroup</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#complex-and-pseudoreal-type-irreps-doubled-real-form">Complex- and pseudoreal-type irreps (doubled real form)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coupled-order-parameters-several-irreps">Coupled order parameters (several irreps)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-electron-terms-multiplet">14. Multi-electron terms (<code class="docutils literal notranslate"><span class="pre">--multiplet</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizing-the-term-eigenstates-visualize">Visualizing the term eigenstates (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#poscar-bilbao-style-cif-poscar2cif-cif2poscar">15. POSCAR &lt;-&gt; Bilbao-style CIF (<code class="docutils literal notranslate"><span class="pre">--poscar2cif</span></code> / <code class="docutils literal notranslate"><span class="pre">--cif2poscar</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-mode-analysis-supergroup-cif">16. Symmetry-mode analysis (<code class="docutils literal notranslate"><span class="pre">--supergroup-cif</span></code>)</a></li>
 </ul>
@@ -515,12 +522,104 @@ crystod-group<span class="w"> </span>--supergroup<span class="w"> </span>Pm-3m<s
 arms x small dimension) and the cell enlargement is detected automatically —
 <code class="docutils literal notranslate"><span class="pre">--supergroup</span> <span class="pre">Pm-3m</span> <span class="pre">--irrep</span> <span class="pre">R4+</span></code> reproduces the complete Howard-Stokes
 octahedral-tilt classification of perovskites. Letters in <code class="docutils literal notranslate"><span class="pre">--order-parameter</span></code>
-are free parameters; omit the option to enumerate every direction type.</p>
+are free parameters; omit the option to enumerate every direction type.
+Following ISOTROPY, the order-parameter components are grouped arm by arm:
+<code class="docutils literal notranslate"><span class="pre">;</span></code> separates the star arms and <code class="docutils literal notranslate"><span class="pre">,</span></code> the components within one arm (R4+ of
+Pm-3m: one arm x small dim 3 -&gt; <code class="docutils literal notranslate"><span class="pre">(a,a,b)</span></code>; M3+: three arms x small dim 1 -&gt;
+<code class="docutils literal notranslate"><span class="pre">(a;b;c)</span></code>; X5+: three arms x small dim 2 -&gt; <code class="docutils literal notranslate"><span class="pre">(a,b;0,0;0,0)</span></code>).</p>
+<section id="complex-and-pseudoreal-type-irreps-doubled-real-form">
+<h3>Complex- and pseudoreal-type irreps (doubled real form)<a class="headerlink" href="#complex-and-pseudoreal-type-irreps-doubled-real-form" title="Link to this heading">#</a></h3>
+<p>When the Frobenius-Schur indicator of the induced irrep vanishes (complex
+type) or is -1 (pseudoreal type) — as at zone-boundary points of
+non-symmorphic space groups, where the translation phases are genuinely
+complex — the real order parameter transforms as the <strong>physically
+irreducible doubled real form</strong> (the realification of D + D*), the
+dimension doubles, and the output carries the ISOTROPY-style pair label:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--supergroup<span class="w"> </span>Ia-3d<span class="w"> </span>--irrep<span class="w"> </span>P2
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">Irrep</span> <span class="o">*</span>
+<span class="n">P1P2</span><span class="p">:</span> <span class="n">order</span> <span class="n">parameter</span> <span class="n">dimension</span> <span class="mi">8</span> <span class="p">(</span><span class="n">star</span> <span class="n">of</span> <span class="mi">2</span> <span class="n">arm</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="n">x</span> <span class="n">small</span> <span class="n">dim</span> <span class="mi">2</span> <span class="n">x</span> <span class="mi">2</span><span class="p">;</span> <span class="nb">complex</span><span class="o">-</span><span class="nb">type</span> <span class="n">irrep</span> <span class="o">-&gt;</span> <span class="n">physically</span> <span class="n">irreducible</span> <span class="n">real</span> <span class="n">form</span><span class="p">)</span>
+
+<span class="o">*</span> <span class="n">Order</span> <span class="n">parameter</span> <span class="n">directions</span> <span class="ow">and</span> <span class="n">isotropy</span> <span class="n">subgroups</span> <span class="o">*</span>
+<span class="n">irrep</span>                   <span class="n">subgroup</span>           <span class="n">size</span>  <span class="n">index</span>
+<span class="n">P1P2</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="mi">0</span><span class="p">;</span><span class="n">a</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>   <span class="mi">23</span> <span class="n">I222</span>            <span class="mi">4</span>     <span class="mi">48</span>
+<span class="n">P1P2</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">a</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">b</span><span class="p">;</span><span class="mi">0</span><span class="p">,</span><span class="n">a</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>   <span class="mi">24</span> <span class="n">I2_12_12_1</span>      <span class="mi">4</span>     <span class="mi">48</span>
+<span class="n">P1P2</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">;</span><span class="mi">0</span><span class="p">,</span><span class="n">a</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>   <span class="mi">82</span> <span class="n">I</span><span class="o">-</span><span class="mi">4</span>             <span class="mi">4</span>     <span class="mi">48</span>
+<span class="n">P1P2</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">d</span><span class="p">;</span><span class="o">-</span><span class="n">d</span><span class="p">,</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">)</span>  <span class="mi">2</span> <span class="n">P</span><span class="o">-</span><span class="mi">1</span>              <span class="mi">4</span>     <span class="mi">96</span>
+<span class="n">P1P2</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">a</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">b</span><span class="p">;</span><span class="mi">0</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">d</span><span class="p">)</span>   <span class="mi">5</span> <span class="n">C2</span>               <span class="mi">4</span>     <span class="mi">96</span>
+<span class="n">P1P2</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">d</span><span class="p">;</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">d</span><span class="p">)</span>   <span class="mi">5</span> <span class="n">C2</span>               <span class="mi">4</span>     <span class="mi">96</span>
+<span class="n">P1P2</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">d</span><span class="p">;</span><span class="n">e</span><span class="p">,</span><span class="n">f</span><span class="p">,</span><span class="n">g</span><span class="p">,</span><span class="n">h</span><span class="p">)</span>   <span class="mi">1</span> <span class="n">P1</span>               <span class="mi">4</span>     <span class="mi">192</span>
+</pre></div>
+</div>
+<p>+k/-k pairs whose -k star is tabulated separately pair across the stars
+(I-42d <code class="docutils literal notranslate"><span class="pre">P1</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">P1PA1</span></code>, P3 <code class="docutils literal notranslate"><span class="pre">H1</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">H1HA1</span></code>); conjugate-gauge and
+origin-choice tabulations are matched automatically, and real-type irreps
+whose induced matrices are complex (P3 of Ia-3d) are realified exactly
+through the antilinear real structure of the group-averaged intertwiner.</p>
+</section>
+<section id="coupled-order-parameters-several-irreps">
+<h3>Coupled order parameters (several irreps)<a class="headerlink" href="#coupled-order-parameters-several-irreps" title="Link to this heading">#</a></h3>
+<p>Giving <code class="docutils literal notranslate"><span class="pre">--irrep</span></code> <strong>several labels</strong> enumerates the isotropy subgroups of the
+<strong>coupled</strong> order parameters — the stabilizers on the direct sum of the
+irreps, i.e. the space groups reached when several distortions condense
+simultaneously:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--supergroup<span class="w"> </span>I4/mmm<span class="w"> </span>--irrep<span class="w"> </span>X3-<span class="w"> </span>X2+
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">Order</span> <span class="n">parameter</span> <span class="n">directions</span> <span class="ow">and</span> <span class="n">isotropy</span> <span class="n">subgroups</span> <span class="p">(</span><span class="n">X3</span><span class="o">-</span> <span class="n">alone</span><span class="p">)</span> <span class="o">*</span>
+<span class="n">irrep</span>                <span class="n">subgroup</span>           <span class="n">size</span>  <span class="n">index</span>
+<span class="n">X3</span><span class="o">-</span><span class="p">(</span><span class="mi">0</span><span class="p">;</span><span class="n">a</span><span class="p">)</span>             <span class="mi">63</span> <span class="n">Cmcm</span>            <span class="mi">2</span>     <span class="mi">4</span>
+<span class="n">X3</span><span class="o">-</span><span class="p">(</span><span class="n">a</span><span class="p">;</span><span class="n">a</span><span class="p">)</span>             <span class="mi">136</span> <span class="n">P4_2</span><span class="o">/</span><span class="n">mnm</span>       <span class="mi">4</span>     <span class="mi">4</span>
+<span class="n">X3</span><span class="o">-</span><span class="p">(</span><span class="n">a</span><span class="p">;</span><span class="n">b</span><span class="p">)</span>             <span class="mi">58</span> <span class="n">Pnnm</span>            <span class="mi">4</span>     <span class="mi">8</span>
+
+<span class="o">*</span> <span class="n">Order</span> <span class="n">parameter</span> <span class="n">directions</span> <span class="ow">and</span> <span class="n">isotropy</span> <span class="n">subgroups</span> <span class="p">(</span><span class="n">X2</span><span class="o">+</span> <span class="n">alone</span><span class="p">)</span> <span class="o">*</span>
+<span class="n">irrep</span>                <span class="n">subgroup</span>           <span class="n">size</span>  <span class="n">index</span>
+<span class="n">X2</span><span class="o">+</span><span class="p">(</span><span class="mi">0</span><span class="p">;</span><span class="n">c</span><span class="p">)</span>             <span class="mi">64</span> <span class="n">Cmce</span>            <span class="mi">2</span>     <span class="mi">4</span>
+<span class="n">X2</span><span class="o">+</span><span class="p">(</span><span class="n">c</span><span class="p">;</span><span class="n">c</span><span class="p">)</span>             <span class="mi">127</span> <span class="n">P4</span><span class="o">/</span><span class="n">mbm</span>         <span class="mi">4</span>     <span class="mi">4</span>
+<span class="n">X2</span><span class="o">+</span><span class="p">(</span><span class="n">c</span><span class="p">;</span><span class="n">d</span><span class="p">)</span>             <span class="mi">55</span> <span class="n">Pbam</span>            <span class="mi">4</span>     <span class="mi">8</span>
+
+<span class="o">*</span> <span class="n">Order</span> <span class="n">parameter</span> <span class="n">directions</span> <span class="ow">and</span> <span class="n">isotropy</span> <span class="n">subgroups</span> <span class="p">(</span><span class="n">coupled</span><span class="p">)</span> <span class="o">*</span>
+<span class="n">irrep</span>                <span class="n">subgroup</span>           <span class="n">size</span>  <span class="n">index</span>
+<span class="n">X3</span><span class="o">-</span><span class="p">(</span><span class="mi">0</span><span class="p">;</span><span class="n">a</span><span class="p">)</span> <span class="n">X2</span><span class="o">+</span><span class="p">(</span><span class="mi">0</span><span class="p">;</span><span class="n">c</span><span class="p">)</span>    <span class="mi">36</span> <span class="n">Cmc2_1</span>          <span class="mi">2</span>     <span class="mi">8</span>
+<span class="n">X3</span><span class="o">-</span><span class="p">(</span><span class="mi">0</span><span class="p">;</span><span class="n">a</span><span class="p">)</span> <span class="n">X2</span><span class="o">+</span><span class="p">(</span><span class="n">c</span><span class="p">;</span><span class="mi">0</span><span class="p">)</span>    <span class="mi">62</span> <span class="n">Pnma</span>            <span class="mi">4</span>     <span class="mi">8</span>
+<span class="n">X3</span><span class="o">-</span><span class="p">(</span><span class="n">a</span><span class="p">;</span><span class="n">a</span><span class="p">)</span> <span class="n">X2</span><span class="o">+</span><span class="p">(</span><span class="n">c</span><span class="p">;</span><span class="n">c</span><span class="p">)</span>    <span class="mi">38</span> <span class="n">Amm2</span>            <span class="mi">4</span>     <span class="mi">16</span>
+<span class="n">X3</span><span class="o">-</span><span class="p">(</span><span class="mi">0</span><span class="p">;</span><span class="n">a</span><span class="p">)</span> <span class="n">X2</span><span class="o">+</span><span class="p">(</span><span class="n">c</span><span class="p">;</span><span class="n">d</span><span class="p">)</span>    <span class="mi">26</span> <span class="n">Pmc2_1</span>          <span class="mi">4</span>     <span class="mi">16</span>
+<span class="n">X3</span><span class="o">-</span><span class="p">(</span><span class="n">a</span><span class="p">;</span><span class="n">b</span><span class="p">)</span> <span class="n">X2</span><span class="o">+</span><span class="p">(</span><span class="mi">0</span><span class="p">;</span><span class="n">c</span><span class="p">)</span>    <span class="mi">31</span> <span class="n">Pmn2_1</span>          <span class="mi">4</span>     <span class="mi">16</span>
+<span class="n">X3</span><span class="o">-</span><span class="p">(</span><span class="n">a</span><span class="p">;</span><span class="n">b</span><span class="p">)</span> <span class="n">X2</span><span class="o">+</span><span class="p">(</span><span class="n">c</span><span class="p">;</span><span class="n">d</span><span class="p">)</span>    <span class="mi">6</span> <span class="n">Pm</span>               <span class="mi">4</span>     <span class="mi">32</span>
+</pre></div>
+</div>
+<p>The single-irrep tables of every given irrep are printed first, then the
+coupled table. Its first column groups the components irrep by irrep, and
+every irrep keeps its own free-parameter letters (X3-: a, b; X2+: c, d –
+the amplitudes of different irreps are always independent); every coupled
+direction condenses <em>all</em> the irreps with nonzero amplitude (a zero irrep
+would just reproduce the single-irrep tables above). The arm combinations
+matter: for
+the n = 2 Ruddlesden-Popper structure above, condensing the octahedral
+rotation (X2+) and tilt (X3-) at the <em>same</em> X arm gives the polar
+hybrid-improper ferroelectric ground state <code class="docutils literal notranslate"><span class="pre">Cmc2_1</span></code> (= A2_1am, as in
+Ca3Ti2O7), while <em>crossed</em> arms give nonpolar <code class="docutils literal notranslate"><span class="pre">Pnma</span></code>. <code class="docutils literal notranslate"><span class="pre">--order-parameter</span></code>
+then takes the concatenated components (<code class="docutils literal notranslate"><span class="pre">--order-parameter</span> <span class="pre">0</span> <span class="pre">a</span> <span class="pre">0</span> <span class="pre">c</span></code> above
+resolves to Cmc2_1), and <code class="docutils literal notranslate"><span class="pre">--supergroup</span> <span class="pre">Pm-3m</span> <span class="pre">--irrep</span> <span class="pre">R4+</span> <span class="pre">M3+</span></code> reproduces the
+full Howard-Stokes table of <em>mixed</em> perovskite tilt systems (a-a-c+ =
+<code class="docutils literal notranslate"><span class="pre">R4+(0,a,a)</span> <span class="pre">M3+(a;0;0)</span></code> -&gt; Pnma, a+a+c- -&gt; P4_2/nmc, a0b-c+ -&gt; Cmcm, …).</p>
 <p>This is the offline counterpart of <strong>ISOSUBGROUP</strong> of the ISOTROPY Software
-Suite (https://iso.byu.edu), and is validated against it (all Pm-3m GM
-irreps, entry by entry). If you use this feature, please cite: H. T. Stokes,
+Suite (https://iso.byu.edu), and is validated against it exhaustively: a
+sweep over the 910 downloaded ISOSUBGROUP tables in <code class="docutils literal notranslate"><span class="pre">SUBGROUP/</span></code> (space
+groups 16-230, every parameter-free high-symmetry k point — 3535 irreps;
+<code class="docutils literal notranslate"><span class="pre">script/validate_isosubgroup.py</span></code>) reproduces the complete (subgroup, size,
+index) multiset of every strata table, 3533 of 3535 irreps agreeing (25 up
+to the enantiomorphic partner — a representative choice within one stratum
+orbit — and 44 up to a verified CDML-vs-ISOTROPY irrep-label swap, recorded
+in <code class="docutils literal notranslate"><span class="pre">SUBGROUP/VALIDATION.md</span></code> and printed as a note under the output whenever
+an affected irrep or an enantiomorphic subgroup appears); the only
+exceptions are the W point of Ibca (spgrep cannot construct its pseudoreal
+small irreps) and the rhombohedral L star of R-3m (not tabulated in
+<code class="docutils literal notranslate"><span class="pre">irreptables</span></code>). If you use this feature, please cite: H. T. Stokes,
 S. van Orden and B. J. Campbell, “Tool for Generating Isotropy Subgroups of
 Crystallographic Space Groups”, J. Appl. Cryst. 49, 1849-1853 (2016).</p>
+</section>
 </section>
 <section id="multi-electron-terms-multiplet">
 <h2>14. Multi-electron terms (<code class="docutils literal notranslate"><span class="pre">--multiplet</span></code>)<a class="headerlink" href="#multi-electron-terms-multiplet" title="Link to this heading">#</a></h2>
@@ -582,6 +681,15 @@ atomic orbital (section 9) and verifies the occupied shells occur in it.
 Every result closes with a state-count check (product of C(2 dim, n)).
 Validated against the standard crystal-field term tables (t2g^n, eg^n,
 t2g^2 eg^1 in Oh; e^2 in Td and C3v).</p>
+<p>For two-shell configurations, the doubly-occurring terms (the CI pairs) are additionally printed as their <strong>CI matrix in the coupled-parent basis</strong> |shell1(S1 Gamma1) shell2(S2 Gamma2)&gt; — the representation used by the Tanabe-Sugano/Griffith strong-field tables — e.g. for (t2g)^2(eg)^1: the ^2Eg block is &lt;t2g^2(^1A1g)eg|H|…&gt; = 3A + 8B + 6C, &lt;t2g^2(^1Eg)eg|H|…&gt; = 3A - B + 3C, off-diagonal ±10B, whose eigenvalues are exactly the printed 3A + (7/2)B + (9/2)C ± (1/2)√(481B² + 54BC + 9C²) (the off-diagonal sign is a basis convention; books may differ).</p>
+<section id="visualizing-the-term-eigenstates-visualize">
+<h3>Visualizing the term eigenstates (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)<a class="headerlink" href="#visualizing-the-term-eigenstates-visualize" title="Link to this heading">#</a></h3>
+<p>With <code class="docutils literal notranslate"><span class="pre">--orbital</span></code>, <code class="docutils literal notranslate"><span class="pre">--visualize</span></code> writes the <strong>exact eigenstates of every term</strong> as an interactive HTML page (<code class="docutils literal notranslate"><span class="pre">Multiplet_{pg}_{config}.html</span></code>): the term list in a sidebar (Hund/energy ground state marked), and for the selected term the full <strong>Slater-determinant expansion</strong> — every determinant drawn as an orbital box diagram (t2g: dxy, dyz, dxz | eg: dz2, dx2-y2, identified from the parent orbital) with up/down arrows and the exact expansion coefficient (1, ±1/2, ±1/√2, ±√3/2, …):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-group<span class="w"> </span>--multiplet<span class="w"> </span>T2g2<span class="w"> </span>Eg1<span class="w"> </span>--pg<span class="w"> </span>m-3m<span class="w"> </span>--orbital<span class="w"> </span>d<span class="w"> </span>--visualize
+</pre></div>
+</div>
+<p>A term eigenstate is in general a superposition of determinants, not a single box configuration — e.g. the ^4A2g of (t2g)^3 <em>is</em> the single determinant |dxy↑ dyz↑ dxz↑⟩ (coefficient 1), while a ^4T1g partner of (t2g)^2(eg)^1 is √3/2 |dx2-y2↑; dxy↑ dyz↑⟩ + 1/2 |dz2↑; dxy↑ dyz↑⟩. States are shown at the highest spin projection Ms = S; degenerate spatial partners are switchable (canonicalized, so any orthogonal mixture is equivalent); configuration-mixed terms (the CI pairs, e.g. the two ^2T1g) get one tab per state with its Coulomb energy at the reference parameters. <code class="docutils literal notranslate"><span class="pre">--output</span></code> selects the file name. For f shells, symmetry-mixed basis functions (e.g. the t1u combination of fx(x2-3y2) and fxz2) get short symbols <code class="docutils literal notranslate"><span class="pre">t1u(1)</span></code>, … in the boxes, expanded in an <em>Orbital basis functions</em> legend on the page. Each state also gets a drag-rotatable 3D surface of its <strong>charge and spin density</strong> (angular part), computed exactly from the one-particle reduced density matrix of the term eigenstate: r(θ,φ) ∝ n(θ,φ), colored by the local spin polarization — the real-space picture behind orbital ordering and Jahn-Teller physics (e.g. the (t2g)^3 ^4A2g shows the cubic-symmetric t2g flower, fully spin-polarized, while the ^2Eg partners keep the cubic charge density but carry an anisotropic spin density).</p>
+</section>
 </section>
 <section id="poscar-bilbao-style-cif-poscar2cif-cif2poscar">
 <h2>15. POSCAR &lt;-&gt; Bilbao-style CIF (<code class="docutils literal notranslate"><span class="pre">--poscar2cif</span></code> / <code class="docutils literal notranslate"><span class="pre">--cif2poscar</span></code>)<a class="headerlink" href="#poscar-bilbao-style-cif-poscar2cif-cif2poscar" title="Link to this heading">#</a></h2>
@@ -708,8 +816,15 @@ J. Appl. Cryst. 42, 820-833 (2009).</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#basis-functions-basis">10. Basis functions (<code class="docutils literal notranslate"><span class="pre">--basis</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#automatic-generation-of-polynomial-basis-functions-generate-basis">11. Automatic generation of polynomial basis functions (<code class="docutils literal notranslate"><span class="pre">--generate-basis</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coset-decomposition-coset">12. Coset decomposition (<code class="docutils literal notranslate"><span class="pre">--coset</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isotropy-subgroups-supergroup-subgroup-relations-supergroup">13. Isotropy subgroups: supergroup-subgroup relations (<code class="docutils literal notranslate"><span class="pre">--supergroup</span></code>)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-electron-terms-multiplet">14. Multi-electron terms (<code class="docutils literal notranslate"><span class="pre">--multiplet</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isotropy-subgroups-supergroup-subgroup-relations-supergroup">13. Isotropy subgroups: supergroup-subgroup relations (<code class="docutils literal notranslate"><span class="pre">--supergroup</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#complex-and-pseudoreal-type-irreps-doubled-real-form">Complex- and pseudoreal-type irreps (doubled real form)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coupled-order-parameters-several-irreps">Coupled order parameters (several irreps)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-electron-terms-multiplet">14. Multi-electron terms (<code class="docutils literal notranslate"><span class="pre">--multiplet</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizing-the-term-eigenstates-visualize">Visualizing the term eigenstates (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#poscar-bilbao-style-cif-poscar2cif-cif2poscar">15. POSCAR &lt;-&gt; Bilbao-style CIF (<code class="docutils literal notranslate"><span class="pre">--poscar2cif</span></code> / <code class="docutils literal notranslate"><span class="pre">--cif2poscar</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#symmetry-mode-analysis-supergroup-cif">16. Symmetry-mode analysis (<code class="docutils literal notranslate"><span class="pre">--supergroup-cif</span></code>)</a></li>
 </ul>
