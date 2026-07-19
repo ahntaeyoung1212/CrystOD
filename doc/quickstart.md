@@ -54,8 +54,8 @@ section of their own.
 - `crystod-group --generate-basis --point-group PG [--order 1 2 3]`
 - `crystod-group --coset --point-group PG --subgroup H`
 - `crystod-group --coset --space-group SG --kpoint kx ky kz`
-- `crystod-group --supergroup SG --irrep IR [--order-parameter 0 0 a]`
-- `crystod-group --multiplet IRREP^N|IRREPN [IRREP^N|IRREPN ...] --point-group PG [--orbital s|p|d|f]`
+- `crystod-group --supergroup SG --irrep IR [IR2 ...] [--order-parameter 0 0 a]`
+- `crystod-group --multiplet IRREP^N|IRREPN [IRREP^N|IRREPN ...] --point-group PG [--orbital s|p|d|f] [--visualize [--output FILE.html]]`
 - `crystod-group --poscar2cif -c POSCAR [--tolerance 0.01] [--output FILE.cif]`
 - `crystod-group --cif2poscar -c FILE.cif [--conventional] [--tolerance 0.01] [--output POSCAR]`
 - `crystod-group --supergroup-cif HIGH.cif --subgroup-cif LOW.cif [--tolerance 0.01]`

@@ -189,7 +189,7 @@ sketch of every level (fragment MOs included), drawn from the PySCF MO
 coefficients; fragment sketches show the real atoms only (the small
 counterpoise tails on the ghost basis are omitted) and degenerate
 partners are canonicalized, so they match the visualized SALCs of
-`--visualize` exactly.
+`--visualize` exactly. Fragment levels are attributed by their real-atom Mulliken population: levels living mostly on the ghost basis (population < 35%) are BSSE artifacts, not fragment states — they are omitted from the diagram and the compositions, and the remaining projections are weighted by the real-atom population (benzene: the pure-π 1e1g HOMO is 100% C6 1e1g, with no spurious "H6" character from ghost-carbon levels).
 
 ```bash
 crystod-mol --diagram --xyz XYZ_H2O.xyz --pyscf                # H2 | H2O | O
