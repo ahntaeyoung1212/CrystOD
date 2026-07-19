@@ -65,6 +65,11 @@ CORE_ELECTRON_COUNT = {
 
 _GREEK = {"A": "σ", "E1": "π", "E2": "δ", "E3": "φ"}
 
+# Fragment levels whose Mulliken population sits mostly on the GHOST basis
+# functions (counterpoise/BSSE artifact levels, not states of the fragment)
+# are dropped from the diagram and the compositions below this threshold.
+GHOST_FRACTION_THRESHOLD = 0.35
+
 
 def _import_pyscf():
     try:
@@ -189,6 +194,7 @@ class PyscfLevel:
     orbital_indices: list[int]
     composition: list = field(default_factory=list)
     detail: str = ""
+    real_fraction: float = 1.0  # Mulliken population share on the real atoms
 
 
 class PyscfDiagram:
@@ -526,6 +532,15 @@ class PyscfDiagram:
                     groups = sorted(refined, key=lambda g: float(energies[g[0]]))
                     labels = self._irrep_labels(calc, groups)
             counters: dict[str, int] = {}
+            mol = calc["mol"]
+            S_ao = mol.intor("int1e_ovlp")
+            C_ao = calc["mo_coeff"]
+            real = set(calc["real_sites"])
+            ao_atom = np.zeros(mol.nao_nr(), dtype=int)
+            ao_loc = mol.ao_loc_nr()
+            for b in range(mol.nbas):
+                ao_atom[ao_loc[b]:ao_loc[b + 1]] = mol.bas_atom(b)
+            real_mask = np.array([atom in real for atom in ao_atom])
             column_levels = []
             for g_index, group in enumerate(groups):
                 energy = float(np.mean(energies[group]))
@@ -536,10 +551,18 @@ class PyscfDiagram:
                     label = f"{counters[irrep]}{lowercase_irrep(irrep)}"
                 else:
                     label = f"{g_index + 1}"
+                fraction = 1.0
+                if column != "mo":
+                    populations = [
+                        float(np.sum((C_ao[:, k] * (S_ao @ C_ao[:, k]))[real_mask]))
+                        for k in group
+                    ]
+                    fraction = min(1.0, max(0.0, float(np.mean(populations))))
                 level = PyscfLevel(
                     column=column, energy=energy, degeneracy=len(group),
                     label=label, electrons=electrons, irrep=irrep,
                     level_id=f"{column}_{g_index}", orbital_indices=list(group),
+                    real_fraction=fraction,
                 )
                 column_levels.append(level)
             self.levels[column] = column_levels
@@ -561,10 +584,12 @@ class PyscfDiagram:
             for column in ("left", "right"):
                 P = projections[column]
                 for fragment_level in self.levels[column]:
+                    if fragment_level.real_fraction < GHOST_FRACTION_THRESHOLD:
+                        continue  # counterpoise/BSSE artifact level
                     weight = float(np.sum(
                         P[np.ix_(fragment_level.orbital_indices,
                                  level.orbital_indices)] ** 2
-                    ))
+                    )) * fragment_level.real_fraction
                     if weight > 1e-6:
                         weights.append((fragment_level, weight))
             total = sum(w for _, w in weights) or 1.0
@@ -713,6 +738,15 @@ class PyscfDiagram:
         if core:
             print(f"(+ {core} core level(s) below; visible in the HTML by "
                   "panning the energy window)")
+        ghost_hidden = sum(
+            1 for column in ("left", "right")
+            for level in self.levels[column]
+            if level.real_fraction < GHOST_FRACTION_THRESHOLD
+        )
+        if ghost_hidden:
+            print(f"({ghost_hidden} fragment level(s) dominated by the ghost "
+                  "basis (BSSE artifacts) are omitted from the diagram and "
+                  "the compositions)")
 
         print(f"\n* Electron filling ({self.n_electrons} electrons, "
               f"molecule spin 2S = {self.spin}) *")
@@ -746,9 +780,16 @@ class PyscfDiagram:
             other.level_id: f"{self._display_name(other.column)} {other.label}"
             for levels in self.levels.values() for other in levels
         }
+        ghost_hidden = sum(
+            1 for column_levels in self.levels.values()
+            for level in column_levels
+            if level.real_fraction < GHOST_FRACTION_THRESHOLD
+        )
         levels_json = []
         for column_levels in self.levels.values():
             for level in column_levels:
+                if level.real_fraction < GHOST_FRACTION_THRESHOLD:
+                    continue
                 levels_json.append({
                     "id": level.level_id,
                     "col": level.column,
@@ -775,6 +816,7 @@ class PyscfDiagram:
             core = self._core_count(column)
             energies = sorted(
                 level.energy for level in self.levels[column]
+                if level.real_fraction >= GHOST_FRACTION_THRESHOLD
             )
             if core < len(energies):
                 floors.append(energies[core] if core else energies[0])
@@ -814,7 +856,12 @@ class PyscfDiagram:
                 "Quantitative MO diagram from three SCF calculations in one "
                 "AO space (fragments with ghost basis on the removed atoms, "
                 "counterpoise-consistent; molecule MOs projected exactly onto "
-                "the fragment MOs). PySCF: Q. Sun et al., WIREs Comput. Mol. "
+                "the fragment MOs, weighted by each fragment level's "
+                "real-atom Mulliken population)."
+                + (f" {ghost_hidden} fragment level(s) dominated by the ghost "
+                   "basis (BSSE artifacts, real-atom population &lt; 35%) are "
+                   "not drawn." if ghost_hidden else "")
+                + " PySCF: Q. Sun et al., WIREs Comput. Mol. "
                 "Sci. 8, e1340 (2018). Generated by CrystOD "
                 "(crystod-mol --diagram --pyscf)."
             ),

@@ -12,6 +12,19 @@ not listed, line irreps are reported with generic positional names.
 """
 
 LINE_IRREP_NAMES = {
+    # N of I4_132: the irreptables characters are in a broken gauge (they
+    # match no allowed small irrep); names fitted against the ISOSUBGROUP
+    # isotropy-subgroup tables (N1/N3 -> P4_122/P4_322, N2/N4 ->
+    # P4_12_12/P4_32_12), with the totally symmetric candidate as N1
+    (214, (0, 0, 12)): (
+        "N",
+        {
+            ((0, 1.0, 0.0), (1, 1.0, 0.0), (12, 1.0, 0.0), (13, 1.0, 0.0)): "N1",
+            ((0, 1.0, 0.0), (1, 1.0, 0.0), (12, -1.0, 0.0), (13, -1.0, -0.0)): "N2",
+            ((0, 1.0, 0.0), (1, -1.0, -0.0), (12, 1.0, 0.0), (13, -1.0, -0.0)): "N3",
+            ((0, 1.0, 0.0), (1, -1.0, -0.0), (12, -1.0, 0.0), (13, 1.0, 0.0)): "N4",
+        },
+    ),
     (139, (6, 6, 18)): (
         "V",
         {

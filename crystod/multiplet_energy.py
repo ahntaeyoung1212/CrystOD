@@ -793,3 +793,225 @@ def ground_state(results, reference):
             for entry in results
         )
     return winners, unconditional
+
+
+# ---------------------------------------------------------------------------
+# coupled-parent CI matrices (for comparison with the textbook tables)
+# ---------------------------------------------------------------------------
+
+
+def _partial_s2_matrix(space, sector, orbital_subset):
+    """S^2 of the electrons in a subset of the shell orbitals."""
+    subset = set(orbital_subset)
+    size = len(sector)
+    matrix = np.zeros((size, size))
+    position = {space.dets[i]: row for row, i in enumerate(sector)}
+    for row, det_index in enumerate(sector):
+        det = space.dets[det_index]
+        sz = sum(
+            (0.5 if so % 2 == 0 else -0.5) for so in det if so // 2 in subset
+        )
+        matrix[row, row] += sz * sz + sz
+        for orb in subset:
+            plus = _apply_one_body(det, 2 * orb, 2 * orb + 1)
+            if plus is None:
+                continue
+            sign_p, det_p = plus
+            for orb2 in subset:
+                minus = _apply_one_body(det_p, 2 * orb2 + 1, 2 * orb2)
+                if minus is None:
+                    continue
+                sign_m, det_m = minus
+                col = position.get(det_m)
+                if col is not None:
+                    matrix[row, col] += sign_p * sign_m
+    return matrix
+
+
+def coupled_parent_matrices(
+    character_table: dict,
+    l: int,
+    shells: list[tuple[str, int]],
+    shell_term_lists: list[list],
+    terms: list[tuple[Fraction, str, int]],
+):
+    """CI matrices of the doubly-occurring terms of a two-shell configuration
+    in the coupled-parent basis |shell1^n1(S1 Gamma1) shell2^n2(S2 Gamma2)>,
+    i.e. the representation used by the Tanabe-Sugano/Griffith strong-field
+    tables. Returns {term index: (parent labels, diag1, diag2, offdiag)} with
+    the entries as per-parameter Fraction tuples (off-diagonal up to a global
+    sign, which is a basis convention)."""
+    if len(shells) != 2:
+        return {}
+    if not any(multiplicity == 2 for _, _, multiplicity in terms):
+        return {}
+
+    shell_irreps = [name for name, _ in shells]
+    occupations = [count for _, count in shells]
+    bases, operations, class_labels, d_matrices, class_index = _shell_bases(
+        character_table, l, shell_irreps
+    )
+    basis = np.hstack(bases)
+    shell_dims = [b.shape[1] for b in bases]
+    params = _PARAM_NAMES[l]
+    n_params = len(params)
+
+    exact = real_two_electron_integrals(l)
+    size = 2 * l + 1
+    integrals_by_param = []
+    for p in range(n_params):
+        tensor = np.zeros((size, size, size, size))
+        for (a, b, c, d), coeffs in exact.items():
+            tensor[a, b, c, d] = float(coeffs[p])
+        transformed = np.einsum(
+            "abcd,ap,bq,cr,ds->pqrs", tensor, basis, basis, basis, basis
+        )
+        entries = {}
+        m = basis.shape[1]
+        for a in range(m):
+            for b in range(m):
+                for c in range(m):
+                    for d in range(m):
+                        value = transformed[a, b, c, d]
+                        if abs(value) > 1e-12:
+                            entries[(a, b, c, d)] = value
+        integrals_by_param.append(entries)
+
+    def block_matrices(shell_index):
+        matrices = []
+        for dmat in d_matrices:
+            m = basis.shape[1]
+            u = np.eye(m)
+            offset = sum(shell_dims[:shell_index])
+            k = shell_dims[shell_index]
+            u[offset:offset + k, offset:offset + k] = (
+                bases[shell_index].T @ dmat @ bases[shell_index]
+            )
+            matrices.append(u)
+        return matrices
+
+    space = _DeterminantSpace(shell_dims, occupations)
+    n_electrons = sum(occupations)
+    order = len(operations)
+    shell_orbitals = [
+        list(range(shell_dims[0])),
+        list(range(shell_dims[0], shell_dims[0] + shell_dims[1])),
+    ]
+
+    results = {}
+    sector_cache: dict[int, dict] = {}
+    for index, (spin, irrep, multiplicity) in enumerate(terms):
+        if multiplicity != 2:
+            continue
+        sz2 = int(2 * spin)
+        if sz2 not in sector_cache:
+            sector = space.sector(sz2)
+            cache = {
+                "sector": sector,
+                "h": _coulomb_hamiltonians(space, sector, integrals_by_param),
+                "s2": _s2_matrix(space, sector),
+            }
+            full_mats = []
+            for dmat in d_matrices:
+                m = basis.shape[1]
+                u = np.zeros((m, m))
+                offset = 0
+                for b in bases:
+                    k = b.shape[1]
+                    u[offset:offset + k, offset:offset + k] = b.T @ dmat @ b
+                    offset += k
+                full_mats.append(u)
+            cache["group"] = _group_action(space, sector, full_mats)
+            cache["g1"] = _group_action(space, sector, block_matrices(0))
+            cache["g2"] = _group_action(space, sector, block_matrices(1))
+            cache["s2a"] = _partial_s2_matrix(space, sector, shell_orbitals[0])
+            cache["s2b"] = _partial_s2_matrix(space, sector, shell_orbitals[1])
+            sector_cache[sz2] = cache
+        cache = sector_cache[sz2]
+        sector = cache["sector"]
+        n = len(sector)
+
+        def spin_projector(s2_matrix, target_spin, max_spin):
+            projector = np.eye(n)
+            target = float(target_spin * (target_spin + 1))
+            s_iter = Fraction(0) if int(2 * max_spin) % 2 == 0 else Fraction(1, 2)
+            while s_iter <= max_spin:
+                other = float(s_iter * (s_iter + 1))
+                if abs(other - target) > 1e-9:
+                    projector = projector @ (
+                        s2_matrix - other * np.eye(n)
+                    ) / (target - other)
+                s_iter += 1
+            return projector
+
+        def pg_projector(group_matrices, target_irrep):
+            characters = np.asarray(
+                character_table["character_table"][target_irrep], dtype=float
+            )
+            dim = int(round(characters[class_index["E"]]))
+            projector = np.zeros((n, n))
+            for label, gmat in zip(class_labels, group_matrices):
+                projector += characters[class_index[label]] * gmat
+            return projector * dim / order
+
+        # total-term projector and its range
+        total = pg_projector(cache["group"], irrep) @ spin_projector(
+            cache["s2"], spin, Fraction(n_electrons, 2)
+        )
+        total = (total + total.T) / 2
+        eigenvalues, eigenvectors = np.linalg.eigh(total)
+        kept = eigenvectors[:, eigenvalues > 0.5]
+        characters = np.asarray(
+            character_table["character_table"][irrep], dtype=float
+        )
+        dim = int(round(characters[class_index["E"]]))
+        if kept.shape[1] != 2 * dim:
+            continue
+
+        blocks = [kept.T @ h @ kept for h in cache["h"]]
+
+        # parent subspaces inside the kept space
+        parents = []
+        for s1, g1, _ in shell_term_lists[0]:
+            for s2m, g2m, _ in shell_term_lists[1]:
+                q = (
+                    pg_projector(cache["g1"], g1)
+                    @ spin_projector(cache["s2a"], s1,
+                                     Fraction(occupations[0], 2))
+                    @ pg_projector(cache["g2"], g2m)
+                    @ spin_projector(cache["s2b"], s2m,
+                                     Fraction(occupations[1], 2))
+                )
+                m_q = kept.T @ ((q + q.T) / 2) @ kept
+                q_eigenvalues, q_eigenvectors = np.linalg.eigh(m_q)
+                columns = q_eigenvectors[:, q_eigenvalues > 0.5]
+                if columns.shape[1] == dim:
+                    parents.append(((s1, g1, s2m, g2m), columns))
+        if len(parents) != 2:
+            continue
+
+        (label1, c1), (label2, c2) = parents
+        diag1 = tuple(
+            _snap(float(np.trace(c1.T @ block @ c1)) / dim) for block in blocks
+        )
+        diag2 = tuple(
+            _snap(float(np.trace(c2.T @ block @ c2)) / dim) for block in blocks
+        )
+        # off-diagonal linear form up to a global sign:
+        # tr(M_p M_q^T)/dim = c_p c_q for M_p = c1^T H_p c2
+        cross = [c1.T @ block @ c2 for block in blocks]
+        gram = np.array([
+            [float(np.trace(cross[p] @ cross[q].T)) / dim
+             for q in range(n_params)]
+            for p in range(n_params)
+        ])
+        pivot = int(np.argmax(np.abs(np.diag(gram))))
+        if gram[pivot, pivot] < 1e-12:
+            offdiag = tuple(Fraction(0) for _ in range(n_params))
+        else:
+            lead = float(np.sqrt(gram[pivot, pivot]))
+            offdiag = tuple(
+                _snap(gram[pivot, q] / lead) for q in range(n_params)
+            )
+        results[index] = ((label1, label2), diag1, diag2, offdiag)
+    return results

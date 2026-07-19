@@ -75,6 +75,20 @@ def build_parser() -> ArgumentParser:
         help="Parent atomic orbital (s/p/d/f/...); checks that every occupied "
         "shell occurs in its ligand-field splitting and prints the splitting.",
     )
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Write the exact term eigenstates as an interactive HTML page "
+        "(orbital box diagrams with up/down arrows and the Slater-determinant "
+        "expansion coefficients); requires --orbital.",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="Output HTML path for --visualize "
+        "(default: Multiplet_{pg}_{config}.html).",
+    )
     return parser
 
 
@@ -343,6 +357,13 @@ def hund_candidates(
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    if args.visualize and not args.orbital:
+        raise SystemExit(
+            "ERROR: --visualize needs --orbital (s/p/d/f) to identify the "
+            "real orbitals of each shell (e.g. --orbital d for T2g/Eg)."
+        )
+    if args.output and not args.visualize:
+        raise SystemExit("ERROR: --output is only used with --visualize.")
 
     character_table = get_character_table(args.point_group)
     classes = _GroupClasses(character_table)
@@ -379,8 +400,10 @@ def main(argv: list[str] | None = None) -> None:
     print(f"* Configuration *\n{_config_label(shells)}\n")
 
     terms: list[tuple[Fraction, str, int]] | None = None
+    shell_term_lists = []
     for name, count in shells:
         current = shell_terms(classes, name, count)
+        shell_term_lists.append(current)
         terms = current if terms is None else couple_shells(classes, terms, current)
 
     total_states = 1
@@ -435,6 +458,41 @@ def main(argv: list[str] | None = None) -> None:
             "within the configuration)\n"
         )
 
+        if len(shells) == 2 and any(
+            entry.multiplicity == 2 for entry in energies
+        ):
+            from .multiplet_energy import coupled_parent_matrices
+
+            parent_matrices = coupled_parent_matrices(
+                classes.ct, l, shells, shell_term_lists, ordered_terms
+            )
+            if parent_matrices:
+                print("* CI matrices in the coupled-parent basis "
+                      "(strong-field/Tanabe-Sugano tables) *")
+                for index, (labels, diag1, diag2, offdiag) in sorted(
+                    parent_matrices.items()
+                ):
+                    spin, name, _ = ordered_terms[index]
+                    symbol = _term_symbol(spin, name)
+
+                    def parent_label(parent):
+                        s1, g1, s2, g2 = parent
+                        return (
+                            f"{shells[0][0]}^{shells[0][1]}"
+                            f"({_term_symbol(s1, g1)}) "
+                            f"{shells[1][0]}^{shells[1][1]}"
+                            f"({_term_symbol(s2, g2)})"
+                        )
+
+                    print(f"{symbol}:")
+                    print(f"  |1> = {parent_label(labels[0])}")
+                    print(f"  |2> = {parent_label(labels[1])}")
+                    print(f"  <1|H|1> = {format_linear(diag1, params)}")
+                    print(f"  <2|H|2> = {format_linear(diag2, params)}")
+                    print(f"  <1|H|2> = +-({format_linear(offdiag, params)})"
+                          "  (sign is a basis convention)")
+                print()
+
         winners, unconditional = ground_state(energies, reference)
         print("* Ground-state Term Symbol (within this configuration) *")
         symbols = ", ".join(
@@ -449,6 +507,39 @@ def main(argv: list[str] | None = None) -> None:
         else:
             condition = f"(lowest at {reference_note})"
         print(f"{symbols}   {condition}")
+
+        if args.visualize:
+            import os
+            import re as _re
+
+            from .multiplet_visualize import (
+                compute_term_states,
+                write_term_state_html,
+            )
+
+            shell_info, term_states = compute_term_states(
+                classes.ct, l, shells, ordered_terms, reference
+            )
+            config_tag = "_".join(
+                f"{name}{count}" for name, count in shells
+            )
+            default_name = _re.sub(
+                r"[^A-Za-z0-9_.-]", "", f"Multiplet_{args.point_group}_{config_tag}"
+            ) + ".html"
+            output_path = args.output or default_name
+            write_term_state_html(
+                output_path,
+                args.point_group,
+                _config_label(shells),
+                shell_info,
+                ordered_terms,
+                term_states,
+                energies=energies,
+                ground_symbols={(e.spin, e.irrep) for e in winners},
+                reference_note=reference_note,
+                l=l,
+            )
+            print(f"\nTerm-state viewer written to {output_path}")
     else:
         candidates = hund_candidates(classes, ordered_terms)
         print("* Ground-state Term Symbol (Hund's rules) *")
