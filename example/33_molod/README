@@ -231,13 +231,14 @@ interaction energy E(mol) - E(left) - E(right) = -0.657244 Ha = -17.885 eV
 
 * Molecular orbitals *
     MO     E (eV)  occ  composition
-   2b1       6.99    0  49% O 2b1, 23% H2 1b1, 21% H2 2b1
-   4a1       4.84    0  49% O 4a1, 32% H2 2a1, 13% H2 1a1
-   1b2     -13.58    2  50% O 1b2, 33% H2 1b2, 17% H2 4b2
-   3a1     -15.51    2  46% O 3a1, 30% H2 3a1, 8% H2 10a1, 5% H2 7a1, 3% H2 1a1, 3% O 2a1
-   1b1     -19.31    2  44% O 1b1, 25% H2 1b1, 12% H2 2b1, 5% H2 7b1, 5% H2 5b1, 4% O 4b1
-   2a1     -36.04    2  46% O 2a1, 31% H2 1a1, 9% H2 2a1, 3% H2 11a1, 2% H2 6a1, 2% O 3a1
+   2b1       6.99    0  60% H2 1b1, 33% H2 2b1, 4% H2 5b1, 3% O 1b1
+   4a1       4.84    0  51% H2 2a1, 43% H2 1a1, 2% H2 4a1
+   1b2     -13.58    2  100% O 1b2
+   3a1     -15.51    2  82% O 3a1, 6% H2 1a1, 5% O 2a1, 5% H2 7a1
+   1b1     -19.31    2  54% O 1b1, 31% H2 1b1, 9% H2 2b1, 6% H2 5b1
+   2a1     -36.04    2  54% O 2a1, 35% H2 1a1, 5% H2 2a1, 3% O 3a1
 (+ 1 core level(s) below; visible in the HTML by panning the energy window)
+(21 fragment level(s) dominated by the ghost basis (BSSE artifacts) are omitted from the diagram and the compositions)
 
 * Electron filling (10 electrons, molecule spin 2S = 0) *
 (1a1)^2 (2a1)^2 (1b1)^2 (3a1)^2 (1b2)^2
@@ -272,13 +273,14 @@ interaction energy E(mol) - E(left) - E(right) = -1.071157 Ha = -29.148 eV
 
 * Molecular orbitals *
     MO     E (eV)  occ  composition
-   3σu      12.17    0  20% O(L) 5σ, 20% O(R) 5σ, 9% O(R) 6σ, 9% O(L) 6σ, 9% O(R) 3σ, 9% O(L) 3σ, 5% O(R) 11σ, 5% O(L) 11σ, 2% O(R) 10σ, 2% O(L) 10σ
-1πg x2      -6.13    2  19% O(L) 2π, 19% O(R) 2π, 19% O(L) 1π, 19% O(R) 1π, 12% O(R) 6π, 12% O(L) 6π
-1πu x2     -19.04    4  31% O(R) 1π, 31% O(L) 1π, 11% O(R) 2π, 11% O(L) 2π, 8% O(L) 6π, 8% O(R) 6π
-   3σg     -19.85    2  20% O(R) 3σ, 20% O(L) 3σ, 16% O(L) 4σ, 16% O(R) 4σ, 5% O(R) 11σ, 5% O(L) 11σ, 3% O(L) 9σ, 3% O(R) 9σ, 3% O(R) 2σ, 3% O(L) 2σ
-   2σu     -29.51    2  17% O(R) 2σ, 17% O(L) 2σ, 16% O(R) 4σ, 16% O(L) 4σ, 9% O(L) 3σ, 9% O(R) 3σ, 4% O(L) 8σ, 4% O(R) 8σ
-   2σg     -44.03    2  29% O(L) 2σ, 29% O(R) 2σ, 10% O(L) 3σ, 10% O(R) 3σ, 4% O(R) 4σ, 4% O(L) 4σ, 2% O(L) 8σ, 2% O(R) 8σ
+   3σu      12.17    0  32% O(R) 3σ, 32% O(L) 3σ, 12% O(L) 6σ, 12% O(R) 6σ, 4% O(R) 9σ, 4% O(L) 9σ, 2% O(R) 2σ, 2% O(L) 2σ
+1πg x2      -6.13    2  50% O(R) 1π, 50% O(L) 1π
+1πu x2     -19.04    4  50% O(R) 1π, 50% O(L) 1π
+   3σg     -19.85    2  40% O(R) 3σ, 40% O(L) 3σ, 5% O(R) 2σ, 5% O(L) 2σ, 5% O(L) 9σ, 5% O(R) 9σ
+   2σu     -29.51    2  31% O(R) 2σ, 31% O(L) 2σ, 17% O(L) 3σ, 17% O(R) 3σ
+   2σg     -44.03    2  37% O(L) 2σ, 37% O(R) 2σ, 12% O(L) 3σ, 12% O(R) 3σ
 (+ 2 core level(s) below; visible in the HTML by panning the energy window)
+(20 fragment level(s) dominated by the ghost basis (BSSE artifacts) are omitted from the diagram and the compositions)
 
 * Electron filling (16 electrons, molecule spin 2S = 2) *
 (1σg)^2 (1σu)^2 (2σg)^2 (2σu)^2 (3σg)^2 (1πu)^4 (1πg)^2
@@ -313,12 +315,13 @@ interaction energy E(mol) - E(left) - E(right) = -0.333817 Ha = -9.084 eV
 
 * Molecular orbitals *
     MO     E (eV)  occ  composition
- 2e x2       7.40    0  48% N 2e, 30% H3 2e, 16% H3 1e
-   4a1       4.88    0  49% N 4a1, 35% H3 2a1, 11% H3 1a1
-   3a1     -11.38    2  47% N 3a1, 33% H3 3a1, 7% H3 9a1, 6% H3 7a1, 2% N 2a1
- 1e x2     -17.04    4  44% N 1e, 32% H3 1e, 9% H3 2e, 4% N 4e, 3% H3 5e, 3% H3 9e
-   2a1     -30.57    2  46% N 2a1, 36% H3 1a1, 8% H3 2a1, 3% H3 10a1, 3% H3 5a1
+ 2e x2       7.40    0  46% H3 1e, 43% H3 2e, 5% N 1e, 4% H3 5e
+   4a1       4.88    0  55% H3 2a1, 41% H3 1a1
+   3a1     -11.38    2  86% N 3a1, 6% H3 7a1, 4% N 2a1
+ 1e x2     -17.04    4  51% N 1e, 38% H3 1e, 5% H3 2e, 4% H3 5e
+   2a1     -30.57    2  52% N 2a1, 41% H3 1a1, 4% H3 2a1, 2% N 3a1
 (+ 1 core level(s) below; visible in the HTML by panning the energy window)
+(18 fragment level(s) dominated by the ghost basis (BSSE artifacts) are omitted from the diagram and the compositions)
 
 * Electron filling (10 electrons, molecule spin 2S = 0) *
 (1a1)^2 (2a1)^2 (1e)^4 (3a1)^2
@@ -353,12 +356,13 @@ interaction energy E(mol) - E(left) - E(right) = -1.247273 Ha = -33.940 eV
 
 * Molecular orbitals *
     MO     E (eV)  occ  composition
-3t2 x3      16.14    0  45% H4 3t2, 30% C 3t2, 15% C 4t2, 3% C 1t2, 2% H4 2t2
-2t2 x3       7.46    0  49% C 2t2, 37% H4 2t2, 9% H4 1t2, 2% H4 4t2
-   3a1       5.08    0  50% C 3a1, 45% H4 2a1, 4% H4 1a1
-1t2 x3     -14.83    6  44% C 1t2, 38% H4 1t2, 5% H4 2t2, 4% C 4t2, 4% H4 4t2
-   2a1     -25.37    2  47% C 2a1, 44% H4 1a1, 3% H4 2a1, 2% H4 6a1
+3t2 x3      16.14    0  45% H4 3t2, 41% C 3t2, 7% C 4t2, 4% C 1t2
+2t2 x3       7.46    0  76% H4 1t2, 16% H4 4t2, 5% C 1t2, 2% H4 3t2
+   3a1       5.08    0  92% H4 2a1, 7% H4 1a1
+1t2 x3     -14.83    6  48% C 1t2, 44% H4 1t2, 4% H4 4t2
+   2a1     -25.37    2  53% C 2a1, 43% H4 1a1, 3% H4 2a1
 (+ 1 core level(s) below; visible in the HTML by panning the energy window)
+(14 fragment level(s) dominated by the ghost basis (BSSE artifacts) are omitted from the diagram and the compositions)
 
 * Electron filling (10 electrons, molecule spin 2S = 0) *
 (1a1)^2 (2a1)^2 (1t2)^6
@@ -393,19 +397,20 @@ interaction energy E(mol) - E(left) - E(right) = -0.626069 Ha = -17.036 eV
 
 * Molecular orbitals *
     MO     E (eV)  occ  composition
-  11a'       9.97    0  46% CO 11a', 28% H4 5a', 5% H4 10a', 3% H4 9a', 2% H4 12a', 2% H4 4a'
-  10a'       7.30    0  47% CO 10a', 30% H4 6a', 11% H4 3a', 2% CO 9a', 2% H4 8a'
-  3a''       7.26    0  50% CO 3a'', 33% H4 2a'', 11% H4 1a'', 2% H4 7a''
-   9a'       6.06    0  39% CO 9a', 15% H4 7a', 12% H4 4a', 10% H4 2a', 6% CO 8a', 4% H4 6a'
-   8a'       4.88    0  43% CO 8a', 26% H4 4a', 8% H4 7a', 5% CO 9a', 5% H4 2a', 4% H4 1a', 3% H4 5a'
-  2a''     -12.11    2  34% CO 2a'', 14% H4 3a'', 13% CO 1a'', 12% H4 15a'', 11% H4 1a'', 10% H4 4a''
-   7a'     -13.52    2  35% CO 7a', 16% H4 3a', 16% H4 8a', 4% CO 5a', 3% H4 30a', 3% CO 6a', 3% CO 4a', 2% CO 17a'
-   6a'     -16.24    2  25% CO 5a', 9% H4 3a', 9% CO 6a', 8% CO 7a', 8% H4 10a', 6% CO 4a', 5% H4 6a', 4% H4 2a', 4% H4 30a', 3% H4 8a', 3% H4 1a', 2% H4 25a'
-  1a''     -16.89    2  36% CO 1a'', 25% H4 1a'', 11% CO 2a'', 7% H4 2a'', 5% H4 15a'', 5% H4 4a'', 3% H4 7a'', 3% H4 3a'', 2% CO 6a''
-   5a'     -18.87    2  32% CO 6a', 13% CO 5a', 9% H4 2a', 8% H4 5a', 6% H4 1a', 4% H4 31a', 4% H4 9a', 3% H4 12a', 3% H4 8a', 2% H4 21a'
-   4a'     -24.88    2  40% CO 4a', 27% H4 1a', 8% H4 2a', 6% CO 5a', 3% H4 7a', 3% H4 4a'
-   3a'     -36.55    2  48% CO 3a', 10% H4 2a', 9% H4 7a', 7% H4 1a', 6% H4 3a', 3% H4 5a', 3% H4 33a', 2% H4 4a', 2% H4 11a'
+  11a'       9.97    0  78% CO 11a', 5% H4 10a', 4% H4 4a', 3% H4 9a'
+  10a'       7.30    0  43% H4 6a', 40% H4 3a', 4% H4 8a', 3% H4 16a', 2% H4 2a', 2% H4 15a'
+  3a''       7.26    0  79% H4 1a'', 15% H4 7a'', 3% H4 3a''
+   9a'       6.06    0  36% H4 2a', 33% H4 4a', 7% H4 3a', 6% H4 6a', 5% CO 11a', 3% H4 1a', 3% H4 8a', 2% H4 13a'
+   8a'       4.88    0  62% H4 4a', 15% H4 2a', 10% H4 1a', 4% H4 3a'
+  2a''     -12.11    2  44% CO 2a'', 22% CO 1a'', 18% H4 1a'', 11% H4 3a''
+   7a'     -13.52    2  41% CO 7a', 23% H4 3a', 10% H4 8a', 6% CO 5a', 4% CO 6a', 4% CO 4a', 2% H4 2a', 2% H4 16a'
+   6a'     -16.24    2  34% CO 5a', 13% H4 3a', 12% CO 6a', 10% CO 7a', 8% CO 4a', 5% H4 2a', 5% H4 10a', 3% H4 1a', 2% H4 6a', 2% H4 8a'
+  1a''     -16.89    2  47% CO 1a'', 33% H4 1a'', 12% CO 2a'', 3% H4 7a''
+   5a'     -18.87    2  44% CO 6a', 17% CO 5a', 12% H4 2a', 8% H4 1a', 3% H4 9a', 2% CO 3a', 2% H4 8a'
+   4a'     -24.88    2  47% CO 4a', 28% H4 1a', 9% H4 2a', 7% CO 5a', 2% H4 4a', 2% CO 6a'
+   3a'     -36.55    2  62% CO 3a', 12% H4 2a', 8% H4 1a', 7% H4 3a', 2% H4 4a'
 (+ 2 core level(s) below; visible in the HTML by panning the energy window)
+(35 fragment level(s) dominated by the ghost basis (BSSE artifacts) are omitted from the diagram and the compositions)
 
 * Electron filling (18 electrons, molecule spin 2S = 0) *
 (1a')^2 (2a')^2 (3a')^2 (4a')^2 (5a')^2 (1a'')^2 (6a')^2 (7a')^2 (2a'')^2
@@ -440,26 +445,27 @@ interaction energy E(mol) - E(left) - E(right) = -1.412427 Ha = -38.434 eV
 
 * Molecular orbitals *
     MO     E (eV)  occ  composition
-  5a1g      14.39    0  47% C6 5a1g, 20% H6 5a1g, 18% H6 4a1g, 7% H6 2a1g
-5e1u x2      12.87    0  42% C6 5e1u, 38% H6 4e1u, 5% H6 9e1u, 4% C6 6e1u
-5e2g x2      12.38    0  50% C6 5e2g, 20% H6 4e2g, 16% H6 3e2g, 4% H6 5e2g, 4% H6 2e2g, 2% H6 7e2g
-  1b1g       9.46    0  50% C6 1b1g, 36% H6 1b1g, 13% H6 3b1g
-  3b2u       7.64    0  50% C6 3b2u, 36% H6 2b2u, 11% H6 1b2u
-4e2g x2       7.05    0  50% C6 4e2g, 32% H6 2e2g, 9% H6 1e2g, 5% H6 3e2g
-4e1u x2       6.03    0  50% C6 4e1u, 30% H6 2e1u, 8% H6 1e1u, 7% H6 3e1u
-  4a1g       4.95    0  48% C6 4a1g, 22% H6 3a1g, 15% H6 2a1g, 8% H6 1a1g
-1e2u x2       3.63    0  50% C6 1e2u, 37% H6 1e2u, 8% H6 3e2u, 5% H6 4e2u
-1e1g x2      -9.18    4  50% C6 1e1g, 36% H6 1e1g, 12% H6 3e1g
-3e2g x2     -13.50    4  40% C6 3e2g, 15% H6 1e2g, 13% H6 3e2g, 7% C6 2e2g, 6% H6 7e2g, 4% H6 9e2g, 3% H6 6e2g, 3% H6 4e2g, 2% H6 5e2g
-  1a2u     -13.67    2  50% C6 1a2u, 37% H6 1a2u, 11% H6 3a2u
-3e1u x2     -16.01    4  43% C6 3e1u, 19% H6 1e1u, 14% H6 3e1u, 6% H6 7e1u, 4% H6 5e1u, 3% H6 12e1u, 2% C6 2e1u
-  1b1u     -16.94    2  50% C6 1b1u, 22% H6 1b1u, 17% H6 3b1u, 10% H6 2b1u
-  2b2u     -17.32    2  46% C6 2b2u, 37% H6 1b2u, 7% H6 2b2u, 2% H6 4b2u, 2% C6 4b2u
-  3a1g     -19.28    2  45% C6 3a1g, 23% H6 1a1g, 14% H6 3a1g, 5% H6 2a1g, 4% H6 6a1g, 3% C6 7a1g, 2% H6 9a1g
-2e2g x2     -22.21    4  43% C6 2e2g, 23% H6 1e2g, 9% H6 2e2g, 6% C6 3e2g, 6% H6 5e2g, 3% H6 9e2g, 3% H6 3e2g, 2% H6 4e2g
-2e1u x2     -27.30    4  47% C6 2e1u, 21% H6 1e1u, 12% H6 2e1u, 6% H6 5e1u, 5% H6 3e1u, 3% H6 14e1u
-  2a1g     -31.01    2  49% C6 2a1g, 21% H6 2a1g, 17% H6 1a1g, 4% H6 5a1g, 3% H6 10a1g, 3% H6 3a1g
+  5a1g      14.39    0  92% C6 5a1g
+5e1u x2      12.87    0  83% C6 5e1u, 9% C6 6e1u, 3% C6 3e1u, 2% C6 8e1u
+5e2g x2      12.38    0  93% C6 5e2g, 3% H6 7e2g, 3% H6 2e2g
+  1b1g       9.46    0  99% C6 1b1g
+  3b2u       7.64    0  66% H6 2b2u, 33% H6 1b2u
+4e2g x2       7.05    0  55% H6 2e2g, 42% H6 1e2g
+4e1u x2       6.03    0  52% H6 1e1u, 37% H6 3e1u, 7% H6 7e1u, 2% C6 3e1u
+  4a1g       4.95    0  61% H6 3a1g, 31% H6 1a1g, 4% C6 3a1g, 2% H6 6a1g
+1e2u x2       3.63    0  100% C6 1e2u
+1e1g x2      -9.18    4  100% C6 1e1g
+3e2g x2     -13.50    4  53% C6 3e2g, 25% H6 1e2g, 12% C6 2e2g, 7% H6 7e2g
+  1a2u     -13.67    2  100% C6 1a2u
+3e1u x2     -16.01    4  51% C6 3e1u, 23% H6 1e1u, 14% H6 3e1u, 5% H6 7e1u, 3% C6 2e1u
+  1b1u     -16.94    2  88% C6 1b1u, 12% H6 2b1u
+  2b2u     -17.32    2  47% C6 2b2u, 44% H6 1b2u, 5% H6 2b2u, 2% C6 4b2u
+  3a1g     -19.28    2  54% C6 3a1g, 26% H6 1a1g, 11% H6 3a1g, 4% H6 6a1g
+2e2g x2     -22.21    4  57% C6 2e2g, 31% H6 1e2g, 6% C6 3e2g, 4% H6 2e2g
+2e1u x2     -27.30    4  63% C6 2e1u, 28% H6 1e1u, 5% H6 3e1u, 2% C6 3e1u
+  2a1g     -31.01    2  72% C6 2a1g, 24% H6 1a1g, 3% H6 3a1g
 (+ 6 core level(s) below; visible in the HTML by panning the energy window)
+(69 fragment level(s) dominated by the ghost basis (BSSE artifacts) are omitted from the diagram and the compositions)
 
 * Electron filling (42 electrons, molecule spin 2S = 0) *
 (1a1g)^2 (1e1u)^4 (1e2g)^4 (1b2u)^2 (2a1g)^2 (2e1u)^4 (2e2g)^4 (3a1g)^2 (2b2u)^2 (1b1u)^2 (3e1u)^4 (1a2u)^2 (3e2g)^4 (1e1g)^4
