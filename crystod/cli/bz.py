@@ -67,8 +67,12 @@ def build_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--space-group",
+        "--spacegroup",
+        "--sg",
+        dest="space_group",
         default=None,
-        help='Space-group symbol for --show-kpoint, e.g. "Pnma" or "Fm-3m".',
+        help='Space-group symbol or number for --show-kpoint, e.g. "Pnma", '
+        '"Fm-3m" or 221.',
     )
     parser.add_argument(
         "--trans-mat",

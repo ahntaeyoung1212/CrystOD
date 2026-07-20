@@ -72,7 +72,7 @@ The pre-v0.3.0 flat modes (--salc, --phonon-irrep, --bz, ...) were removed in
 v0.3.0; invoking one prints the equivalent sectioned command.
 
 If you use CrystOD in your research, please cite:
-  H. Koiso et al., Phys. Rev. B 110, 064104 (2024). https://doi.org/10.1103/PhysRevB.110.064104
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024). https://doi.org/10.1103/PhysRevB.110.064104
 """
 
 

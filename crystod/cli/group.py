@@ -150,8 +150,12 @@ def build_parser() -> ArgumentParser:
 
     parser.add_argument(
         "--irrep",
+        nargs="+",
         default=None,
-        help="CDML irrep label for --supergroup, e.g. GM4- or R4+.",
+        metavar="IR",
+        help="CDML irrep label(s) for --supergroup, e.g. GM4- or R4+;\n"
+        "several labels (e.g. --irrep X3- X2+) enumerate the isotropy\n"
+        "subgroups of the coupled order parameters.",
     )
     parser.add_argument(
         "--order-parameter",
@@ -190,7 +194,14 @@ def build_parser() -> ArgumentParser:
         default=None,
         metavar="FILE",
         help="Output path for --poscar2cif/--cif2poscar (defaults: <POSCAR>.cif "
-        "/ input without .cif).",
+        "/ input without .cif) or for --multiplet --visualize.",
+    )
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="For --multiplet (with --orbital): write the exact term "
+        "eigenstates as an interactive HTML page (orbital box diagrams with "
+        "the Slater-determinant expansion of every term).",
     )
     parser.add_argument(
         "--conventional",
@@ -208,6 +219,7 @@ def build_parser() -> ArgumentParser:
 
     parser.add_argument(
         "--point-group",
+        "--pointgroup",
         "--pg",
         dest="point_group",
         default=None,
@@ -215,10 +227,12 @@ def build_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--space-group",
+        "--spacegroup",
         "--sg",
         dest="space_group",
         default=None,
-        help="Space-group symbol, e.g. Pm-3m (for --basis/--generate-basis/--coset).",
+        help="Space-group symbol or number, e.g. Pm-3m or 221\n"
+        "(for --basis/--generate-basis/--coset).",
     )
     parser.add_argument(
         "--kpoint",
@@ -256,7 +270,7 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
-_DASH_VALUE_FLAGS = ("--point-group", "--pg", "--subgroup")
+_DASH_VALUE_FLAGS = ("--point-group", "--pointgroup", "--pg", "--subgroup")
 
 
 def _merge_dash_values(argv: list[str]) -> list[str]:
@@ -306,7 +320,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.point_group or args.space_group:
             parser.error("--supergroup replaces --pg/--sg; give the space group "
                          "directly as --supergroup SG.")
-        dispatch_argv = [f"--supergroup={args.supergroup}", f"--irrep={args.irrep}"]
+        dispatch_argv = [f"--supergroup={args.supergroup}", "--irrep", *args.irrep]
         if args.order_parameter:
             dispatch_argv.append("--order-parameter")
             dispatch_argv.extend(args.order_parameter)
@@ -371,9 +385,11 @@ def main(argv: list[str] | None = None) -> None:
 
         cif2poscar_main(dispatch_argv)
         return
-    if args.cell or args.tolerance is not None or args.output or args.conventional:
+    if (args.cell or args.tolerance is not None or args.conventional
+            or (args.output and not args.multiplet)):
         parser.error("-c/--cell, --tolerance, --output, and --conventional are "
-                     "only used with --poscar2cif/--cif2poscar/--supergroup-cif.")
+                     "only used with --poscar2cif/--cif2poscar/--supergroup-cif "
+                     "(--output also with --multiplet --visualize).")
 
     if args.multiplet:
         require_point_group("--multiplet")
@@ -391,6 +407,10 @@ def main(argv: list[str] | None = None) -> None:
         dispatch_argv = [f"--point-group={args.point_group}", "--config", *args.multiplet]
         if args.orbital:
             dispatch_argv.extend(["--orbital", args.orbital])
+        if args.visualize:
+            dispatch_argv.append("--visualize")
+        if args.output:
+            dispatch_argv.extend(["--output", args.output])
 
         from ..multiplet import main as multiplet_main
 
@@ -398,6 +418,8 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.orbital:
         parser.error("--orbital is only used with --multiplet.")
+    if args.visualize:
+        parser.error("--visualize is only used with --multiplet.")
 
     if args.product:
         require_exactly_one_group("--product")
