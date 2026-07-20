@@ -1,0 +1,71 @@
+# NOTE: The XDATCAR shipped here is a 2000-step excerpt (~20 MB) of the full
+# NpT run, trimmed so it can live in the repository and drive the test suite.
+# The complete trajectory is kept locally under org/XDATCAR_org (not committed).
+
+# Show the summary of MD calculation result from XDATCAR
+crystod-md --summary --start-step 1000 --xdatcar XDATCAR --format vasp
+
+
+Input file : XDATCAR
+
+Reading XDATCAR... (this may take a while)
+
+Trajectory info:
+  atoms          : 256
+  composition    : {'Sc': 64, 'F': 192}
+  total steps    : 2000
+  analyzed steps : 1000 (step 1000 .. 1999)
+
+Time-averaged cell (mean +/- std):
+  a (A)       :      16.138973 +/- 0.088511
+  b (A)       :      16.146038 +/- 0.070070
+  c (A)       :      16.146037 +/- 0.079585
+  alpha (deg) :      89.903038 +/- 0.150646
+  beta (deg)  :      90.050744 +/- 0.242407
+  gamma (deg) :      89.984756 +/- 0.238243
+  V (A^3)     :    4207.424875 +/- 52.910173
+  V/atom (A^3):      16.435253
+
+NOTE: XDATCAR stores no energies or temperatures; Etot/T averages require OSZICAR/vasprun.xml.
+
+
+
+# Generate CIF file containing atomic displacement parameters from XDATCAR
+crystod-md --adp --dim 4 4 4 --start-step 1000 --xdatcar XDATCAR --output ADP_ScF3_300K.cif
+
+
+Supercell size : [4, 4, 4]
+Start step     : 1000
+Input file     : XDATCAR
+Output file    : ADP_ScF3_300K.cif
+
+Reading XDATCAR... (this may take a while)
+
+Supercell info:
+  atoms          : 256
+  composition    : {'Sc': 64, 'F': 192}
+  analyzed steps : 1000
+
+Number of unit-cell sites (groups): 4
+Expected replicas per group       : 64
+
+Space group: Pm-3m (No. 221)
+Atoms in unit cell   : 4
+Symmetry operations  : 48
+Asymmetric-unit sites: 2
+  Sc0: mult=1, coords=(0.99997, 0.99995, 0.00002)
+  F1: mult=3, coords=(0.00010, 0.50003, 0.99983)
+
+ADP constraints per Wyckoff position:
+  Wyckoff 0 (Sc): site-symmetry order=48, U11=U22, U11=U33, U22=U33, U12=0, U13=0, U23=0
+  Wyckoff 1 (F): site-symmetry order=16, U11=U33, U12=0, U13=0, U23=0
+
+Coordinate unwrapping done: 256 atoms x 1000 steps
+
+Site       Ueq (A^2)    Constraint
+------------------------------------------------------------
+Sc0        0.005110     U11=U22, U11=U33, U22=U33, U12=0, U13=0, U23=0
+F1         0.024235     U11=U33, U12=0, U13=0, U23=0
+
+Saved: ADP_ScF3_300K.cif
+Asymmetric-unit sites: 2
