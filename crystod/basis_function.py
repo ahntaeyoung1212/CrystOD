@@ -123,9 +123,17 @@ def _normalize_symbol(text: str) -> str:
 
 def _resolve_space_group_type(space_group_symbol: str) -> dict:
     requested = _normalize_symbol(space_group_symbol)
+    try:
+        number = int(str(space_group_symbol).strip())
+    except ValueError:
+        number = None
     matches = []
     for hall_number in range(1, 531):
         info = get_spacegroup_type(spglib.get_spacegroup_type(hall_number))
+        if number is not None:
+            if info.number == number:
+                matches.append(info)
+            continue
         candidates = [
             info.international_short,
             info.international,
@@ -134,7 +142,10 @@ def _resolve_space_group_type(space_group_symbol: str) -> dict:
         if any(_normalize_symbol(candidate) == requested for candidate in candidates):
             matches.append(info)
     if not matches:
-        raise SystemExit(f'ERROR: "{space_group_symbol}" is not recognized as a standard space-group symbol.')
+        raise SystemExit(
+            f'ERROR: "{space_group_symbol}" is not recognized as a standard '
+            "space-group symbol or number (1-230)."
+        )
     matches.sort(key=lambda item: item.hall_number)
     return matches[0]
 
