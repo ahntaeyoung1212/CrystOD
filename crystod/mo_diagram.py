@@ -1209,6 +1209,12 @@ document.getElementById('emax').addEventListener('change', e =>
   setRange(eMin, parseFloat(e.target.value)));
 document.getElementById('ereset').addEventListener('click', () =>
   setRange(CFG.eMin, CFG.eMax));
+document.getElementById('eshowall').addEventListener('click', () => {
+  const Es = LEVELS.map(l => l.e);
+  const lo = Math.min(...Es), hi = Math.max(...Es);
+  const pad = 0.03 * (hi - lo) || 1.0;
+  setRange(lo - pad, hi + pad);
+});
 
 // Ctrl/Cmd + wheel (or trackpad pinch): zoom the energy axis around the cursor
 svg.addEventListener('wheel', e => {
@@ -1367,6 +1373,7 @@ def render_diagram_page(
  Energy window (eV): <input id="emin" type="number" step="1"> &ndash;
  <input id="emax" type="number" step="1">
  <button id="ereset">reset</button>
+ <button id="eshowall">Show all energy levels</button>
  <span class="hint">Ctrl/&#8984; + scroll (or pinch) to zoom, drag to pan</span>
 </div>
 <div id="flex">

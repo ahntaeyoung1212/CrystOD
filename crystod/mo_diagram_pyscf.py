@@ -824,6 +824,18 @@ class PyscfDiagram:
         top_candidates = [level.energy for level in self.levels["mo"]]
         e_max = (self.lumo.energy + 8.0) if self.lumo else max(top_candidates) + 2.0
         e_max = min(e_max, max(top_candidates) + 2.0)
+        # all-electron core levels of heavy atoms reach thousands of eV below;
+        # when any level lies below -40 eV, default to the chemically relevant
+        # window [-40, 15] (never hiding the LUMO) -- the "Show all energy
+        # levels" button in the page restores the full range
+        all_energies = [
+            level.energy
+            for column in ("left", "mo", "right")
+            for level in self.levels[column]
+        ]
+        if all_energies and min(all_energies) < -40.0:
+            e_min = -40.0
+            e_max = max(e_max, 15.0)
 
         method = ("Hartree-Fock method" if self.theory == "scf"
                   else f"DFT method ({self.xc.upper()})")
