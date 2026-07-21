@@ -216,6 +216,13 @@ class CrystalOrbital:
             irreps_at_rep = self.get_irt_irreps_at_k(arm[1])
             if irreps_at_rep:
                 return irreps_at_rep[0].kpname
+        # non-special k: fall back to the ISO-IR k-vector type label
+        labeler = self._get_isoir_labeler()
+        if labeler is not None:
+            try:
+                return labeler.kpoint_name(k)
+            except Exception:
+                pass
         return None
 
     def _find_irt_star_arm(self, k: list[float]) -> Optional[tuple[int, list[float]]]:
@@ -249,6 +256,58 @@ class CrystalOrbital:
                 kpoint_names.append(irrep.kpname)
         return kpoint_names, primitive_kpoints
 
+    def _get_isoir_labeler(self):
+        """Lazily construct the ISO-IR labeler (None if data unavailable)."""
+        if not hasattr(self, "_isoir_labeler"):
+            self._isoir_labeler = None
+            try:
+                from .isoir import IsoIRLabeler
+
+                self._isoir_labeler = IsoIRLabeler(
+                    self.spglib_dataset['number'],
+                    cell=self.primitive_cell.totuple(),
+                    symprec=self.symprec,
+                )
+            except Exception:
+                pass
+        return self._isoir_labeler
+
+    def _get_isoir_labels(
+        self,
+        k: list[float],
+        irreps,
+        mapping_little_group: NDArray[np.int_],
+    ) -> Optional[dict[str, str]]:
+        """Label spgrep irreps with ISO-IR (Miller-Love) labels, or None.
+
+        The ISO-IR tables contain single-valued irreps only, so the spinor
+        path never uses them.
+        """
+        self.labels_from_isoir = False
+        if self.spinor:
+            return None
+        labeler = self._get_isoir_labeler()
+        if labeler is None:
+            return None
+        little_rotations = [self.rotations[idx] for idx in mapping_little_group]
+        little_translations = [self.translations[idx] for idx in mapping_little_group]
+        spgrep_characters = [get_character(irrep) for irrep in irreps]
+        try:
+            matched = labeler.label_characters(
+                k, little_rotations, little_translations, spgrep_characters
+            )
+        except Exception:
+            return None
+        if matched is None:
+            return None
+        label_map, kpoint_name = matched
+        self.labels_from_isoir = True
+        self.isoir_kpoint_name = kpoint_name
+        return {
+            f"irrep_{i+1}({irrep.shape[1]})": f"{label_map[i]}({irrep.shape[1]})"
+            for i, irrep in enumerate(irreps)
+        }
+
     def get_irrep_labels(
         self,
         k: list[float],
@@ -274,6 +333,12 @@ class CrystalOrbital:
                         irt_irreps = candidate_irreps
                         char_indices, char_phases = conjugated
         if not irt_irreps:
+            # Not in irreptables (e.g. a symmetry line/plane or generic k):
+            # fall back to the ISO-IR (ISOTROPY) tables, which cover every
+            # k-vector type.  Labels then follow the Miller-Love convention.
+            isoir_labels = self._get_isoir_labels(k, irreps, mapping_little_group)
+            if isoir_labels is not None:
+                return isoir_labels
             return {
                 f"irrep_{i+1}({irrep.shape[1]})": f"irrep_{i+1}({irrep.shape[1]})"
                 for i, irrep in enumerate(irreps)
@@ -1041,6 +1106,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     )
     irreps_result = "+".join([f" {value} [{key}] " for key, value in sorted_bandreps])
     print(irreps_result + "\n")
+    if getattr(crystal_orbital, "labels_from_isoir", False):
+        print(" (This k point is absent from the irreptables (BCS) tables;")
+        print("  irrep labels follow the ISO-IR (ISOTROPY, Miller-Love) convention.)\n")
 
 
 if __name__ == "__main__":
