@@ -20,6 +20,7 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 | 7/9–7/10 | CLI 全面再構成(usability) | v0.3.0: phonopy 風セクション化(`crystod` + `crystod-bz/md/mag/phonon/group`)、SALC HTML ビューワー刷新、モード番号 1 始まり統一、旧フラット形式の完全削除 |
 | 7/10–7/11 | modulation / irrep ラベリング改修 | v0.3.1: modulation 振動数バグ修正、CDML ラベル表示、star arm 対応、分数座標対応 |
 | 7/11 | f 軌道資料の作成 | 32 点群×f 軌道の既約表現分解と基底関数の一覧(Word/PDF)。点群「1」クラッシュ修正 |
+| 7/22 | 非特殊 k 点の irrep ラベル(ISO-IR fallback) | `crystod/isoir.py` 新設: Stokes–Campbell ISO-IR (CIR/PIR) テーブルのパーサ+ラベラー。irreptables に無い k(線・面・一般点)で Miller–Love ラベル(T1, DT5, GP1 等)を出力(→ §3, §5-15) |
 
 ---
 
@@ -156,6 +157,13 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 - **複素 2 次元空間の実化**(`spin_basis._realify`): 位相回転 → 失敗したら Re/Im のグラム・シュミット再結合 → 張る空間の同一性を射影検証。
 - **rotations の基底に注意**: `phonon.symmetry` はスーパーセルの対称性。primitive 基底の回転は `phonon.primitive_symmetry` から取る。
 - **f 軌道の基底セット**: 非立方晶 27 点群は tesseral セット、立方晶 5 点群は cubic セット(`--basis` に与える関数系が異なる)。詳細は 7/11 作成の資料参照。
+- **ISO-IR (ISOTROPY) テーブルによる非特殊 k のラベリング**(`crystod/isoir.py`, 2026-07-22):
+  - データ: リポジトリ直下 `ISOTROPY/CIR_data/CIR_data.txt`(複素既約表現、全 k 型: 点・線・面・一般点)を遅延パース。**gzip 圧縮版 `CIR_data.txt.gz` も透過的に読める**(53MB → 1.1MB。GitHub 配布用に CrystOD-main はこの 1 ファイルのみに削減済み。SSG/PIR/xlsx を含むフルセットは `~/CrystOD-main_trial/ISOTROPY/` に保管)。置き場所は環境変数 `CRYSTOD_ISOIR_PATH` でも指定可。PIR(physically irreducible)も同じパーサで読める(k ベクトル数が CIR=kcount、PIR=pmkcount の点だけ異なる)。
+  - ISO-IR は各既約表現の **full 表現行列**(star 全 arm、標準 conventional setting の 48 個以下の代表操作)を持つ。arm j の対角ブロック × 並進位相 e^{+2πi k·t} が小表現。非特殊 k は α,β,γ パラメータ付きで指標を評価できる。
+  - **位相規約の橋渡し**: spgrep/irreptables は e^{−2πi k·t}、ISO-IR は e^{+2πi k·t}。よって spgrep 指標は **ISO-IR 指標の複素共役**と照合する。複素型既約表現ではこの規約差が**ラベルの入れ替わり**として現れる(例: Pnma R 点は Bilbao R1 = ISOTROPY R2)。実指標の k 点では両規約のラベルは一致(Pm-3m の R/M/X で確認済み)。
+  - **setting の整合**: ISOTROPY の標準 setting(origin choice 2、直方晶 abc、単斜 b 軸 cell choice 1、六方軸)へ spglib の `hall_number` 指定(選択則: choice '2' → '' → 'b1' → 'H' → '1')で決定論的に変換。origin choice の異なる群(Fd-3m 等)でも正しく動く。※mod 格子のグリッド探索による origin 推定は擬シフトを拾い誤ラベルの危険があるため不採用(68 Ccce の T 点で実証)。
+  - **検証**: (i) T 線 C4v 指標の直交性、(ii) ISO-IR 行列のみでのバンド表現の独立分解が crystod 出力と一致、(iii) ISOSUBGROUP 由来の実証的対応表(141 X, 142 X, 230 N)と一致、(iv) SG 68 T ではゲージ非依存の isotropy subgroup 構成(spgrep 行列 → 子群同定)で直接検証。
+  - 適用先は現状 `crystal_orbital_spgrep.py`(crystod --element/--orbital)のみ。irreptables に載っている k 点では従来通り irreptables が優先(出力不変)。spinor は ISO-IR に二重群が無いためスキップ(従来通り汎用ラベル)。
 
 ---
 
@@ -196,7 +204,7 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 12. `--spin-basis`/SALC 統合の一般化(AlNi3 で確立した反強磁性配列探索を他 Wyckoff 位置・高次多極子へ)
 13. **`--modulation` の q 点ラベル入力**: `--vector`/`--vibration` は `--qpoint X` ができるが `--modulation` は数値のみ。ラベル対応で一貫する。
 14. **マルチ arm 出力のファイル名衝突**: 同じ star の複数 arm を出力すると q ラベルが同じでファイル名が衝突し得る。arm 番号などの識別子を付ける案。
-15. **非特殊 q 点のラベル**: DT (Δ) 線上など特殊「点」にない q は `-` に落ちる。irreptables の線・面の k 点型に対応できれば一般 q 点でもラベルが出せる。
+15. **非特殊 q 点のラベル**: ~~DT (Δ) 線上など特殊「点」にない q は `-` に落ちる。~~ → **7/22 に電子系(`crystod --element/--orbital`)は ISO-IR fallback で解決**(§3 参照。irreptables には線・面が無いため ISO-IR テーブルを採用)。残件: `phonon_irreps.py` / `vibration_modes.py` / `orbital_hybridization_spgrep.py` は独自の `get_irrep_labels` を持つため未対応 — `isoir.IsoIRLabeler` の水平展開で対応可能。
 16. **spinor(二重群)での arm 対応の検証**: 共役輸送は spinor 表現では位相規約(±E)が絡む。`--spinor` 系で arm を使うケースが出たら要検証。
 
 ### 可視化
@@ -214,6 +222,8 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 |---|---|
 | `crystod/cli/` | セクションコマンド群(main.py = SALC 本体、bz/md/mag/phonon/group.py、common.py = 共有オプション) |
 | `crystod/operations.py` | 群論ヘルパー(Wigner-D、`find_star_arm`、`conjugated_little_group_map`、`snap_qpoint` 等) |
+| `crystod/isoir.py` | ISO-IR (ISOTROPY) テーブルのパーサ+非特殊 k 点の Miller–Love ラベラー(`IsoIRLabeler`) |
+| `ISOTROPY/` | Stokes–Campbell ISO-IR 生データ(CIR/PIR、2011 版。iso.byu.edu/irtables.php 由来) |
 | `crystod/phonon_vector.py` | 対称性適応フォノン固有ベクトル(`build_symmetry_adapted_modes` — modulation もこれを使う) |
 | `crystod/phonon_irreps.py` | フォノン irrep ラベリング |
 | `crystod/modulation.py` | 変調構造生成(v0.3.1 で固有ベクトル構成を phonon_vector と統一)、`_find_intertwiner` |

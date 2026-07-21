@@ -213,6 +213,26 @@ def test_02_salc() -> None:
     report("all special k points mode lists several k points",
            out.count("k point (primitive)") >= 3, out)
 
+    # non-special k: ISO-IR (ISOTROPY, Miller-Love) fallback labels
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--element", "Ti", "--orbital", "d",
+         "--kpoint", "0.5", "0.5", "0.4"]
+    )
+    report("Ti_d at (1/2,1/2,0.4) exit 0", code == 0, out)
+    report("T-line k point named via ISO-IR", "T [0.5, 0.5, 0.4]" in out, out)
+    report("T-line irreps labeled T1+T3+T4+T5",
+           all(f"[{lbl}(" in out for lbl in ("T1", "T3", "T4", "T5"))
+           and "irrep_" not in out, out)
+    report("ISO-IR provenance note printed", "ISO-IR" in out, out)
+
+    poscar_catio3 = os.path.join(ROOT, "example", "test_POSCARs", "62_PPOSCAR_CaTiO3")
+    code, out = run_cli(
+        ["-c", poscar_catio3, "--element", "Ti", "--orbital", "d",
+         "--kpoint", "0.5", "0.5", "0.4"]
+    )
+    report("Pnma Ti_d on the Q line exit 0", code == 0, out)
+    report("Pnma Q-line irrep labeled 10.0 [Q1(2)]", "10.0 [Q1(2)]" in out, out)
+
 
 # ---------------------------------------------------------------- 3. crystod --atomic-orbital
 def test_03_hybridization() -> None:
