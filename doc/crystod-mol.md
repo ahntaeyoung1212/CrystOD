@@ -218,9 +218,12 @@ crystod-mol --diagram --xyz XYZ_C6H6.xyz --pyscf --ao-left H6 --ao-right C6
   `--charge`, and `--spin` (2S; default by electron parity, e.g. `--spin 2`
   for triplet O2) follow the conventions of `script/calc_pyscf.py`;
   open-shell calculations use ROHF/ROKS so the diagram keeps a single
-  orbital-energy set. Core levels (O 1s at −560 eV, ...) are computed and
-  included — the default energy window starts at the valence, pan down to see
-  them. PySCF is an optional dependency (only needed for `--pyscf`).
+  orbital-energy set. Core levels (O 1s at −560 eV, I 1s at −33 keV, ...)
+  are computed and included; whenever levels lie below −40 eV the default
+  energy window is clamped to the chemically relevant [−40, 15] eV (the
+  LUMO is never hidden), and the **Show all energy levels** button in the
+  page expands the window to the full range. PySCF is an optional
+  dependency (only needed for `--pyscf`).
 
 References: Q. Sun et al., WIREs Comput. Mol. Sci. 8, e1340 (2018);
 Q. Sun et al., J. Chem. Phys. 153, 024109 (2020).
