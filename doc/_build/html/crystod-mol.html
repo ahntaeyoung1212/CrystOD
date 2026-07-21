@@ -535,9 +535,12 @@ molecules use PySCF’s Dooh/Coov labels rendered as σ/π/δ (triplet O2:
 <code class="docutils literal notranslate"><span class="pre">--charge</span></code>, and <code class="docutils literal notranslate"><span class="pre">--spin</span></code> (2S; default by electron parity, e.g. <code class="docutils literal notranslate"><span class="pre">--spin</span> <span class="pre">2</span></code>
 for triplet O2) follow the conventions of <code class="docutils literal notranslate"><span class="pre">script/calc_pyscf.py</span></code>;
 open-shell calculations use ROHF/ROKS so the diagram keeps a single
-orbital-energy set. Core levels (O 1s at −560 eV, …) are computed and
-included — the default energy window starts at the valence, pan down to see
-them. PySCF is an optional dependency (only needed for <code class="docutils literal notranslate"><span class="pre">--pyscf</span></code>).</p></li>
+orbital-energy set. Core levels (O 1s at −560 eV, I 1s at −33 keV, …)
+are computed and included; whenever levels lie below −40 eV the default
+energy window is clamped to the chemically relevant [−40, 15] eV (the
+LUMO is never hidden), and the <strong>Show all energy levels</strong> button in the
+page expands the window to the full range. PySCF is an optional
+dependency (only needed for <code class="docutils literal notranslate"><span class="pre">--pyscf</span></code>).</p></li>
 </ul>
 <p>References: Q. Sun et al., WIREs Comput. Mol. Sci. 8, e1340 (2018);
 Q. Sun et al., J. Chem. Phys. 153, 024109 (2020).</p>
