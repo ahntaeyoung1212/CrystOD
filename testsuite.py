@@ -635,6 +635,18 @@ def test_17_group_command() -> None:
     report("T2g x T2g = A1g + Eg + T1g + T2g",
            all(f"({name})" in out for name in ("A1g", "Eg", "T1g", "T2g")), out)
 
+    # --pointgroup/--spacegroup aliases and space-group numbers
+    code, out = run_group(["--ligand-field", "d", "--pointgroup", "m-3m"])
+    report("--pointgroup alias accepted",
+           code == 0 and "1(Eg) + 1(T2g)" in out, out)
+    code, out = run_group(["--basis", "x", "y", "z", "--spacegroup", "221",
+                           "--kpoint", "0", "0", "0"])
+    report("--spacegroup alias + space-group number accepted",
+           code == 0 and "GM4-" in out, out)
+    code, out = run_group(["--table", "--pointgroup=-43m"])
+    report("--pointgroup with leading-dash label accepted",
+           code == 0 and "-43m" in out, out)
+
     code, out = run_group(["--product", "T2g", "T2g", "T1u", "--pg", "m-3m",
                            "--show-irrep-table"])
     report("triple product with --show-irrep-table", code == 0 and "(A2u)" in out, out)
@@ -845,6 +857,15 @@ def test_20_bz_command() -> None:
         report("--show-kpoint Fm-3m primitive + conventional",
                code == 0 and "X: (1/2, 0, 1/2)" in out and "W: (1/2, 1/4, 3/4)" in out
                and "* K points (conventional) *" in out and "X: (0, 1, 0)" in out, out)
+
+        # space-group number and the --sg/--spacegroup aliases
+        code, out = run_bz(["--show-kpoint", "--sg", "221"])
+        report("--show-kpoint --sg 221 (number + alias)",
+               code == 0 and "Pm-3m (No. 221)" in out
+               and "R: (1/2, 1/2, 1/2)" in out, out)
+        code, out = run_bz(["--show-kpoint", "--spacegroup", "Fm-3m"])
+        report("--show-kpoint --spacegroup alias",
+               code == 0 and "Fm-3m (No. 225)" in out, out)
 
         code, out = run_bz(["--show-kpoint"])
         report("--show-kpoint without --space-group rejected cleanly",
@@ -1779,6 +1800,11 @@ def test_33_molod() -> None:
             report("pyscf diagram also carries the orbital sketches",
                    '"orb":' in pyscf_html and "oview" in pyscf_html,
                    pyscf_html_path)
+            report("core levels below -40 eV clamp the default window to -40",
+                   '"eMin": -40.0' in pyscf_html, pyscf_html_path)
+            report("Show-all-energy-levels button present",
+                   'id="eshowall"' in pyscf_html
+                   and "Show all energy levels" in pyscf_html, pyscf_html_path)
         report("friendly method/basis wording",
                "Hartree-Fock method / sto-3g basis" in out, out)
         report("PySCF citation printed",
