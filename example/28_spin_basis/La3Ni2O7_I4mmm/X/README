@@ -1,0 +1,1 @@
+crystod-mag -c 139_PPOSCAR_La3Ni2O7 --element Ni --qpoint 0 0 0.5 --conventional
