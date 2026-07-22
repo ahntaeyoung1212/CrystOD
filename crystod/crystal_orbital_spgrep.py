@@ -259,17 +259,13 @@ class CrystalOrbital:
     def _get_isoir_labeler(self):
         """Lazily construct the ISO-IR labeler (None if data unavailable)."""
         if not hasattr(self, "_isoir_labeler"):
-            self._isoir_labeler = None
-            try:
-                from .isoir import IsoIRLabeler
+            from .isoir import get_cached_labeler
 
-                self._isoir_labeler = IsoIRLabeler(
-                    self.spglib_dataset['number'],
-                    cell=self.primitive_cell.totuple(),
-                    symprec=self.symprec,
-                )
-            except Exception:
-                pass
+            self._isoir_labeler = get_cached_labeler(
+                self.spglib_dataset['number'],
+                self.primitive_cell.totuple(),
+                self.symprec,
+            )
         return self._isoir_labeler
 
     def _get_isoir_labels(

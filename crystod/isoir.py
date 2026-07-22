@@ -518,9 +518,69 @@ class IsoIRLabeler:
         conv_ops = self.conventional_operations(
             little_rotations, little_translations
         )
+        for ktype, family in self._matched_families(k_conv):
+            result = self._try_family(family, conv_ops, spgrep_characters, atol)
+            if result is not None:
+                return result, ktype
+        return None
 
-        # candidate irreps whose star contains this k, grouped by k-type,
-        # most specific k type (fewest free parameters) first
+    def decompose_characters(
+        self,
+        k_primitive,
+        little_rotations,
+        little_translations,
+        reducible_characters,
+        atol: float = 1e-3,
+    ) -> Optional[tuple[list[tuple[str, int, int]], str]]:
+        """Decompose a reducible character vector into ISO-IR irreps.
+
+        The character vector follows the spgrep/phonopy phase convention
+        exp(-2*pi*i k.t) and is aligned with (little_rotations,
+        little_translations).  Used for phonopy band sets, whose characters
+        can be reducible under accidental degeneracy.
+
+        Returns ([(label, multiplicity, small_dim), ...], k-type label)
+        or None when no consistent decomposition exists.
+        """
+        k_conv = self.conventional_k(k_primitive)
+        conv_ops = self.conventional_operations(
+            little_rotations, little_translations
+        )
+        red = np.asarray(reducible_characters, dtype=complex)
+        total_dim = None
+        for j, (R_c, t_c) in enumerate(conv_ops):
+            if np.array_equal(R_c, np.eye(3, dtype=int)) and np.allclose(
+                np.asarray(t_c) - np.rint(t_c), 0, atol=1e-6
+            ):
+                total_dim = int(round(red[j].real))
+                break
+        if total_dim is None:
+            return None
+        for ktype, family in self._matched_families(k_conv):
+            iso_chars = self._family_characters_checked(family, conv_ops)
+            if iso_chars is None:
+                continue
+            # multiplicity of the irrep with characters conj(chi_iso) in red:
+            # n = (1/|G|) sum_g conj(conj(chi_iso(g))) red(g)
+            counts: list[tuple[str, int, int]] = []
+            dim_sum = 0
+            consistent = True
+            for (ir, _, _), chi in zip(family, iso_chars):
+                n = complex(np.dot(chi, red)) / len(conv_ops)
+                ni = int(round(n.real))
+                if abs(n - ni) > atol or ni < 0:
+                    consistent = False
+                    break
+                if ni:
+                    counts.append((ir.label, ni, ir.small_dim))
+                    dim_sum += ni * ir.small_dim
+            if consistent and dim_sum == total_dim:
+                return counts, ktype
+        return None
+
+    def _matched_families(self, k_conv):
+        """Candidate irreps whose star contains k, grouped by k-type and
+        sorted most specific k type (fewest free parameters) first."""
         families: dict[str, list[tuple[IsoIrrep, int, np.ndarray]]] = {}
         for ir in self.irreps:
             matched = ir.match_k(k_conv)
@@ -528,18 +588,13 @@ class IsoIRLabeler:
                 families.setdefault(ir.ktype, []).append(
                     (ir, matched[0], matched[1])
                 )
-        for ktype in sorted(
-            families, key=lambda t: families[t][0][0].num_free_params
-        ):
-            result = self._try_family(
-                families[ktype], conv_ops, spgrep_characters, atol
-            )
-            if result is not None:
-                return result, ktype
-        return None
+        return sorted(
+            families.items(), key=lambda item: item[1][0][0].num_free_params
+        )
 
-    def _try_family(self, family, conv_ops, spgrep_characters, atol):
-        ref = family[0][0]
+    def _family_characters_checked(self, family, conv_ops):
+        """ISO-IR character vectors of a family, or None when the family does
+        not describe the little group of these operations."""
         # all little-group operations must belong to the family's little group
         for ir, arm, params in family:
             for R_c, _ in conv_ops:
@@ -548,12 +603,16 @@ class IsoIRLabeler:
         # the family must exhaust the little group
         if sum(ir.small_dim**2 for ir, _, _ in family) != len(conv_ops):
             return None
-
         try:
-            iso_chars = self._family_characters(family, conv_ops)
+            return self._family_characters(family, conv_ops)
         except LookupError:
             # setting mismatch (operator or translation not found): the
             # transformation into the ISO-IR setting is wrong -- fail safe
+            return None
+
+    def _try_family(self, family, conv_ops, spgrep_characters, atol):
+        iso_chars = self._family_characters_checked(family, conv_ops)
+        if iso_chars is None:
             return None
 
         label_map: dict[int, str] = {}
@@ -584,3 +643,101 @@ class IsoIRLabeler:
                 )
             )
         return iso_chars
+
+
+# --------------------------------------------------------------- shared helpers
+
+_LABELER_CACHE: dict = {}
+
+
+def get_cached_labeler(sgnum: int, cell, symprec: float = 1e-5):
+    """Cached IsoIRLabeler for a primitive cell, or None when unavailable.
+
+    ``cell`` is a spglib tuple (lattice, scaled_positions, numbers) of the
+    primitive cell whose symmetry operations feed spgrep.  Returns None when
+    the ISO-IR data files are missing or standardization fails, so callers
+    can fall through to their existing generic labels.
+    """
+    lattice, positions, numbers = cell
+    key = (
+        int(sgnum),
+        float(symprec),
+        np.asarray(lattice, dtype=float).round(10).tobytes(),
+        np.asarray(positions, dtype=float).round(10).tobytes(),
+        np.asarray(numbers, dtype=int).tobytes(),
+    )
+    if key not in _LABELER_CACHE:
+        try:
+            _LABELER_CACHE[key] = IsoIRLabeler(sgnum, cell=cell, symprec=symprec)
+        except Exception:
+            _LABELER_CACHE[key] = None
+    return _LABELER_CACHE[key]
+
+
+def get_isoir_label_map(
+    sgnum: int,
+    cell,
+    symprec: float,
+    kpoint,
+    little_rotations,
+    little_translations,
+    spgrep_characters,
+) -> Optional[tuple[dict[int, str], str]]:
+    """Label spgrep small irreps at a k point with ISO-IR labels.
+
+    One-stop fallback shared by every labeling path (crystal orbitals,
+    orbital hybridization, spin bases, phonons).  Inputs are the primitive
+    cell (spglib tuple), the little-group operations in the primitive basis
+    and the spgrep character vectors aligned with them (spgrep phase
+    convention exp(-2*pi*i k.t)).
+
+    Returns ({spgrep irrep index: label}, k-type label) such as
+    ({0: 'Q1'}, 'Q'), or None when the ISO-IR data are unavailable or no
+    consistent assignment exists.  Never raises.
+    """
+    labeler = get_cached_labeler(sgnum, cell, symprec)
+    if labeler is None:
+        return None
+    try:
+        return labeler.label_characters(
+            kpoint, little_rotations, little_translations, spgrep_characters
+        )
+    except Exception:
+        return None
+
+
+def get_isoir_kpoint_name(sgnum: int, cell, symprec: float, kpoint) -> Optional[str]:
+    """Most specific ISO-IR k-vector type label for a k point, or None."""
+    labeler = get_cached_labeler(sgnum, cell, symprec)
+    if labeler is None:
+        return None
+    try:
+        return labeler.kpoint_name(kpoint)
+    except Exception:
+        return None
+
+
+def get_isoir_band_decomposition(
+    sgnum: int,
+    cell,
+    symprec: float,
+    kpoint,
+    little_rotations,
+    little_translations,
+    reducible_characters,
+) -> Optional[tuple[list[tuple[str, int, int]], str]]:
+    """Decompose one reducible character vector into ISO-IR irreps.
+
+    Fallback for phonopy band sets (whose characters can be reducible under
+    accidental degeneracy).  Returns ([(label, multiplicity, dim), ...],
+    k-type label) or None.  Never raises.
+    """
+    labeler = get_cached_labeler(sgnum, cell, symprec)
+    if labeler is None:
+        return None
+    try:
+        return labeler.decompose_characters(
+            kpoint, little_rotations, little_translations, reducible_characters
+        )
+    except Exception:
+        return None

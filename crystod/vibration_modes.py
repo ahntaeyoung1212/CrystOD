@@ -135,6 +135,38 @@ class _CoreRepresentation:
         self.spglib_dataset = dataset
         self.rotations = dataset.rotations
         self.translations = dataset.translations
+        self.symprec = symprec
+
+    def _get_isoir_label_list(
+        self,
+        qpoint: list[float],
+        irreps,
+        mapping_little_group,
+    ) -> list[str] | None:
+        """ISO-IR (Miller-Love) labels for spgrep irreps at a non-tabulated q,
+        or None when the ISO-IR data are unavailable or matching fails.
+        """
+        from .isoir import get_isoir_label_map
+
+        self.labels_from_isoir = False
+        matched = get_isoir_label_map(
+            self.spglib_dataset["number"],
+            self.primitive_cell.totuple(),
+            self.symprec,
+            qpoint,
+            [self.rotations[index] for index in mapping_little_group],
+            [self.translations[index] for index in mapping_little_group],
+            [get_character(irrep) for irrep in irreps],
+        )
+        if matched is None:
+            return None
+        label_map, qpoint_name = matched
+        self.labels_from_isoir = True
+        self.isoir_qpoint_name = qpoint_name
+        return [
+            f"{label_map[index]}({irrep.shape[1]})"
+            for index, irrep in enumerate(irreps)
+        ]
 
     def get_modified_permutation_rep(
         self,
@@ -243,6 +275,14 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
                     if np.allclose(arm[1], coords, atol=1e-8):
                         matched_label = label
                         break
+        if matched_label is None:
+            # non-special q: fall back to the ISO-IR k-vector type label
+            from .isoir import get_isoir_kpoint_name
+
+            matched_label = get_isoir_kpoint_name(
+                self.spglib_dataset["number"], self.primitive_cell.totuple(),
+                self.symprec, qpoint,
+            )
         return matched_label or "custom", qpoint
 
     def get_vibration_rep(self, kpoint: list[float]):
@@ -314,10 +354,14 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         mapping_little_group: NDArray[np.int_],
     ) -> list[str]:
         generic_labels = [f"irrep_{index + 1}({irrep.shape[1]})" for index, irrep in enumerate(irreps)]
+        self.labels_from_isoir = False
         try:
             irt_table = IrrepTable(self.spglib_dataset["number"], spinor=False)
         except Exception:
-            return generic_labels
+            return (
+                self._get_isoir_label_list(qpoint, irreps, mapping_little_group)
+                or generic_labels
+            )
 
         prim_mat = get_primitive_matrix_by_centring(self.spglib_dataset["international"][0])
         irt_irreps = self._get_irt_irreps_at_q(qpoint, irt_table, prim_mat)
@@ -340,7 +384,13 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
                     irt_irreps = candidate_irreps
                     conjugated = transported
         if not irt_irreps:
-            return generic_labels
+            # Not in irreptables (e.g. a symmetry line/plane or generic q):
+            # fall back to the ISO-IR (ISOTROPY) tables, which cover every
+            # k-vector type.  Labels then follow the Miller-Love convention.
+            return (
+                self._get_isoir_label_list(qpoint, irreps, mapping_little_group)
+                or generic_labels
+            )
 
         irt_little_rotations = np.array(
             [irt_table.symmetries[index - 1].R for index in irt_irreps[0].characters.keys()]
@@ -371,7 +421,10 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
                 phases.append(conj_phases[position])
             character_phases = np.array(phases, dtype=complex)
         if len(mapping_to_irt) != len(irt_little_rotations):
-            return generic_labels
+            return (
+                self._get_isoir_label_list(qpoint, irreps, mapping_little_group)
+                or generic_labels
+            )
 
         resolved_labels: list[str] = []
         used_irt_labels: set[str] = set()

@@ -165,6 +165,46 @@ def get_mapping_to_irt(
     return mapping_to_irt
 
 
+def _get_isoir_band_labels(
+    q: list[float],
+    phonon,
+    phonon_irreps,
+) -> list[list[str] | None] | None:
+    """ISO-IR (Miller-Love) labels per degenerate band set, or None.
+
+    Fallback for q points absent from the irreptables (BCS) tables; the
+    phonopy band-set characters are decomposed against the ISO-IR small
+    irreps (they can be reducible under accidental degeneracy).
+    """
+    from .isoir import get_isoir_band_decomposition
+
+    primitive = phonon.primitive
+    cell = (primitive.cell, primitive.scaled_positions, primitive.numbers)
+    dataset = get_symmetry_dataset(phonon.primitive_symmetry)
+    rotations = getattr(phonon_irreps, "_rotations_at_q")
+    translations = getattr(phonon_irreps, "_translations_at_q")
+    labels: list[list[str] | None] = []
+    found_any = False
+    for characters in phonon_irreps.characters:
+        decomposed = get_isoir_band_decomposition(
+            dataset["number"],
+            cell,
+            phonon.primitive_symmetry.tolerance,
+            q,
+            rotations,
+            translations,
+            characters,
+        )
+        if decomposed is None:
+            labels.append(None)
+            continue
+        found_any = True
+        labels.append(
+            [f"{label}({dim})" for label, _, dim in decomposed[0]]
+        )
+    return labels if found_any else None
+
+
 def get_irrep_labels(
     q: list[float],
     phonon,
@@ -176,6 +216,18 @@ def get_irrep_labels(
     phonon.set_irreps(q=np.array(q), degeneracy_tolerance=degeneracy_tolerance)
     phonon_irreps = phonon.irreps
     irt_irreps = get_irt_irreps_at_q(np.array(q), irt_table, prim_mat)
+
+    if not irt_irreps:
+        # Not in irreptables (e.g. a symmetry line/plane or generic q):
+        # fall back to the ISO-IR (ISOTROPY) tables, which cover every
+        # k-vector type.  Labels then follow the Miller-Love convention.
+        isoir_labels = _get_isoir_band_labels(q, phonon, phonon_irreps)
+        if isoir_labels is not None:
+            band_indices = phonon_irreps.band_indices
+            frequencies = getattr(phonon_irreps, "frequencies", None)
+            if frequencies is None:
+                frequencies = getattr(phonon_irreps, "_freqs")
+            return isoir_labels, band_indices, frequencies
 
     irt_little_r = [irt_table.symmetries[i - 1].R for i in irt_irreps[0].characters.keys()]
     phonon_little_r = getattr(phonon_irreps, "_rotations_at_q")

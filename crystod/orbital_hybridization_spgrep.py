@@ -167,12 +167,53 @@ class CrystalOrbital:
             irreps_at_rep = self.get_irt_irreps_at_k(arm[1])
             if irreps_at_rep:
                 return irreps_at_rep[0].kpname
-        return None
+        # non-special k: fall back to the ISO-IR k-vector type label
+        from .isoir import get_isoir_kpoint_name
+
+        return get_isoir_kpoint_name(
+            self.spglib_dataset['number'], self.primitive_cell.totuple(),
+            self.symprec, k,
+        )
 
     def _find_irt_star_arm(self, k: list[float]) -> Optional[tuple[int, list[float]]]:
         """(g_index, k_rep) mapping k onto the tabulated arm of its star, or None."""
         _, special_points = self.get_irt_special_points()
         return find_star_arm(k, self.rotations, special_points)
+
+    def _get_isoir_labels(
+        self,
+        k: list[float],
+        irreps,
+        mapping_little_group: NDArray[np.int_],
+    ) -> Optional[dict[str, str]]:
+        """Label spgrep irreps with ISO-IR (Miller-Love) labels, or None.
+
+        The ISO-IR tables contain single-valued irreps only, so the spinor
+        path never uses them.
+        """
+        from .isoir import get_isoir_label_map
+
+        self.labels_from_isoir = False
+        if self.spinor:
+            return None
+        matched = get_isoir_label_map(
+            self.spglib_dataset['number'],
+            self.primitive_cell.totuple(),
+            self.symprec,
+            k,
+            [self.rotations[idx] for idx in mapping_little_group],
+            [self.translations[idx] for idx in mapping_little_group],
+            [get_character(irrep) for irrep in irreps],
+        )
+        if matched is None:
+            return None
+        label_map, kpoint_name = matched
+        self.labels_from_isoir = True
+        self.isoir_kpoint_name = kpoint_name
+        return {
+            f"irrep_{i+1}({irrep.shape[1]})": f"{label_map[i]}({irrep.shape[1]})"
+            for i, irrep in enumerate(irreps)
+        }
 
     def get_irt_special_points(self) -> tuple[list[str], list[list[float]]]:
         """Get unique special k-points from irreptables in primitive basis."""
@@ -211,6 +252,12 @@ class CrystalOrbital:
                         irt_irreps = candidate_irreps
                         char_indices, char_phases = conjugated
         if not irt_irreps:
+            # Not in irreptables (e.g. a symmetry line/plane or generic k):
+            # fall back to the ISO-IR (ISOTROPY) tables, which cover every
+            # k-vector type.  Labels then follow the Miller-Love convention.
+            isoir_labels = self._get_isoir_labels(k, irreps, mapping_little_group)
+            if isoir_labels is not None:
+                return isoir_labels
             return {
                 f"irrep_{i+1}({irrep.shape[1]})": f"irrep_{i+1}({irrep.shape[1]})"
                 for i, irrep in enumerate(irreps)
@@ -698,6 +745,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     show_result = '\n'.join([f" {key}: {' '.join(value)}" for key, value in sorted_result])
     print(show_result)
     print("\n")
+    if getattr(crystal_orbital, "labels_from_isoir", False):
+        print(" (This k point is absent from the irreptables (BCS) tables;")
+        print("  irrep labels follow the ISO-IR (ISOTROPY, Miller-Love) convention.)\n")
 
 
 if __name__ == "__main__":
