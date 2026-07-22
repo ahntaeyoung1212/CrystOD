@@ -21,6 +21,7 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 | 7/10–7/11 | modulation / irrep ラベリング改修 | v0.3.1: modulation 振動数バグ修正、CDML ラベル表示、star arm 対応、分数座標対応 |
 | 7/11 | f 軌道資料の作成 | 32 点群×f 軌道の既約表現分解と基底関数の一覧(Word/PDF)。点群「1」クラッシュ修正 |
 | 7/22 | 非特殊 k 点の irrep ラベル(ISO-IR fallback) | `crystod/isoir.py` 新設: Stokes–Campbell ISO-IR (CIR/PIR) テーブルのパーサ+ラベラー。irreptables に無い k(線・面・一般点)で Miller–Love ラベル(T1, DT5, GP1 等)を出力(→ §3, §5-15) |
+| 7/22 (2) | ISO-IR fallback の全経路展開 | `crystod --atomic-orbital`・`crystod-mag`・`crystod-phonon --vibration/--vector/--modulation` にも展開。共有ヘルパー(`isoir.get_isoir_label_map` 等)+ phonopy バンド組(可約指標)用の分解型照合 `decompose_characters` を追加。q 点名も ISO k 型で表示(旧 "custom"/"-") |
 
 ---
 
@@ -204,7 +205,7 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 12. `--spin-basis`/SALC 統合の一般化(AlNi3 で確立した反強磁性配列探索を他 Wyckoff 位置・高次多極子へ)
 13. **`--modulation` の q 点ラベル入力**: `--vector`/`--vibration` は `--qpoint X` ができるが `--modulation` は数値のみ。ラベル対応で一貫する。
 14. **マルチ arm 出力のファイル名衝突**: 同じ star の複数 arm を出力すると q ラベルが同じでファイル名が衝突し得る。arm 番号などの識別子を付ける案。
-15. **非特殊 q 点のラベル**: ~~DT (Δ) 線上など特殊「点」にない q は `-` に落ちる。~~ → **7/22 に電子系(`crystod --element/--orbital`)は ISO-IR fallback で解決**(§3 参照。irreptables には線・面が無いため ISO-IR テーブルを採用)。残件: `phonon_irreps.py` / `vibration_modes.py` / `orbital_hybridization_spgrep.py` は独自の `get_irrep_labels` を持つため未対応 — `isoir.IsoIRLabeler` の水平展開で対応可能。
+15. **非特殊 q 点のラベル**: ~~DT (Δ) 線上など特殊「点」にない q は `-` に落ちる。~~ → **7/22 に電子系(`crystod --element/--orbital`)は ISO-IR fallback で解決**(§3 参照。irreptables には線・面が無いため ISO-IR テーブルを採用)。**7/22 (2) に全経路へ展開済み**: `orbital_hybridization_spgrep.py`(--atomic-orbital)、`vibration_modes.py`(crystod-mag / --vibration)、`phonon_irreps.py`(--irreps/--vector/--modulation)。phonopy 経路はバンド組指標が偶然縮退で可約になり得るため、1 対 1 照合でなく分解型照合(`isoir.decompose_characters`)を使う。
 16. **spinor(二重群)での arm 対応の検証**: 共役輸送は spinor 表現では位相規約(±E)が絡む。`--spinor` 系で arm を使うケースが出たら要検証。
 
 ### 可視化

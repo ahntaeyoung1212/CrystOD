@@ -1071,6 +1071,17 @@ def test_24_phonon_vector() -> None:
         vesta_path = os.path.join(tmp, "POSCAR_Si_GM_mode4_GM5+.vesta")
         report("GM mode 4 export exit 0", code == 0, out)
         report("VESTA file written with auto name", os.path.isfile(vesta_path))
+
+        # non-special q (DT line): mode labels fall back to the ISO-IR tables
+        code, out = run_phonon(
+            ["--vector", "--dim", "4 4 4", "-c", "227_PPOSCAR_Si",
+             "--readfc", "--qpoint", "0.2", "0", "0.2", "--mode", "1"],
+            cwd=tmp,
+        )
+        report("DT-line modes labeled via ISO-IR",
+               code == 0 and "DT5(2)" in out and "DT1(1)" in out, out)
+        report("DT-line VESTA file written with ISO-IR irrep tag",
+               os.path.isfile(os.path.join(tmp, "POSCAR_Si_q_0.2_0_0.2_mode1_DT5.vesta")))
         if os.path.isfile(vesta_path):
             text = open(vesta_path).read()
             report("VESTA file contains arrows (VECTR/VECTT)",
@@ -1230,6 +1241,15 @@ def test_26_vibration() -> None:
     code, out = run_phonon(["--vibration", "-c", POSCAR_ScF3, "--qpoint", "0", "0.5", "0.5"])
     report("non-representative M arm labeled via star mapping",
            code == 0 and "M5+(2)" in out and "irrep_" not in out, out)
+
+    # non-special q (T line): labels fall back to the ISO-IR (ISOTROPY) tables
+    code, out = run_phonon(
+        ["--vibration", "-c", POSCAR_SrTiO3, "--qpoint", "0.5", "0.5", "0.4"]
+    )
+    report("T-line q named via ISO-IR",
+           code == 0 and "Selected q-point: T =" in out, out)
+    report("T-line mode spaces labeled via ISO-IR",
+           "T5(2)" in out and "irrep_" not in out, out)
 
     with tempfile.TemporaryDirectory() as tmp:
         out_poscar = os.path.join(tmp, "POSCAR_vibration")
@@ -1448,6 +1468,24 @@ def test_28_spin_basis() -> None:
                              "--qpoint", "0.333333", "0.333333", "0.5"], cwd=tmp)
         report("decimal 0.333333 snapped to 1/3 (-> H)",
                code == 0 and "Selected q-point: H" in out and "H3(2)" in out, out)
+
+    # non-special q: spin-basis labels fall back to the ISO-IR (ISOTROPY) tables
+    poscar_327 = os.path.join(ROOT, "example", "test_POSCARs", "139_PPOSCAR_La3Ni2O7")
+    if not os.path.isfile(poscar_327):
+        report("La3Ni2O7 test POSCAR found", False, poscar_327)
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        shutil.copy(poscar_327, tmp)
+        code, out = run_mag(
+            ["-c", "139_PPOSCAR_La3Ni2O7", "--element", "Ni",
+             "--qpoint", "0.5", "0.5", "0.25"],
+            cwd=tmp,
+        )
+        report("La3Ni2O7 low-symmetry q exit 0", code == 0, out)
+        report("low-symmetry q named via ISO-IR",
+               "Selected q-point: Y =" in out, out)
+        report("spin bases labeled via ISO-IR (no generic irrep_N)",
+               "Y1(1)" in out and "irrep_" not in out, out)
 
 
 # ---------------------------------------------------------------- 29. crystod-mag extras
