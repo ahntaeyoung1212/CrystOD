@@ -23,9 +23,11 @@ Bilbao-convention `irreptables` character tables (which contain only the
 maximal k points).  The resulting labels follow the Miller-Love /
 ISOTROPY convention (e.g. T1..T5, DT5, LD3, GP1).
 
-Data location: the directory holding ``CIR_data/CIR_data.txt`` is looked
-up from the environment variable ``CRYSTOD_ISOIR_PATH`` first, then from
-``<repository root>/ISOTROPY`` next to this package.
+Data location: the gzip-compressed table ``CIR_data.txt.gz`` is bundled
+inside the crystod package directory itself.  The lookup order is the
+environment variable ``CRYSTOD_ISOIR_PATH`` first, then the package
+directory, then ``<repository root>/ISOTROPY`` (the original ISO-IR
+download layout with ``CIR_data/CIR_data.txt``).
 
 File format (from CIR_data.f / PIR_data.f):
   header line:
@@ -269,21 +271,34 @@ class _TokenStream:
 
 
 def _isoir_data_file(data_dir: Path, kind: str) -> Optional[Path]:
-    """Path of the (possibly gzip-compressed) data file of one kind."""
-    base = data_dir / f"{kind.upper()}_data" / f"{kind.upper()}_data.txt"
-    for path in (base, base.parent / (base.name + ".gz")):
-        if path.is_file():
-            return path
+    """Path of the (possibly gzip-compressed) data file of one kind.
+
+    Two layouts are accepted: the flat package layout (``CIR_data.txt.gz``
+    directly inside ``data_dir``, as bundled with the crystod package) and
+    the original ISO-IR distribution layout (``CIR_data/CIR_data.txt``).
+    """
+    name = f"{kind.upper()}_data.txt"
+    for base in (data_dir / name, data_dir / f"{kind.upper()}_data" / name):
+        for path in (base, base.parent / (base.name + ".gz")):
+            if path.is_file():
+                return path
     return None
 
 
 def find_isoir_data_dir() -> Optional[Path]:
-    """Locate the ISO-IR data directory (containing CIR_data/, PIR_data/)."""
+    """Locate the ISO-IR data directory.
+
+    Search order: the ``CRYSTOD_ISOIR_PATH`` environment variable, the
+    crystod package directory itself (bundled ``CIR_data.txt.gz``), then
+    ``<repository root>/ISOTROPY`` (original ISO-IR download layout).
+    """
     env = os.environ.get("CRYSTOD_ISOIR_PATH")
     candidates = []
     if env:
         candidates.append(Path(env))
-    candidates.append(Path(__file__).resolve().parent.parent / "ISOTROPY")
+    package_dir = Path(__file__).resolve().parent
+    candidates.append(package_dir)
+    candidates.append(package_dir.parent / "ISOTROPY")
     for cand in candidates:
         if _isoir_data_file(cand, "cir") is not None:
             return cand
