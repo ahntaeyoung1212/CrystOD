@@ -159,12 +159,12 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 - **rotations の基底に注意**: `phonon.symmetry` はスーパーセルの対称性。primitive 基底の回転は `phonon.primitive_symmetry` から取る。
 - **f 軌道の基底セット**: 非立方晶 27 点群は tesseral セット、立方晶 5 点群は cubic セット(`--basis` に与える関数系が異なる)。詳細は 7/11 作成の資料参照。
 - **ISO-IR (ISOTROPY) テーブルによる非特殊 k のラベリング**(`crystod/isoir.py`, 2026-07-22):
-  - データ: リポジトリ直下 `ISOTROPY/CIR_data/CIR_data.txt`(複素既約表現、全 k 型: 点・線・面・一般点)を遅延パース。**gzip 圧縮版 `CIR_data.txt.gz` も透過的に読める**(53MB → 1.1MB。GitHub 配布用に CrystOD-main はこの 1 ファイルのみに削減済み。SSG/PIR/xlsx を含むフルセットは `~/CrystOD-main_trial/ISOTROPY/` に保管)。置き場所は環境変数 `CRYSTOD_ISOIR_PATH` でも指定可。PIR(physically irreducible)も同じパーサで読める(k ベクトル数が CIR=kcount、PIR=pmkcount の点だけ異なる)。
+  - データ: **パッケージ内 `crystod/CIR_data.txt.gz`**(複素既約表現、全 k 型: 点・線・面・一般点。gzip で 53MB → 1.1MB、pyproject の package-data に登録済み → 2026-07-24 移動)を遅延パース。探索順は `CRYSTOD_ISOIR_PATH` 環境変数 → パッケージディレクトリ → リポジトリ直下 `ISOTROPY/`(ISO-IR 配布レイアウト `CIR_data/CIR_data.txt[.gz]`、後方互換)。SSG/PIR/xlsx を含むフルセットは `~/CrystOD-main_trial/ISOTROPY/` に保管。PIR(physically irreducible)も同じパーサで読める(k ベクトル数が CIR=kcount、PIR=pmkcount の点だけ異なる)。
   - ISO-IR は各既約表現の **full 表現行列**(star 全 arm、標準 conventional setting の 48 個以下の代表操作)を持つ。arm j の対角ブロック × 並進位相 e^{+2πi k·t} が小表現。非特殊 k は α,β,γ パラメータ付きで指標を評価できる。
   - **位相規約の橋渡し**: spgrep/irreptables は e^{−2πi k·t}、ISO-IR は e^{+2πi k·t}。よって spgrep 指標は **ISO-IR 指標の複素共役**と照合する。複素型既約表現ではこの規約差が**ラベルの入れ替わり**として現れる(例: Pnma R 点は Bilbao R1 = ISOTROPY R2)。実指標の k 点では両規約のラベルは一致(Pm-3m の R/M/X で確認済み)。
   - **setting の整合**: ISOTROPY の標準 setting(origin choice 2、直方晶 abc、単斜 b 軸 cell choice 1、六方軸)へ spglib の `hall_number` 指定(選択則: choice '2' → '' → 'b1' → 'H' → '1')で決定論的に変換。origin choice の異なる群(Fd-3m 等)でも正しく動く。※mod 格子のグリッド探索による origin 推定は擬シフトを拾い誤ラベルの危険があるため不採用(68 Ccce の T 点で実証)。
   - **検証**: (i) T 線 C4v 指標の直交性、(ii) ISO-IR 行列のみでのバンド表現の独立分解が crystod 出力と一致、(iii) ISOSUBGROUP 由来の実証的対応表(141 X, 142 X, 230 N)と一致、(iv) SG 68 T ではゲージ非依存の isotropy subgroup 構成(spgrep 行列 → 子群同定)で直接検証。
-  - 適用先は現状 `crystal_orbital_spgrep.py`(crystod --element/--orbital)のみ。irreptables に載っている k 点では従来通り irreptables が優先(出力不変)。spinor は ISO-IR に二重群が無いためスキップ(従来通り汎用ラベル)。
+  - 適用先: 7/22 (2) 以降は全ラベリング経路(`crystod --element/--orbital`・`--atomic-orbital`・`crystod-mag`・`crystod-phonon --vibration/--vector/--modulation`)。irreptables に載っている k 点(star-arm 輸送含む)では従来通り irreptables が優先(出力不変)。spinor は ISO-IR に二重群が無いためスキップ(従来通り汎用ラベル)。
 
 ---
 

@@ -49,5 +49,8 @@ crystod-group = "crystod.cli.group:main"
 [tool.setuptools]
 packages = ["crystod", "crystod.cli"]
 
+[tool.setuptools.package-data]
+crystod = ["CIR_data.txt.gz", "vesta_element_rgb.json"]
+
 [project.urls]
 Homepage = "https://mochizuki-tus.github.io/"
