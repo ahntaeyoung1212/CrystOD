@@ -4,3 +4,7 @@ crystod-phonon --irreps --dim 4 4 4 -c 227_PPOSCAR_Si
 # Generate yaml file that shows irreps for phonons using FORCE_CONSTANTS
 crystod-phonon --irreps --dim 4 4 4 -c 227_PPOSCAR_Si --readfc
 
+# Additionally label the irreps at the midpoints of the seekpath k-path
+# segments (symmetry lines; ISO-IR labels); this writes phonon_irreps_all.yaml
+# instead of phonon_irreps.yaml, so both surveys coexist here
+crystod-phonon --irreps --dim 4 4 4 -c 227_PPOSCAR_Si --all-irreps

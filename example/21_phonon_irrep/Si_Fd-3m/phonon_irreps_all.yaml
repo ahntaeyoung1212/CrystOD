@@ -1,0 +1,186 @@
+space_group: Fd-3m
+special_points:
+- # GM
+  q_position: [0.0, 0.0, 0.0]
+- # X
+  q_position: [0.5, 0.0, 0.5]
+- # L
+  q_position: [0.5, 0.5, 0.5]
+- # W
+  q_position: [0.5, 0.25, 0.75]
+
+k_path: GM-X-U | K-GM-L-W-X  # seekpath
+path_midpoints:  # midpoints of the k-path segments, ISO-IR k-vector types
+- # DT (midpoint of GM-X)
+  q_position: [0.25, 0.0, 0.25]
+- # SM (midpoint of X-U)
+  q_position: [0.5625, 0.125, 0.5625]
+- # SM (midpoint of K-GM)
+  q_position: [0.1875, 0.1875, 0.375]
+- # LD (midpoint of GM-L)
+  q_position: [0.25, 0.25, 0.25]
+- # Q (midpoint of L-W)
+  q_position: [0.5, 0.375, 0.625]
+- # V (midpoint of W-X)
+  q_position: [0.5, 0.125, 0.625]
+
+irreps:
+- q_label: GM
+  q_position: [0.0, 0.0, 0.0]
+  - # 1 2 3
+    irrep_label: ['GM4-(3)']
+    frequency:   0.0000002852
+  - # 4 5 6
+    irrep_label: ['GM5+(3)']
+    frequency:  14.9571386852
+
+- q_label: X
+  q_position: [0.5, 0.0, 0.5]
+  - # 1 2
+    irrep_label: ['X4(2)']
+    frequency:   4.7169947267
+  - # 3 4
+    irrep_label: ['X1(2)']
+    frequency:  12.1731522294
+  - # 5 6
+    irrep_label: ['X3(2)']
+    frequency:  13.8347514981
+
+- q_label: L
+  q_position: [0.5, 0.5, 0.5]
+  - # 1 2
+    irrep_label: ['L3+(2)']
+    frequency:   3.8711458281
+  - # 3
+    irrep_label: ['L2-(1)']
+    frequency:  11.3846043487
+  - # 4
+    irrep_label: ['L1+(1)']
+    frequency:  12.1623441755
+  - # 5 6
+    irrep_label: ['L3-(2)']
+    frequency:  14.3707993152
+
+- q_label: W
+  q_position: [0.5, 0.25, 0.75]
+  - # 1 2
+    irrep_label: ['W2(2)']
+    frequency:   6.2768273136
+  - # 3 4
+    irrep_label: ['W1(2)']
+    frequency:  10.6183727318
+  - # 5 6
+    irrep_label: ['W2(2)']
+    frequency:  14.1357198206
+
+- q_label: DT
+  segment: GM-X
+  q_position: [0.25, 0.0, 0.25]
+  - # 1 2
+    irrep_label: ['DT5(2)']
+    frequency:   4.3291107149
+  - # 3
+    irrep_label: ['DT1(1)']
+    frequency:   6.6100878392
+  - # 4 5
+    irrep_label: ['DT5(2)']
+    frequency:  14.2719085471
+  - # 6
+    irrep_label: ['DT3(1)']
+    frequency:  14.7959289788
+
+- q_label: SM
+  segment: X-U
+  q_position: [0.5625, 0.125, 0.5625]
+  - # 1
+    irrep_label: ['SM2(1)']
+    frequency:   4.7467809794
+  - # 2
+    irrep_label: ['SM3(1)']
+    frequency:   5.3998769921
+  - # 3
+    irrep_label: ['SM1(1)']
+    frequency:  11.6943784969
+  - # 4
+    irrep_label: ['SM3(1)']
+    frequency:  11.8651694793
+  - # 5
+    irrep_label: ['SM4(1)']
+    frequency:  13.8557808043
+  - # 6
+    irrep_label: ['SM1(1)']
+    frequency:  14.0408258042
+
+- q_label: SM
+  segment: K-GM
+  q_position: [0.1875, 0.1875, 0.375]
+  - # 1
+    irrep_label: ['SM2(1)']
+    frequency:   3.4621200060
+  - # 2
+    irrep_label: ['SM3(1)']
+    frequency:   4.9829643206
+  - # 3
+    irrep_label: ['SM1(1)']
+    frequency:   7.0417944195
+  - # 4
+    irrep_label: ['SM3(1)']
+    frequency:  13.9887832184
+  - # 5
+    irrep_label: ['SM4(1)']
+    frequency:  14.4937370008
+  - # 6
+    irrep_label: ['SM1(1)']
+    frequency:  14.5100521411
+
+- q_label: LD
+  segment: GM-L
+  q_position: [0.25, 0.25, 0.25]
+  - # 1 2
+    irrep_label: ['LD3(2)']
+    frequency:   3.0790784823
+  - # 3
+    irrep_label: ['LD1(1)']
+    frequency:   6.5279977013
+  - # 4
+    irrep_label: ['LD1(1)']
+    frequency:  14.4387237657
+  - # 5 6
+    irrep_label: ['LD3(2)']
+    frequency:  14.6056200638
+
+- q_label: Q
+  segment: L-W
+  q_position: [0.5, 0.375, 0.625]
+  - # 1
+    irrep_label: ['Q2(1)']
+    frequency:   4.7187662443
+  - # 2
+    irrep_label: ['Q1(1)']
+    frequency:   6.1585509705
+  - # 3
+    irrep_label: ['Q1(1)']
+    frequency:  10.3425496936
+  - # 4
+    irrep_label: ['Q2(1)']
+    frequency:  11.6408098347
+  - # 5
+    irrep_label: ['Q1(1)']
+    frequency:  14.1522198913
+  - # 6
+    irrep_label: ['Q2(1)']
+    frequency:  14.4134295969
+
+- q_label: V
+  segment: W-X
+  q_position: [0.5, 0.125, 0.625]
+  - # 1 2
+    irrep_label: ['V1(2)']
+    frequency:   5.4077838735
+  - # 3 4
+    irrep_label: ['V1(2)']
+    frequency:  11.4551199951
+  - # 5 6
+    irrep_label: ['V1(2)']
+    frequency:  14.0159475221
+
