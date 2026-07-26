@@ -25,6 +25,15 @@ the Bilbao Crystallographic Server (https://cryst.ehu.es/rep/dirpro.html):
 M. I. Aroyo, A. Kirov, C. Capillas, J. M. Perez-Mato and H. Wondratschek,
 "Bilbao Crystallographic Server II: Representations of crystallographic
 point groups and space groups", Acta Cryst. A62, 115-128 (2006).
+
+Product terms at k points absent from the CDML tables (symmetry lines
+reached by sums of star arms) are computed with spgrep and named from the
+hand-fitted, DIRPRO-validated ``LINE_IRREP_NAMES`` map when available;
+otherwise from the ISO-IR tables (``crystod.isoir``), whose labels follow
+the ISOTROPY (Miller-Love) convention and are marked ``[ISO-IR labels]``
+in the report.  The two conventions can genuinely differ at lines (CDML V
+= ISOTROPY LD in I4/mmm; the DT numbering of Fm-3m/Ia-3d is permuted), so
+the fitted CDML entries always take precedence.
 """
 
 from __future__ import annotations
@@ -34,7 +43,7 @@ from fractions import Fraction
 import numpy as np
 from phonopy.structure.cells import get_primitive_matrix_by_centring
 
-from .basis_function import _resolve_space_group_type
+from .basis_function import _resolve_space_group_type, _synthetic_conventional_cell
 from .dirpro_line_names import LINE_IRREP_NAMES
 from .irreptables_compat import load_irreptables
 
@@ -55,12 +64,18 @@ class _ComputedIrrep:
     """Line-point small irrep computed on the fly (spgrep); mimics the
     irreptables irrep interface used by the report."""
 
-    def __init__(self, name: str, dim: int, kpname: str, k_int, star_size: int):
+    def __init__(
+        self, name: str, dim: int, kpname: str, k_int, star_size: int,
+        label_source: str | None = None,
+    ):
         self.name = name
         self.dim = dim
         self.kpname = kpname
         self.k_int = np.asarray(k_int, dtype=np.int64)
         self.star_size = star_size
+        # naming convention of .name: "cdml" (DIRPRO-fitted LINE_IRREP_NAMES),
+        # "isoir" (ISO-IR / ISOTROPY Miller-Love tables) or None (positional)
+        self.label_source = label_source
 
 
 class _SyntheticIrrep:
@@ -133,11 +148,14 @@ class SpaceGroupIrrepAlgebra:
             np.array([inverse @ rotation @ primitive_matrix for rotation in conventional_rotations])
         ).astype(np.int64)
 
-        # translation transform convention (row vs column) is fixed by
-        # requiring group closure of (W, v) modulo integer translations
+        # translation transform convention: the pure column form
+        # t_prim = M^-1 t_conv closes for all 230 space groups (the row form
+        # t_conv M^-1, kept as a safety net, coincides with it whenever it
+        # closes at all); the column form is required so that the exact
+        # inverse t_conv = M t_prim is available for the ISO-IR labeler
         for candidate in (
-            conventional_translations @ inverse,
             conventional_translations @ inverse.T,
+            conventional_translations @ inverse,
         ):
             translations = np.mod(_snap(candidate), DEN)
             if self._is_closed(rotations, translations):
@@ -167,6 +185,8 @@ class SpaceGroupIrrepAlgebra:
         self._star_cache: dict[str, tuple[np.ndarray, list[int]]] = {}
         self._induced_cache: dict[tuple[str, str], tuple[np.ndarray, np.ndarray]] = {}
         self._computed_cache: dict[tuple, list] = {}
+        self._isoir_cell = None  # lazy synthetic cell for the ISO-IR labeler
+        self._isoir_line_cache: dict[tuple, tuple | None] = {}
 
         self._add_minus_k_stars()
 
@@ -542,7 +562,7 @@ class SpaceGroupIrrepAlgebra:
             canonical = np.array(min(tuple(arm) for arm in arms), dtype=np.int64)
             arms, _ = self._star_of_vector(canonical)
             arm_set = {tuple(arm) for arm in arms}
-            point_name, names = self._line_names(canonical)
+            point_name, names, label_source = self._line_names(canonical)
             for index, small in enumerate(self.computed_irreps_at(canonical)):
                 arms3, C3 = self.induced_characters_at(canonical, small)
                 multiplicity = self._multiplicity_core(factor_data, arms3, C3)
@@ -556,7 +576,10 @@ class SpaceGroupIrrepAlgebra:
                     terms.append(
                         (
                             point_name,
-                            _ComputedIrrep(name, small["dim"], point_name, canonical, len(arms)),
+                            _ComputedIrrep(
+                                name, small["dim"], point_name, canonical,
+                                len(arms), label_source,
+                            ),
                             multiplicity,
                         )
                     )
@@ -566,9 +589,151 @@ class SpaceGroupIrrepAlgebra:
         leftovers = sorted(candidate_vectors - covered)
         return factors, terms, leftovers
 
-    def _line_names(self, canonical: np.ndarray) -> tuple[str, list[str] | None]:
-        """Display name of a non-tabulated star and (optionally) the CDML
-        names of its small irreps, keyed by character fingerprints."""
+    def _isoir_labeler_inputs(self):
+        """(cell, conventional rotations, conventional translations) for the
+        ISO-IR labeler, or None when construction failed.
+
+        The synthetic conventional cell carries exactly this space group's
+        symmetry, so spglib can determine the transformation into the
+        ISOTROPY standard setting (same route as the structure-based
+        commands).  The conventional translations are recovered from the
+        primitive ones through the exact column-convention inverse
+        t_conv = M t_prim, so each (R, t) pair denotes precisely the
+        operation whose characters spgrep computed (residual differences
+        are centring-lattice translations, which the labeler
+        phase-corrects)."""
+        if self._isoir_cell is None:
+            try:
+                conventional_rotations = np.array(
+                    [sym.R for sym in self.table.symmetries], dtype=float
+                )
+                cell = _synthetic_conventional_cell(
+                    self.sg_type,
+                    conventional_rotations,
+                    np.array([sym.t for sym in self.table.symmetries], dtype=float),
+                )
+                conventional_translations = (
+                    self.primitive_matrix
+                    @ (np.array(self.translations, dtype=float) / DEN).T
+                ).T
+                self._isoir_cell = (
+                    cell,
+                    np.rint(conventional_rotations).astype(int),
+                    conventional_translations,
+                )
+            except Exception:
+                self._isoir_cell = False
+        return self._isoir_cell or None
+
+    @staticmethod
+    def _minus_k_name(label: str) -> str:
+        """CDML 'A' suffix of a -k star label (P1 -> PA1, DT -> DTA)."""
+        import re
+
+        return re.sub(r"^[A-Z]+", lambda match: match.group(0) + "A", label)
+
+    def _isoir_line_labels(self, canonical: np.ndarray) -> tuple[str, list[str] | None] | None:
+        """ISO-IR (ISOTROPY, Miller-Love) names of the computed small irreps
+        at a non-tabulated k point: (k-type label, names) on a full match,
+        (k-type label, None) when only the k-vector type is identified, or
+        None.  A -k star absent from the ISO-IR tables (polar space groups)
+        is labeled through its +k conjugates with the CDML 'A' suffix."""
+        key = tuple(np.mod(canonical, DEN))
+        if key in self._isoir_line_cache:
+            return self._isoir_line_cache[key]
+        result = self._isoir_line_labels_uncached(np.asarray(key, dtype=np.int64))
+        self._isoir_line_cache[key] = result
+        return result
+
+    def _isoir_line_labels_uncached(self, canonical: np.ndarray):
+        from .isoir import get_isoir_kpoint_name, get_isoir_label_map
+
+        inputs = self._isoir_labeler_inputs()
+        if inputs is None:
+            return None
+        cell, conventional_rotations, conventional_translations = inputs
+        try:
+            smalls = self.computed_irreps_at(canonical)
+        except SystemExit:
+            return None
+        k_conv = (np.asarray(canonical, dtype=float) / DEN) @ np.linalg.inv(
+            self.primitive_matrix
+        )
+        little = sorted(self.little_group(canonical))
+        little_rotations = [conventional_rotations[i] for i in little]
+        little_translations = [conventional_translations[i] for i in little]
+        characters = [
+            np.array([small["chi"][i] for i in little], dtype=np.complex128)
+            for small in smalls
+        ]
+        # when star(k) and star(-k) are distinct (acentric groups), both can
+        # appear in one product and ISO-IR may match both to the same k-type
+        # letter through the free line parameter; the star whose -k partner
+        # has the smaller canonical representative deterministically takes
+        # the CDML 'A' suffix (P1 -> PA1) so the two keep distinct names
+        minus_arms, _ = self._star_of_vector(np.mod(-canonical, DEN))
+        minus_canonical = min(tuple(arm) for arm in minus_arms)
+        prefer_minus = minus_canonical < tuple(np.mod(canonical, DEN))
+
+        def direct():
+            """Labels of the small irreps matched at +k."""
+            result = get_isoir_label_map(
+                self.sg_type.number, cell, 1e-5, k_conv,
+                little_rotations, little_translations, characters,
+            )
+            if result is None:
+                return None
+            label_map, ktype = result
+            if len(label_map) != len(smalls):
+                return None
+            return ktype, [label_map[index] for index in range(len(smalls))]
+
+        def conjugate():
+            """'A'-suffixed labels through the -k star: the small irreps at
+            -k are the complex conjugates of those at k (only one member of
+            a +/-k pair is tabulated in ISO-IR)."""
+            result = get_isoir_label_map(
+                self.sg_type.number, cell, 1e-5, -k_conv,
+                little_rotations, little_translations,
+                [np.conj(chi) for chi in characters],
+            )
+            if result is None:
+                return None
+            label_map, ktype = result
+            if len(label_map) != len(smalls):
+                return None
+            return (
+                self._minus_k_name(ktype),
+                [
+                    self._minus_k_name(label_map[index])
+                    for index in range(len(smalls))
+                ],
+            )
+
+        attempts = (conjugate, direct) if prefer_minus else (direct, conjugate)
+        for attempt in attempts:
+            result = attempt()
+            if result is not None:
+                return result
+        # no irrep-level match: identify at least the k-vector type letter
+        candidates = ((k_conv, ""), (-k_conv, "A"))
+        if prefer_minus:
+            candidates = tuple(reversed(candidates))
+        for k, suffix in candidates:
+            name = get_isoir_kpoint_name(self.sg_type.number, cell, 1e-5, k)
+            if name is not None:
+                return name + suffix, None
+        return None
+
+    def _line_names(self, canonical: np.ndarray) -> tuple[str, list[str] | None, str | None]:
+        """Display name of a non-tabulated star, the names of its small
+        irreps (or None) and the naming source ("cdml", "isoir" or None).
+
+        Priority: the hand-fitted, DIRPRO-validated CDML names of
+        LINE_IRREP_NAMES; then the name of a tabulated star reached through
+        the computed route (paired "physical" irreps); then the ISO-IR
+        (ISOTROPY, Miller-Love) tables; positional names as the last resort.
+        """
         entry = LINE_IRREP_NAMES.get((self.sg_type.number, tuple(canonical)))
         smalls = self.computed_irreps_at(canonical)
         if entry is not None:
@@ -578,15 +743,20 @@ class SpaceGroupIrrepAlgebra:
                 fingerprint = _character_fingerprint(small["chi"])
                 names.append(name_map.get(fingerprint))
             if all(name is not None for name in names):
-                return point_name, names
-            return point_name, None
+                return point_name, names, "cdml"
         # check whether this star is a tabulated star (paired-irrep fallback):
         for kname in self.k_by_kname:
             arms, _ = self.star(kname)
             if any(np.all((arm - canonical) % DEN == 0) for arm in arms):
-                return kname, None
+                return kname, None, None
+        isoir = self._isoir_line_labels(canonical)
+        if isoir is not None:
+            point_name, names = isoir
+            return point_name, names, "isoir" if names is not None else None
+        if entry is not None:
+            return entry[0], None, None
         coordinates = ",".join(_format_fraction(v) for v in canonical)
-        return f"({coordinates})", None
+        return f"({coordinates})", None, None
 
     def _multiplicity_core(self, factor_data, arms3, C3) -> int | None:
         """Reduction coefficient; None when it is not a non-negative integer."""
@@ -669,7 +839,12 @@ def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) ->
     for _, irrep, _ in terms:
         if isinstance(irrep, _ComputedIrrep) and irrep.kpname not in algebra.k_by_kname:
             coordinates = ", ".join(_format_fraction(v) for v in irrep.k_int)
-            entry = f"{irrep.kpname}: ({coordinates})   star of {irrep.star_size} arm(s)  [non-tabulated]"
+            tag = (
+                "[non-tabulated; ISO-IR labels]"
+                if irrep.label_source == "isoir"
+                else "[non-tabulated]"
+            )
+            entry = f"{irrep.kpname}: ({coordinates})   star of {irrep.star_size} arm(s)  {tag}"
             if entry not in lines:
                 lines.append(entry)
     lines.append("")
@@ -711,6 +886,22 @@ def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) ->
         )
     elif resolved != product_dimension:
         lines.append("WARNING: dimension mismatch - please report this case.")
+    if any(
+        isinstance(irrep, _ComputedIrrep) and irrep.label_source == "isoir"
+        for _, irrep, _ in terms
+    ):
+        lines.append("")
+        lines.append(
+            "NOTE: k points marked [ISO-IR labels] are absent from the CDML "
+            "tables; their"
+        )
+        lines.append(
+            "irrep labels follow the ISO-IR (ISOTROPY, Miller-Love) convention:"
+        )
+        lines.append(
+            "H. T. Stokes, B. J. Campbell and R. Cordes, Acta Cryst. A69, "
+            "388-395 (2013); iso.byu.edu/irtables.php"
+        )
     lines.append("")
     lines.append(
         "Cross-validated against the Bilbao Crystallographic Server DIRPRO:"

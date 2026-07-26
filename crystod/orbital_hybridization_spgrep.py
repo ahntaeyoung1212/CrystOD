@@ -670,6 +670,22 @@ def get_result_at_k(crystal_orbital, k, elements, orbitals):
     return mapping_little_group, irreps, labeled_result, irrep_labels
 
 
+def split_element_orbital(token: str) -> tuple[str, str]:
+    """Split an "element separator orbital" token such as Ti_d or Ti-d.
+
+    Both separators are accepted; element symbols and orbital names never
+    contain either character, so the first occurrence is the separator.
+    """
+    for separator in ("_", "-"):
+        element, found, orbital = token.partition(separator)
+        if found and element and orbital:
+            return element, orbital
+    raise SystemExit(
+        f"ERROR: invalid --atomic-orbital token '{token}'. Use "
+        "<element>_<orbital> or <element>-<orbital>, e.g. Ti_d or Ti-d."
+    )
+
+
 def main(argv: Optional[list[str]] = None) -> None:
     args = build_parser().parse_args(argv)
 
@@ -680,7 +696,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     elements = []
     orbitals = []
     for in_orbit in input_orbitals:
-        e, o = in_orbit.split('_')
+        e, o = split_element_orbital(in_orbit)
         elements.append(e)
         orbitals.append(o)
 
@@ -691,7 +707,11 @@ def main(argv: Optional[list[str]] = None) -> None:
     print(f" * Position *")
     print(f" wyckoff letters      : {wyckoff_letters}")
     print(f" site symmetry letters: {site_symmetry_symbols}\n")
-    print(f" * Atomic Orbital *\n {args.orbital}\n")
+    # echo in the canonical <element>_<orbital> form, whichever separator was given
+    canonical_orbitals = [
+        f"{element}_{orbital}" for element, orbital in zip(elements, orbitals)
+    ]
+    print(f" * Atomic Orbital *\n {canonical_orbitals}\n")
     print(f" * Spinor *\n {args.spinor}\n")
 
     if args.kpoint is None:

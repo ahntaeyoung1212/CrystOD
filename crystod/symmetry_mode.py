@@ -76,6 +76,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.01,
         help="Symmetry-detection tolerance (symprec) in Angstrom (default: 0.01).",
     )
+    parser.add_argument(
+        "--conventional",
+        action="store_true",
+        help="Write the per-irrep mode VESTA files in the parent conventional "
+        "basis instead of the invariant-core (primitive-derived) cell "
+        "(file names get a _conv suffix).",
+    )
     return parser
 
 
@@ -883,12 +890,135 @@ def main(argv: list[str] | None = None) -> None:
         for part in parts:
             print(f"  {part}")
 
+    _export_mode_vesta_files(analysis, args.parent, conventional=args.conventional)
+
     print("\nConventions and validation: AMPLIMODES (Bilbao Crystallographic "
           "Server):")
     print('D. Orobengoa, C. Capillas, M. I. Aroyo and J. M. Perez-Mato,')
     print('"AMPLIMODES: symmetry-mode analysis on the Bilbao Crystallographic')
     print('Server", J. Appl. Cryst. 42, 820-833 (2009).')
     print()
+
+
+_VESTA_ARROW_LENGTH = 1.5  # A, largest arrow per file (same as --vector)
+
+
+def _conventional_display_cell(analysis):
+    """Display supercell for --conventional VESTA output.
+
+    Returns (D, translations): D is the smallest diagonal multiple of the
+    parent conventional cell (rows in parent primitive units) whose lattice
+    is a sublattice of the invariant-core lattice, so every mode pattern is
+    periodic over the display cell; translations are the core-lattice
+    representatives that tile the display cell.
+    """
+    from math import gcd
+
+    from .phonon_vector import get_conventional_matrix
+
+    conventional = get_conventional_matrix(analysis.parent_symbol[0])
+    S_core = np.asarray(analysis.S_core)
+    S_core_inv = np.linalg.inv(S_core)
+    sizes = []
+    for row in conventional:
+        multiple = 1
+        for component in np.asarray(row, dtype=float) @ S_core_inv:
+            denominator = Fraction(float(component)).limit_denominator(48).denominator
+            multiple = multiple * denominator // gcd(multiple, denominator)
+        sizes.append(multiple)
+    D = np.diag(sizes) @ conventional
+    D_inv = np.linalg.inv(D)
+    n_copies = int(round(abs(np.linalg.det(D)) / abs(np.linalg.det(S_core))))
+    bound = int(np.ceil(np.abs(np.asarray(D, dtype=float) @ S_core_inv).sum())) + 1
+    translations = []
+    seen = set()
+    for m in product(range(-bound, bound + 1), repeat=3):
+        t = np.asarray(m) @ S_core
+        frac = np.mod(np.round(t @ D_inv, 8), 1.0)
+        key = tuple(np.round(frac, 6))
+        if key in seen:
+            continue
+        seen.add(key)
+        translations.append(t)
+        if len(translations) == n_copies:
+            break
+    return D, translations
+
+
+def _export_mode_vesta_files(analysis, parent_path: str,
+                             conventional: bool = False) -> None:
+    """Write one VESTA file per activated irrep showing its displacement
+    pattern: arrows of the irrep-projected distortion on the parent-derived
+    reference structure, in the invariant-core cell (default) or in the
+    parent conventional basis (--conventional, _conv suffix).
+    """
+    from .phonon_vector import write_vesta_with_arrows
+
+    parent_base = os.path.basename(parent_path)
+    if parent_base.lower().endswith(".cif"):
+        parent_base = parent_base[: -len(".cif")]
+
+    if conventional:
+        D, translations = _conventional_display_cell(analysis)
+        lattice = D @ analysis.L_parent
+        D_inv = np.linalg.inv(D)
+        positions = []
+        atom_source = []
+        for j in range(analysis.n_atoms):
+            for t in translations:
+                positions.append(
+                    np.mod((analysis.ref_frac[j] + t) @ D_inv, 1.0)
+                )
+                atom_source.append(j)
+        scaled_positions = np.array(positions)
+        suffix = "_conv"
+        cell_note = "parent conventional basis"
+    else:
+        lattice = analysis.S_core @ analysis.L_parent
+        scaled_positions = np.mod(
+            analysis.ref_frac @ np.linalg.inv(analysis.S_core), 1.0
+        )
+        atom_source = list(range(analysis.n_atoms))
+        suffix = ""
+        cell_note = "invariant-core cell"
+    symbols = [_element_symbol(analysis.ref_z[j]) for j in atom_source]
+    u = analysis.u_cart.reshape(-1)
+
+    written = []
+    for mode in analysis.modes:
+        if mode.amplitude < 1e-4:
+            continue
+        arrows_core = (mode.projector @ u).reshape(-1, 3)
+        peak = float(np.max(np.linalg.norm(arrows_core, axis=1)))
+        if peak < 1e-10:
+            continue
+        arrows = arrows_core[atom_source] * (_VESTA_ARROW_LENGTH / peak)
+        filename = f"{parent_base}_{mode.irrep_name}{suffix}.vesta"
+        write_vesta_with_arrows(
+            filepath=filename,
+            lattice=lattice,
+            scaled_positions=scaled_positions,
+            symbols=symbols,
+            arrows_cartesian=arrows,
+            title=(
+                f"{parent_base} {mode.irrep_name} mode "
+                f"(amplitude {mode.amplitude:.4f} A)"
+            ),
+        )
+        written.append((filename, mode.amplitude))
+
+    if not written:
+        return
+    print(f"\n* Mode displacement VESTA files ({cell_note}) *")
+    if conventional:
+        print("display cell in parent primitive units (rows):")
+        for row in D:
+            print("  (" + ", ".join(str(int(v)) for v in row) + ")")
+    for filename, amplitude in written:
+        print(f"  {filename}  (amplitude {amplitude:.4f} A)")
+    print(f"Arrows are scaled so the largest displacement is "
+          f"{_VESTA_ARROW_LENGTH} A per file; adjust in VESTA via "
+          "Edit > Vectors if needed.")
 
 
 if __name__ == "__main__":

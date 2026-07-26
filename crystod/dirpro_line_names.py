@@ -7,11 +7,55 @@ The names were fitted against (and are in one-to-one agreement with) the
 direct-product tables of the Bilbao Crystallographic Server DIRPRO program
 [M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006)] for the space groups
 listed here; the fingerprints are basis-independent character data of the
-spgrep-computed small irreps, so the assignment is stable. For space groups
-not listed, line irreps are reported with generic positional names.
+spgrep-computed small irreps, so the assignment is stable.
+
+These entries OVERRIDE the general ISO-IR fallback of spacegroup_product
+(``SpaceGroupIrrepAlgebra._isoir_line_labels``): for space groups not
+listed, line irreps are named from the ISO-IR (ISOTROPY, Miller-Love)
+tables, and positional names remain only when both sources fail.  The map
+cannot be retired in favour of ISO-IR because the two conventions genuinely
+differ at several of the DIRPRO-validated points (checked 2026-07-27
+against the spgrep character fingerprints):
+
+  identical      : 122 P, 214 N, 216 DT/SM, 217 DT, 225 SM, 230 P
+  different letter: 139 V = ISO LD; 164/191/194 T = ISO LD, S = ISO Q
+                    (with 139 V2/V3/V4 = ISO LD4/LD3/LD2)
+  same letter but permuted numbering: 225 DT3/DT4 = ISO DT4/DT3;
+                    230 DT2/DT3/DT4 = ISO DT4/DT2/DT3
+  no ISO-IR entry : 122 PA, 217 PA (the -k stars; ISO-IR tabulates only +k,
+                    which the fallback handles by conjugation with an 'A'
+                    suffix)
 """
 
 LINE_IRREP_NAMES = {
+    # P/PA of I-42d: the irreptables characters at P are tabulated in the
+    # conjugate gauge -- they are exactly the complex conjugates of the two
+    # allowed small irreps at +k (i.e. the characters of the -k partners),
+    # so they match no allowed small irrep at P itself; the synthesized PA
+    # entries (conjugates of the tabulated P) are broken in the mirrored
+    # way.  Names fitted through the name-preserving conjugate
+    # correspondence (P1 := the candidate whose conjugate is the tabulated
+    # P1), which (a) coincides with the ISO-IR labels at this point (the
+    # labeler's conjugation-matching convention is DIRPRO-validated at the
+    # analogous complex broken-gauge point P of SG 230, where ISO-IR = CDML
+    # identically), (b) keeps the ISOSUBGROUP P1PA1/P2PA2 conjugate pairing
+    # (PA1 = conj(P1), SUBGROUP/SUBGROUP_SG122_P.txt), and (c) agrees with
+    # the conjugate-gauge identification already used by the DIRPRO/
+    # ISOSUBGROUP-validated isotropy-subgroup analysis of this group
+    (122, (6, 6, 6)): (
+        "P",
+        {
+            ((0, 2.0, 0.0), (1, 0.0, 0.0), (2, 1.0, 1.0), (3, 1.0, -1.0), (4, 0.0, 0.0), (5, 0.0, 0.0), (6, 0.0, 0.0), (7, 0.0, 0.0)): "P1",
+            ((0, 2.0, 0.0), (1, 0.0, 0.0), (2, -1.0, -1.0), (3, -1.0, 1.0), (4, 0.0, 0.0), (5, 0.0, 0.0), (6, 0.0, 0.0), (7, 0.0, 0.0)): "P2",
+        },
+    ),
+    (122, (18, 18, 18)): (
+        "PA",
+        {
+            ((0, 2.0, 0.0), (1, 0.0, 0.0), (2, 1.0, -1.0), (3, 1.0, 1.0), (4, 0.0, 0.0), (5, 0.0, 0.0), (6, 0.0, 0.0), (7, 0.0, 0.0)): "PA1",
+            ((0, 2.0, 0.0), (1, 0.0, 0.0), (2, -1.0, 1.0), (3, -1.0, -1.0), (4, 0.0, 0.0), (5, 0.0, 0.0), (6, 0.0, 0.0), (7, 0.0, 0.0)): "PA2",
+        },
+    ),
     # N of I4_132: the irreptables characters are in a broken gauge (they
     # match no allowed small irrep); names fitted against the ISOSUBGROUP
     # isotropy-subgroup tables (N1/N3 -> P4_122/P4_322, N2/N4 ->

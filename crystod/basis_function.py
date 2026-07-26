@@ -572,6 +572,126 @@ def _resolve_spacegroup_irrep_labels(
     return generic_labels, display_label_map, irrep_characters_map
 
 
+_GENERIC_SITES = ((0.123, 0.456, 0.789), (0.311, 0.641, 0.157))
+
+
+def _generic_conventional_lattice(number: int) -> np.ndarray:
+    """Generic conventional lattice vectors compatible with the crystal
+    system of a space group (rows = lattice vectors); generic parameters
+    avoid accidental extra symmetry."""
+    if number <= 2:  # triclinic
+        parameters = (5.1, 6.3, 7.7, 89.2, 95.4, 103.7)
+    elif number <= 15:  # monoclinic, unique axis b
+        parameters = (5.1, 6.3, 7.7, 90.0, 97.3, 90.0)
+    elif number <= 74:  # orthorhombic
+        parameters = (5.1, 6.3, 7.7, 90.0, 90.0, 90.0)
+    elif number <= 142:  # tetragonal
+        parameters = (5.1, 5.1, 7.7, 90.0, 90.0, 90.0)
+    elif number <= 194:  # trigonal (hexagonal axes) / hexagonal
+        parameters = (5.1, 5.1, 7.7, 90.0, 90.0, 120.0)
+    else:  # cubic
+        parameters = (5.1, 5.1, 5.1, 90.0, 90.0, 90.0)
+    a, b, c, alpha, beta, gamma = parameters
+    alpha, beta, gamma = np.radians((alpha, beta, gamma))
+    bx, by = b * np.cos(gamma), b * np.sin(gamma)
+    cx = c * np.cos(beta)
+    cy = c * (np.cos(alpha) - np.cos(beta) * np.cos(gamma)) / np.sin(gamma)
+    cz = np.sqrt(max(c * c - cx * cx - cy * cy, 0.0))
+    return np.array([[a, 0.0, 0.0], [bx, by, 0.0], [cx, cy, cz]])
+
+
+def _synthetic_conventional_cell(
+    sg_type,
+    conventional_rotations: np.ndarray,
+    conventional_translations: np.ndarray,
+):
+    """Generic two-orbit structure carrying exactly the space-group symmetry,
+    in the conventional setting of the irreptables operations.
+
+    --basis works from a space-group symbol without a structure file; this
+    synthetic cell lets the ISO-IR labeler determine the transformation into
+    the ISOTROPY standard setting with spglib, exactly as the structure-based
+    commands do."""
+    from .isoir import _CENTERING_TRANSLATIONS
+
+    centerings = [np.zeros(3)] + [
+        np.array(vector)
+        for vector in _CENTERING_TRANSLATIONS.get(
+            sg_type.international_short[0], []
+        )
+    ]
+    lattice = _generic_conventional_lattice(sg_type.number)
+    positions: list[np.ndarray] = []
+    numbers: list[int] = []
+    for species, seed in enumerate(_GENERIC_SITES, start=1):
+        seen: set = set()
+        for rotation, translation in zip(
+            conventional_rotations, conventional_translations
+        ):
+            for centering in centerings:
+                site = (
+                    np.asarray(rotation, dtype=float) @ np.asarray(seed)
+                    + np.asarray(translation, dtype=float)
+                    + centering
+                ) % 1.0
+                key = tuple(np.round(site, 8) % 1.0)
+                if key in seen:
+                    continue
+                seen.add(key)
+                positions.append(site)
+                numbers.append(species)
+    return lattice, np.array(positions), np.array(numbers)
+
+
+def _resolve_isoir_labels(
+    sg_type,
+    conventional_rotations: np.ndarray,
+    primitive_matrix: np.ndarray,
+    kpoint: list[float],
+    irreps,
+    mapping_little_group: np.ndarray,
+    little_primitive_translations: np.ndarray,
+    conventional_translations: np.ndarray,
+):
+    """ISO-IR (Miller-Love) labels for the spgrep irreps at a k point absent
+    from the irreptables tables.  Returns ({irrep index: label}, k-type
+    letter) or None; never raises."""
+    try:
+        from .isoir import get_isoir_label_map
+
+        cell = _synthetic_conventional_cell(
+            sg_type, conventional_rotations, conventional_translations
+        )
+        primitive_matrix_inv = np.linalg.inv(primitive_matrix)
+        conventional_k = np.array(kpoint, dtype=float) @ primitive_matrix_inv
+        little_conventional_rotations = np.rint(
+            conventional_rotations[mapping_little_group]
+        ).astype(int)
+        # invert the conventional -> primitive translation conversion used in
+        # _analyze_space_group (column convention, t_conv = M t_prim), so each
+        # conventional representative denotes exactly the operation whose
+        # characters spgrep computed (they may differ from the table entries
+        # by centring-lattice translations, which the labeler phase-corrects)
+        little_conventional_translations = (
+            primitive_matrix @ np.asarray(little_primitive_translations).T
+        ).T
+        spgrep_characters = [
+            np.array(get_character(irrep), dtype=np.complex128)
+            for irrep in irreps
+        ]
+        return get_isoir_label_map(
+            sg_type.number,
+            cell,
+            1e-5,
+            conventional_k,
+            list(little_conventional_rotations),
+            list(little_conventional_translations),
+            spgrep_characters,
+        )
+    except Exception:
+        return None
+
+
 def _get_little_group_label(
     rotations: np.ndarray,
     translations: np.ndarray,
@@ -689,12 +809,16 @@ def _analyze_point_group(
     return "\n\n".join(outputs)
 
 
-def _analyze_space_group(
-    space_group_symbol: str,
-    kpoint: list[float],
-    seed_expressions: list,
-    show_irrep_table: bool,
-) -> str:
+def _spacegroup_irrep_context(space_group_symbol: str, kpoint: list[float]):
+    """Space-group little-group irreps at k with resolved labels.
+
+    Shared by the --basis/--generate-basis analysis and the --table display:
+    builds the group from the irreptables operations, computes the spgrep
+    small irreps at k, resolves the labels (irreptables at tabulated k,
+    ISO-IR fallback otherwise), and prepares the display strings.
+    """
+    from types import SimpleNamespace
+
     sg_type = _resolve_space_group_type(space_group_symbol)
     irt_table = IrrepTable(sg_type.number, spinor=False)
     primitive_matrix = np.array(
@@ -708,7 +832,12 @@ def _analyze_space_group(
     primitive_rotations = np.rint(
         np.array([primitive_matrix_inv @ rotation @ primitive_matrix for rotation in conventional_rotations])
     ).astype(int)
-    primitive_translations = np.mod(conventional_translations @ primitive_matrix_inv, 1.0)
+    # column convention throughout (x_conv = M x_prim), matching the rotation
+    # conversion above; the former row form (t @ Minv) silently broke group
+    # closure for the non-symmetric R centring matrix
+    primitive_translations = np.mod(
+        (primitive_matrix_inv @ conventional_translations.T).T, 1.0
+    )
     primitive_translations[np.isclose(primitive_translations, 1.0, atol=1e-8)] = 0.0
 
     irreps, mapping_little_group = get_spacegroup_irreps_from_primitive_symmetry(
@@ -721,7 +850,114 @@ def _analyze_space_group(
     little_conventional_rotations = np.rint(conventional_rotations[mapping_little_group]).astype(int)
     little_primitive_rotations = primitive_rotations[mapping_little_group]
     little_primitive_translations = primitive_translations[mapping_little_group]
-    cartesian_little_rotations = _cartesianize_rotations([rotation for rotation in little_conventional_rotations])
+
+    generic_labels, display_label_map, irrep_characters_map = _resolve_spacegroup_irrep_labels(
+        irreps=irreps,
+        mapping_little_group=mapping_little_group,
+        irt_irreps=irt_irreps,
+    )
+    isoir_kpoint_name = None
+    if not irt_irreps:
+        # k point absent from irreptables (symmetry line/plane/general point):
+        # fall back to the ISO-IR (ISOTROPY, Miller-Love) tables
+        isoir_result = _resolve_isoir_labels(
+            sg_type=sg_type,
+            conventional_rotations=conventional_rotations,
+            primitive_matrix=primitive_matrix,
+            kpoint=kpoint,
+            irreps=irreps,
+            mapping_little_group=mapping_little_group,
+            little_primitive_translations=little_primitive_translations,
+            conventional_translations=conventional_translations,
+        )
+        if isoir_result is not None:
+            isoir_label_map, isoir_kpoint_name = isoir_result
+            for index, generic_label in enumerate(generic_labels):
+                if index in isoir_label_map:
+                    display_label_map[generic_label] = (
+                        f"{isoir_label_map[index]}({irreps[index].shape[1]})"
+                    )
+    little_group_label = _get_little_group_label(little_primitive_rotations, little_primitive_translations)
+    kpoint_label = irt_irreps[0].kpname if irt_irreps else isoir_kpoint_name
+    formatted_kpoint = _format_kpoint(kpoint)
+    if kpoint_label:
+        kpoint_line = f" {kpoint_label} {formatted_kpoint}"
+    else:
+        kpoint_line = f" {formatted_kpoint}"
+    operation_labels = [
+        get_seitz_symbol(rotation, primitive_matrix)
+        for rotation in little_primitive_rotations
+    ]
+    return SimpleNamespace(
+        sg_type=sg_type,
+        irt_table=irt_table,
+        primitive_matrix=primitive_matrix,
+        primitive_matrix_inv=primitive_matrix_inv,
+        conventional_rotations=conventional_rotations,
+        conventional_translations=conventional_translations,
+        irreps=irreps,
+        mapping_little_group=mapping_little_group,
+        irt_irreps=irt_irreps,
+        little_conventional_rotations=little_conventional_rotations,
+        little_primitive_rotations=little_primitive_rotations,
+        little_primitive_translations=little_primitive_translations,
+        generic_labels=generic_labels,
+        display_label_map=display_label_map,
+        irrep_characters_map=irrep_characters_map,
+        little_group_label=little_group_label,
+        kpoint_label=kpoint_label,
+        kpoint_line=kpoint_line,
+        operation_labels=operation_labels,
+    )
+
+
+def format_spacegroup_table(space_group_symbol: str, kpoint: list[float]) -> str:
+    """Character table of the little group of k for a space group.
+
+    The `crystod-group --table --space-group SG --kpoint ...` display: the
+    space-group analogue of the point-group character table, with irreptables
+    (BCS) labels at tabulated k points and ISO-IR (Miller-Love) labels at
+    symmetry lines/planes/general points.
+    """
+    context = _spacegroup_irrep_context(space_group_symbol, kpoint)
+    header = [
+        "",
+        "* Space group *",
+        f"{context.sg_type.international_short} ({context.sg_type.number})",
+        "",
+        "* k-point (primitive) *",
+        context.kpoint_line,
+    ]
+    table = _format_spacegroup_irrep_table(
+        little_group_label=context.little_group_label,
+        operation_labels=context.operation_labels,
+        generic_labels=context.generic_labels,
+        display_label_map=context.display_label_map,
+        irrep_characters_map=context.irrep_characters_map,
+    )
+    return "\n".join(header) + "\n" + table
+
+
+def _analyze_space_group(
+    space_group_symbol: str,
+    kpoint: list[float],
+    seed_expressions: list,
+    show_irrep_table: bool,
+) -> str:
+    context = _spacegroup_irrep_context(space_group_symbol, kpoint)
+    sg_type = context.sg_type
+    irreps = context.irreps
+    little_primitive_rotations = context.little_primitive_rotations
+    generic_labels = context.generic_labels
+    display_label_map = context.display_label_map
+    irrep_characters_map = context.irrep_characters_map
+    little_group_label = context.little_group_label
+    kpoint_line = context.kpoint_line
+    primitive_matrix = context.primitive_matrix
+
+    cartesian_little_rotations = _cartesianize_rotations(
+        [rotation for rotation in context.little_conventional_rotations]
+    )
     monomials, basis_vectors, basis_expressions = _build_closed_subspace(
         seed_expressions,
         cartesian_little_rotations,
@@ -734,20 +970,7 @@ def _analyze_space_group(
         rotations=cartesian_little_rotations,
     )
     rep_characters = np.array([complex(matrix.trace().evalf()) for matrix in rep_matrices], dtype=np.complex128)
-
-    generic_labels, display_label_map, irrep_characters_map = _resolve_spacegroup_irrep_labels(
-        irreps=irreps,
-        mapping_little_group=mapping_little_group,
-        irt_irreps=irt_irreps,
-    )
     multiplicities = _decompose_by_operations(rep_characters, irrep_characters_map)
-    little_group_label = _get_little_group_label(little_primitive_rotations, little_primitive_translations)
-    kpoint_label = irt_irreps[0].kpname if irt_irreps else None
-    formatted_kpoint = _format_kpoint(kpoint)
-    if kpoint_label:
-        kpoint_line = f" {kpoint_label} {formatted_kpoint}"
-    else:
-        kpoint_line = f" {formatted_kpoint}"
 
     outputs: list[str] = []
     if show_irrep_table:

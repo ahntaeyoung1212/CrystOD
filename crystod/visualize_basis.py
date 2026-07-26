@@ -486,19 +486,23 @@ def _orbital_surface(
     }
 
 
-def _axis_traces(lattice: NDArray[np.float64], axis_names: str = "abc") -> list[dict]:
-    """VESTA-style a/b/c compass (a red, b green, c blue).
-
-    The compass lives in a small second scene pinned to the lower-left corner
-    of the viewport; its camera is synchronized to the main scene by the page
-    JavaScript, so it always shows the current orientation like VESTA."""
+def _axis_arrow_set(
+    lattice: NDArray[np.float64],
+    names: list[str],
+    colors: tuple[str, str, str],
+    arrow_length: float,
+    line_width: int,
+    cone_size: float,
+    label_radius: float,
+    label_size: int,
+) -> list[dict]:
+    """One set of three compass arrows (lines + cones + one text trace)."""
     traces: list[dict] = []
     label_positions = []
-    label_texts = []
     label_colors = []
-    for name, vector, color in zip(axis_names, lattice, ("#d62728", "#2ca02c", "#1f77b4")):
+    for vector, color in zip(lattice, colors):
         direction = vector / np.linalg.norm(vector)
-        tip = direction
+        tip = direction * arrow_length
         traces.append(
             {
                 "type": "scatter3d",
@@ -507,7 +511,7 @@ def _axis_traces(lattice: NDArray[np.float64], axis_names: str = "abc") -> list[
                 "x": [0, round(float(tip[0]), 3)],
                 "y": [0, round(float(tip[1]), 3)],
                 "z": [0, round(float(tip[2]), 3)],
-                "line": {"color": color, "width": 8},
+                "line": {"color": color, "width": line_width},
                 "hoverinfo": "skip",
                 "showlegend": False,
             }
@@ -524,15 +528,14 @@ def _axis_traces(lattice: NDArray[np.float64], axis_names: str = "abc") -> list[
                 "w": [round(float(direction[2]), 3)],
                 "anchor": "tail",
                 "sizemode": "absolute",
-                "sizeref": 0.3,
+                "sizeref": cone_size,
                 "colorscale": [[0.0, color], [1.0, color]],
                 "showscale": False,
                 "hoverinfo": "skip",
                 "showlegend": False,
             }
         )
-        label_positions.append(direction * 1.45)
-        label_texts.append(name)
+        label_positions.append(direction * label_radius)
         label_colors.append(color)
     traces.append(
         {
@@ -542,11 +545,56 @@ def _axis_traces(lattice: NDArray[np.float64], axis_names: str = "abc") -> list[
             "x": [round(float(p[0]), 3) for p in label_positions],
             "y": [round(float(p[1]), 3) for p in label_positions],
             "z": [round(float(p[2]), 3) for p in label_positions],
-            "text": label_texts,
-            "textfont": {"size": 16, "color": label_colors},
+            "text": names,
+            "textfont": {"size": label_size, "color": label_colors},
             "hoverinfo": "skip",
             "showlegend": False,
         }
+    )
+    return traces
+
+
+def _axis_traces(
+    lattice: NDArray[np.float64],
+    axis_names: str = "abc",
+    conventional_lattice: NDArray[np.float64] | None = None,
+) -> list[dict]:
+    """VESTA-style a/b/c compass (a red, b green, c blue).
+
+    The compass lives in a small second scene pinned to the lower-left corner
+    of the viewport; its camera is synchronized to the main scene by the page
+    JavaScript, so it always shows the current orientation like VESTA.
+
+    `lattice` holds the primitive lattice vectors. With --conventional,
+    `conventional_lattice` is given as well and BOTH sets are drawn: the
+    primitive vectors as shorter pastel arrows labeled a_prim/b_prim/c_prim,
+    and the conventional vectors (the displayed cell) as full-color arrows
+    labeled a_conv/b_conv/c_conv (the qualifier is set as a true subscript --
+    plotly renders the <sub> tag in text traces)."""
+    strong = ("#d62728", "#2ca02c", "#1f77b4")
+    if conventional_lattice is None:
+        return _axis_arrow_set(
+            lattice, list(axis_names), strong,
+            arrow_length=1.0, line_width=8, cone_size=0.3,
+            label_radius=1.45, label_size=16,
+        )
+    # both label rings sit well away from the origin: axes that point close to
+    # the viewing direction project into a small circle around the centre
+    # (fcc down [111]: every primitive vector is a face diagonal tilted only
+    # 35 deg off the camera axis), and labels crowded there overlap each other
+    pastel = ("#ff9896", "#98df8a", "#aec7e8")
+    traces = _axis_arrow_set(
+        lattice, [f"{name}<sub>prim</sub>" for name in axis_names], pastel,
+        arrow_length=0.62, line_width=5, cone_size=0.2,
+        label_radius=1.35, label_size=11,
+    )
+    traces.extend(
+        _axis_arrow_set(
+            conventional_lattice,
+            [f"{name}<sub>conv</sub>" for name in axis_names], strong,
+            arrow_length=1.3, line_width=8, cone_size=0.3,
+            label_radius=1.95, label_size=15,
+        )
     )
     return traces
 
@@ -762,7 +810,12 @@ def write_html_visualization(
 
     atom_traces = _atom_traces(all_positions, all_symbols)
     static_traces = [_lattice_edge_traces(display_lattice, (1, 1, 1))] if draw_cell else []
-    static_traces.extend(_axis_traces(lattice, axis_names))
+    static_traces.extend(
+        _axis_traces(
+            lattice, axis_names,
+            conventional_lattice=display_lattice if conventional else None,
+        )
+    )
     cell_end = len(static_traces)
     static_traces.extend(atom_traces)
     atoms_end = len(static_traces)
@@ -822,13 +875,20 @@ def write_html_visualization(
             "yaxis": {"visible": False},
             "zaxis": {"visible": False},
             "bgcolor": "#ffffff",
-            # start zoomed out (plotly default eye 1.25 sits too close once
-            # the orbital lobes extend beyond the atoms)
-            "camera": {"eye": {"x": 2.5, "y": 2.5, "z": 2.5}},
+            # initial zoom: eye 2.5 (the old default) leaves the structure
+            # too small; 2.5 / 1.5 shows it 1.5x larger while still keeping
+            # the orbital lobes inside the viewport
+            "camera": {"eye": {"x": 1.6667, "y": 1.6667, "z": 1.6667}},
         },
         # small camera-synced a/b/c compass in the lower-left corner
+        # (--conventional draws six arrows — primitive AND conventional
+        # vectors — so the compass gets a larger corner box there)
         "scene2": {
-            "domain": {"x": [0.03, 0.19], "y": [0.02, 0.22]},
+            "domain": (
+                {"x": [0.02, 0.26], "y": [0.02, 0.34]}
+                if conventional
+                else {"x": [0.03, 0.19], "y": [0.02, 0.22]}
+            ),
             "aspectmode": "cube",
             "xaxis": {"visible": False, "range": [-2.2, 2.2]},
             "yaxis": {"visible": False, "range": [-2.2, 2.2]},

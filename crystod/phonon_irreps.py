@@ -144,7 +144,9 @@ def find_star_representative(
     return None
 
 
-def get_irt_irreps_at_q(q: list[float], irt_table, prim_mat) -> list[Irrep]:
+def get_irt_irreps_at_q(
+    q: list[float], irt_table, prim_mat, warn: bool = True
+) -> list[Irrep]:
     """Get irreps at the q-point from irreptables."""
     irreps_at_q = []
     prim_inv = np.linalg.inv(prim_mat)
@@ -152,7 +154,7 @@ def get_irt_irreps_at_q(q: list[float], irt_table, prim_mat) -> list[Irrep]:
     for irrep_at_q in irt_table.irreps:
         if np.allclose(irrep_at_q.k, conventional_q):
             irreps_at_q.append(irrep_at_q)
-    if not irreps_at_q:
+    if not irreps_at_q and warn:
         warnings.warn(f"No irreps at {q} in irreptables!", stacklevel=2)
     return irreps_at_q
 
@@ -218,7 +220,7 @@ def get_irrep_labels(
     """Get irrep labels, band indices, and frequencies at q."""
     phonon.set_irreps(q=np.array(q), degeneracy_tolerance=degeneracy_tolerance)
     phonon_irreps = phonon.irreps
-    irt_irreps = get_irt_irreps_at_q(np.array(q), irt_table, prim_mat)
+    irt_irreps = get_irt_irreps_at_q(np.array(q), irt_table, prim_mat, warn=False)
 
     if not irt_irreps:
         # Not in irreptables (e.g. a symmetry line/plane or generic q):
@@ -231,6 +233,9 @@ def get_irrep_labels(
             if frequencies is None:
                 frequencies = getattr(phonon_irreps, "_freqs")
             return isoir_labels, band_indices, frequencies
+        # only warn when the ISO-IR fallback could not label the q point
+        warnings.warn(f"No irreps at {q} in irreptables!", stacklevel=2)
+        raise ValueError(f"no irrep labels available at {q}")
 
     irt_little_r = [irt_table.symmetries[i - 1].R for i in irt_irreps[0].characters.keys()]
     phonon_little_r = getattr(phonon_irreps, "_rotations_at_q")
