@@ -93,6 +93,14 @@ def build_parser() -> ArgumentParser:
         default=1e-5,
         help="Symmetry tolerance.",
     )
+    parser.add_argument(
+        "--keep-q-coords",
+        dest="keep_q_coords",
+        action="store_true",
+        help="Name output files of a non-special q with its coordinates "
+        "(q_<coords>) instead of the ISO-IR k-vector-type label, so scans "
+        "along one symmetry line do not overwrite each other.",
+    )
     return parser
 
 
@@ -251,9 +259,11 @@ class _Vibrations(_CoreRepresentation):
 
 
 class SymmetryAdaptedModulation:
-    def __init__(self, yaml_path: str, qpoint: list[float], symprec: float = 1e-5) -> None:
+    def __init__(self, yaml_path: str, qpoint: list[float], symprec: float = 1e-5,
+                 keep_q_coords: bool = False) -> None:
         self.qpoint = np.array(qpoint, dtype=float)
         self.symprec = symprec
+        self.keep_q_coords = keep_q_coords
         self.phonon = phonopy.load(yaml_path)
         dynamical_matrix = self.phonon.dynamical_matrix
 
@@ -442,6 +452,19 @@ class SymmetryAdaptedModulation:
                 )
                 if representative is not None:
                     label = representative[0]
+                elif not self.keep_q_coords:
+                    # non-special q: fall back to the ISO-IR k-vector type
+                    from .isoir import get_isoir_kpoint_name
+
+                    primitive = self.phonon.primitive
+                    isoir_name = get_isoir_kpoint_name(
+                        dataset["number"],
+                        (primitive.cell, primitive.scaled_positions, primitive.numbers),
+                        self.phonon.primitive_symmetry.tolerance,
+                        self.qpoint,
+                    )
+                    if isoir_name is not None:
+                        label = isoir_name
             except Exception:
                 pass
             self._q_label = label
@@ -716,6 +739,7 @@ def _load_modulation_with_report(
     yaml_path: Path,
     qpoint: list[float],
     symprec: float,
+    keep_q_coords: bool = False,
 ) -> SymmetryAdaptedModulation:
     """Load the modulation at q and print the mode table and the star of q."""
     print(f"Loading '{yaml_path}' at q = {qpoint}...")
@@ -723,6 +747,7 @@ def _load_modulation_with_report(
         yaml_path=str(yaml_path),
         qpoint=qpoint,
         symprec=symprec,
+        keep_q_coords=keep_q_coords,
     )
     print()
     modulation.print_mode_info()
@@ -764,7 +789,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.mode is None:
             # Preview: show the mode table and the star of q so that a mode
             # can be chosen, without generating a modulated structure.
-            _load_modulation_with_report(yaml_path, args.qpoint, args.symprec)
+            _load_modulation_with_report(yaml_path, args.qpoint, args.symprec, args.keep_q_coords)
             print(
                 "\nNo --mode given. Choose mode number(s) from the table above and rerun with"
                 "\n--mode (and optionally --amplitude) to generate a modulated structure."
@@ -786,7 +811,7 @@ def main(argv: list[str] | None = None) -> None:
         qpoint_key = tuple(float(value) for value in term.qpoint)
         modulation = modulation_cache.get(qpoint_key)
         if modulation is None:
-            modulation = _load_modulation_with_report(yaml_path, term.qpoint, args.symprec)
+            modulation = _load_modulation_with_report(yaml_path, term.qpoint, args.symprec, args.keep_q_coords)
             modulation_cache[qpoint_key] = modulation
             if term_index != len(terms):
                 print()

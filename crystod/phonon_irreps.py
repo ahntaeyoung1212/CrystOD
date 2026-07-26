@@ -86,6 +86,14 @@ def build_parser() -> ArgumentParser:
         default=1e-3,
         help="Degeneracy tolerance.",
     )
+    parser.add_argument(
+        "--all-irreps",
+        dest="all_irreps",
+        action="store_true",
+        help="Additionally label the phonon irreps at the midpoints of the\n"
+        "seekpath k-path segments (the symmetry lines DT, Z, SM, ...;\n"
+        "ISO-IR labels). Slower than the default special-points-only survey.",
+    )
     return parser
 
 
@@ -176,33 +184,28 @@ def _get_isoir_band_labels(
     phonopy band-set characters are decomposed against the ISO-IR small
     irreps (they can be reducible under accidental degeneracy).
     """
-    from .isoir import get_isoir_band_decomposition
+    from .isoir import get_isoir_band_decompositions
 
     primitive = phonon.primitive
     cell = (primitive.cell, primitive.scaled_positions, primitive.numbers)
     dataset = get_symmetry_dataset(phonon.primitive_symmetry)
     rotations = getattr(phonon_irreps, "_rotations_at_q")
     translations = getattr(phonon_irreps, "_translations_at_q")
-    labels: list[list[str] | None] = []
-    found_any = False
-    for characters in phonon_irreps.characters:
-        decomposed = get_isoir_band_decomposition(
-            dataset["number"],
-            cell,
-            phonon.primitive_symmetry.tolerance,
-            q,
-            rotations,
-            translations,
-            characters,
-        )
-        if decomposed is None:
-            labels.append(None)
-            continue
-        found_any = True
-        labels.append(
-            [f"{label}({dim})" for label, _, dim in decomposed[0]]
-        )
-    return labels if found_any else None
+    decompositions = get_isoir_band_decompositions(
+        dataset["number"],
+        cell,
+        phonon.primitive_symmetry.tolerance,
+        q,
+        rotations,
+        translations,
+        list(phonon_irreps.characters),
+    )
+    labels: list[list[str] | None] = [
+        None if decomposed is None
+        else [f"{label}({dim})" for label, _, dim in decomposed[0]]
+        for decomposed in decompositions
+    ]
+    return labels if any(label is not None for label in labels) else None
 
 
 def get_irrep_labels(
@@ -259,6 +262,66 @@ def get_irrep_labels(
     return labels, band_indices, frequencies
 
 
+def _seekpath_path_midpoints(phonon) -> tuple[str | None, list[tuple[str, str, list[float]]]]:
+    """Midpoints of the seekpath k-path segments, labeled via ISO-IR.
+
+    For every segment of the automatic seekpath k-path (e.g. GM-X of Pm-3m)
+    the midpoint of the two endpoint coordinates is computed (a point on the
+    connecting symmetry line, e.g. DT (0, 1/4, 0)) and labeled with its
+    ISO-IR k-vector-type letter.  Returns (path string, [(label, segment,
+    midpoint), ...]); midpoints are skipped with a warning when the seekpath
+    primitive cell does not match the phonopy primitive cell.
+    """
+    import seekpath
+
+    primitive = phonon.primitive
+    cell = (primitive.cell, primitive.scaled_positions, primitive.numbers)
+    path_data = seekpath.get_path(cell, symprec=1e-5)
+    if not np.allclose(primitive.cell, path_data["primitive_lattice"], atol=1e-4):
+        warnings.warn(
+            "The seekpath primitive cell does not match the phonopy primitive "
+            "cell; k-path midpoints are skipped.",
+            stacklevel=2,
+        )
+        return None, []
+
+    def display(name: str) -> str:
+        return "GM" if name == "GAMMA" else name
+
+    coords = path_data["point_coords"]
+    segments = path_data["path"]
+
+    # compress consecutive segments into a path string like GM-X-M-GM-R-X | R-M
+    parts: list[list[str]] = []
+    for start, end in segments:
+        if parts and parts[-1][-1] == start:
+            parts[-1].append(end)
+        else:
+            parts.append([start, end])
+    path_string = " | ".join("-".join(display(n) for n in part) for part in parts)
+
+    dataset = get_symmetry_dataset(phonon.primitive_symmetry)
+    from .isoir import get_isoir_kpoint_name
+
+    midpoints: list[tuple[str, str, list[float]]] = []
+    seen: set[tuple[float, ...]] = set()
+    for start, end in segments:
+        midpoint = snap_qpoint(
+            (np.asarray(coords[start], dtype=float) + np.asarray(coords[end], dtype=float)) / 2.0
+        )
+        key = tuple(np.round(midpoint, 8))
+        if key in seen:
+            continue
+        seen.add(key)
+        label = get_isoir_kpoint_name(
+            dataset["number"], cell, phonon.primitive_symmetry.tolerance, midpoint
+        )
+        if label is None:
+            label = "q" + "".join(f"_{value:g}" for value in midpoint)
+        midpoints.append((label, f"{display(start)}-{display(end)}", list(midpoint)))
+    return path_string, midpoints
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
 
@@ -283,6 +346,12 @@ def main(argv: list[str] | None = None) -> None:
     prim_mat = get_primitive_matrix_by_centring(dataset["international"][0])
 
     q_names, q_list = get_irt_special_points(irt_table, prim_mat)
+    path_string, path_midpoints = None, []
+    if args.all_irreps:
+        try:
+            path_string, path_midpoints = _seekpath_path_midpoints(phonon)
+        except Exception:
+            pass
     with open("phonon_irreps.yaml", "w") as fp:
         fp.write(f"space_group: {dataset['international']}\n")
         fp.write("special_points:\n")
@@ -290,6 +359,13 @@ def main(argv: list[str] | None = None) -> None:
             fp.write(f"- # {qname}\n")
             fp.write(f"  q_position: {format_qpoint(q)}\n")
         fp.write("\n")
+        if path_midpoints:
+            fp.write(f"k_path: {path_string}  # seekpath\n")
+            fp.write("path_midpoints:  # midpoints of the k-path segments, ISO-IR k-vector types\n")
+            for label, segment, midpoint in path_midpoints:
+                fp.write(f"- # {label} (midpoint of {segment})\n")
+                fp.write(f"  q_position: {format_qpoint(midpoint)}\n")
+            fp.write("\n")
         fp.write("irreps:\n")
         for qname, q in zip(q_names, q_list):
             fp.write(f"- q_label: {qname}\n")
@@ -305,6 +381,28 @@ def main(argv: list[str] | None = None) -> None:
                 fp.write(f"  - # {' '.join([str(idx + 1) for idx in index])}\n")
                 fp.write(f"    irrep_label: {labels[i]}\n")
                 fp.write(f"    frequency: %14.10f\n" % (freqs[index[0]]))
+            fp.write("\n")
+        for label, segment, midpoint in path_midpoints:
+            fp.write(f"- q_label: {label}\n")
+            fp.write(f"  segment: {segment}\n")
+            fp.write(f"  q_position: {format_qpoint(midpoint)}\n")
+            try:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message="No irreps at")
+                    labels_mid, band_indices_mid, freqs_mid = get_irrep_labels(
+                        q=midpoint,
+                        phonon=phonon,
+                        irt_table=irt_table,
+                        prim_mat=prim_mat,
+                        degeneracy_tolerance=args.tol,
+                    )
+            except Exception:
+                fp.write("  # irrep labeling failed at this q point\n\n")
+                continue
+            for i, index in enumerate(band_indices_mid):
+                fp.write(f"  - # {' '.join([str(idx + 1) for idx in index])}\n")
+                fp.write(f"    irrep_label: {labels_mid[i]}\n")
+                fp.write(f"    frequency: %14.10f\n" % (freqs_mid[index[0]]))
             fp.write("\n")
 
 

@@ -557,41 +557,80 @@ class IsoIRLabeler:
         Returns ([(label, multiplicity, small_dim), ...], k-type label)
         or None when no consistent decomposition exists.
         """
+        results = self.decompose_characters_many(
+            k_primitive, little_rotations, little_translations,
+            [reducible_characters], atol=atol,
+        )
+        return results[0]
+
+    def decompose_characters_many(
+        self,
+        k_primitive,
+        little_rotations,
+        little_translations,
+        character_vectors,
+        atol: float = 1e-3,
+    ) -> list[Optional[tuple[list[tuple[str, int, int]], str]]]:
+        """Decompose several reducible character vectors at one k point.
+
+        Same as decompose_characters, but the candidate-family search (the
+        expensive part) is done once and shared by all vectors — use this for
+        phonopy band sets, which all live at the same q.  Returns one entry
+        per input vector.
+        """
+        n_vectors = len(character_vectors)
         k_conv = self.conventional_k(k_primitive)
         conv_ops = self.conventional_operations(
             little_rotations, little_translations
         )
-        red = np.asarray(reducible_characters, dtype=complex)
-        total_dim = None
+        e_index = None
         for j, (R_c, t_c) in enumerate(conv_ops):
             if np.array_equal(R_c, np.eye(3, dtype=int)) and np.allclose(
                 np.asarray(t_c) - np.rint(t_c), 0, atol=1e-6
             ):
-                total_dim = int(round(red[j].real))
+                e_index = j
                 break
-        if total_dim is None:
-            return None
+        if e_index is None:
+            return [None] * n_vectors
         for ktype, family in self._matched_families(k_conv):
             iso_chars = self._family_characters_checked(family, conv_ops)
             if iso_chars is None:
                 continue
-            # multiplicity of the irrep with characters conj(chi_iso) in red:
-            # n = (1/|G|) sum_g conj(conj(chi_iso(g))) red(g)
-            counts: list[tuple[str, int, int]] = []
-            dim_sum = 0
-            consistent = True
-            for (ir, _, _), chi in zip(family, iso_chars):
-                n = complex(np.dot(chi, red)) / len(conv_ops)
-                ni = int(round(n.real))
-                if abs(n - ni) > atol or ni < 0:
-                    consistent = False
-                    break
-                if ni:
-                    counts.append((ir.label, ni, ir.small_dim))
-                    dim_sum += ni * ir.small_dim
-            if consistent and dim_sum == total_dim:
-                return counts, ktype
-        return None
+            results: list[Optional[tuple[list[tuple[str, int, int]], str]]] = []
+            for reducible in character_vectors:
+                counts = self._decompose_against(
+                    family, iso_chars, np.asarray(reducible, dtype=complex),
+                    e_index, len(conv_ops), atol,
+                )
+                results.append((counts, ktype) if counts is not None else None)
+            # the family validity checks are vector-independent, so per-vector
+            # failures here are numerical; keep them as None entries
+            if any(result is not None for result in results):
+                return results
+        return [None] * n_vectors
+
+    @staticmethod
+    def _decompose_against(family, iso_chars, red, e_index, n_ops, atol):
+        """Multiplicities of one reducible character vector in a family, or
+        None when they are not consistent non-negative integers.
+
+        The multiplicity of the irrep with characters conj(chi_iso) in red is
+        n = (1/|G|) sum_g conj(conj(chi_iso(g))) red(g).
+        """
+        total_dim = int(round(red[e_index].real))
+        counts: list[tuple[str, int, int]] = []
+        dim_sum = 0
+        for (ir, _, _), chi in zip(family, iso_chars):
+            n = complex(np.dot(chi, red)) / n_ops
+            ni = int(round(n.real))
+            if abs(n - ni) > atol or ni < 0:
+                return None
+            if ni:
+                counts.append((ir.label, ni, ir.small_dim))
+                dim_sum += ni * ir.small_dim
+        if dim_sum != total_dim:
+            return None
+        return counts
 
     def _matched_families(self, k_conv):
         """Candidate irreps whose star contains k, grouped by k-type and
@@ -756,3 +795,29 @@ def get_isoir_band_decomposition(
         )
     except Exception:
         return None
+
+
+def get_isoir_band_decompositions(
+    sgnum: int,
+    cell,
+    symprec: float,
+    kpoint,
+    little_rotations,
+    little_translations,
+    character_vectors,
+) -> list[Optional[tuple[list[tuple[str, int, int]], str]]]:
+    """Decompose several reducible character vectors at one k point.
+
+    Batch version of get_isoir_band_decomposition: the candidate-family
+    search is done once for all vectors (phonopy band sets share the q).
+    Returns one entry per vector.  Never raises.
+    """
+    labeler = get_cached_labeler(sgnum, cell, symprec)
+    if labeler is None:
+        return [None] * len(character_vectors)
+    try:
+        return labeler.decompose_characters_many(
+            kpoint, little_rotations, little_translations, character_vectors
+        )
+    except Exception:
+        return [None] * len(character_vectors)

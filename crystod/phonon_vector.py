@@ -221,6 +221,14 @@ def build_parser() -> ArgumentParser:
         help="Output the VESTA file in the conventional cell instead of the primitive cell.",
     )
     parser.add_argument(
+        "--keep-q-coords",
+        dest="keep_q_coords",
+        action="store_true",
+        help="Name output files of a non-special q with its coordinates "
+        "(q_<coords>) instead of the ISO-IR k-vector-type label, so scans "
+        "along one symmetry line do not overwrite each other.",
+    )
+    parser.add_argument(
         "--output",
         default=None,
         help="Output .vesta path (auto-generated as POSCAR_<formula>_<qlabel>_mode<N>.vesta when omitted).",
@@ -248,12 +256,15 @@ def resolve_qpoint(
     q_names: list[str],
     q_list: list[list[float]],
     rotations: NDArray[np.int_] | None = None,
+    isoir_context: tuple | None = None,
 ) -> tuple[str, list[float]]:
     """Resolve --qpoint tokens into (label, primitive-basis coordinates).
 
     With ``rotations`` (space-group rotations in the primitive basis), any arm
     of a tabulated star is labeled with the star's name, not only the
-    tabulated arm.
+    tabulated arm.  With ``isoir_context`` = (space group number, primitive
+    cell tuple, symprec), a q point outside every tabulated star is labeled
+    with its ISO-IR k-vector type (e.g. U, B, DT) instead of ``q_<coords>``.
     """
     if len(raw_qpoint) == 1:
         requested = raw_qpoint[0].strip().upper()
@@ -278,6 +289,14 @@ def resolve_qpoint(
         representative = find_star_representative(qpoint, rotations, q_names, q_list)
         if representative is not None:
             return representative[0], qpoint
+    if isoir_context is not None:
+        # non-special q: fall back to the ISO-IR k-vector type label
+        from .isoir import get_isoir_kpoint_name
+
+        sgnum, cell, symprec = isoir_context
+        isoir_name = get_isoir_kpoint_name(sgnum, cell, symprec, qpoint)
+        if isoir_name is not None:
+            return isoir_name, qpoint
     label = "q" + "".join(f"_{value:g}" for value in qpoint).replace("/", "o")
     return label, qpoint
 
@@ -854,7 +873,22 @@ def main(argv: list[str] | None = None) -> None:
         primitive_rotations = get_symmetry_dataset(phonon.primitive_symmetry)["rotations"]
     except Exception:
         primitive_rotations = None
-    q_label, qpoint = resolve_qpoint(args.qpoint, q_names, q_list, rotations=primitive_rotations)
+    if args.keep_q_coords:
+        isoir_context = None
+    else:
+        try:
+            primitive = phonon.primitive
+            isoir_context = (
+                dataset["number"],
+                (primitive.cell, primitive.scaled_positions, primitive.numbers),
+                phonon.primitive_symmetry.tolerance,
+            )
+        except Exception:
+            isoir_context = None
+    q_label, qpoint = resolve_qpoint(
+        args.qpoint, q_names, q_list,
+        rotations=primitive_rotations, isoir_context=isoir_context,
+    )
     echo(f"\nSelected q-point: {q_label} = {qpoint}")
 
     # Symmetry-adapted eigenvectors: degenerate modes are aligned along
