@@ -924,6 +924,28 @@ def test_21_phonon_irrep() -> None:
             text = open(yaml_path).read()
             report("yaml contains GM point irreps", "GM" in text, text[:500])
             report("yaml contains R point irreps", "R" in text, text[:500])
+            report("default survey has no k-path midpoints",
+                   "path_midpoints:" not in text and "midpoint of" not in text,
+                   text[:800])
+
+        # --all-irreps: additionally label the seekpath k-path midpoints
+        code, out = run_phonon(
+            ["--irreps", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+             "--all-irreps"],
+            cwd=tmp,
+        )
+        report("--all-irreps exit code 0", code == 0, out)
+        if os.path.isfile(yaml_path):
+            text = open(yaml_path).read()
+            report("--all-irreps yaml contains the seekpath k-path",
+                   "k_path:" in text, text[:800])
+            report("--all-irreps yaml lists the k-path midpoints (ISO-IR k types)",
+                   "path_midpoints:" in text
+                   and "DT (midpoint of GM-X)" in text
+                   and "T (midpoint of R-M)" in text, text[:1200])
+            report("--all-irreps midpoint irreps labeled via ISO-IR",
+                   "segment: GM-X" in text and "DT5(2)" in text
+                   and "T5(2)" in text, text)
 
 
 # ---------------------------------------------------------------- 22. crystod-phonon --fatband
@@ -1072,7 +1094,8 @@ def test_24_phonon_vector() -> None:
         report("GM mode 4 export exit 0", code == 0, out)
         report("VESTA file written with auto name", os.path.isfile(vesta_path))
 
-        # non-special q (DT line): mode labels fall back to the ISO-IR tables
+        # non-special q (DT line): mode labels fall back to the ISO-IR tables,
+        # and the q label itself becomes the ISO-IR k-vector type (DT)
         code, out = run_phonon(
             ["--vector", "--dim", "4 4 4", "-c", "227_PPOSCAR_Si",
              "--readfc", "--qpoint", "0.2", "0", "0.2", "--mode", "1"],
@@ -1080,8 +1103,23 @@ def test_24_phonon_vector() -> None:
         )
         report("DT-line modes labeled via ISO-IR",
                code == 0 and "DT5(2)" in out and "DT1(1)" in out, out)
-        report("DT-line VESTA file written with ISO-IR irrep tag",
-               os.path.isfile(os.path.join(tmp, "POSCAR_Si_q_0.2_0_0.2_mode1_DT5.vesta")))
+        report("DT-line q named via ISO-IR",
+               "Selected q-point: DT =" in out, out)
+        report("DT-line VESTA file named with ISO-IR q label and irrep tag",
+               os.path.isfile(os.path.join(tmp, "POSCAR_Si_DT_mode1_DT5.vesta")))
+        report("DT-line mode table named with ISO-IR q label",
+               os.path.isfile(os.path.join(tmp, "phonon_modes_Si_DT.txt")))
+
+        # --keep-q-coords: coordinate-based q label, ISO-IR irrep tag kept
+        code, out = run_phonon(
+            ["--vector", "--dim", "4 4 4", "-c", "227_PPOSCAR_Si",
+             "--readfc", "--qpoint", "0.2", "0", "0.2", "--mode", "1",
+             "--keep-q-coords"],
+            cwd=tmp,
+        )
+        report("--keep-q-coords keeps the coordinate q label",
+               code == 0 and "Selected q-point: q_0.2_0_0.2" in out
+               and os.path.isfile(os.path.join(tmp, "POSCAR_Si_q_0.2_0_0.2_mode1_DT5.vesta")), out)
         if os.path.isfile(vesta_path):
             text = open(vesta_path).read()
             report("VESTA file contains arrows (VECTR/VECTT)",

@@ -22,6 +22,8 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 | 7/11 | f 軌道資料の作成 | 32 点群×f 軌道の既約表現分解と基底関数の一覧(Word/PDF)。点群「1」クラッシュ修正 |
 | 7/22 | 非特殊 k 点の irrep ラベル(ISO-IR fallback) | `crystod/isoir.py` 新設: Stokes–Campbell ISO-IR (CIR/PIR) テーブルのパーサ+ラベラー。irreptables に無い k(線・面・一般点)で Miller–Love ラベル(T1, DT5, GP1 等)を出力(→ §3, §5-15) |
 | 7/22 (2) | ISO-IR fallback の全経路展開 | `crystod --atomic-orbital`・`crystod-mag`・`crystod-phonon --vibration/--vector/--modulation` にも展開。共有ヘルパー(`isoir.get_isoir_label_map` 等)+ phonopy バンド組(可約指標)用の分解型照合 `decompose_characters` を追加。q 点名も ISO k 型で表示(旧 "custom"/"-") |
+| 7/24 | データのパッケージ内移動 + q 点名のファイル名反映 | `CIR_data.txt.gz` を `crystod/` 直下へ移動(pyproject package-data 登録、探索順は env → パッケージ → `ISOTROPY/`)。`--vector`/`--modulation` の非特殊 q のファイル名・表示を ISO k 型に(例: `POSCAR_MoS2_U_mode1_U2_conv.vesta`、`MPOSCAR_DT_mode1_DT3_Cmcm`。旧 `q_0.5_0_0.2` 形式は ISO 判定不能時のみ)。同一線上の複数 q の上書き回避用に `--keep-q-coords` を追加。README(Features/§2/§24/§25/§26/§28/Changelog)整備、**v0.3.4** |
+| 7/24 (2) | `--irreps` の k-path 中点 | `phonon_irreps.yaml` に seekpath k-path 各セグメントの中点(対称線 DT/Z/SM/LD/S/T 等)の irrep を ISO-IR ラベルで追加(`k_path:`・`path_midpoints:` ヘッダ + `segment:` 付き irrep ブロック)。Pm-3m(ScF3/SrTiO3)・Fd-3m(Si、F 格子)・P4mm(BaTiO3、9 セグメント)で検証。中点は **`--all-irreps` オプトイン**(デフォルトは従来の特殊点のみ = 高速 1.6 秒; --all-irreps は family 探索のバッチ化 `decompose_characters_many` で 36 → 8 秒) |
 
 ---
 
