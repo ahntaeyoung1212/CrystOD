@@ -39,17 +39,28 @@
 
 ## Installation
 
-Recommended:
+Recommended (conda + git clone):
 
 ```bash
 conda create -n crystod python=3.11
 conda activate crystod
 
-unzip ~/Downloads/CrystOD-main.zip
-mv ~/Downloads/CrystOD-main ~
-cd ~/CrystOD-main
+git clone https://github.com/ahntaeyoung1212/CrystOD.git
+cd CrystOD
 pip install -e .
 ```
+
+The editable install (`-e`) keeps the commands pointing at the cloned source tree, so `git pull` is enough to update, and the `example/` directories and `testsuite.py` referenced throughout this README are right there.
+
+Once CrystOD is released on PyPI, no clone is needed:
+
+```bash
+conda create -n crystod python=3.11
+conda activate crystod
+pip install crystod
+```
+
+This installs the commands and their dependencies only; clone the repository as above if you also want the worked examples and the test suite.
 
 
 ## Quick Start
@@ -139,6 +150,8 @@ Example:
 crystod -c example/test_POSCARs/221_PPOSCAR_SrTiO3 --atomic-orbital Ti_d O_p --kpoint 0 0 0
 ```
 
+The element and the orbital may be joined by either an underscore or a hyphen (since v0.3.4) — `Ti_d O_p` and `Ti-d O-p` are equivalent and produce identical output.
+
 
 ## 4. Star of k (v0.2.1; main-command info option; k-point labels supported since v0.3.0)
 
@@ -180,7 +193,7 @@ The irreducible decomposition is consistent with `--salc` (e.g. `2.0 [GM4-(3)] +
 `--kpoint` accepts either three primitive reciprocal coordinates or a high-symmetry label such as `GM`, `X`, `M`, or `R`.
 For k != 0, the commensurate supercell is built automatically and the Bloch phase factor is applied to the displayed coefficients.
 
-The HTML file is always written (since v0.3.0), auto-named `SALC_{element}_{orbital}_{kpoint}.html` (e.g. `SALC_F_p_GM.html`; with `--mode-index N` a `_modeN` suffix is appended, and a non-special k point uses its coordinates); `--output` overrides the path. It is a standalone interactive viewer (plotly via CDN): a sidebar shows the structure summary (compound, space group, orbitals, k point, supercell), the irreducible decomposition, and a clickable table of all SALC basis vectors (mode space / irrep / component); the main viewport shows the orbital lobes at each atom, colored by sign in the VESTA convention (positive = yellow, negative = blue) and rendered opaque with VESTA-like lighting by default, so the front/back occlusion of overlapping lobes is always correct; the lobe-opacity slider switches to a translucent view, where a distance-based fade keeps near/far lobes distinguishable (WebGL cannot depth-sort transparent surfaces). Cell/atom display controls and a camera-synchronized a/b/c compass (a red, b green, c blue) sit in the sidebar and the lower-left corner. Lobe surfaces store only the sign (no per-vertex value data) with rounded coordinates, keeping the standalone HTML compact. **The viewer layout is modeled after the [phonon website](https://henriquemiranda.github.io/phononwebsite/) by Henrique Miranda ([github.com/henriquemiranda/phononwebsite](https://github.com/henriquemiranda/phononwebsite), BSD-3-Clause) — CrystOD imitates its sidebar-plus-viewport design (no code is copied; the 3D rendering uses plotly).** Use `--mode-index N` to restrict the output to one irrep-grouped mode space. `--conventional` displays the SALC in the conventional cell instead of the primitive cell (the primitive-to-conventional matrix is derived from the detected centring, exactly as in `crystod-phonon --vector`; file names get a `_conv` suffix, and for k != 0 the conventional cell is multiplied until the Bloch phase is commensurate). With `--bond EL1 EL2 MAX` (repeatable, e.g. `--bond Sc F 2.3`), bonds between the two elements up to MAX Angstroms are drawn and the coordination polyhedra around the EL1 atoms are rendered as translucent convex hulls, as in VESTA's Polyhedral style (with show-bond/show-polyhedra toggles in the sidebar); atoms at the cell boundary are completed VESTA-style so the polyhedra are not cut off:
+The HTML file is always written (since v0.3.0), auto-named `SALC_{element}_{orbital}_{kpoint}.html` (e.g. `SALC_F_p_GM.html`; with `--mode-index N` a `_modeN` suffix is appended, and a non-special k point uses its coordinates); `--output` overrides the path. It is a standalone interactive viewer (plotly via CDN): a sidebar shows the structure summary (compound, space group, orbitals, k point, supercell), the irreducible decomposition, and a clickable table of all SALC basis vectors (mode space / irrep / component); the main viewport shows the orbital lobes at each atom, colored by sign in the VESTA convention (positive = yellow, negative = blue) and rendered opaque with VESTA-like lighting by default, so the front/back occlusion of overlapping lobes is always correct; the lobe-opacity slider switches to a translucent view, where a distance-based fade keeps near/far lobes distinguishable (WebGL cannot depth-sort transparent surfaces). Cell/atom display controls and a camera-synchronized a/b/c compass (a red, b green, c blue; with `--conventional` the compass shows both lattices — the primitive vectors as short pastel arrows labeled `a_prim`/`b_prim`/`c_prim` and the conventional vectors of the displayed cell as full-color arrows labeled `a_conv`/`b_conv`/`c_conv`) sit in the sidebar and the lower-left corner. Lobe surfaces store only the sign (no per-vertex value data) with rounded coordinates, keeping the standalone HTML compact. **The viewer layout is modeled after the [phonon website](https://henriquemiranda.github.io/phononwebsite/) by Henrique Miranda ([github.com/henriquemiranda/phononwebsite](https://github.com/henriquemiranda/phononwebsite), BSD-3-Clause) — CrystOD imitates its sidebar-plus-viewport design (no code is copied; the 3D rendering uses plotly).** Use `--mode-index N` to restrict the output to one irrep-grouped mode space. `--conventional` displays the SALC in the conventional cell instead of the primitive cell (the primitive-to-conventional matrix is derived from the detected centring, exactly as in `crystod-phonon --vector`; file names get a `_conv` suffix, and for k != 0 the conventional cell is multiplied until the Bloch phase is commensurate). With `--bond EL1 EL2 MAX` (repeatable, e.g. `--bond Sc F 2.3`), bonds between the two elements up to MAX Angstroms are drawn and the coordination polyhedra around the EL1 atoms are rendered as translucent convex hulls, as in VESTA's Polyhedral style (with show-bond/show-polyhedra toggles in the sidebar); atoms at the cell boundary are completed VESTA-style so the polyhedra are not cut off:
 
 ```bash
 crystod --visualize -c 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 1/2 1/2 1/2 --real-coefficient --bond Sc F 2.3
@@ -221,7 +234,7 @@ This is the offline counterpart of the **DIRPRO** program of the Bilbao Crystall
 
 Technical notes:
 
-- Products can land on **symmetry lines** outside the tabulated special points (e.g. `X1- x W4 = W1 + DT1 + DT2` in Fm-3m, where the Delta line appears). The small irreps there are computed on the fly with `spgrep`, and their CDML names (DT1..., SM..., V..., T..., S...) are assigned from a fitted, reference-validated table for the space groups of the `DIRPRO/` set; for other space groups they are shown with generic positional names.
+- Products can land on **symmetry lines** outside the tabulated special points (e.g. `X1- x W4 = W1 + DT1 + DT2` in Fm-3m, where the Delta line appears). The small irreps there are computed on the fly with `spgrep`, and their CDML names (DT1..., SM..., V..., T..., S...) are assigned from a fitted, reference-validated table for the space groups of the `DIRPRO/` set; for other space groups they are named from the ISO-IR (ISOTROPY, Miller-Love) tables and marked `[non-tabulated; ISO-IR labels]` in the report (e.g. `N1 x P1 = DT1 + DT4 + DT2 + DT3` in I4_132), with a citation note. The two conventions genuinely differ at some lines (CDML V of I4/mmm = ISOTROPY LD; the DT numbering of Fm-3m/Ia-3d is permuted), so the DIRPRO-fitted CDML entries always take precedence. When the +k and -k stars of one line are distinct (acentric groups) and both appear, the -k star takes the CDML "A" suffix (`P1 x X1 = LD1 + LD2 + LDA1 + LDA2` in I4).
 - For polar space groups, the **-k stars** missing from the tables (CDML "A" points, e.g. PA of I-43m) are synthesized as the complex-conjugate irreps of the +k star, so e.g. `--product P1 PA1 --sg I-43m` correctly gives `GM1`.
 - The tabulated small-rep characters are refined against the exact `spgrep` values (the shipped tables are rounded to a few digits), and one broken table entry (P of SG 230) is substituted automatically.
 
@@ -579,6 +592,8 @@ crystod-group --supergroup-cif 221_PPOSCAR_ScF3 --subgroup-cif POSCAR_Pbnm   # e
 # -> R4+ (0,a,a) 74 Imma 0.8485; M3+ (a,0,0) 127 P4/mbm 0.6000; X5+/M2+/R5+ 0.0000
 ```
 
+Every run also exports the displacement pattern of each **activated irrep** as a VESTA file, `{supergroup_file}_{irrep}.vesta` (since v0.3.4): arrows of the irrep-projected distortion on the parent-derived reference structure in the invariant-core cell, ready to open in VESTA. For the Pnma CaTiO3 example this gives `221_PPOSCAR_CaTiO3_X5+.vesta` (antipolar Ca), `..._M3+.vesta` (in-phase octahedral rotation), `..._R4+.vesta` (antiphase rotation), `..._M2+.vesta`, and `..._R5+.vesta` — one file per frozen phonon irrep. The largest arrow of each file is scaled to 1.5 Å (adjust in VESTA via Edit > Vectors); zero-amplitude (allowed but not activated) irreps are skipped. With `--conventional` the files are written in the **parent conventional basis** instead (`_conv` suffix, same semantics as `crystod-phonon --vector`): the smallest conventional-shaped supercell that holds every mode pattern periodically — e.g. `crystod-group --supergroup-cif 139_PPOSCAR_La3Ni2O7.cif --subgroup-cif 63_PPOSCAR_La3Ni2O7.cif --conventional` gives `139_PPOSCAR_La3Ni2O7_X3-_conv.vesta` on the 90-degree I4/mmm conventional metric, usually the easier frame for inspecting displacements.
+
 Inputs may be CIFs or POSCARs. The machinery reuses the full induced irrep matrices and the isotropy-subgroup identification of section 13 (the direction and isotropy-subgroup columns are computed, not tabulated); when the subgroup translation lattice is not invariant under the parent point group (e.g. the tetragonal cell of P4/mbm under a cubic parent), the analysis automatically enlarges to the largest invariant sublattice so that every k star folds completely, and rescales the amplitudes back to the distorted primitive cell. For polar subgroups the free origin along the polar directions is fixed by minimizing the global distortion (the acoustic component is removed — the AMPLIMODES origin convention), and the lattice matching uses principal strains with a generous tolerance (20%), so strongly relaxed pairs work (the R-3c AlF3 tilt contracts the lattice by ~14%). Every run is closed by a projector-completeness check (the modes exactly exhaust the displacement space). Validated against the Bilbao AMPLIMODES output for SrTiO3 Pm-3m -> I4/mcm (irrep R5-, amplitude 0.3303 A, maximum displacement 0.1651 A, transformation matrix — all matching entry by entry) and for the F-centred fluorite case ZrO2 Fm-3m -> P4_2/nmc (X2-, 0.5773 A); further cases: ferroelectric BaTiO3 Pm-3m -> P4mm (polar GM4-, 0.2032 A) and AlF3 Pm-3m -> R-3c (large-tilt R4+, 0.80 A); cross-validated against the `crystod-phonon --modulation` structures of section 25 (frozen mode amplitudes recovered exactly, e.g. 0.6 and 0.6 sqrt 2 for the Pbnm double mode). If you use this feature, please cite: D. Orobengoa, C. Capillas, M. I. Aroyo and J. M. Perez-Mato, "AMPLIMODES: symmetry-mode analysis on the Bilbao Crystallographic Server", J. Appl. Cryst. 42, 820-833 (2009). The antisymmetrization is exact: the orbital part of n electrons in a shell transforms as the symmetrized power (Schur functor) S^lambda(Gamma) with lambda a Young diagram of at most two columns, the conjugate diagram [n-k, k] carries the spin part and fixes S = (n-2k)/2; the symmetrized-power characters follow from the Frobenius formula with symmetric-group characters (Murnaghan-Nakayama rule) and the class power maps of the point group, and every result is closed with the printed state-count check (product of binomials C(2 dim, n)). Works for all 32 crystallographic point groups; validated against the standard crystal-field term tables (t2g^n, eg^n, t2g^2 eg^1 in Oh; e^2 in Td and C3v).
 
 ## 18. Brillouin Zone Plot (v0.2.2; sectioned command `crystod-bz` since v0.3.0)
@@ -681,13 +696,14 @@ Example:
 crystod-phonon --irreps -c example/test_POSCARs/221_PPOSCAR_SrTiO3 --dim="4 4 4" --readfc
 ```
 
-`phonon_irreps.yaml` lists the phonon irreps (band indices, CDML labels, frequencies) at every special k point of the space group. With **`--all-irreps`** (since v0.3.4) it also covers the **symmetry lines**: the midpoint of every segment of the automatic seekpath k-path (e.g. for Pm-3m, `GM-X-M-GM-R-X | R-M`) is computed — DT (0, 1/4, 0) between GM and X, Z (1/4, 1/2, 0) between X and M, SM, LD, S, T, ... — and its phonon irreps are labeled via the bundled ISO-IR (ISOTROPY, Miller-Love) tables. The yaml header gains `k_path:` (the seekpath path) and `path_midpoints:` (the midpoints with their ISO-IR k-vector-type letters), and one `q_label:`/`segment:`/`q_position:` irrep block per midpoint follows the special-point blocks — useful for choosing modes on a line before running `--modulation` at an incommensurate-like q:
+`phonon_irreps.yaml` lists the phonon irreps (band indices, CDML labels, frequencies) at every special k point of the space group. With **`--all-irreps`** (since v0.3.4) the survey also covers the **symmetry lines** and is written to a separate file, `phonon_irreps_all.yaml`, so both surveys can coexist in one directory: the midpoint of every segment of the automatic seekpath k-path (e.g. for Pm-3m, `GM-X-M-GM-R-X | R-M`) is computed — DT (0, 1/4, 0) between GM and X, Z (1/4, 1/2, 0) between X and M, SM, LD, S, T, ... — and its phonon irreps are labeled via the bundled ISO-IR (ISOTROPY, Miller-Love) tables. That file's header gains `k_path:` (the seekpath path) and `path_midpoints:` (the midpoints with their ISO-IR k-vector-type letters), and one `q_label:`/`segment:`/`q_position:` irrep block per midpoint follows the special-point blocks — useful for choosing modes on a line before running `--modulation` at an incommensurate-like q:
 
 ```bash
 crystod-phonon --irreps -c example/test_POSCARs/221_PPOSCAR_SrTiO3 --dim="4 4 4" --readfc --all-irreps
+# -> phonon_irreps_all.yaml (special points + k-path midpoints)
 ```
 
-The default (without `--all-irreps`) stays the fast special-points-only survey.
+The default (without `--all-irreps`) stays the fast special-points-only survey and keeps writing `phonon_irreps.yaml`; the labeling of the line midpoints is what costs the extra time.
 
 
 ## 22. Element-Projected Phonon Fatbands (v0.2.3; `crystod-phonon --fatband` since v0.3.0)
@@ -817,6 +833,15 @@ Show the point-group character table:
 
 ```bash
 crystod-group --table --point-group 3m
+```
+
+Or the character table of the **little group of k** for a space group (since v0.3.4; irreptables (BCS) labels at tabulated k points, ISO-IR (Miller-Love) labels on symmetry lines/planes, with Seitz-symbol column headers):
+
+```bash
+crystod-group --table --space-group Pm-3m --kpoint 0 0 0
+# -> 48-operation table with GM1+ ... GM5- rows
+crystod-group --table --space-group Pm-3m --kpoint 0 0 0.1
+# -> little group P4mm (99); DT1 ... DT5 rows (ISO-IR labels)
 ```
 
 Show both the table and the direct-product decomposition:
@@ -1092,7 +1117,13 @@ ISO-IR fallback labeling: irreducible representations at NON-special k/q points 
 
 - Added `crystod/isoir.py`, a parser and labeler for the ISO-IR dataset of the ISOTROPY Software Suite [H. T. Stokes, B. J. Campbell and R. Cordes, Acta Cryst. A 69, 388-395 (2013); iso.byu.edu/irtables.php]. The complex-irrep table (`CIR_data.txt.gz`, 1.1 MB gzip) ships inside the package, holds the full space-group representation matrices for every k-vector type (points, lines, planes, general point), and is evaluated at arbitrary k with free parameters. A k point absent from the irreptables (BCS) tables — where previous versions fell back to generic `irrep_N` names, `custom`, or `-` — now gets Miller-Love / ISOTROPY irrep labels (`T1`, `DT5`, `LD3`, `GP1`, ...) and its k-vector-type letter as the k-point name, across `crystod` (SALC, with a provenance note in the output), `crystod --atomic-orbital`, `crystod-mag`, and `crystod-phonon --vibration`/`--vector`/`--modulation` (phonopy band sets are decomposed against the ISO-IR irreps, so accidental degeneracy is handled). Tabulated k points keep their Bilbao-convention labels unchanged; `--spinor` is unaffected (the ISO-IR dataset has no double-group irreps). Conventions handled explicitly: ISO-IR uses the exp(+2 pi i k.t) translation phase (spgrep/irreptables use exp(-2 pi i k.t)), so spgrep characters are matched against the complex conjugate of the ISO-IR characters — for complex-type irreps the two conventions genuinely swap labels (e.g. Pnma R point: Bilbao R1 = ISOTROPY R2) — and the structure is transformed into the ISOTROPY standard setting (origin choice 2 etc.) via the spglib Hall number, verified for two-origin groups such as Fd-3m. Validated against the ISOSUBGROUP-derived label crosswalk (SG 141/142 X, 230 N) and by gauge-free isotropy-subgroup construction (SG 68 T).
 - `crystod-phonon --vector`/`--modulation`: output files of a non-special q are named with the ISO-IR k-vector-type letter (`phonon_modes_MoS2_U.txt`, `POSCAR_MoS2_U_mode1_U2_conv.vesta`, `MPOSCAR_DT_mode1_DT3_Cmcm`). Since every q on one symmetry line shares that letter, `--keep-q-coords` keeps the coordinate-based q label (`q_0.5_0_0.2`) so line scans do not overwrite each other (the irrep tag stays).
-- `crystod-phonon --irreps --all-irreps`: `phonon_irreps.yaml` additionally lists the phonon irreps at the **midpoints of the seekpath k-path segments** (the symmetry lines DT, Z, SM, LD, S, T, ... connecting the special points), labeled via the ISO-IR tables, together with the seekpath path string (`k_path:`) and the midpoint list (`path_midpoints:`); the default run stays the fast special-points-only survey.
+- `crystod-phonon --irreps --all-irreps`: writes `phonon_irreps_all.yaml`, which additionally lists the phonon irreps at the **midpoints of the seekpath k-path segments** (the symmetry lines DT, Z, SM, LD, S, T, ... connecting the special points), labeled via the ISO-IR tables, together with the seekpath path string (`k_path:`) and the midpoint list (`path_midpoints:`). The default run stays the fast special-points-only survey and keeps writing `phonon_irreps.yaml`, so the two files coexist; the output file name is now printed at the end of the run.
+- `crystod --atomic-orbital`: the element/orbital tokens accept a hyphen as well as an underscore (`Ti-d O-p` == `Ti_d O_p`); a token without a separator is now rejected with an explicit message instead of a bare `ValueError` traceback.
+- `crystod-group --supergroup-cif` (symmetry-mode analysis): every run now also writes one VESTA file per activated irrep, `{supergroup_file}_{irrep}.vesta`, visualizing that irrep's displacement pattern as arrows on the parent-derived reference structure (invariant-core cell, largest arrow scaled to 1.5 Å) — e.g. the five frozen modes of Pnma CaTiO3 (X5+, M2+, M3+, R4+, R5+) as separate files. `--conventional` switches the files to the parent conventional basis (`_conv` suffix).
+- `crystod-group --table --space-group SG --kpoint ...`: displays the character table of the **little group of k** — the space-group analogue of the point-group `--table` — with irreptables (BCS) irrep labels at tabulated k points and ISO-IR (Miller-Love) labels on symmetry lines/planes, Seitz-symbol column headers, and the little-group symbol.
+- `crystod-group --basis` / `--generate-basis` with `--space-group --kpoint`: non-special k points are labeled via the ISO-IR tables as well (e.g. `--basis x y z --sg Pm-3m --kpoint 0 0 0.1` gives `DT [0, 0, 0.1]` with `DT1(1) + DT5(2)` instead of generic `irrep_N` names), including centred lattices (C/F/I/R). **Fixed** in the same change: the conventional-to-primitive translation conversion of the `--basis` space-group path mixed row/column conventions, which silently broke the symmetry-operation group for the rhombohedral (R) centring — R-group `--basis` runs now label correctly at special points too. The misleading "No irreps ... in irreptables!" warning is no longer printed when the ISO-IR fallback succeeds.
+- `crystod-group --product --sg`: product terms landing on symmetry lines outside both the CDML tables and the DIRPRO-fitted name map — previously shown with positional names like `(1/8,1/8,0)(2)` — are now named from the ISO-IR tables and marked `[non-tabulated; ISO-IR labels]` with a citation note (e.g. `N1 x P1 = DT1 + DT4 + DT2 + DT3` in I4_132). The DIRPRO-fitted CDML names keep precedence, since the two conventions genuinely differ at some lines (CDML V of I4/mmm = ISOTROPY LD, T/S of the hexagonal groups = ISOTROPY LD/Q, and the DT numbering of Fm-3m/Ia-3d is permuted — recorded in `crystod/dirpro_line_names.py`). Distinct +k/-k line stars of acentric groups are disambiguated with the CDML "A" suffix (`P1 x X1 = LD1 + LD2 + LDA1 + LDA2` in I4), matching the PA-point convention; -k line stars themselves are labeled through the complex conjugates of the tabulated +k irreps. Sweep-validated over 43 centred/polar space groups (all pairwise k-star products): every line term is named, dimension bookkeeping closes throughout.
+- **Fixed** `crystod-group --product --sg 122`: every product involving a P or PA irrep of I-42d aborted with "the irreptables characters of P1 ... do not correspond to any allowed small representation". The shipped irreptables P entry of SG 122 is tabulated in the conjugate gauge (its characters are those of the -k partners, matching no allowed small irrep at P itself), so fitted CDML names for P/PA were added to `crystod/dirpro_line_names.py` through the name-preserving conjugate correspondence — in agreement with the ISO-IR labels at this point and the ISOSUBGROUP P1PA1/P2PA2 conjugate pairing (`P1 x PA1 = GM1 + GM4 + GM5`, `M1 x P1 = PA2`, `P1 x X1 = LD1 + LD2 + LD3 + LD4`).
 
 ### v0.3.3
 

@@ -23,7 +23,11 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 | 7/22 | 非特殊 k 点の irrep ラベル(ISO-IR fallback) | `crystod/isoir.py` 新設: Stokes–Campbell ISO-IR (CIR/PIR) テーブルのパーサ+ラベラー。irreptables に無い k(線・面・一般点)で Miller–Love ラベル(T1, DT5, GP1 等)を出力(→ §3, §5-15) |
 | 7/22 (2) | ISO-IR fallback の全経路展開 | `crystod --atomic-orbital`・`crystod-mag`・`crystod-phonon --vibration/--vector/--modulation` にも展開。共有ヘルパー(`isoir.get_isoir_label_map` 等)+ phonopy バンド組(可約指標)用の分解型照合 `decompose_characters` を追加。q 点名も ISO k 型で表示(旧 "custom"/"-") |
 | 7/24 | データのパッケージ内移動 + q 点名のファイル名反映 | `CIR_data.txt.gz` を `crystod/` 直下へ移動(pyproject package-data 登録、探索順は env → パッケージ → `ISOTROPY/`)。`--vector`/`--modulation` の非特殊 q のファイル名・表示を ISO k 型に(例: `POSCAR_MoS2_U_mode1_U2_conv.vesta`、`MPOSCAR_DT_mode1_DT3_Cmcm`。旧 `q_0.5_0_0.2` 形式は ISO 判定不能時のみ)。同一線上の複数 q の上書き回避用に `--keep-q-coords` を追加。README(Features/§2/§24/§25/§26/§28/Changelog)整備、**v0.3.4** |
-| 7/24 (2) | `--irreps` の k-path 中点 | `phonon_irreps.yaml` に seekpath k-path 各セグメントの中点(対称線 DT/Z/SM/LD/S/T 等)の irrep を ISO-IR ラベルで追加(`k_path:`・`path_midpoints:` ヘッダ + `segment:` 付き irrep ブロック)。Pm-3m(ScF3/SrTiO3)・Fd-3m(Si、F 格子)・P4mm(BaTiO3、9 セグメント)で検証。中点は **`--all-irreps` オプトイン**(デフォルトは従来の特殊点のみ = 高速 1.6 秒; --all-irreps は family 探索のバッチ化 `decompose_characters_many` で 36 → 8 秒) |
+| 7/24 (2) | `--irreps` の k-path 中点 | `phonon_irreps.yaml` に seekpath k-path 各セグメントの中点(対称線 DT/Z/SM/LD/S/T 等)の irrep を ISO-IR ラベルで追加(`k_path:`・`path_midpoints:` ヘッダ + `segment:` 付き irrep ブロック)。Pm-3m(ScF3/SrTiO3)・Fd-3m(Si、F 格子)・P4mm(BaTiO3、9 セグメント)で検証。中点は **`--all-irreps` オプトイン**(デフォルトは従来の特殊点のみ = 高速 1.6 秒; --all-irreps は family 探索のバッチ化 `decompose_characters_many` で 36 → 8 秒)。出力先も分離: デフォルト `phonon_irreps.yaml` / `--all-irreps` `phonon_irreps_all.yaml`(両者が同一 directory に共存できる)。実行末尾に出力ファイル名を print |
+| 7/27 | `--basis`/`--generate-basis` の ISO-IR fallback + R 底心バグ修正 | `basis_function._analyze_space_group` に ISO-IR fallback を接続(構造ファイルが無いため、irreptables の対称操作から**合成 conventional セル**(汎用格子+一般点2軌道)を構成して `IsoIRLabeler` に渡す方式。BCS↔ISO の setting 差も spglib 標準化が自動吸収)。例: `--basis x y z --sg Pm-3m --kpoint 0 0 0.1` → `DT [0,0,0.1]`, `DT1(1)+DT5(2)`。P/C/F/I/R 底心・非共形・2 origin 群で検証。**既存バグ発見・修正**: conventional→primitive の並進変換が row 規約(`t @ Minv`)で回転の column 規約と混在し、**非対称な R 底心行列で群の閉包が破れていた**(R-3c で 48/144 積が違反 → spgrep への入力群が壊れ、R 系空間群の --basis 特殊点ラベルも壊れていた)。pure column(`Minv @ t`)に統一して修正(§1.3)。ISO fallback 成功時の誤解を招く UserWarning も抑制。残件 2 件をタスク化: 非共形 little group での Bloch 位相欠落(多重度が厳密整数でない; 境界特殊点で空/部分出力)、--product --sg 線分項の ISO 命名 |
+| 7/27 (2) | `--table` の空間群対応 | `crystod-group --table --space-group SG --kpoint ...` で k の little group の指標表を表示(点群 `--table` の空間群版)。`_analyze_space_group` の前半を `_spacegroup_irrep_context` に共通化し、`format_spacegroup_table` を新設。表引き k は BCS ラベル、線・面は ISO-IR ラベル、列見出しは Seitz 記号。Pm-3m GM/T 線・Pnma X(複素型)・番号指定(--sg 221)で検証 |
+| 7/27 (3) | symmetry mode の irrep 別 VESTA 可視化 + `--atomic-orbital` のハイフン対応 | `--supergroup-cif` 実行時に、活性 irrep ごとの変位パターンを `{supergroup_file}_{irrep}.vesta`(親由来参照構造 + 矢印、invariant-core セル、最大矢 1.5 Å)として自動出力(`symmetry_mode._export_mode_vesta_files`、`phonon_vector.write_vesta_with_arrows` を再利用)。CaTiO3 Pnma の 5 モード(X5+/M2+/M3+/R4+/R5+)で元素選択則を検証(R4+/M3+/M2+ = O のみ、X5+/R5+ = Ca 主体、Ti は全モード不動)。example に CaTiO3 の .vesta 一式を同梱。`--atomic-orbital` は `Ti-d`(ハイフン)も受理(出力はバイト同一、エコーは正規形 `Ti_d`)。testsuite 16 は全 run を tempdir 実行に変更(repo 直下への .vesta 混入防止) |
+| 7/27 (4) | symmetry mode VESTA の `--conventional` | `--supergroup-cif --conventional` で mode VESTA を親 conventional 基底で出力(`_conv` サフィックス、`--vector` と同一セマンティクス)。表示セルは「全 mode パターンを周期的に収める conventional 形状の最小対角倍セル」(D 行が invariant-core 格子の元、`_conventional_display_cell`)。La3Ni2O7 I4/mmm→Cmcm で検証: `139_..._X3-_conv.vesta` = 90° conventional metric (c=20.07 Å、面内は X3- の反位相を収めるため 2 倍)、O 主体 + La/Ni 小 = 成分表と一致、GM1+ は中心 La 不動 |
 
 ---
 
@@ -83,6 +87,14 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 - **症状**: La3Ni2O7 (I4/mmm) の `crystod-mag` で `..._GM5+_dipole_x_conv.vesta` と `..._x_conv_2.vesta` が完全に同一(直交する x/y 成分になるはず)。
 - **原因**: spgrep の射影が GM5± を円偏光型の複素基底 (x±iy) で返し、旧 `_realify`(行ごとの位相回転のみ)が失敗 → `np.real()` が虚部(y 情報)を捨てて両成分が ±x に潰れた。
 - **対処**: `spin_basis._realify` を拡張 — 位相回転で実化できない場合、実部・虚部のグラム・シュミットで実直交基底を再構成(空間が複素共役で閉じている場合に可能)し、張る空間の同一性を射影検証。`dipole_x`/`dipole_y` の直交対が出力されるように。
+
+#### `--basis` の conventional→primitive 並進変換が R 底心で群を壊していた(7/27)
+
+- **症状**: `crystod-group --basis x y z --space-group R-3c` 系(R 底心)で、特殊点・線上とも irrep ラベルが汎用名に落ちる/照合失敗。
+- **原因**: `basis_function._analyze_space_group` の primitive 変換が、回転は column 規約(`Minv @ R @ M`)、並進は row 規約(`t @ Minv`)と**混在**。両者は対称な底心行列(P/F/I)では一致するが、**非対称な R 行列では不一致**で、生成した primitive 操作系が群として閉じない(R-3c で 144 積中 48 が閉包違反)→ spgrep への入力自体が壊れていた。C も非対称だが並進の値の巡り合わせで偶然閉じていた。
+- **対処**: 並進も pure column(`Minv @ t`)に統一(閉包違反 0 を確認)。k の変換 `k @ Minv` は column 規約の双対(行ベクトル)なのでそのままで正しい。
+- **教訓**: `spacegroup_product.SpaceGroupIrrepAlgebra` は同じ変換を**実行時に群閉包で自己検証**しており無事だった。規約が交錯する変換は閉包チェックを実装側に持たせるのが安全。
+- **関連する未解決の既存問題**(タスク化済み): `--basis` の可約表現指標は Bloch 並進位相を含まないため、非共形 little group では多重度が厳密整数にならない(内点では丸めで隠れ、非共形群のゾーン境界特殊点 — Pnma X, Fd-3m X, R-3c T — では空/部分的な分解が出る)。
 
 #### その他(v0.2.x〜7/11)
 

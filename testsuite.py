@@ -245,6 +245,28 @@ def test_03_hybridization() -> None:
     report("result section present", "* Result *" in out, out)
     report("GM irreps listed", "GM" in out.split("* Result *")[-1], out)
 
+    # hyphen is accepted as the element/orbital separator too (Ti-d == Ti_d)
+    code_hyphen, out_hyphen = run_cli(
+        ["-c", POSCAR_SrTiO3, "--atomic-orbital", "Ti-d", "O-p",
+         "--kpoint", "0", "0", "0"]
+    )
+    report("Ti-d O-p (hyphen) gives byte-identical output",
+           code_hyphen == code and out_hyphen == out, out_hyphen)
+
+    code_mixed, out_mixed = run_cli(
+        ["-c", POSCAR_SrTiO3, "--atomic-orbital", "Ti-d", "O_p",
+         "--kpoint", "0", "0", "0"]
+    )
+    report("mixed separators (Ti-d O_p) also identical",
+           code_mixed == code and out_mixed == out, out_mixed)
+
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--atomic-orbital", "Tid", "O_p",
+         "--kpoint", "0", "0", "0"]
+    )
+    report("separator-less token rejected with a clear message",
+           code != 0 and "invalid --atomic-orbital token 'Tid'" in out, out)
+
 
 # ---------------------------------------------------------------- 4. crystod --star-of-k
 def test_04_star_of_k() -> None:
@@ -456,6 +478,22 @@ def test_07_direct_product() -> None:
     report("character table of 3m exit 0", code == 0, out)
     report("table lists A1 and E", "A1" in out and "E" in out, out)
 
+    # ---- space-group little-group character tables (--table --sg --kpoint)
+    code, out = run_group(["--table", "--space-group", "Pm-3m", "--kpoint", "0", "0", "0"])
+    report("little-group table at GM of Pm-3m exit 0", code == 0, out)
+    report("GM table lists GM1+ and GM5- with Seitz headers",
+           "GM1+(1)" in out and "GM5-(3)" in out and "3^+_111" in out, out)
+
+    code, out = run_group(["--table", "--sg", "Pm-3m", "--kpoint", "0", "0", "0.1"])
+    report("little-group table on the DT line labeled via ISO-IR",
+           code == 0 and "DT [0.0, 0.0, 0.1]" in out
+           and "DT1(1)" in out and "DT5(2)" in out
+           and "little group: P4mm (99)" in out, out)
+
+    code, out = run_group(["--table", "--sg", "Pm-3m"])
+    report("--table with --sg but no --kpoint rejected cleanly",
+           code != 0 and "requires --kpoint" in out, out)
+
     # ---- space-group irrep products (--sg; validated against Bilbao DIRPRO)
     code, out = run_group(["--product", "R4-", "R5+", "--sg", "Pm-3m"])
     report("R4- x R5+ in Pm-3m exit 0", code == 0, out)
@@ -485,6 +523,32 @@ def test_07_direct_product() -> None:
     code, out = run_group(["--product", "H1", "P1", "--sg", "230"])
     report("space group by number; broken-table P star substituted (SG230)",
            code == 0 and "H1 x P1 = P1 + P2" in out, out)
+
+    # conjugate-gauge P/PA tabulation of I-42d: fitted CDML names (SG122)
+    code, out = run_group(["--product", "P1", "X1", "--sg", "122"])
+    report("conjugate-gauge P of I-42d substituted (P1 x X1, SG122)",
+           code == 0 and all(f"LD{i}" in out for i in (1, 2, 3, 4))
+           and "2 x 4 = 8 -> 2 + 2 + 2 + 2 = 8" in out, out)
+    code, out = run_group(["--product", "P1", "PA1", "--sg", "122"])
+    report("P1 x PA1 (I-42d) = GM1 + ... (conjugate-pair naming)",
+           code == 0 and "P1 x PA1 = GM1 + GM4 + GM5" in out, out)
+    code, out = run_group(["--product", "M1", "P1", "--sg", "122"])
+    report("M1 x P1 (I-42d) lands on the synthesized PA star",
+           code == 0 and "M1 x P1 = PA2" in out and "1 x 2 = 2 -> 2 = 2" in out,
+           out)
+
+    # ---- line terms without a fitted DIRPRO entry: ISO-IR (ISOTROPY) labels
+    code, out = run_group(["--product", "N1", "P1", "--sg", "I4_132"])
+    report("N1 x P1 (I4_132) lands on the DT line with ISO-IR labels",
+           code == 0 and all(f"DT{i}" in out for i in (1, 2, 3, 4))
+           and "[non-tabulated; ISO-IR labels]" in out
+           and "6 x 4 = 24 -> 6 + 6 + 6 + 6 = 24" in out
+           and "Acta Cryst. A69" in out, out)
+
+    code, out = run_group(["--product", "P1", "X1", "--sg", "I4"])
+    report("P1 x X1 (I4) +/-k line stars disambiguated (LD vs LDA)",
+           code == 0 and "P1 x X1 = LD1 + LD2 + LDA1 + LDA2" in out
+           and "2 x 2 = 4 -> 1 + 1 + 1 + 1 = 4" in out, out)
 
     code, out = run_group(["--product", "R4-", "Q9", "--sg", "Pm-3m"])
     report("unknown space-group irrep label rejected with available list",
@@ -591,6 +655,23 @@ def test_10_basis_function() -> None:
     report("axial vector in 6/mmm -> A2g + E1g",
            code == 0 and "A2g" in out and "E1g" in out, out)
 
+    # non-special k: labels fall back to the ISO-IR tables
+    code, out = run_group(
+        ["--basis", "x", "y", "z", "--space-group", "Pm-3m",
+         "--kpoint", "0", "0", "0.1"]
+    )
+    report("x y z on the DT line labeled via ISO-IR",
+           code == 0 and "DT1(1)" in out and "DT5(2)" in out
+           and "irrep_" not in out, out)
+    report("DT-line k point named via ISO-IR", "DT [0.0, 0.0, 0.1]" in out, out)
+
+    code, out = run_group(
+        ["--basis", "x", "y", "z", "--space-group", "Fd-3m",
+         "--kpoint", "0.1", "0", "0.1"]
+    )
+    report("F-centred Fd-3m DT line labeled via ISO-IR",
+           code == 0 and "DT1(1)" in out and "DT5(2)" in out, out)
+
     code, out = run_group(["--basis", "x*Ry - y*Rx", "--point-group", "m-3m"])
     report("toroidal x*Ry - y*Rx -> T1u", code == 0 and "T1u" in out, out)
 
@@ -628,6 +709,14 @@ def test_11_generate_basis_function() -> None:
     )
     report("GM3+ basis without imaginary residue", bool(gm3_lines) and no_imaginary,
            "\n".join(gm3_lines))
+
+    # non-special k: shares the ISO-IR fallback of --basis
+    code, out = run_group(
+        ["--generate-basis", "--space-group", "Pm-3m",
+         "--kpoint", "0", "0", "0.1", "--order", "1"]
+    )
+    report("--generate-basis on the DT line labeled via ISO-IR",
+           code == 0 and "DT1(1)" in out and "DT5(2)" in out, out)
 
 
 # ---------------------------------------------------------------- 12. crystod-group --coset
@@ -928,15 +1017,23 @@ def test_21_phonon_irrep() -> None:
                    "path_midpoints:" not in text and "midpoint of" not in text,
                    text[:800])
 
-        # --all-irreps: additionally label the seekpath k-path midpoints
+        # --all-irreps: additionally label the seekpath k-path midpoints,
+        # written to phonon_irreps_all.yaml so both surveys can coexist
         code, out = run_phonon(
             ["--irreps", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
              "--all-irreps"],
             cwd=tmp,
         )
         report("--all-irreps exit code 0", code == 0, out)
+        all_yaml_path = os.path.join(tmp, "phonon_irreps_all.yaml")
+        report("--all-irreps writes phonon_irreps_all.yaml",
+               os.path.isfile(all_yaml_path)
+               and "written to: phonon_irreps_all.yaml" in out, out)
         if os.path.isfile(yaml_path):
-            text = open(yaml_path).read()
+            report("--all-irreps leaves phonon_irreps.yaml midpoint-free",
+                   "midpoint of" not in open(yaml_path).read())
+        if os.path.isfile(all_yaml_path):
+            text = open(all_yaml_path).read()
             report("--all-irreps yaml contains the seekpath k-path",
                    "k_path:" in text, text[:800])
             report("--all-irreps yaml lists the k-path midpoints (ISO-IR k types)",
@@ -2611,73 +2708,135 @@ def test_16_symmetry_mode() -> None:
     parent = os.path.join(example, "221_PPOSCAR_SrTiO3.cif")
     child = os.path.join(example, "140_PPOSCAR_SrTiO3.cif")
 
-    # the AMPLIMODES reference case (Bilbao PDF in ~/CrystOD-main/AMPLIMODES)
-    code, out = run_group(["--supergroup-cif", parent, "--subgroup-cif", child])
-    report("SrTiO3 Pm-3m -> I4/mcm exits 0 and identifies both groups",
-           code == 0 and "Pm-3m (No. 221)" in out
-           and "I4/mcm (No. 140)" in out, out)
-    report("R5- mode at R with amplitude 0.3303 A (AMPLIMODES value)",
-           "R5-" in out and "(1/2,1/2,1/2)" in out
-           and re.search(r"R5-\s+\S+\s+140 I4/mcm\s+1\s+0\.3303", out)
-           is not None, out)
-    report("max displacement 0.1651 A and total distortion 0.3303 A",
-           "maximum atomic displacement: 0.1651 A" in out
-           and "total distortion amplitude : 0.3303 A" in out, out)
-    report("cell multiplication 2 and AMPLIMODES citation printed",
-           "primitive cell multiplication: 2" in out
-           and "J. Appl. Cryst. 42, 820-833 (2009)" in out, out)
+    with tempfile.TemporaryDirectory() as tmp:
+        # the AMPLIMODES reference case (Bilbao PDF in ~/CrystOD-main/AMPLIMODES)
+        code, out = run_group(
+            ["--supergroup-cif", parent, "--subgroup-cif", child], cwd=tmp
+        )
+        report("SrTiO3 Pm-3m -> I4/mcm exits 0 and identifies both groups",
+               code == 0 and "Pm-3m (No. 221)" in out
+               and "I4/mcm (No. 140)" in out, out)
+        report("R5- mode at R with amplitude 0.3303 A (AMPLIMODES value)",
+               "R5-" in out and "(1/2,1/2,1/2)" in out
+               and re.search(r"R5-\s+\S+\s+140 I4/mcm\s+1\s+0\.3303", out)
+               is not None, out)
+        report("max displacement 0.1651 A and total distortion 0.3303 A",
+               "maximum atomic displacement: 0.1651 A" in out
+               and "total distortion amplitude : 0.3303 A" in out, out)
+        report("cell multiplication 2 and AMPLIMODES citation printed",
+               "primitive cell multiplication: 2" in out
+               and "J. Appl. Cryst. 42, 820-833 (2009)" in out, out)
+        report("mode displacement VESTA file written (R5-)",
+               os.path.isfile(
+                   os.path.join(tmp, "221_PPOSCAR_SrTiO3_R5-.vesta")
+               ) and "221_PPOSCAR_SrTiO3_R5-.vesta" in out, out)
 
-    # F-centred parent (ZrO2 fluorite -> tetragonal; second AMPLIMODES PDF)
-    code, out = run_group(["--supergroup-cif",
-                           os.path.join(example, "225_PPOSCAR_ZrO2.cif"),
-                           "--subgroup-cif",
-                           os.path.join(example, "137_PPOSCAR_ZrO2.cif")])
-    report("ZrO2 Fm-3m -> P4_2/nmc: X2- with amplitude 0.5773 A",
-           code == 0 and "(1/2,0,1/2)" in out
-           and re.search(r"X2-\s+\S+\s+137 P4_2/nmc\s+1\s+0\.5773", out)
-           is not None, out)
+        # F-centred parent (ZrO2 fluorite -> tetragonal; second AMPLIMODES PDF)
+        code, out = run_group(["--supergroup-cif",
+                               os.path.join(example, "225_PPOSCAR_ZrO2.cif"),
+                               "--subgroup-cif",
+                               os.path.join(example, "137_PPOSCAR_ZrO2.cif")],
+                              cwd=tmp)
+        report("ZrO2 Fm-3m -> P4_2/nmc: X2- with amplitude 0.5773 A",
+               code == 0 and "(1/2,0,1/2)" in out
+               and re.search(r"X2-\s+\S+\s+137 P4_2/nmc\s+1\s+0\.5773", out)
+               is not None, out)
+        report("ZrO2 X2- VESTA file written",
+               os.path.isfile(
+                   os.path.join(tmp, "225_PPOSCAR_ZrO2_X2-.vesta")
+               ), out)
 
-    # polar subgroup: acoustic (free-origin) component removed
-    code, out = run_group(["--supergroup-cif",
-                           os.path.join(example, "221_PPOSCAR_BaTiO3.cif"),
-                           "--subgroup-cif",
-                           os.path.join(example, "99_PPOSCAR_BaTiO3.cif")])
-    report("BaTiO3 Pm-3m -> P4mm: polar GM4- with minimum-distortion origin",
-           code == 0 and "(0,0,0)" in out
-           and re.search(r"GM4-\s+\S+\s+99 P4mm\s+4\s+0\.2032", out)
-           is not None, out)
+        # per-irrep VESTA export: the multi-mode CaTiO3 case
+        code, out = run_group(
+            ["--supergroup-cif",
+             os.path.join(example, "221_PPOSCAR_CaTiO3.cif"),
+             "--subgroup-cif",
+             os.path.join(example, "62_PPOSCAR_CaTiO3.cif")],
+            cwd=tmp,
+        )
+        report("CaTiO3 writes one VESTA file per activated irrep",
+               code == 0 and all(
+                   os.path.isfile(
+                       os.path.join(tmp, f"221_PPOSCAR_CaTiO3_{irrep}.vesta")
+                   )
+                   for irrep in ("X5+", "M2+", "M3+", "R4+", "R5+")
+               ), out)
+        vesta_text = open(
+            os.path.join(tmp, "221_PPOSCAR_CaTiO3_R4+.vesta")
+        ).read()
+        report("R4+ VESTA carries arrow entries (VECTR section)",
+               "VECTR" in vesta_text and "VECTT" in vesta_text, vesta_text[:500])
 
-    # strongly tilted child (14% lattice strain; displaced-species anchor)
-    code, out = run_group(["--supergroup-cif",
-                           os.path.join(example, "221_PPOSCAR_AlF3.cif"),
-                           "--subgroup-cif",
-                           os.path.join(example, "167_PPOSCAR_AlF3.cif")])
-    report("AlF3 Pm-3m -> R-3c: large-tilt R4+ (index 2, strained lattice)",
-           code == 0
-           and re.search(r"R4\+\s+\S+\s+167 R-3c\s+1\s+0\.80", out)
-           is not None, out)
+        # --conventional: mode VESTA files in the parent conventional basis
+        code, out = run_group(
+            ["--supergroup-cif",
+             os.path.join(example, "139_PPOSCAR_La3Ni2O7.cif"),
+             "--subgroup-cif",
+             os.path.join(example, "63_PPOSCAR_La3Ni2O7.cif"),
+             "--conventional"],
+            cwd=tmp,
+        )
+        report("--conventional writes _conv VESTA files (I4/mmm parent)",
+               code == 0
+               and os.path.isfile(
+                   os.path.join(tmp, "139_PPOSCAR_La3Ni2O7_X3-_conv.vesta")
+               )
+               and os.path.isfile(
+                   os.path.join(tmp, "139_PPOSCAR_La3Ni2O7_GM1+_conv.vesta")
+               )
+               and "parent conventional basis" in out, out)
+        conv_text = open(
+            os.path.join(tmp, "139_PPOSCAR_La3Ni2O7_X3-_conv.vesta")
+        ).read()
+        report("_conv cell has the conventional 90-degree metric",
+               " 90.000000  90.000000  90.000000" in conv_text
+               and "20.070400" in conv_text, conv_text[:400])
 
-    # cross-checks against crystod-phonon --modulation structures (section 25)
-    modulation = os.path.join(ROOT, "example", "25_modulation", "ScF3_Pm-3m")
-    parent_scf3 = os.path.join(modulation, "221_PPOSCAR_ScF3")
+        # polar subgroup: acoustic (free-origin) component removed
+        code, out = run_group(["--supergroup-cif",
+                               os.path.join(example, "221_PPOSCAR_BaTiO3.cif"),
+                               "--subgroup-cif",
+                               os.path.join(example, "99_PPOSCAR_BaTiO3.cif")],
+                              cwd=tmp)
+        report("BaTiO3 Pm-3m -> P4mm: polar GM4- with minimum-distortion origin",
+               code == 0 and "(0,0,0)" in out
+               and re.search(r"GM4-\s+\S+\s+99 P4mm\s+4\s+0\.2032", out)
+               is not None, out)
 
-    code, out = run_group(["--supergroup-cif", parent_scf3,
-                           "--subgroup-cif",
-                           os.path.join(modulation, "POSCAR_R-3c")])
-    report("ScF3 R-3c: R4+ (a,a,a) -> 167 R-3c (modulation cross-check)",
-           code == 0 and re.search(r"R4\+\s+\(a,a,a\)\s+167 R-3c", out)
-           is not None, out)
+        # strongly tilted child (14% lattice strain; displaced-species anchor)
+        code, out = run_group(["--supergroup-cif",
+                               os.path.join(example, "221_PPOSCAR_AlF3.cif"),
+                               "--subgroup-cif",
+                               os.path.join(example, "167_PPOSCAR_AlF3.cif")],
+                              cwd=tmp)
+        report("AlF3 Pm-3m -> R-3c: large-tilt R4+ (index 2, strained lattice)",
+               code == 0
+               and re.search(r"R4\+\s+\S+\s+167 R-3c\s+1\s+0\.80", out)
+               is not None, out)
 
-    code, out = run_group(["--supergroup-cif", parent_scf3,
-                           "--subgroup-cif",
-                           os.path.join(modulation, "POSCAR_Pbnm")])
-    report("ScF3 Pbnm: two active modes R4+ -> Imma + M3+ -> P4/mbm",
-           code == 0
-           and re.search(r"R4\+\s+\S+\s+74 Imma\s+1\s+0\.8485", out) is not None
-           and re.search(r"M3\+\s+\S+\s+127 P4/mbm\s+1\s+0\.6000", out)
-           is not None, out)
-    report("ScF3 Pbnm: inactive secondary X5+ listed with amplitude 0",
-           re.search(r"X5\+\s+\S+\s+63 Cmcm\s+1\s+0\.0000", out) is not None, out)
+        # cross-checks against crystod-phonon --modulation structures (section 25)
+        modulation = os.path.join(ROOT, "example", "25_modulation", "ScF3_Pm-3m")
+        parent_scf3 = os.path.join(modulation, "221_PPOSCAR_ScF3")
+
+        code, out = run_group(["--supergroup-cif", parent_scf3,
+                               "--subgroup-cif",
+                               os.path.join(modulation, "POSCAR_R-3c")],
+                              cwd=tmp)
+        report("ScF3 R-3c: R4+ (a,a,a) -> 167 R-3c (modulation cross-check)",
+               code == 0 and re.search(r"R4\+\s+\(a,a,a\)\s+167 R-3c", out)
+               is not None, out)
+
+        code, out = run_group(["--supergroup-cif", parent_scf3,
+                               "--subgroup-cif",
+                               os.path.join(modulation, "POSCAR_Pbnm")],
+                              cwd=tmp)
+        report("ScF3 Pbnm: two active modes R4+ -> Imma + M3+ -> P4/mbm",
+               code == 0
+               and re.search(r"R4\+\s+\S+\s+74 Imma\s+1\s+0\.8485", out) is not None
+               and re.search(r"M3\+\s+\S+\s+127 P4/mbm\s+1\s+0\.6000", out)
+               is not None, out)
+        report("ScF3 Pbnm: inactive secondary X5+ listed with amplitude 0",
+               re.search(r"X5\+\s+\S+\s+63 Cmcm\s+1\s+0\.0000", out) is not None, out)
 
     # errors
     code, out = run_group(["--supergroup-cif", parent])
