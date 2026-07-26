@@ -146,6 +146,52 @@ Cross-validated against the Bilbao Crystallographic Server DIRPRO:
 M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
 
 
+# Line terms in space groups outside the DIRPRO-fitted name table are
+# labeled from the ISO-IR (ISOTROPY, Miller-Love) tables and marked as such
+crystod-group --product N1 P1 --sg I4_132
+
+* Space group *
+I4_132 (No. 214)
+
+* K points (primitive basis) *
+N: (0, 0, 1/2)   star of 6 arm(s)
+P: (1/4, 1/4, 1/4)   star of 2 arm(s)
+DT: (1/4, 1/4, 3/4)   star of 6 arm(s)  [non-tabulated; ISO-IR labels]
+
+* Direct product (full space-group irreps) *
+N1 x P1 = DT1 + DT4 + DT2 + DT3
+
+* Dimension check (star size x small dim) *
+6 x 4 = 24 -> 6 + 6 + 6 + 6 = 24
+
+NOTE: k points marked [ISO-IR labels] are absent from the CDML tables; their
+irrep labels follow the ISO-IR (ISOTROPY, Miller-Love) convention:
+H. T. Stokes, B. J. Campbell and R. Cordes, Acta Cryst. A69, 388-395 (2013); iso.byu.edu/irtables.php
+
+Cross-validated against the Bilbao Crystallographic Server DIRPRO:
+M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
+
+
+# Distinct +k and -k stars of one line (acentric groups) are disambiguated
+# with the CDML "A" suffix, like the PA point above
+crystod-group --product P1 X1 --sg I4
+
+* Space group *
+I4 (No. 79)
+
+* K points (primitive basis) *
+P: (1/4, 1/4, 1/4)   star of 2 arm(s)
+X: (0, 0, 1/2)   star of 2 arm(s)
+LD: (1/4, 1/4, 3/4)   star of 1 arm(s)  [non-tabulated; ISO-IR labels]
+LDA: (3/4, 3/4, 1/4)   star of 1 arm(s)  [non-tabulated; ISO-IR labels]
+
+* Direct product (full space-group irreps) *
+P1 x X1 = LD1 + LD2 + LDA1 + LDA2
+
+* Dimension check (star size x small dim) *
+2 x 2 = 4 -> 1 + 1 + 1 + 1 = 4
+
+
 ############################################################################
 # Validation against the Bilbao Crystallographic Server DIRPRO
 ############################################################################
