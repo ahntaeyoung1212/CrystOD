@@ -67,25 +67,120 @@ EHT_PARAMETERS = {
     "P":  [("3s", 3, 0, 1.750, -18.6), ("3p", 3, 1, 1.300, -14.0)],
     "S":  [("3s", 3, 0, 2.122, -20.0), ("3p", 3, 1, 1.827, -13.3)],
     "Cl": [("3s", 3, 0, 2.183, -26.3), ("3p", 3, 1, 1.733, -14.2)],
+    # 4th row and beyond: the standard extended-Hueckel compilation
+    # (Hoffmann-group / YAeHMOP tables; d shells are the usual double-zeta
+    # contractions, coefficients on normalized primitives)
+    "K":  [("4s", 4, 0, 0.874, -4.34), ("4p", 4, 1, 0.874, -2.73)],
+    "Ca": [("4s", 4, 0, 1.200, -7.0), ("4p", 4, 1, 1.200, -4.0)],
+    "Sc": [("4s", 4, 0, 1.300, -8.87), ("4p", 4, 1, 1.300, -2.75),
+           ("3d", 3, 2, [(4.35, 0.4228), (1.70, 0.7276)], -8.51)],
+    "Ti": [("4s", 4, 0, 1.075, -8.97), ("4p", 4, 1, 0.675, -5.44),
+           ("3d", 3, 2, [(4.55, 0.4206), (1.40, 0.7839)], -10.81)],
+    "V":  [("4s", 4, 0, 1.300, -8.81), ("4p", 4, 1, 1.300, -5.52),
+           ("3d", 3, 2, [(4.75, 0.4560), (1.70, 0.7520)], -11.0)],
+    "Cr": [("4s", 4, 0, 1.700, -8.66), ("4p", 4, 1, 1.700, -5.24),
+           ("3d", 3, 2, [(4.95, 0.5060), (1.80, 0.6750)], -11.2)],
+    "Mn": [("4s", 4, 0, 0.970, -9.75), ("4p", 4, 1, 0.970, -5.89),
+           ("3d", 3, 2, [(5.15, 0.5320), (1.70, 0.6490)], -11.67)],
+    "Fe": [("4s", 4, 0, 1.900, -9.10), ("4p", 4, 1, 1.900, -5.32),
+           ("3d", 3, 2, [(5.35, 0.5505), (2.00, 0.6260)], -12.6)],
+    "Co": [("4s", 4, 0, 2.000, -9.21), ("4p", 4, 1, 2.000, -5.29),
+           ("3d", 3, 2, [(5.55, 0.5680), (2.10, 0.6060)], -13.18)],
+    "Ni": [("4s", 4, 0, 2.100, -9.17), ("4p", 4, 1, 2.100, -5.15),
+           ("3d", 3, 2, [(5.75, 0.5817), (2.30, 0.5800)], -13.49)],
+    "Cu": [("4s", 4, 0, 2.200, -11.4), ("4p", 4, 1, 2.200, -6.06),
+           ("3d", 3, 2, [(5.95, 0.5933), (2.30, 0.5744)], -14.0)],
+    "Zn": [("4s", 4, 0, 2.010, -12.41), ("4p", 4, 1, 1.700, -6.53)],
+    "Ga": [("4s", 4, 0, 1.770, -14.58), ("4p", 4, 1, 1.550, -6.75)],
+    "Ge": [("4s", 4, 0, 2.160, -16.0), ("4p", 4, 1, 1.850, -9.0)],
+    "As": [("4s", 4, 0, 2.230, -16.22), ("4p", 4, 1, 1.890, -12.16)],
+    "Se": [("4s", 4, 0, 2.440, -20.5), ("4p", 4, 1, 2.070, -14.4)],
+    "Br": [("4s", 4, 0, 2.588, -22.07), ("4p", 4, 1, 2.131, -13.1)],
+    "Rb": [("5s", 5, 0, 0.997, -4.18), ("5p", 5, 1, 0.997, -2.60)],
+    "Sr": [("5s", 5, 0, 1.214, -6.62), ("5p", 5, 1, 1.214, -3.92)],
+    "Zr": [("5s", 5, 0, 1.820, -8.0), ("5p", 5, 1, 1.780, -5.4),
+           ("4d", 4, 2, [(3.835, 0.6210), (1.505, 0.5769)], -10.2)],
+    "Nb": [("5s", 5, 0, 1.890, -10.1), ("5p", 5, 1, 1.850, -6.86),
+           ("4d", 4, 2, [(4.080, 0.6401), (1.640, 0.5516)], -12.1)],
+    "Mo": [("5s", 5, 0, 1.960, -8.34), ("5p", 5, 1, 1.900, -5.24),
+           ("4d", 4, 2, [(4.540, 0.5899), (1.900, 0.5899)], -10.5)],
+    "Sn": [("5s", 5, 0, 2.120, -16.16), ("5p", 5, 1, 1.820, -8.32)],
+    "Sb": [("5s", 5, 0, 2.323, -18.8), ("5p", 5, 1, 1.999, -11.7)],
+    "Te": [("5s", 5, 0, 2.510, -20.8), ("5p", 5, 1, 2.160, -14.8)],
+    "I":  [("5s", 5, 0, 2.679, -18.0), ("5p", 5, 1, 2.322, -12.7)],
+    "Cs": [("6s", 6, 0, 1.060, -3.88), ("6p", 6, 1, 1.060, -2.49)],
+    "Ba": [("6s", 6, 0, 1.263, -5.49), ("6p", 6, 1, 1.263, -3.84)],
+    "Pb": [("6s", 6, 0, 2.350, -15.7), ("6p", 6, 1, 2.060, -8.0)],
+    "Bi": [("6s", 6, 0, 2.560, -15.19), ("6p", 6, 1, 2.072, -7.79)],
 }
 
 VALENCE_ELECTRONS = {
     "H": 1, "Li": 1, "Be": 2, "B": 3, "C": 4, "N": 5, "O": 6, "F": 7,
     "Na": 1, "Mg": 2, "Al": 3, "Si": 4, "P": 5, "S": 6, "Cl": 7,
+    "K": 1, "Ca": 2, "Sc": 3, "Ti": 4, "V": 5, "Cr": 6, "Mn": 7,
+    "Fe": 8, "Co": 9, "Ni": 10, "Cu": 11, "Zn": 2, "Ga": 3, "Ge": 4,
+    "As": 5, "Se": 6, "Br": 7, "Rb": 1, "Sr": 2, "Zr": 4, "Nb": 5,
+    "Mo": 6, "Sn": 4, "Sb": 5, "Te": 6, "I": 7, "Cs": 1, "Ba": 2,
+    "Pb": 4, "Bi": 5,
 }
+
+# neutral-atom occupation of each explicitly treated shell (kept as a
+# reference table; the crystal-orbital diagrams fill their full valence
+# basis from VALENCE_ELECTRONS)
+SHELL_OCCUPATIONS = {
+    "K": {"4s": 1}, "Ca": {"4s": 2},
+    "Sc": {"4s": 2, "3d": 1}, "Ti": {"4s": 2, "3d": 2},
+    "V": {"4s": 2, "3d": 3}, "Cr": {"4s": 1, "3d": 5},
+    "Mn": {"4s": 2, "3d": 5}, "Fe": {"4s": 2, "3d": 6},
+    "Co": {"4s": 2, "3d": 7}, "Ni": {"4s": 2, "3d": 8},
+    "Cu": {"4s": 1, "3d": 10}, "Zn": {"4s": 2},
+    "Zr": {"5s": 2, "4d": 2}, "Nb": {"5s": 1, "4d": 4},
+    "Mo": {"5s": 1, "4d": 5},
+}
+
+
+def shell_occupation(element: str, shell: str) -> int:
+    """Neutral-atom electron count of one explicitly treated shell."""
+    if element in SHELL_OCCUPATIONS and shell in SHELL_OCCUPATIONS[element]:
+        return SHELL_OCCUPATIONS[element][shell]
+    if element in SHELL_OCCUPATIONS:
+        return 0
+    # main-group elements: s fills first (max 2), the rest goes to p
+    valence = VALENCE_ELECTRONS[element]
+    if shell.endswith("s"):
+        return min(valence, 2)
+    if shell.endswith("p"):
+        return max(valence - 2, 0)
+    return 0
 
 # Core shells (not treated explicitly, but counted in the MO numbering so
 # that the labels match the photoelectron-spectroscopy convention,
 # e.g. CH4: 1a1 = C 1s core, valence = 2a1 + 1t2).
+_AR_CORE = ["1s", "2s", "2p", "3s", "3p"]
+_KR_CORE = _AR_CORE + ["3d", "4s", "4p"]
+_XE_CORE = _KR_CORE + ["4d", "5s", "5p"]
 CORE_SHELLS = {
     "H": [], "Li": ["1s"], "Be": ["1s"], "B": ["1s"], "C": ["1s"],
     "N": ["1s"], "O": ["1s"], "F": ["1s"],
     "Na": ["1s", "2s", "2p"], "Mg": ["1s", "2s", "2p"],
     "Al": ["1s", "2s", "2p"], "Si": ["1s", "2s", "2p"],
     "P": ["1s", "2s", "2p"], "S": ["1s", "2s", "2p"], "Cl": ["1s", "2s", "2p"],
+    "K": _AR_CORE, "Ca": _AR_CORE, "Sc": _AR_CORE, "Ti": _AR_CORE,
+    "V": _AR_CORE, "Cr": _AR_CORE, "Mn": _AR_CORE, "Fe": _AR_CORE,
+    "Co": _AR_CORE, "Ni": _AR_CORE, "Cu": _AR_CORE,
+    "Zn": _AR_CORE + ["3d"], "Ga": _AR_CORE + ["3d"],
+    "Ge": _AR_CORE + ["3d"], "As": _AR_CORE + ["3d"],
+    "Se": _AR_CORE + ["3d"], "Br": _AR_CORE + ["3d"],
+    "Rb": _KR_CORE, "Sr": _KR_CORE, "Zr": _KR_CORE, "Nb": _KR_CORE,
+    "Mo": _KR_CORE,
+    "Sn": _KR_CORE + ["4d"], "Sb": _KR_CORE + ["4d"], "Te": _KR_CORE + ["4d"],
+    "I": _KR_CORE + ["4d"],
+    "Cs": _XE_CORE, "Ba": _XE_CORE,
+    "Pb": _XE_CORE + ["4f", "5d"], "Bi": _XE_CORE + ["4f", "5d"],
 }
 
 P_LABELS = ["px", "py", "pz"]  # real-orbital order used by wigner_D_real(1)
+D_LABELS = ["dxy", "dyz", "dz2", "dxz", "dx2-y2"]  # wigner_D_real(2) order
 
 ANGSTROM_TO_BOHR = 1.0 / 0.529177210903
 
@@ -112,14 +207,33 @@ def _quadrature(n_lag: int = 40, n_leg: int = 48):
     return _QUAD_CACHE[key]
 
 
+def _aligned_angular(l: int, m: int, cos, sin):
+    """Theta-dependent part of the real spherical harmonic of the |m| channel
+    (m = 0: sigma; 1: pi; 2: delta), without the cos/sin(m phi) factor."""
+    if l == 0:
+        return np.sqrt(1.0 / (4.0 * np.pi)) * np.ones_like(cos)
+    if l == 1:
+        if m == 0:
+            return np.sqrt(3.0 / (4.0 * np.pi)) * cos
+        return np.sqrt(3.0 / (4.0 * np.pi)) * sin
+    if l == 2:
+        if m == 0:
+            return np.sqrt(5.0 / (16.0 * np.pi)) * (3.0 * cos ** 2 - 1.0)
+        if m == 1:
+            return np.sqrt(15.0 / (4.0 * np.pi)) * sin * cos
+        return np.sqrt(15.0 / (16.0 * np.pi)) * sin ** 2
+    raise SystemExit(f"ERROR: aligned STO overlaps support l <= 2 (got l={l}).")
+
+
 def sto_overlap_aligned(n1, l1, z1, n2, l2, z2, R, m) -> float:
     """Overlap of two real STOs with atom 1 at the origin and atom 2 at
     (0, 0, R), both orbitals quantized along the global z axis.
 
-    ``m = 0``: sigma overlap (s or p_z); ``m = 1``: pi overlap (p_x | p_x).
-    Distances in Bohr. Exact within quadrature (machine precision).
+    ``m = 0``: sigma channel (s, p_z, d_z2); ``m = 1``: pi channel;
+    ``m = 2``: delta channel. Distances in Bohr. Exact within quadrature
+    (machine precision).
     """
-    if m == 1 and (l1 == 0 or l2 == 0):
+    if m > min(l1, l2):
         return 0.0
     t, wt, v, wv = _quadrature()
     alpha = 0.5 * R * (z1 + z2)
@@ -138,19 +252,29 @@ def sto_overlap_aligned(n1, l1, z1, n2, l2, z2, R, m) -> float:
     )
     cos1 = (1.0 + mu * nu) / (mu + nu)
     cos2 = (mu * nu - 1.0) / (mu - nu)
-    c_p = np.sqrt(3.0 / (4.0 * np.pi))
-    c_s = np.sqrt(1.0 / (4.0 * np.pi))
-    if m == 0:
-        ang1 = c_p * cos1 if l1 == 1 else c_s
-        ang2 = c_p * cos2 if l2 == 1 else c_s
-        phi = 2.0 * np.pi
-    else:
-        sin1 = np.sqrt(np.clip(1.0 - cos1 ** 2, 0.0, None))
-        sin2 = np.sqrt(np.clip(1.0 - cos2 ** 2, 0.0, None))
-        ang1, ang2 = c_p * sin1, c_p * sin2
-        phi = np.pi
+    sin1 = np.sqrt(np.clip(1.0 - cos1 ** 2, 0.0, None))
+    sin2 = np.sqrt(np.clip(1.0 - cos2 ** 2, 0.0, None))
+    ang1 = _aligned_angular(l1, m, cos1, sin1)
+    ang2 = _aligned_angular(l2, m, cos2, sin2)
+    # phi integral: 2 pi for the m=0 channel, pi for cos/sin(m phi) channels
+    phi = 2.0 * np.pi if m == 0 else np.pi
     value = float(np.sum(wt * wv * integrand * ang1 * ang2))
     return _slater_norm(n1, z1) * _slater_norm(n2, z2) * phi * np.exp(-alpha) * value
+
+
+def sto_overlap_contracted(n1, l1, zeta1, n2, l2, zeta2, R, m) -> float:
+    """Aligned overlap of two (possibly contracted) STOs.
+
+    ``zeta`` is either a scalar (single-zeta) or a list of (zeta, coeff)
+    primitives (the standard double-zeta d parametrization of the extended
+    Hueckel tables; coefficients refer to normalized primitives)."""
+    prim1 = zeta1 if isinstance(zeta1, (list, tuple)) else [(zeta1, 1.0)]
+    prim2 = zeta2 if isinstance(zeta2, (list, tuple)) else [(zeta2, 1.0)]
+    value = 0.0
+    for z1, c1 in prim1:
+        for z2, c2 in prim2:
+            value += c1 * c2 * sto_overlap_aligned(n1, l1, z1, n2, l2, z2, R, m)
+    return value
 
 
 # ------------------------------------------------------------ AO basis and S
@@ -169,7 +293,11 @@ class AtomicOrbital:
 
     @property
     def orbital_label(self) -> str:
-        return self.shell if self.l == 0 else self.shell[:-1] + P_LABELS[self.m]
+        if self.l == 0:
+            return self.shell
+        if self.l == 1:
+            return self.shell[:-1] + P_LABELS[self.m]
+        return self.shell[:-1] + D_LABELS[self.m]
 
 
 def build_basis(symbols: list[str], site_indices: list[int]) -> list[AtomicOrbital]:
@@ -187,20 +315,88 @@ def build_basis(symbols: list[str], site_indices: list[int]) -> list[AtomicOrbit
     return orbitals
 
 
-def overlap_matrix(orbitals: list[AtomicOrbital], coordinates: np.ndarray) -> np.ndarray:
-    """AO overlap matrix (Slater-Koster assembly of the aligned integrals)."""
-    n_ao = len(orbitals)
-    S = np.eye(n_ao)
+# bond-frame (channel |m|, azimuthal type) of each real-orbital component in
+# the wigner_D_real component order; type 0 = cos(m phi)-like (sigma counts
+# as cos), type 1 = sin(m phi)-like. Only equal (channel, type) pairs couple.
+_BOND_CHANNELS = {
+    0: [(0, 0)],
+    # (px, py, pz)
+    1: [(1, 0), (1, 1), (0, 0)],
+    # (dxy, dyz, dz2, dxz, dx2-y2)
+    2: [(2, 1), (1, 1), (0, 0), (1, 0), (2, 0)],
+}
+
+
+def _bond_frame_rotation(direction: np.ndarray) -> np.ndarray:
+    """Cartesian rotation g (columns = bond frame axes) with g e_z = n."""
+    n = direction
+    ref = np.array([0.0, 0.0, 1.0]) if abs(n[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    e1 = np.cross(ref, n)
+    e1 = e1 / np.linalg.norm(e1)
+    e2 = np.cross(n, e1)
+    return np.column_stack([e1, e2, n])
+
+
+def make_aligned_cache():
+    """Cached aligned-channel overlap evaluator for AtomicOrbital pairs."""
     pair_cache: dict = {}
 
     def aligned(a: AtomicOrbital, b: AtomicOrbital, R: float, m: int) -> float:
         key = (a.element, a.shell, b.element, b.shell, round(R, 10), m)
         if key not in pair_cache:
-            pair_cache[key] = sto_overlap_aligned(
+            pair_cache[key] = sto_overlap_contracted(
                 a.n, a.l, a.zeta, b.n, b.l, b.zeta, R, m
             )
         return pair_cache[key]
 
+    return aligned
+
+
+def pair_overlap(a: AtomicOrbital, b: AtomicOrbital, vector: np.ndarray,
+                 aligned) -> float:
+    """Overlap of two real STOs separated by ``vector`` (Bohr), via
+    Slater-Koster assembly of the aligned sigma/pi/delta integrals.
+
+    s and p orbitals use the explicit closed forms; any pair involving a d
+    orbital is rotated into the bond frame with wigner_D_real."""
+    R = float(np.linalg.norm(vector))
+    direction = vector / R
+    if a.l <= 1 and b.l <= 1:
+        if a.l == 0 and b.l == 0:
+            return aligned(a, b, R, 0)
+        if a.l == 0 and b.l == 1:
+            return direction[b.m] * aligned(a, b, R, 0)
+        if a.l == 1 and b.l == 0:
+            return direction[a.m] * aligned(a, b, R, 0)
+        sigma = aligned(a, b, R, 0)
+        pi = aligned(a, b, R, 1)
+        delta = 1.0 if a.m == b.m else 0.0
+        return (
+            direction[a.m] * direction[b.m] * sigma
+            + (delta - direction[a.m] * direction[b.m]) * pi
+        )
+    from .operations import wigner_D_real
+
+    g = _bond_frame_rotation(direction)
+    Da = wigner_D_real(a.l, g)
+    Db = wigner_D_real(b.l, g)
+    channels_a = _BOND_CHANNELS[a.l]
+    channels_b = _BOND_CHANNELS[b.l]
+    value = 0.0
+    for mu in range(2 * a.l + 1):
+        for nu in range(2 * b.l + 1):
+            if channels_a[mu] != channels_b[nu]:
+                continue
+            channel = channels_a[mu][0]
+            value += Da[a.m, mu] * Db[b.m, nu] * aligned(a, b, R, channel)
+    return value
+
+
+def overlap_matrix(orbitals: list[AtomicOrbital], coordinates: np.ndarray) -> np.ndarray:
+    """AO overlap matrix (Slater-Koster assembly of the aligned integrals)."""
+    n_ao = len(orbitals)
+    S = np.eye(n_ao)
+    aligned = make_aligned_cache()
     for i in range(n_ao):
         for j in range(i + 1, n_ao):
             a, b = orbitals[i], orbitals[j]
@@ -208,23 +404,7 @@ def overlap_matrix(orbitals: list[AtomicOrbital], coordinates: np.ndarray) -> np
                 S[i, j] = S[j, i] = 0.0 if (a.shell, a.m) != (b.shell, b.m) else 1.0
                 continue
             vector = (coordinates[b.atom] - coordinates[a.atom]) * ANGSTROM_TO_BOHR
-            R = float(np.linalg.norm(vector))
-            direction = vector / R
-            if a.l == 0 and b.l == 0:
-                value = aligned(a, b, R, 0)
-            elif a.l == 0 and b.l == 1:
-                value = direction[b.m] * aligned(a, b, R, 0)
-            elif a.l == 1 and b.l == 0:
-                value = direction[a.m] * aligned(a, b, R, 0)
-            else:
-                sigma = aligned(a, b, R, 0)
-                pi = aligned(a, b, R, 1)
-                delta = 1.0 if a.m == b.m else 0.0
-                value = (
-                    direction[a.m] * direction[b.m] * sigma
-                    + (delta - direction[a.m] * direction[b.m]) * pi
-                )
-            S[i, j] = S[j, i] = value
+            S[i, j] = S[j, i] = pair_overlap(a, b, vector, aligned)
     return S
 
 
@@ -885,8 +1065,9 @@ def _sketch_entries(per_atom: dict) -> list:
 
 _DIAGRAM_SCRIPT = r"""
 const CFG = __CONFIG__;
-const LEVELS = __LEVELS__;
-const GEOM = __GEOM__;
+let LEVELS = __LEVELS__;
+let GEOM = __GEOM__;
+const VARIANTS = __VARIANTS__;
 const byId = {};
 LEVELS.forEach(l => byId[l.id] = l);
 let eMin = CFG.eMin, eMax = CFG.eMax;
@@ -1033,6 +1214,36 @@ function setupSketch(d) {
   drawSketch(d);
 }
 
+// symmetric 3x3 eigen-decomposition (Jacobi) for the d-lobe axes
+function jacobi3(A) {
+  let a = A.map(r => r.slice());
+  let V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let sweep = 0; sweep < 30; sweep++) {
+    let p = 0, q = 1, m = Math.abs(a[0][1]);
+    if (Math.abs(a[0][2]) > m) { p = 0; q = 2; m = Math.abs(a[0][2]); }
+    if (Math.abs(a[1][2]) > m) { p = 1; q = 2; m = Math.abs(a[1][2]); }
+    if (m < 1e-9) break;
+    const th = 0.5 * Math.atan2(2 * a[p][q], a[q][q] - a[p][p]);
+    const c = Math.cos(th), s = Math.sin(th);
+    const an = a.map(r => r.slice()), Vn = V.map(r => r.slice());
+    for (let k = 0; k < 3; k++) {
+      an[k][p] = c * a[k][p] - s * a[k][q];
+      an[k][q] = s * a[k][p] + c * a[k][q];
+    }
+    const a2 = an.map(r => r.slice());
+    for (let k = 0; k < 3; k++) {
+      a2[p][k] = c * an[p][k] - s * an[q][k];
+      a2[q][k] = s * an[p][k] + c * an[q][k];
+    }
+    for (let k = 0; k < 3; k++) {
+      Vn[k][p] = c * V[k][p] - s * V[k][q];
+      Vn[k][q] = s * V[k][p] + c * V[k][q];
+    }
+    a = a2; V = Vn;
+  }
+  return [0, 1, 2].map(i => [a[i][i], [V[0][i], V[1][i], V[2][i]]]);
+}
+
 function drawSketch(d) {
   const view = document.getElementById('oview');
   if (!view) return;
@@ -1083,6 +1294,38 @@ function drawSketch(d) {
       prims.push([pts[i][2] + 0.02 - 0.3 * v[2] / (pn || 1),
         '<circle cx="' + (ax - off * ux).toFixed(1) + '" cy="' + (ay - off * uy).toFixed(1) +
         '" r="' + rl + '" fill="' + NEG + '" fill-opacity="0.55" stroke="' + NEG + '" stroke-opacity="0.9"/>']);
+    }
+    if (entry.length >= 10) {
+      // d part: lobes along the eigenaxes of the symmetric traceless matrix
+      const dv = [entry[5], entry[6], entry[7], entry[8], entry[9]];
+      const dn = Math.hypot(dv[0], dv[1], dv[2], dv[3], dv[4]);
+      if (dn >= 0.04) {
+        const s3 = 1 / Math.sqrt(3);
+        const M = [
+          [-s3 * dv[2] + dv[4], dv[0], dv[3]],
+          [dv[0], -s3 * dv[2] - dv[4], dv[1]],
+          [dv[3], dv[1], 2 * s3 * dv[2]],
+        ];
+        jacobi3(M).forEach(pair => {
+          const lam = pair[0], axis = pair[1];
+          if (Math.abs(lam) < 0.28 * dn) return;
+          const v = rot(axis);
+          const L = 4 + 13 * Math.abs(lam);
+          const sn2 = Math.hypot(v[0], v[1]) || 1e-6;
+          const ux = v[0] / sn2, uy = -v[1] / sn2;
+          const off = L * 0.6 * Math.min(1, sn2);
+          const rl = (2 + L * 0.4).toFixed(1);
+          const color = lam > 0 ? POS : NEG;
+          [1, -1].forEach(sgn => {
+            prims.push([pts[i][2] + 0.02 + sgn * 0.3 * v[2],
+              '<circle cx="' + (ax + sgn * off * ux).toFixed(1) +
+              '" cy="' + (ay + sgn * off * uy).toFixed(1) +
+              '" r="' + rl + '" fill="' + color +
+              '" fill-opacity="0.5" stroke="' + color +
+              '" stroke-opacity="0.85"/>']);
+          });
+        });
+      }
     }
   });
   prims.sort((a, b) => a[0] - b[0]);
@@ -1216,6 +1459,27 @@ document.getElementById('eshowall').addEventListener('click', () => {
   setRange(lo - pad, hi + pad);
 });
 
+// k-point variants (crystal-orbital diagrams): swap the level set in place
+function applyVariant(index) {
+  const variant = VARIANTS[index];
+  LEVELS = variant.levels;
+  if (variant.geom) GEOM = variant.geom;
+  CFG.homo = variant.homo; CFG.lumo = variant.lumo;
+  CFG.eMin = variant.eMin; CFG.eMax = variant.eMax;
+  Object.keys(byId).forEach(key => delete byId[key]);
+  LEVELS.forEach(l => byId[l.id] = l);
+  document.querySelectorAll('.kbtn').forEach((btn, i) =>
+    btn.classList.toggle('sel', i === index));
+  eMin = CFG.eMin; eMax = CFG.eMax;
+  render();
+  const panel = document.getElementById('panel');
+  if (panel) show(CFG.homo && byId[CFG.homo] ? CFG.homo : LEVELS[0].id);
+}
+if (VARIANTS) {
+  document.querySelectorAll('.kbtn').forEach((btn, i) =>
+    btn.addEventListener('click', () => applyVariant(i)));
+}
+
 // Ctrl/Cmd + wheel (or trackpad pinch): zoom the energy axis around the cursor
 svg.addEventListener('wheel', e => {
   if (!(e.ctrlKey || e.metaKey)) return;  // plain scroll keeps scrolling the page
@@ -1276,6 +1540,7 @@ def render_diagram_page(
     e_max: float,
     foot_html: str,
     geometry: dict | None = None,
+    variants: list[dict] | None = None,
 ) -> None:
     """Write the standalone interactive MO-diagram page.
 
@@ -1308,7 +1573,15 @@ def render_diagram_page(
         .replace("__CONFIG__", json.dumps(config))
         .replace("__LEVELS__", json.dumps(levels_json, ensure_ascii=False))
         .replace("__GEOM__", json.dumps(geometry))
+        .replace("__VARIANTS__", json.dumps(variants, ensure_ascii=False))
     )
+    kbar_html = ""
+    if variants:
+        buttons = "".join(
+            f'<button class="kbtn obtn{" sel" if i == 0 else ""}">{v["key"]}</button>'
+            for i, v in enumerate(variants)
+        )
+        kbar_html = f'<div id="kbar">k point: {buttons}</div>'
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1329,6 +1602,11 @@ def render_diagram_page(
                      border: 1px solid #b0bec5; border-radius: 3px;
                      background: #eceff1; cursor: pointer; }}
  #controls .hint {{ color: #90a4ae; margin-left: 10px; }}
+ #kbar {{ font-size: 12.5px; color: #37474f; margin: 2px 0 4px; }}
+ #kbar .kbtn {{ font-size: 12px; padding: 2px 10px; margin: 0 4px 4px 0;
+                border: 1px solid #b0bec5; border-radius: 3px;
+                background: #eceff1; cursor: pointer; }}
+ #kbar .kbtn.sel {{ background: #1565c0; color: #fff; border-color: #1565c0; }}
  svg {{ background: #fff; border: 1px solid #e0e0e0; border-radius: 6px;
         touch-action: none; cursor: ns-resize; }}
  #panel {{ width: 250px; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px;
@@ -1369,6 +1647,7 @@ def render_diagram_page(
 <div id="page">
 <h1>{heading_html}</h1>
 <div>{chip_html}</div>
+{kbar_html}
 <div id="controls">
  Energy window (eV): <input id="emin" type="number" step="1"> &ndash;
  <input id="emax" type="number" step="1">
