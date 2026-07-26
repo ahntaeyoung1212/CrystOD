@@ -19,6 +19,49 @@ crystod-mag -c example/test_POSCARs/221_PPOSCAR_AlNi3 --element Ni --qpoint 0 0 
 crystod-mag -c example/test_POSCARs/221_PPOSCAR_AlNi3 --element Ni
 ```
 
+The output opens with the magnetic sites and the complete irrep enumeration —
+for the Ni 3c cluster of AlNi3 (the Mn3Ir geometry), 9 spin degrees of freedom
+decompose into exactly three symmetry-adapted families:
+
+```
+Space group: Pm-3m (#221)
+Magnetic sites: Ni x 3
+  Ni1: [0.5, 0.5, 0.0]
+  Ni2: [0.5, 0.0, 0.5]
+  Ni3: [0.0, 0.5, 0.5]
+
+Selected q-point: GAMMA = [0.0, 0.0, 0.0]
+
+Spin (axial-vector) representation on Ni sites: 9 dimensions
+Decomposition: 2 x GM4+(3) + GM5+(3)
+
+Symmetry-adapted spin bases:
+  GM4+(3): dim 3 [FM, dipole]
+  GM4+(3): dim 3 [AFM, octupole]
+  GM5+(3): dim 3 [AFM, octupole]
+```
+
+Every basis vector is then printed with its per-atom spin directions, net
+moment, and the magnetization input. The [111] component of the GM4+ cluster
+octupole is the experimentally realized 120-degree structure of Mn3Ir — note
+the exactly vanishing net moment:
+
+```
+=== GM4+(3) [AFM, octupole] ===
+  component 111:
+    Ni1: S = [ 0.4082,  0.4082,  0.8165]
+    Ni2: S = [ 0.4082, -0.8165, -0.4082]
+    Ni3: S = [-0.8165,  0.4082, -0.4082]
+    net moment: [0.0, 0.0, -0.0]
+    spin directions (all atoms, POSCAR order):
+      Al1: [0, 0, 0]
+      Ni2: [0.4082, 0.4082, 0.8165]
+      Ni3: [0.4082, -0.8165, -0.4082]
+      Ni4: [-0.8165, 0.4082, -0.4082]
+    MAGMOM = 0 0 0   0.4082 0.4082 0.8165   0.4082 -0.8165 -0.4082   -0.8165 0.4082 -0.4082
+    written to: POSCAR_AlNi3_spin_GM4+_octupole_111.vesta
+```
+
 Per-atom spin directions and a ready-to-paste noncollinear magnetization input
 are printed by default for every basis vector. `--format` selects the input
 format:
@@ -30,6 +73,29 @@ format:
   element is split into one atom type per distinct spin direction (the atom
   membership of each type is printed as comments for
   `ATOMIC_SPECIES`/`ATOMIC_POSITIONS`).
+
+With `--format qe`, the same 120-degree octupole becomes (Ni split into three
+types because the three spins point in three different directions):
+
+```
+    Quantum ESPRESSO noncollinear magnetization (&SYSTEM):
+      noncolin = .true.
+      ! type 1 (Al): Al1 -- non-magnetic
+      ! type 2 (Ni1): Ni2  S = [0.4082, 0.4082, 0.8165]
+      starting_magnetization(2) = 1.0000
+      angle1(2) = 35.2611
+      angle2(2) = 45.0000
+      ! type 3 (Ni2): Ni3  S = [0.4082, -0.8165, -0.4082]
+      starting_magnetization(3) = 1.0000
+      angle1(3) = 114.0928
+      angle2(3) = -63.4378
+      ! type 4 (Ni3): Ni4  S = [-0.8165, 0.4082, -0.4082]
+      starting_magnetization(4) = 1.0000
+      angle1(4) = 114.0928
+      angle2(4) = 153.4378
+      ! angle1 = polar angle from the z axis (deg); angle2 = azimuth from the x axis in the xy plane (deg).
+      ! Split Ni into the types above in ATOMIC_SPECIES / ATOMIC_POSITIONS to realize this spin arrangement.
+```
 
 When `--qpoint` is omitted, the spin (axial-vector) irrep decomposition is
 listed for every special k point of the space group — the magnetic counterpart

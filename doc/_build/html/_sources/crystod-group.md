@@ -4,18 +4,36 @@ The point/space-group representation-theory calculator. One mode flag per task:
 `--product`, `--table`, `--decompose`, `--ligand-field`, `--basis`,
 `--generate-basis`, `--coset`, `--supergroup`, `--multiplet`, `--poscar2cif`,
 `--cif2poscar`, `--supergroup-cif`.
-Point groups are selected with `--pg`/`--point-group` and space groups with
-`--sg`/`--space-group` (labels starting with `-`, such as `-43m`, are accepted).
+Point groups are selected with `--pg`/`--pointgroup`/`--point-group` and
+space groups with `--sg`/`--spacegroup`/`--space-group`, by symbol or by
+number (labels starting with `-`, such as `-43m`, are accepted).
 
 ## 7. Direct products of point-group and space-group irreps (`--product`)
 
 *Example directory: `example/07_direct_product` (testsuite section 7)*
 
+### 7.1 Point-group irreps (`--pg`/`--point-group`)
+
 ```bash
 crystod-group --product T2g T2g T1u --point-group m-3m
 ```
 
-### Space-group irreps (`--sg`/`--space-group`)
+```
+* Point group *
+m-3m
+
+* Direct product *
+T2g*T2g*T1u
+
+* Result *
+ 1(A1u) + 1(A2u) + 2(Eu) + 4(T1u) + 3(T2u)
+```
+
+(`--product T2g T2g` alone gives `1(A1g) + 1(Eg) + 1(T1g) + 1(T2g)` — the
+symmetric/antisymmetric split of this square is what `--multiplet` performs in
+section 14.)
+
+### 7.2 Space-group irreps (`--sg`/`--space-group`)
 
 Decompose the direct product of **full space-group irreps** (the irreps at
 high-symmetry k points, induced over their whole star) into full space-group
@@ -41,7 +59,12 @@ character algebra over the finite factor group. Products landing on symmetry
 lines outside the tabulated special points (DT, SM, V, T, S, ...) are
 decomposed with on-the-fly `spgrep` small irreps; missing -k stars of polar
 groups (CDML "A" points, e.g. PA of I-43m) are synthesized as conjugate
-irreps.
+irreps. Line terms are named from a DIRPRO-fitted CDML table where
+available, and otherwise from the ISO-IR (ISOTROPY, Miller-Love) tables —
+marked `[non-tabulated; ISO-IR labels]` in the report, since the two
+conventions can differ at lines (e.g. CDML V of I4/mmm = ISOTROPY LD).
+Distinct +k/-k line stars of acentric groups take the CDML "A" suffix
+(`P1 x X1 = LD1 + LD2 + LDA1 + LDA2` in I4).
 
 This is the offline counterpart of the **DIRPRO** program of the Bilbao
 Crystallographic Server, cross-validated against it line by line (9007
@@ -50,17 +73,68 @@ products, 20 space groups covering all Bravais classes; see
 publication, please cite M. I. Aroyo, A. Kirov, C. Capillas, J. M. Perez-Mato
 and H. Wondratschek, *Acta Cryst.* **A62**, 115-128 (2006).
 
-Show the point-group character table:
+### 7.3 Character tables for point groups (`--table --point-group`)
 
 ```bash
 crystod-group --table --point-group 3m
 ```
 
-Show both the table and the direct-product decomposition:
+```
+* IrRep Table *
+table:
+irrep  E(1)  C3(2)  sgv(3)
+   A1     1      1       1
+   A2     1      1      -1
+    E     2     -1       0
+```
+
+The columns are the conjugacy classes with their sizes in parentheses. The
+same table is printed alongside a decomposition with `--show-irrep-table`:
 
 ```bash
 crystod-group --product T2g T2g T1u --point-group m-3m --show-irrep-table
 ```
+
+### 7.4 Character tables for space groups (`--table --space-group`)
+
+With `--space-group` and a `--kpoint`, the characters of the **small irreps of
+the little group** at that k point are tabulated — the space-group counterpart
+of the point-group table above:
+
+```bash
+crystod-group --table --space-group Pm-3m --kpoint 0 0.5 0.5
+```
+
+```
+* Space group *
+Pm-3m (221)
+
+* k-point (primitive) *
+ M [0.0, 0.5, 0.5]
+
+* IrRep Table *
+little group: P4/mmm (123)
+table:
+               irrep  1  2_001  2_010  2_100  4^-_100  2_011  2_01-1  4^+_100  -1  m_001  m_010  m_100  -4^-_100  m_011  m_01-1  -4^+_100
+ irrep_1(1) = M1+(1)  1      1      1      1        1      1       1        1   1      1      1      1         1      1       1         1
+ irrep_2(1) = M1-(1)  1      1      1      1        1      1       1        1  -1     -1     -1     -1        -1     -1      -1        -1
+ irrep_3(1) = M3+(1)  1     -1     -1      1        1     -1      -1        1   1     -1     -1      1         1     -1      -1         1
+ irrep_4(1) = M3-(1)  1     -1     -1      1        1     -1      -1        1  -1      1      1     -1        -1      1       1        -1
+ irrep_5(2) = M5+(2)  2      0      0     -2        0      0       0        0   2      0      0     -2         0      0       0         0
+ irrep_6(2) = M5-(2)  2      0      0     -2        0      0       0        0  -2      0      0      2         0      0       0         0
+ irrep_7(1) = M2+(1)  1      1      1      1       -1     -1      -1       -1   1      1      1      1        -1     -1      -1        -1
+ irrep_8(1) = M2-(1)  1      1      1      1       -1     -1      -1       -1  -1     -1     -1     -1         1      1       1         1
+ irrep_9(1) = M4+(1)  1     -1     -1      1       -1      1       1       -1   1     -1     -1      1        -1      1       1        -1
+irrep_10(1) = M4-(1)  1     -1     -1      1       -1      1       1       -1  -1      1      1     -1         1     -1      -1         1
+```
+
+Note that `(0, 1/2, 1/2)` is a non-representative arm of the M star: the
+header names it `M` and the rows carry the CDML labels transported from the
+tabulated arm (`irrep_N` is the internal `spgrep` name, `MN+/-` the physical
+label). Unlike a point-group table the columns are individual symmetry
+operations in Seitz notation, not classes, because at a general k point the
+Bloch phases of a class need not coincide. These are exactly the characters
+against which the SALC, phonon, and spin analyses are reduced.
 
 ## 8. Reducible-representation decomposition (`--decompose`)
 
@@ -144,6 +218,33 @@ crystod-group --basis Rx Ry Rz --space-group Pm-3m --kpoint 0 0 0  # -> GM4+
 crystod-group --basis "x*Ry - y*Rx" --point-group m-3m             # toroidal component -> T1u
 ```
 
+The axial run shows the sign pattern responsible for the parity flip — the
+rotation classes keep the polar characters, while every improper class
+(i, S4, S6, sgh, sgd) changes sign relative to (x, y, z):
+
+```
+* Input basis functions *
+ Rx, Ry, Rz
+
+* Reducible characters *
+  E: 3
+  C3: 0
+  C2: -1
+  C4: 1
+  C4^2: -1
+  i: 3
+  S4: 1
+  S6: 0
+  sgh: -1
+  sgd: -1
+
+* Decomposition *
+ 1.0 [T1g]
+
+* Irreducible representations for basis functions *
+  T1g: [Rx, Ry, Rz]
+```
+
 This makes the magnetic (spin) irreps directly comparable with the
 `crystod-mag` labels (e.g. the GM4+ cluster dipole of AlNi3).
 
@@ -171,7 +272,22 @@ crystod-group --generate-basis --space-group Pm-3m --kpoint 0 0 0 --order 2 3 --
 
 This is the automated counterpart of `--basis`: for each requested order, all
 monomials of that degree are decomposed into the irreps of the point group, or
-of the little group of the selected space-group k point.
+of the little group of the selected space-group k point. The second-order run
+at GM of Pm-3m, for example, ends with
+
+```
+* Decomposition *
+ 1.0 [GM1+(1)] + 1.0 [GM3+(2)] + 1.0 [GM5+(3)]
+
+* Irreducible representations for basis functions *
+  GM1+(1): [x^2 + y^2 + z^2]
+  GM3+(2): [-2 x^2 + y^2 + z^2, x^2 - 2 y^2 + z^2]
+  GM5+(3): [xy, yz, xz]
+```
+
+— the quadratic polynomials sorted into the breathing mode, the Eg pair, and
+the T2g triple (see also the projection-operator walk-through in section 1.4 of
+the `crystod` page).
 
 ## 12. Coset decomposition (`--coset`)
 
@@ -181,6 +297,22 @@ Point-group mode decomposes G into left cosets g H of a subgroup H:
 
 ```bash
 crystod-group --coset --point-group m-3m --subgroup 4/mmm
+```
+
+```
+ * Groups *
+ G = m-3m (order 48)
+ H = 4/mmm (order 16)
+
+ * Coset decomposition G = sum_i g_i H *
+ index [G:H] = 3
+
+ coset 1 (representative: E):
+   { E, C4#1, C4#2, C4^2#1, C4^2#2, C4^2#3, C2#1, C2#4, i, S4#1, S4#2, sgh#1, sgh#2, sgh#3, sgd#4, sgd#1 }
+ coset 2 (representative: C3#1):
+   { C3#1, C2#3, C4#5, C3#7, C3#3, C3#5, C4#6, C2#6, S6#1, sgd#3, S4#5, S6#7, S6#3, S6#5, sgd#6, S4#6 }
+ coset 3 (representative: C3#2):
+   { C3#2, C4#4, C2#2, C3#8, C3#4, C3#6, C4#3, C2#5, S6#2, S4#4, sgd#2, S6#8, S6#4, S6#6, sgd#5, S4#3 }
 ```
 
 Space-group mode decomposes the rotation group of G into right cosets G_k g of
@@ -397,7 +529,18 @@ For two-shell configurations, the doubly-occurring terms (the CI pairs) are addi
 With `--orbital`, `--visualize` writes the **exact eigenstates of every term** as an interactive HTML page (`Multiplet_{pg}_{config}.html`): the term list in a sidebar (Hund/energy ground state marked), and for the selected term the full **Slater-determinant expansion** — every determinant drawn as an orbital box diagram (t2g: dxy, dyz, dxz | eg: dz2, dx2-y2, identified from the parent orbital) with up/down arrows and the exact expansion coefficient (1, ±1/2, ±1/√2, ±√3/2, ...):
 
 ```bash
-crystod-group --multiplet T2g2 Eg1 --pg m-3m --orbital d --visualize
+crystod-group --multiplet "T2g^2" --pg m-3m --orbital d --visualize
+```
+
+The page below is the live output of that command — the four terms of
+(t2g)^2 (`^3T1g + ^1A1g + ^1Eg + ^1T2g`, the Hund ground term `^3T1g` marked)
+in the sidebar; pick one to see its Slater-determinant expansion as orbital
+box diagrams and the drag-rotatable charge/spin-density surface of that
+eigenstate:
+
+```{raw} html
+<iframe src="_static/embed/Multiplet_m-3m_T2g2.html" width="100%" height="660" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/Multiplet_m-3m_T2g2.html" target="_blank">Open the (t2g)<sup>2</sup> multiplet viewer full-screen</a></p>
 ```
 
 A term eigenstate is in general a superposition of determinants, not a single box configuration — e.g. the ^4A2g of (t2g)^3 *is* the single determinant |dxy↑ dyz↑ dxz↑⟩ (coefficient 1), while a ^4T1g partner of (t2g)^2(eg)^1 is √3/2 |dx2-y2↑; dxy↑ dyz↑⟩ + 1/2 |dz2↑; dxy↑ dyz↑⟩. States are shown at the highest spin projection Ms = S; degenerate spatial partners are switchable (canonicalized, so any orthogonal mixture is equivalent); configuration-mixed terms (the CI pairs, e.g. the two ^2T1g) get one tab per state with its Coulomb energy at the reference parameters. `--output` selects the file name. For f shells, symmetry-mixed basis functions (e.g. the t1u combination of fx(x2-3y2) and fxz2) get short symbols `t1u(1)`, ... in the boxes, expanded in an *Orbital basis functions* legend on the page. Each state also gets a drag-rotatable 3D surface of its **charge and spin density** (angular part), computed exactly from the one-particle reduced density matrix of the term eigenstate: r(θ,φ) ∝ n(θ,φ), colored by the local spin polarization — the real-space picture behind orbital ordering and Jahn-Teller physics (e.g. the (t2g)^3 ^4A2g shows the cubic-symmetric t2g flower, fully spin-polarized, while the ^2Eg partners keep the cubic charge density but carry an anisotropic spin density).
@@ -454,6 +597,56 @@ crystod-group --supergroup-cif 221_PPOSCAR_SrTiO3.cif --subgroup-cif 140_PPOSCAR
 k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
 (1/2,1/2,1/2)    R5-     (0,0,a)      140 I4/mcm          1    0.3303
 ```
+
+A second example, the n = 2 Ruddlesden-Popper nickelate La3Ni2O7
+(I4/mmm -> Cmcm), with `--conventional`:
+
+```bash
+crystod-group --supergroup-cif 139_PPOSCAR_La3Ni2O7.cif --subgroup-cif 63_PPOSCAR_La3Ni2O7.cif --conventional
+```
+
+```
+* Supergroup (parent) structure *
+I4/mmm (No. 139)
+
+* Subgroup (distorted) structure *
+Cmcm (No. 63)
+
+* Cell relation *
+child primitive basis in parent primitive units (rows):
+  (-1, 0, 0)
+  (0, -1, 0)
+  (1, 1, 2)
+origin shift (parent primitive fractional): (1/2, 1, 1/2)
+primitive cell multiplication: 2
+
+maximum atomic displacement: 0.4097 A
+total distortion amplitude : 1.1489 A
+(normalized within the primitive cell of the distorted structure)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(0,0,0)          GM1+    (a)          139 I4/mmm          4    0.1313
+(0,0,1/2)        X3-     (a;0)        63 Cmcm             6    1.1413
+
+* Mode displacement VESTA files (parent conventional basis) *
+display cell in parent primitive units (rows):
+  (0, 2, 2)
+  (2, 0, 2)
+  (1, 1, 0)
+  139_PPOSCAR_La3Ni2O7_GM1+_conv.vesta  (amplitude 0.1313 A)
+  139_PPOSCAR_La3Ni2O7_X3-_conv.vesta  (amplitude 1.1413 A)
+```
+
+The distortion is dominated by the zone-boundary octahedral-tilt mode
+`X3-(a;0)`, whose isotropy subgroup is exactly the observed Cmcm — the same
+entry as in the single-irrep table of section 13 — while the totally
+symmetric `GM1+` is only a small secondary relaxation of the free
+coordinates within I4/mmm. `--conventional` writes the per-mode displacement
+VESTA files in the **parent conventional basis** (the `_conv` suffix; the
+body-centred I lattice makes the conventional cell twice the primitive one,
+hence the printed display-cell rows), so the arrows can be inspected in the
+familiar tetragonal setting instead of the primitive one.
 
 The output also contains the automatically determined cell relation
 (sublattice basis + origin shift), the atom-by-atom displacement table
