@@ -26,7 +26,7 @@ The numbers are grouped by command:
 | Sections | Command | Features |
 |---|---|---|
 | 1 | (library core) | Wigner D matrices — theoretical background, section 1 of {doc}`crystod` |
-| 2–6 | `crystod` | 2–3 SALC & hybridization, 4 star of k, 5 SALC viewer, 6 CLI regression |
+| 2–6 | `crystod` | 2 SALC, 3 hybridization & crystal-orbital diagrams (`--diagram`), 4 star of k, 5 SALC viewer, 6 CLI regression |
 | 7–17 | `crystod-group` | 7 product, 8 decompose, 9 ligand field, 10 basis, 11 generate-basis, 12 coset, 13 isotropy subgroups (`--supergroup`), 14 multi-electron terms (`--multiplet`), 15 POSCAR <-> Bilbao-style CIF (`--poscar2cif` / `--cif2poscar`), 16 symmetry-mode analysis (`--supergroup-cif`), 17 CLI regression |
 | 18–20 | `crystod-bz` | 18 Brillouin zone, 19 supercell BZ, 20 CLI regression |
 | 21–27 | `crystod-phonon` | 21 irreps, 22 fatband, 23 LT bands, 24 eigenvectors, 25 modulation, 26 vibration, 27 CLI regression |
@@ -42,6 +42,7 @@ section of their own.
 
 - `crystod -c POSCAR --element ELEMENT --orbital ORBITAL [--kpoint kx ky kz]` (k omitted: all special k points)
 - `crystod -c POSCAR --atomic-orbital Ni_d O_p --kpoint kx ky kz`
+- `crystod --diagram -c POSCAR --co-left FORMULA --co-right FORMULA [--atomic-orbital EL-SHELL ...] [--electrons N]`   (crystal-orbital diagram, full valence basis; `--atomic-orbital` selects the sketch orbitals)
 - `crystod --visualize -c POSCAR --element EL --orbital ORB --kpoint kx ky kz [--real-coefficient] [--bond EL1 EL2 MAX] [--conventional] [--output FILE.html]`
 - `crystod --star-of-k -c POSCAR --kpoint QLABEL_OR_KX KY KZ`
 - `crystod-group --product IRREP1 IRREP2 ... --point-group PG`

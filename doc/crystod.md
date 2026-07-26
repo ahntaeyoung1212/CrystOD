@@ -233,15 +233,92 @@ crystod -c example/test_POSCARs/221_PPOSCAR_SrTiO3 --element Ti --orbital d \
 When `--kpoint` is omitted, all special k points of the space group are analyzed.
 Any arm of a special-point star is labeled correctly (since v0.3.1).
 
-## 3. Hybridization analysis
+## 3. Hybridization analysis and crystal-orbital diagrams
 
-*Example directory: `example/02_salc` (testsuite section 3)*
+*Example directory: `example/03_hybridization` (testsuite section 3)*
 
 Analyze the hybridization between selected atomic orbitals (`ELEMENT_ORBITAL` pairs):
 
 ```bash
 crystod -c example/test_POSCARs/221_PPOSCAR_SrTiO3 --atomic-orbital Ti_d O_p --kpoint 0 0 0
 ```
+
+For each little-group irrep at the k point, the orbitals that transform as it
+are listed — orbitals sharing a line are symmetry-allowed to hybridize.
+
+### Crystal-orbital diagrams (`--diagram --co-left ... --co-right ...`)
+
+`--diagram` draws the quantitative **crystal orbital diagram (COD)** — the
+crystalline analogue of the molecular-orbital diagram of
+`crystod-mol --diagram --ao-left ... --ao-right ...`.
+`--co-left`/`--co-right` split the crystal into two fragment sublattices by
+chemical formula (every atom must belong to one side; a count such as `O3`
+validates against the primitive cell), and each fragment is treated with its
+**full valence basis** — every parametrized shell of every atom — so the
+fragment Bloch states are the complete electronic states *before* chemical
+bond formation:
+
+```bash
+crystod --diagram -c 221_PPOSCAR_ScF3 --co-left Sc --co-right F3 --atomic-orbital Sc-3d F-2p
+# -> CrystOD_221_PPOSCAR_ScF3.html
+
+crystod --diagram -c 221_PPOSCAR_SrTiO3 --co-left SrTi --co-right O3 --atomic-orbital Ti-3d Ti-4s O-2p
+```
+
+At every special k point of the space group,
+
+1. the Bloch orbitals of each fragment (e.g. Sr 5s 5p + Ti 4s 4p 3d | O 2s
+   2p) are symmetry-adapted per irrep of the little group of k (the
+   site-symmetry induced representations of the hybridization analysis
+   above);
+2. all intra- and inter-fragment overlaps are evaluated **exactly** as
+   Bloch lattice sums of STO overlap integrals (single-zeta s/p, standard
+   double-zeta d, sigma/pi/delta Slater-Koster assembly rotated with the
+   exact real Wigner-D matrices), with a per-shell-pair lattice-sum cutoff
+   probed from the actual STO tails (diffuse cation shells reach 30+ bohr);
+3. the generalized eigenvalue problem with the Wolfsberg-Helmholz
+   Hamiltonian H_ij = K S_ij (H_ii + H_jj)/2 (the diagonal carries the
+   same-orbital neighbour-cell Bloch sums, H_ii = h_ii + K h_ii (S_kk - 1))
+   is solved: fragment orbitals sharing an irrep split into bonding and
+   antibonding crystal orbitals, orbitals without a partner remain
+   rigorously nonbonding — the COD mixing rule;
+4. an interactive HTML page is written with **one energy diagram per k
+   point** (buttons switch the k point): fragment | crystal orbitals |
+   fragment columns, correlation lines weighted by the composition,
+   electron arrows, HOMO/LUMO markers, and the adjustable energy window,
+   which opens on **-20 .. 10 eV** ("Show all energy levels" reveals the
+   deep shells). `--atomic-orbital` (optional) selects the atomic orbitals
+   drawn in the hover **wave-function sketch**: Re[psi] of exactly those
+   components (`Ti-3d Ti-4s O-2p`; `Ti-d` = all d shells) on the
+   k-commensurate supercell (2x2x2 at R, ...) with VESTA-style +/- lobes
+   for s, p, and d orbitals (drag-rotatable, degenerate partners
+   switchable); without `--atomic-orbital` no sketches are embedded.
+
+For ScF3 (`--co-left Sc --co-right F3`) the diagram shows the textbook
+result: at GM the F-2s GM1+/GM3+ states form sigma bonds with
+Sc-4s/Sc-3d(eg) while the t2g-derived GM5+ stays 100% pure (nonbonding); at
+R the eg-derived R3+ states split strongly (sigma/sigma*), the t2g-derived
+R5+ states split weakly (pi/pi*), and R4+ remains pure F-2p — the
+paradigmatic perovskite crystal orbital diagram.
+
+- electrons default to the neutral-atom valence counts (ScF3/SrTiO3: 24 per
+  cell, filling exactly the anion 2s/2p manifolds — the d0 insulator);
+  `--electrons N` overrides the filling;
+- `--kpoint GM` restricts the analysis to one special point (labels only);
+- `--output`/`--tolerance` as usual. Note that the irrep labels at
+  zone-boundary points depend on the origin of the input structure (as in
+  every SALC analysis); use the setting of your reference when comparing.
+
+Elements H-Bi of the standard extended-Hueckel tables are parameterized
+(3d/4d transition metals with double-zeta d shells). The terminal report
+prints the fragment levels (labeled by their dominant element+shell) and
+the full crystal-orbital table (energy, irrep, degeneracy, occupation,
+composition) at every k point. Physics note: in dense cation sublattices
+the diffuse valence shells (Sr 5s/5p, Ti 4s/4p, ...) make a few Bloch
+combinations nearly linearly dependent on the rest of the basis; for those
+the extended-Hueckel energies diverge (the well-known overlap catastrophe),
+so combinations with an overlap eigenvalue below 0.2 are removed by
+canonical orthogonalization — the terminal report counts them per k point.
 
 ## 4. Star of k
 
