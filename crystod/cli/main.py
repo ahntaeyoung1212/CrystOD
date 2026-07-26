@@ -55,6 +55,7 @@ needed: select the orbitals and the irrep decomposition runs directly.
 crystod -c 221_PPOSCAR_SrTiO3 --element Ti --orbital d
 crystod -c 221_PPOSCAR_SrTiO3 --element Ti --orbital d --kpoint 0 0 0 --spinor --show-irrep-table
 crystod -c 221_PPOSCAR_SrTiO3 --atomic-orbital Ti_d O_p --kpoint 0 0 0
+crystod --diagram -c 221_PPOSCAR_SrTiO3 --co-left SrTi --co-right O3 --atomic-orbital Ti-3d O-2p
 crystod -c 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 0 0 0 --visualize
 crystod --star-of-k -c 221_PPOSCAR_ScF3 --kpoint 0.5 0.5 0
 """
@@ -122,6 +123,38 @@ def build_parser() -> ArgumentParser:
         "are allowed), or a high-symmetry label such as GM/X/M/R in\n"
         "--star-of-k/--visualize mode. When omitted in SALC mode, all special\n"
         "k points are analyzed.",
+    )
+    parser.add_argument(
+        "--diagram",
+        action="store_true",
+        help="Crystal-orbital diagram: per-k-point energy diagrams of the two\n"
+        "fragment sublattices given by --co-left/--co-right (full valence\n"
+        "basis, e.g. --co-left SrTi --co-right O3) from symmetry +\n"
+        "extended-Hueckel Bloch overlaps, written as interactive HTML\n"
+        "(CrystOD_{cell}.html). --atomic-orbital optionally selects the\n"
+        "orbitals drawn in the hover wave-function sketch (e.g. Ti-3d O-2p).",
+    )
+    parser.add_argument(
+        "--co-left",
+        nargs="+",
+        default=None,
+        metavar="FORMULA",
+        help="Left fragment sublattice of the --diagram (formula of the\n"
+        "elements, e.g. SrTi); all valence shells of these atoms are used.",
+    )
+    parser.add_argument(
+        "--co-right",
+        nargs="+",
+        default=None,
+        metavar="FORMULA",
+        help="Right fragment sublattice of the --diagram (e.g. O3).",
+    )
+    parser.add_argument(
+        "--electrons",
+        type=float,
+        default=None,
+        help="Electrons per primitive cell in the --diagram\n"
+        "(default: neutral-atom valence counts).",
     )
     parser.add_argument(
         "--spinor",
@@ -273,6 +306,43 @@ def main(argv: list[str] | None = None) -> None:
 
         visualize_basis_main(dispatch_argv)
         return
+
+    if args.diagram:
+        if not (args.co_left and args.co_right):
+            parser.error(
+                "--diagram requires --co-left and --co-right with the two "
+                "fragment sublattices (full valence basis), e.g. "
+                "--co-left SrTi --co-right O3. --atomic-orbital optionally "
+                "selects the orbitals drawn in the wave-function sketch, "
+                "e.g. --atomic-orbital Ti-3d Ti-4s O-2p."
+            )
+        dispatch_argv = ["--poscar", args.cell,
+                         "--co-left", *args.co_left,
+                         "--co-right", *args.co_right]
+        if args.atomic_orbital:
+            dispatch_argv.extend(["--atomic-orbital", *args.atomic_orbital])
+        if args.kpoint is not None:
+            if len(args.kpoint) != 1:
+                parser.error(
+                    "--diagram --kpoint takes a special-point label such as "
+                    "GM/X/M/R (the diagram is drawn per special k point)."
+                )
+            dispatch_argv.extend(["--kpoint", args.kpoint[0]])
+        if args.electrons is not None:
+            dispatch_argv.extend(["--electrons", str(args.electrons)])
+        if args.output is not None:
+            dispatch_argv.extend(["--output", args.output])
+        if args.tolerance is not None:
+            dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+
+        from ..crystal_orbital_diagram import main as crystal_diagram_main
+
+        crystal_diagram_main(dispatch_argv)
+        return
+    if args.electrons is not None:
+        parser.error("--electrons is only used with --diagram.")
+    if args.co_left or args.co_right:
+        parser.error("--co-left/--co-right are only used with --diagram.")
 
     if args.atomic_orbital:
         if args.element or args.orbital:
