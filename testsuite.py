@@ -267,6 +267,144 @@ def test_03_hybridization() -> None:
     report("separator-less token rejected with a clear message",
            code != 0 and "invalid --atomic-orbital token 'Tid'" in out, out)
 
+    # --diagram: crystal-orbital diagram (full-valence fragments per k point)
+    with tempfile.TemporaryDirectory() as tmp:
+        html_path = os.path.join(tmp, "CrystOD_ScF3.html")
+        code, out = run_cli(
+            ["-c", POSCAR_ScF3, "--diagram", "--co-left", "Sc",
+             "--co-right", "F3", "--atomic-orbital", "Sc-3d", "F-2p",
+             "--output", html_path]
+        )
+        report("--diagram ScF3 --co-left Sc --co-right F3 exit 0",
+               code == 0, out)
+        report("full valence basis: all shells and 24 electrons per cell",
+               "Sc 4s 4p 3d" in out and "F 2s 2p" in out
+               and "electrons per cell in the diagram: 24" in out, out)
+        report("GM: F-2s/Sc-3d eg sigma bond, t2g GM5+ pure nonbonding",
+               re.search(r"GM3\+\(1\)\s+-39\.\d+ eV\s+x2\s+4e\s+"
+                         r"F 2s GM3\+ \d+%\s+Sc 3d GM3\+ \d+%", out)
+               is not None
+               and re.search(r"GM5\+\s+-8\.\d+ eV\s+x3\s+"
+                             r"Sc 3d GM5\+ 100%", out) is not None, out)
+        report("R: eg (R3+) splits into bonding/antibonding, R4+ nonbonding",
+               re.search(r"R3\+\(1\)\s+-18\.\d+ eV\s+x2\s+4e\s+F 2p R3\+ \d+%"
+                         r"\s+Sc 3d R3\+ \d+%", out) is not None
+               and re.search(r"R3\+\(2\)", out) is not None
+               and re.search(r"R4\+\s+-1[78]\.\d+ eV\s+x3\s+6e\s+"
+                             r"F 2p R4\+ 100%", out) is not None, out)
+        report("R: near-dependent diffuse Bloch combination removed",
+               "near-dependent diffuse Bloch combination(s) removed" in out
+               and "overlap floor" in out, out)
+        report("diagram HTML written with k-point variants",
+               os.path.isfile(html_path), out)
+        if os.path.isfile(html_path):
+            with open(html_path) as handle:
+                html = handle.read()
+            report("HTML has the four k-point buttons and variants",
+                   html.count('class="kbtn') == 4
+                   and "const VARIANTS = [" in html
+                   and "R (1/2,1/2,1/2)" in html, html_path)
+            report("levels carry supercell wave-function sketches",
+                   html.count('"orb": [[') > 50
+                   and html.count('"geom":') == 4
+                   and "jacobi3" in html, html_path)
+            report("energy window opens on -20 .. 10 eV",
+                   '"eMin": -20.0' in html
+                   and "Show all energy levels" in html, html_path)
+
+        # SrTiO3, no sketch filter, one k point
+        code, out = run_cli(
+            ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
+             "--co-right", "O3", "--kpoint", "R",
+             "--output", os.path.join(tmp, "sto_R.html")]
+        )
+        report("--diagram SrTiO3 --co-left SrTi --co-right O3 exit 0",
+               code == 0 and "electrons per cell in the diagram: 24" in out,
+               out)
+        report("R: t2g (R4-) pi and eg (R3-) sigma bonding/antibonding",
+               re.search(r"R3-\(1\)\s+-15\.\d+ eV\s+x2\s+4e\s+O 2p R3- \d+%"
+                         r"\s+Ti 3d R3- \d+%", out) is not None
+               and re.search(r"R4-\(2\)\s+-8\.\d+ eV\s+x3\s+"
+                             r"Ti 3d R4- \d+%", out) is not None, out)
+        report("no --atomic-orbital: sketches not embedded",
+               "hover wave-function sketches are not embedded" in out, out)
+        with open(os.path.join(tmp, "sto_R.html")) as handle:
+            html = handle.read()
+        report("HTML carries no sketch without --atomic-orbital",
+               '"orb": [[' not in html and '"orb": null' in html, html_path)
+
+        # electron-count override
+        code, out = run_cli(
+            ["-c", POSCAR_ScF3, "--diagram", "--co-left", "Sc",
+             "--co-right", "F3", "--electrons", "18", "--kpoint", "GM",
+             "--output", os.path.join(tmp, "ionic.html")]
+        )
+        report("--electrons 18 overrides the neutral-atom filling",
+               code == 0 and "electrons per cell in the diagram: 18" in out
+               and "neutral-atom" not in out, out)
+
+    # errors
+    code, out = run_cli(["-c", POSCAR_SrTiO3, "--diagram"])
+    report("--diagram without --co-left/--co-right rejected cleanly",
+           code != 0 and "requires --co-left and --co-right" in out
+           and "Traceback" not in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--diagram", "--atomic-orbital", "Ti-d", "O-p"]
+    )
+    report("--diagram with only --atomic-orbital points to --co-left/right",
+           code != 0 and "requires --co-left and --co-right" in out
+           and "wave-function sketch" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
+         "--co-right", "O3", "--kpoint", "0", "0", "0"]
+    )
+    report("--diagram with coordinate k point rejected (labels only)",
+           code != 0 and "special-point label" in out
+           and "Traceback" not in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
+         "--co-right", "O3", "--kpoint", "Q"]
+    )
+    report("unknown k label rejected with the available list",
+           code != 0 and "not a special point" in out and "GM" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
+         "--co-right", "O2"]
+    )
+    report("fragment formula count mismatch rejected",
+           code != 0 and "primitive cell has 3 O atom(s)" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "Sr",
+         "--co-right", "O3"]
+    )
+    report("unassigned element rejected (every atom needs a fragment)",
+           code != 0 and "Ti not assigned to --co-left/--co-right" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
+         "--co-right", "TiO3"]
+    )
+    report("element on both sides rejected",
+           code != 0 and "listed more than once" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
+         "--co-right", "O3", "--atomic-orbital", "Ti-5d", "--kpoint", "GM"]
+    )
+    report("sketch token without a matching basis orbital rejected",
+           code != 0 and "matches no basis orbital" in out
+           and "Ti-3d" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--electrons", "18", "--element", "O",
+         "--orbital", "p"]
+    )
+    report("--electrons outside --diagram rejected cleanly",
+           code != 0 and "only used with --diagram" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--co-left", "SrTi", "--element", "O",
+         "--orbital", "p"]
+    )
+    report("--co-left outside --diagram rejected cleanly",
+           code != 0 and "only used with --diagram" in out, out)
+
 
 # ---------------------------------------------------------------- 4. crystod --star-of-k
 def test_04_star_of_k() -> None:
