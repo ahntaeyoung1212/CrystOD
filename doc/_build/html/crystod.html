@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>crystod (main command) &#8212; CrystOD v0.3.3</title>
+    <title>crystod (main command) &#8212; CrystOD v0.3.4</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=94d292f4"></script>
+    <script src="_static/documentation_options.js?v=01c71025"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -53,7 +53,7 @@
     <link rel="prev" title="Quick start" href="quickstart.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.3" />
+  <meta name="docsearch:version" content="0.3.4" />
   </head>
   
   
@@ -128,7 +128,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.3</p>
+    <p class="title logo__title">CrystOD v0.3.4</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -322,7 +322,11 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#irreps-of-salc-for-a-selected-element-and-orbital">2. Irreps of SALC for a selected element and orbital</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hybridization-analysis">3. Hybridization analysis</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#star-of-k">4. Star of k</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-1-sc-d-orbitals-of-scf3-at-the-r-point">Example 1: Sc d orbitals of ScF3 at the R point</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-2-ce-f-orbitals-of-ceo2-in-the-conventional-cell-conventional">Example 2: Ce f orbitals of CeO2 in the conventional cell (<code class="docutils literal notranslate"><span class="pre">--conventional</span></code>)</a></li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -596,7 +600,11 @@ convention (positive = yellow, negative = blue) and rendered opaque with
 VESTA-like lighting by default, so the front/back occlusion of overlapping lobes
 is always correct. The lobe-opacity slider switches to a translucent view, where
 a distance-based fade keeps near/far lobes distinguishable. Cell/atom display
-controls and a camera-synchronized a/b/c compass (a red, b green, c blue) sit in
+controls and a camera-synchronized a/b/c compass (a red, b green, c blue;
+with <code class="docutils literal notranslate"><span class="pre">--conventional</span></code> it shows both lattices — the primitive vectors as short
+pastel arrows labeled <code class="docutils literal notranslate"><span class="pre">a_prim</span></code>/<code class="docutils literal notranslate"><span class="pre">b_prim</span></code>/<code class="docutils literal notranslate"><span class="pre">c_prim</span></code> and the conventional vectors
+of the displayed cell as full-color arrows labeled <code class="docutils literal notranslate"><span class="pre">a_conv</span></code>/<code class="docutils literal notranslate"><span class="pre">b_conv</span></code>/<code class="docutils literal notranslate"><span class="pre">c_conv</span></code>)
+sit in
 the sidebar and the lower-left corner.</p>
 <p><strong>The viewer layout is modeled after the
 <a class="reference external" href="https://henriquemiranda.github.io/phononwebsite/">phonon website</a> by Henrique
@@ -611,16 +619,41 @@ primitive cell (the primitive-to-conventional matrix is derived from the
 detected centring, exactly as in <code class="docutils literal notranslate"><span class="pre">crystod-phonon</span> <span class="pre">--vector</span></code>; file names get a
 <code class="docutils literal notranslate"><span class="pre">_conv</span></code> suffix, and for k != 0 the conventional cell is multiplied until the
 Bloch phase is commensurate).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--bond</span> <span class="pre">EL1</span> <span class="pre">EL2</span> <span class="pre">MAX</span></code> (repeatable, e.g. <code class="docutils literal notranslate"><span class="pre">--bond</span> <span class="pre">Sc</span> <span class="pre">F</span> <span class="pre">2.3</span></code>) draws bonds between
-the two elements up to MAX Angstroms and renders the coordination polyhedra
-around the EL1 atoms as translucent convex hulls, as in VESTA’s Polyhedral
-style; atoms at the cell boundary are completed VESTA-style so the polyhedra
-are not cut off:</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--bond</span> <span class="pre">EL1</span> <span class="pre">EL2</span> <span class="pre">MAX</span></code> (repeatable, e.g.
+<code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--visualize</span> <span class="pre">-c</span> <span class="pre">221_PPOSCAR_ScF3</span> <span class="pre">--element</span> <span class="pre">F</span> <span class="pre">--orbital</span> <span class="pre">p</span> <span class="pre">--kpoint</span> <span class="pre">1/2</span> <span class="pre">1/2</span> <span class="pre">1/2</span> <span class="pre">--real-coefficient</span> <span class="pre">--bond</span> <span class="pre">Sc</span> <span class="pre">F</span> <span class="pre">2.3</span></code>)
+draws bonds between the two elements up to MAX Angstroms and renders the
+coordination polyhedra around the EL1 atoms as translucent convex hulls, as
+in VESTA’s Polyhedral style; atoms at the cell boundary are completed
+VESTA-style so the polyhedra are not cut off.</p></li>
 </ul>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>--visualize<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--element<span class="w"> </span>F<span class="w"> </span>--orbital<span class="w"> </span>p<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">1</span>/2<span class="w"> </span><span class="m">1</span>/2<span class="w"> </span><span class="m">1</span>/2<span class="w"> </span>--real-coefficient<span class="w"> </span>--bond<span class="w"> </span>Sc<span class="w"> </span>F<span class="w"> </span><span class="m">2</span>.3
+<section id="example-1-sc-d-orbitals-of-scf3-at-the-r-point">
+<h3>Example 1: Sc d orbitals of ScF3 at the R point<a class="headerlink" href="#example-1-sc-d-orbitals-of-scf3-at-the-r-point" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--element<span class="w"> </span>Sc<span class="w"> </span>--orbital<span class="w"> </span>d<span class="w"> </span>--kpoint<span class="w"> </span>R<span class="w"> </span>--visualize<span class="w"> </span>--real-coefficient<span class="w"> </span>--bond<span class="w"> </span>Sc<span class="w"> </span>F<span class="w"> </span><span class="m">2</span>.5
 </pre></div>
 </div>
-<ul class="simple">
+<p>The viewer below is the live output of that command — an R-point example, so
+the commensurate 2x2x2 supercell is built and the Bloch phase alternates the
+lobe signs from cell to cell (the Sc d SALCs at R decompose as
+<code class="docutils literal notranslate"><span class="pre">R3+(2)</span> <span class="pre">+</span> <span class="pre">R5+(3)</span></code>). Click any row of the SALC table in the sidebar to switch
+the displayed basis vector, toggle the ScF6 polyhedra, and drag to rotate:</p>
+<iframe src="_static/embed/SALC_Sc_d_R.html" width="100%" height="660" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/SALC_Sc_d_R.html" target="_blank">Open the ScF3 SALC viewer full-screen</a></p></section>
+<section id="example-2-ce-f-orbitals-of-ceo2-in-the-conventional-cell-conventional">
+<h3>Example 2: Ce f orbitals of CeO2 in the conventional cell (<code class="docutils literal notranslate"><span class="pre">--conventional</span></code>)<a class="headerlink" href="#example-2-ce-f-orbitals-of-ceo2-in-the-conventional-cell-conventional" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>--visualize<span class="w"> </span>-c<span class="w"> </span>225_PPOSCAR_CeO2<span class="w"> </span>--element<span class="w"> </span>Ce<span class="w"> </span>--orbital<span class="w"> </span>f<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>--bond<span class="w"> </span>Ce<span class="w"> </span>O<span class="w"> </span><span class="m">3</span><span class="w"> </span>--real-coefficient<span class="w"> </span>--conventional
+</pre></div>
+</div>
+<p>CeO2 is face-centred (Fm-3m), so its primitive cell is the small rhombohedral
+one — hardly the picture one has in mind for fluorite. <code class="docutils literal notranslate"><span class="pre">--conventional</span></code>
+switches the display to the cubic conventional cell (four formula units, the
+familiar CeO8 cube arrangement) while the SALC coefficients themselves are
+unchanged. The corner compass then shows <strong>both</strong> lattices: the primitive
+vectors as short pastel arrows (a<sub>prim</sub>, b<sub>prim</sub>,
+c<sub>prim</sub> — the face diagonals) and the conventional vectors of the
+displayed cell as full-color arrows (a<sub>conv</sub>, b<sub>conv</sub>,
+c<sub>conv</sub> — the cubic axes):</p>
+<iframe src="_static/embed/SALC_Ce_f_GM_conv.html" width="100%" height="660" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/SALC_Ce_f_GM_conv.html" target="_blank">Open the CeO2 conventional-cell SALC viewer full-screen</a></p><ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--real-coefficient</span></code> re-combines degenerate SALC components into
 real-coefficient form whenever the projected space is closed under complex
 conjugation (real-type irreps at k = -k points). For example, the GM3+ (Eg)
@@ -628,6 +661,7 @@ SALCs of Sc_d, which are otherwise produced as <code class="docutils literal not
 become <code class="docutils literal notranslate"><span class="pre">d_z2</span></code> and <code class="docutils literal notranslate"><span class="pre">d_x2-y2</span></code>. The spanned space is unchanged; only the unitary
 basis choice within the irrep space is rotated.</p></li>
 </ul>
+</section>
 </section>
 </section>
 
@@ -688,7 +722,11 @@ basis choice within the irrep space is rotated.</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#irreps-of-salc-for-a-selected-element-and-orbital">2. Irreps of SALC for a selected element and orbital</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hybridization-analysis">3. Hybridization analysis</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#star-of-k">4. Star of k</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-1-sc-d-orbitals-of-scf3-at-the-r-point">Example 1: Sc d orbitals of ScF3 at the R point</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-2-ce-f-orbitals-of-ceo2-in-the-conventional-cell-conventional">Example 2: Ce f orbitals of CeO2 in the conventional cell (<code class="docutils literal notranslate"><span class="pre">--conventional</span></code>)</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

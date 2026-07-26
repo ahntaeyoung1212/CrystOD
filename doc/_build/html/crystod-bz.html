@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>crystod-bz &#8212; CrystOD v0.3.3</title>
+    <title>crystod-bz &#8212; CrystOD v0.3.4</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=94d292f4"></script>
+    <script src="_static/documentation_options.js?v=01c71025"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -53,7 +53,7 @@
     <link rel="prev" title="crystod-group" href="crystod-group.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.3" />
+  <meta name="docsearch:version" content="0.3.4" />
   </head>
   
   
@@ -128,7 +128,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.3</p>
+    <p class="title logo__title">CrystOD v0.3.4</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -333,7 +333,8 @@
 <p>Interactive 3D Brillouin-zone plots — automatic (seekpath) or manual
 high-symmetry k-path, and, with a non-identity <code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code>, the unit-cell BZ
 together with the folded BZ of a transformed (super)lattice. With
-<code class="docutils literal notranslate"><span class="pre">--show-kpoint</span> <span class="pre">--space-group</span> <span class="pre">SG</span></code>, the special k points of any space group are
+<code class="docutils literal notranslate"><span class="pre">--show-kpoint</span> <span class="pre">--space-group</span> <span class="pre">SG</span></code> (symbol or number; <code class="docutils literal notranslate"><span class="pre">--spacegroup</span></code>/<code class="docutils literal notranslate"><span class="pre">--sg</span></code>
+also accepted), the special k points of any space group are
 printed instead (primitive and, for centred lattices, conventional coordinates).</p>
 <section id="brillouin-zone-plot">
 <h2>18. Brillouin zone plot<a class="headerlink" href="#brillouin-zone-plot" title="Link to this heading">#</a></h2>
@@ -344,7 +345,24 @@ recommended high-symmetry k-path:</p>
 crystod-bz<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--output<span class="w"> </span>BZ_ScF3_Pm-3m.html
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">-c</span></code>/<code class="docutils literal notranslate"><span class="pre">--cell</span></code> selects the structure file (default: <code class="docutils literal notranslate"><span class="pre">POSCAR</span></code>); the former
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Space</span> <span class="n">group</span><span class="p">:</span> <span class="n">Pm</span><span class="o">-</span><span class="mi">3</span><span class="n">m</span> <span class="p">(</span><span class="c1">#221)</span>
+
+<span class="n">Recommended</span> <span class="n">k</span><span class="o">-</span><span class="n">path</span> <span class="p">(</span><span class="n">seekpath</span><span class="p">):</span>
+  <span class="n">GAMMA</span>    <span class="p">(</span> <span class="mf">0.0000</span><span class="p">,</span>  <span class="mf">0.0000</span><span class="p">,</span>  <span class="mf">0.0000</span><span class="p">)</span>
+  <span class="n">X</span>        <span class="p">(</span> <span class="mf">0.0000</span><span class="p">,</span>  <span class="mf">0.5000</span><span class="p">,</span>  <span class="mf">0.0000</span><span class="p">)</span>
+  <span class="n">M</span>        <span class="p">(</span> <span class="mf">0.5000</span><span class="p">,</span>  <span class="mf">0.5000</span><span class="p">,</span>  <span class="mf">0.0000</span><span class="p">)</span>
+  <span class="n">R</span>        <span class="p">(</span> <span class="mf">0.5000</span><span class="p">,</span>  <span class="mf">0.5000</span><span class="p">,</span>  <span class="mf">0.5000</span><span class="p">)</span>
+
+<span class="n">Path</span><span class="p">:</span> <span class="n">GAMMA</span><span class="o">-</span><span class="n">X</span><span class="o">-</span><span class="n">M</span><span class="o">-</span><span class="n">GAMMA</span><span class="o">-</span><span class="n">R</span><span class="o">-</span><span class="n">X</span>   <span class="n">R</span><span class="o">-</span><span class="n">M</span>
+
+<span class="n">Wrote</span> <span class="n">Brillouin</span><span class="o">-</span><span class="n">zone</span> <span class="n">visualization</span><span class="p">:</span> <span class="n">BZ_221_PPOSCAR_ScF3</span><span class="o">.</span><span class="n">html</span>
+</pre></div>
+</div>
+<p>The written HTML is a live 3D plot — the one below is the actual output of the
+command above (drag to rotate, scroll to zoom, hover the k points for their
+coordinates):</p>
+<iframe src="_static/embed/BZ_221_PPOSCAR_ScF3.html" width="100%" height="560" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/BZ_221_PPOSCAR_ScF3.html" target="_blank">Open this Brillouin zone full-screen</a></p><p><code class="docutils literal notranslate"><span class="pre">-c</span></code>/<code class="docutils literal notranslate"><span class="pre">--cell</span></code> selects the structure file (default: <code class="docutils literal notranslate"><span class="pre">POSCAR</span></code>); the former
 <code class="docutils literal notranslate"><span class="pre">--poscar</span></code> spelling is kept as an alias.</p>
 <p>The space group of the structure is detected, and the corresponding
 high-symmetry k-path (e.g. GM-X-M-GM-R-X, M-R for Pm-3m) is generated
@@ -423,7 +441,25 @@ Brillouin zone of a transformed (super)lattice (red) as an interactive 3D HTML f
 <span class="w">    </span>--trans-mat<span class="w"> </span><span class="s2">&quot;0 1 2   -1 0 2   1 -1 2&quot;</span><span class="w"> </span>--output<span class="w"> </span>BZ_supercell.html
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code> is the row-wise unit-cell-to-supercell transformation matrix
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Transformation</span> <span class="n">matrix</span> <span class="p">(</span><span class="n">unit</span> <span class="n">cell</span> <span class="o">-&gt;</span> <span class="n">supercell</span><span class="p">):</span>
+  <span class="p">[</span>  <span class="mf">0.0000</span>   <span class="mf">1.0000</span>   <span class="mf">2.0000</span><span class="p">]</span>
+  <span class="p">[</span> <span class="o">-</span><span class="mf">1.0000</span>   <span class="mf">0.0000</span>   <span class="mf">2.0000</span><span class="p">]</span>
+  <span class="p">[</span>  <span class="mf">1.0000</span>  <span class="o">-</span><span class="mf">1.0000</span>   <span class="mf">2.0000</span><span class="p">]</span>
+<span class="n">Volume</span> <span class="n">ratio</span> <span class="o">|</span><span class="n">det</span> <span class="n">T</span><span class="o">|</span> <span class="o">=</span> <span class="mi">6</span>
+
+<span class="n">Unit</span><span class="o">-</span><span class="n">cell</span> <span class="n">q</span><span class="o">-</span><span class="n">points</span> <span class="n">folding</span> <span class="n">onto</span> <span class="n">the</span> <span class="n">supercell</span> <span class="n">Gamma</span> <span class="n">point</span> <span class="p">(</span><span class="mi">6</span><span class="p">):</span>
+  <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+  <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">6</span><span class="p">)</span>
+  <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span>
+  <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+  <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span>
+  <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mi">6</span><span class="p">)</span>
+
+<span class="n">Wrote</span> <span class="n">supercell</span> <span class="n">Brillouin</span><span class="o">-</span><span class="n">zone</span> <span class="n">visualization</span><span class="p">:</span> <span class="n">BZ_supercell_221_PPOSCAR_ScF3</span><span class="o">.</span><span class="n">html</span>
+</pre></div>
+</div>
+<iframe src="_static/embed/BZ_supercell_221_PPOSCAR_ScF3.html" width="100%" height="560" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/BZ_supercell_221_PPOSCAR_ScF3.html" target="_blank">Open the folded-BZ plot full-screen</a> — the small red polyhedra are the supercell BZ tiled at the six folded q points; the black dotted cell is the unit-cell BZ.</p><p><code class="docutils literal notranslate"><span class="pre">--trans-mat</span></code> is the row-wise unit-cell-to-supercell transformation matrix
 (<code class="docutils literal notranslate"><span class="pre">L_super</span> <span class="pre">=</span> <span class="pre">T</span> <span class="pre">L_unit</span></code>; fractions such as <code class="docutils literal notranslate"><span class="pre">1/2</span></code> are allowed). It defaults to the
 identity matrix, which plots the unit-cell BZ only (section 18); any
 non-identity matrix switches to this combined unit-cell + supercell plot.</p>

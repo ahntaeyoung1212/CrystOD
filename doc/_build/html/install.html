@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Installation &#8212; CrystOD v0.3.3</title>
+    <title>Installation &#8212; CrystOD v0.3.4</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=94d292f4"></script>
+    <script src="_static/documentation_options.js?v=01c71025"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -53,7 +53,7 @@
     <link rel="prev" title="CrystOD" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.3" />
+  <meta name="docsearch:version" content="0.3.4" />
   </head>
   
   
@@ -128,7 +128,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.3</p>
+    <p class="title logo__title">CrystOD v0.3.4</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -313,7 +313,8 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#requirements">Requirements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-setup-conda">Recommended setup (conda)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-setup-conda-git-clone">Recommended setup (conda + git clone)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#from-pypi-once-released">From PyPI (once released)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#operation-check">Operation check</a></li>
 </ul>
             </nav>
@@ -337,17 +338,30 @@
 <code class="docutils literal notranslate"><span class="pre">pymatgen</span></code>, <code class="docutils literal notranslate"><span class="pre">numpy</span></code>, <code class="docutils literal notranslate"><span class="pre">pandas</span></code>, <code class="docutils literal notranslate"><span class="pre">openpyxl</span></code>, <code class="docutils literal notranslate"><span class="pre">sympy</span></code></p></li>
 </ul>
 </section>
-<section id="recommended-setup-conda">
-<h2>Recommended setup (conda)<a class="headerlink" href="#recommended-setup-conda" title="Link to this heading">#</a></h2>
+<section id="recommended-setup-conda-git-clone">
+<h2>Recommended setup (conda + git clone)<a class="headerlink" href="#recommended-setup-conda-git-clone" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>crystod<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
 conda<span class="w"> </span>activate<span class="w"> </span>crystod
 
-unzip<span class="w"> </span>~/Downloads/CrystOD-main.zip
-mv<span class="w"> </span>~/Downloads/CrystOD-main<span class="w"> </span>~
-<span class="nb">cd</span><span class="w"> </span>~/CrystOD-main
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ahntaeyoung1212/CrystOD.git
+<span class="nb">cd</span><span class="w"> </span>CrystOD
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </pre></div>
 </div>
+<p>The editable install (<code class="docutils literal notranslate"><span class="pre">-e</span></code>) keeps the commands pointing at the cloned source
+tree, so <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">pull</span></code> is enough to update, and the <code class="docutils literal notranslate"><span class="pre">example/</span></code> directories and
+<code class="docutils literal notranslate"><span class="pre">testsuite.py</span></code> used throughout this documentation are right there.</p>
+</section>
+<section id="from-pypi-once-released">
+<h2>From PyPI (once released)<a class="headerlink" href="#from-pypi-once-released" title="Link to this heading">#</a></h2>
+<p>After the PyPI release, no clone is needed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>crystod<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
+conda<span class="w"> </span>activate<span class="w"> </span>crystod
+pip<span class="w"> </span>install<span class="w"> </span>crystod
+</pre></div>
+</div>
+<p>This installs the commands and their dependencies only; clone the repository
+as above if you also want the worked examples and the test suite.</p>
 </section>
 <section id="operation-check">
 <h2>Operation check<a class="headerlink" href="#operation-check" title="Link to this heading">#</a></h2>
@@ -409,7 +423,8 @@ python3<span class="w"> </span>testsuite.py<span class="w"> </span><span class="
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#requirements">Requirements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-setup-conda">Recommended setup (conda)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-setup-conda-git-clone">Recommended setup (conda + git clone)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#from-pypi-once-released">From PyPI (once released)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#operation-check">Operation check</a></li>
 </ul>
   </nav></div>

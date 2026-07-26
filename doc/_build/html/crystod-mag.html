@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>crystod-mag &#8212; CrystOD v0.3.3</title>
+    <title>crystod-mag &#8212; CrystOD v0.3.4</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=94d292f4"></script>
+    <script src="_static/documentation_options.js?v=01c71025"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -53,7 +53,7 @@
     <link rel="prev" title="crystod-phonon" href="crystod-phonon.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3.3" />
+  <meta name="docsearch:version" content="0.3.4" />
   </head>
   
   
@@ -128,7 +128,7 @@
   
   
   
-    <p class="title logo__title">CrystOD v0.3.3</p>
+    <p class="title logo__title">CrystOD v0.3.4</p>
   
 </a></div>
         <div class="sidebar-primary-item">
@@ -342,6 +342,45 @@ crystod-mag<span class="w"> </span>-c<span class="w"> </span>example/test_POSCAR
 crystod-mag<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_AlNi3<span class="w"> </span>--element<span class="w"> </span>Ni
 </pre></div>
 </div>
+<p>The output opens with the magnetic sites and the complete irrep enumeration —
+for the Ni 3c cluster of AlNi3 (the Mn3Ir geometry), 9 spin degrees of freedom
+decompose into exactly three symmetry-adapted families:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Space</span> <span class="n">group</span><span class="p">:</span> <span class="n">Pm</span><span class="o">-</span><span class="mi">3</span><span class="n">m</span> <span class="p">(</span><span class="c1">#221)</span>
+<span class="n">Magnetic</span> <span class="n">sites</span><span class="p">:</span> <span class="n">Ni</span> <span class="n">x</span> <span class="mi">3</span>
+  <span class="n">Ni1</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]</span>
+  <span class="n">Ni2</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]</span>
+  <span class="n">Ni3</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]</span>
+
+<span class="n">Selected</span> <span class="n">q</span><span class="o">-</span><span class="n">point</span><span class="p">:</span> <span class="n">GAMMA</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]</span>
+
+<span class="n">Spin</span> <span class="p">(</span><span class="n">axial</span><span class="o">-</span><span class="n">vector</span><span class="p">)</span> <span class="n">representation</span> <span class="n">on</span> <span class="n">Ni</span> <span class="n">sites</span><span class="p">:</span> <span class="mi">9</span> <span class="n">dimensions</span>
+<span class="n">Decomposition</span><span class="p">:</span> <span class="mi">2</span> <span class="n">x</span> <span class="n">GM4</span><span class="o">+</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">+</span> <span class="n">GM5</span><span class="o">+</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+
+<span class="n">Symmetry</span><span class="o">-</span><span class="n">adapted</span> <span class="n">spin</span> <span class="n">bases</span><span class="p">:</span>
+  <span class="n">GM4</span><span class="o">+</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span> <span class="n">dim</span> <span class="mi">3</span> <span class="p">[</span><span class="n">FM</span><span class="p">,</span> <span class="n">dipole</span><span class="p">]</span>
+  <span class="n">GM4</span><span class="o">+</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span> <span class="n">dim</span> <span class="mi">3</span> <span class="p">[</span><span class="n">AFM</span><span class="p">,</span> <span class="n">octupole</span><span class="p">]</span>
+  <span class="n">GM5</span><span class="o">+</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span> <span class="n">dim</span> <span class="mi">3</span> <span class="p">[</span><span class="n">AFM</span><span class="p">,</span> <span class="n">octupole</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Every basis vector is then printed with its per-atom spin directions, net
+moment, and the magnetization input. The [111] component of the GM4+ cluster
+octupole is the experimentally realized 120-degree structure of Mn3Ir — note
+the exactly vanishing net moment:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">===</span> <span class="n">GM4</span><span class="o">+</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="p">[</span><span class="n">AFM</span><span class="p">,</span> <span class="n">octupole</span><span class="p">]</span> <span class="o">===</span>
+  <span class="n">component</span> <span class="mi">111</span><span class="p">:</span>
+    <span class="n">Ni1</span><span class="p">:</span> <span class="n">S</span> <span class="o">=</span> <span class="p">[</span> <span class="mf">0.4082</span><span class="p">,</span>  <span class="mf">0.4082</span><span class="p">,</span>  <span class="mf">0.8165</span><span class="p">]</span>
+    <span class="n">Ni2</span><span class="p">:</span> <span class="n">S</span> <span class="o">=</span> <span class="p">[</span> <span class="mf">0.4082</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.8165</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.4082</span><span class="p">]</span>
+    <span class="n">Ni3</span><span class="p">:</span> <span class="n">S</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.8165</span><span class="p">,</span>  <span class="mf">0.4082</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.4082</span><span class="p">]</span>
+    <span class="n">net</span> <span class="n">moment</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.0</span><span class="p">]</span>
+    <span class="n">spin</span> <span class="n">directions</span> <span class="p">(</span><span class="nb">all</span> <span class="n">atoms</span><span class="p">,</span> <span class="n">POSCAR</span> <span class="n">order</span><span class="p">):</span>
+      <span class="n">Al1</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+      <span class="n">Ni2</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.4082</span><span class="p">,</span> <span class="mf">0.4082</span><span class="p">,</span> <span class="mf">0.8165</span><span class="p">]</span>
+      <span class="n">Ni3</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.4082</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.8165</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.4082</span><span class="p">]</span>
+      <span class="n">Ni4</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.8165</span><span class="p">,</span> <span class="mf">0.4082</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.4082</span><span class="p">]</span>
+    <span class="n">MAGMOM</span> <span class="o">=</span> <span class="mi">0</span> <span class="mi">0</span> <span class="mi">0</span>   <span class="mf">0.4082</span> <span class="mf">0.4082</span> <span class="mf">0.8165</span>   <span class="mf">0.4082</span> <span class="o">-</span><span class="mf">0.8165</span> <span class="o">-</span><span class="mf">0.4082</span>   <span class="o">-</span><span class="mf">0.8165</span> <span class="mf">0.4082</span> <span class="o">-</span><span class="mf">0.4082</span>
+    <span class="n">written</span> <span class="n">to</span><span class="p">:</span> <span class="n">POSCAR_AlNi3_spin_GM4</span><span class="o">+</span><span class="n">_octupole_111</span><span class="o">.</span><span class="n">vesta</span>
+</pre></div>
+</div>
 <p>Per-atom spin directions and a ready-to-paste noncollinear magnetization input
 are printed by default for every basis vector. <code class="docutils literal notranslate"><span class="pre">--format</span></code> selects the input
 format:</p>
@@ -354,6 +393,27 @@ element is split into one atom type per distinct spin direction (the atom
 membership of each type is printed as comments for
 <code class="docutils literal notranslate"><span class="pre">ATOMIC_SPECIES</span></code>/<code class="docutils literal notranslate"><span class="pre">ATOMIC_POSITIONS</span></code>).</p></li>
 </ul>
+<p>With <code class="docutils literal notranslate"><span class="pre">--format</span> <span class="pre">qe</span></code>, the same 120-degree octupole becomes (Ni split into three
+types because the three spins point in three different directions):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>    Quantum ESPRESSO noncollinear magnetization (&amp;SYSTEM):
+      noncolin = .true.
+      ! type 1 (Al): Al1 -- non-magnetic
+      ! type 2 (Ni1): Ni2  S = [0.4082, 0.4082, 0.8165]
+      starting_magnetization(2) = 1.0000
+      angle1(2) = 35.2611
+      angle2(2) = 45.0000
+      ! type 3 (Ni2): Ni3  S = [0.4082, -0.8165, -0.4082]
+      starting_magnetization(3) = 1.0000
+      angle1(3) = 114.0928
+      angle2(3) = -63.4378
+      ! type 4 (Ni3): Ni4  S = [-0.8165, 0.4082, -0.4082]
+      starting_magnetization(4) = 1.0000
+      angle1(4) = 114.0928
+      angle2(4) = 153.4378
+      ! angle1 = polar angle from the z axis (deg); angle2 = azimuth from the x axis in the xy plane (deg).
+      ! Split Ni into the types above in ATOMIC_SPECIES / ATOMIC_POSITIONS to realize this spin arrangement.
+</pre></div>
+</div>
 <p>When <code class="docutils literal notranslate"><span class="pre">--qpoint</span></code> is omitted, the spin (axial-vector) irrep decomposition is
 listed for every special k point of the space group — the magnetic counterpart
 of the <code class="docutils literal notranslate"><span class="pre">crystod</span></code> SALC survey (e.g. for AlNi3: GM: <code class="docutils literal notranslate"><span class="pre">2.0</span> <span class="pre">[GM4+(3)]</span> <span class="pre">+</span> <span class="pre">1.0</span> <span class="pre">[GM5+(3)]</span></code>,
