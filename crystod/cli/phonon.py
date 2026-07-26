@@ -173,6 +173,22 @@ def build_parser() -> ArgumentParser:
         help="Output the conventional cell instead of the primitive cell in --vector mode.",
     )
     parser.add_argument(
+        "--keep-q-coords",
+        dest="keep_q_coords",
+        action="store_true",
+        help="In --vector/--modulation, name output files of a non-special q with its\n"
+        "coordinates (q_<coords>) instead of the ISO-IR k-vector-type label, so scans\n"
+        "along one symmetry line do not overwrite each other.",
+    )
+    parser.add_argument(
+        "--all-irreps",
+        dest="all_irreps",
+        action="store_true",
+        help="In --irreps, additionally label the phonon irreps at the midpoints of the\n"
+        "seekpath k-path segments (the symmetry lines DT, Z, SM, ...; ISO-IR labels).\n"
+        "Slower than the default special-points-only survey.",
+    )
+    parser.add_argument(
         "--list-qpoints",
         action="store_true",
         help="List available high-symmetry q-points in --vibration mode.",
@@ -242,6 +258,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.append("--readfc")
         if args.tolerance is not None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        if args.all_irreps:
+            dispatch_argv.append("--all-irreps")
 
         from ..phonon_irreps import main as phonon_irreps_main
 
@@ -313,6 +331,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.append("--readfc")
         if args.conventional:
             dispatch_argv.append("--conventional")
+        if args.keep_q_coords:
+            dispatch_argv.append("--keep-q-coords")
         dispatch_argv.extend(["--qpoint", *[str(value) for value in args.qpoint]])
         if args.mode:
             dispatch_argv.extend(["--mode", *[str(value) for value in args.mode]])
@@ -347,6 +367,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--output", args.output])
         if args.tolerance is not None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        if args.keep_q_coords:
+            dispatch_argv.append("--keep-q-coords")
         dispatch_argv.extend(unknown)
 
         from ..modulation import main as modulation_main
