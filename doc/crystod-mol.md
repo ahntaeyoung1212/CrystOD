@@ -102,8 +102,8 @@ HTML page — the same viewer as the crystalline `crystod --visualize`
 by irrep for one-click switching, and a camera-synced x/y/z compass:
 
 ```bash
-crystod-mol --xyz XYZ_NH3.xyz --element H --orbital p --visualize --bond N H 1.2
-# -> SALC_XYZ_NH3_H_p.html
+crystod-mol --xyz XYZ_NH3.xyz --element H --orbital s --visualize --bond N H 1.2
+# -> SALC_XYZ_NH3_H_s.html
 ```
 
 `--output` selects the HTML file name (default:
@@ -112,6 +112,17 @@ up to `MAX` Angstroms (repeatable). Since the viewer works on a molecule
 rather than a crystal, no cell edges are drawn and the compass shows the
 Cartesian x/y/z axes; combining with `--align` shows the SALCs in the
 standard point-group orientation.
+
+The viewer below is the live output of exactly that command — the H 1s SALCs
+of NH3, i.e. the `A1: [1s(H1) + 1s(H2) + 1s(H3)]` and E combinations printed
+above, drawn as VESTA-style + yellow / − cyan lobes on the three hydrogens.
+Click a row of the SALC table in the sidebar to switch basis vector and drag
+to rotate:
+
+```{raw} html
+<iframe src="_static/embed/SALC_XYZ_NH3_H_s.html" width="100%" height="620" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/SALC_XYZ_NH3_H_s.html" target="_blank">Open the NH3 H-1s SALC viewer full-screen</a></p>
+```
 
 The SALC analysis supports the 32 crystallographic point groups; for linear
 molecules (D\*h/C\*v) analyze a finite subgroup with `crystod-group
@@ -129,6 +140,55 @@ calculation:
 ```bash
 crystod-mol --diagram --xyz XYZ_NH3.xyz
 # -> MolOD_XYZ_NH3.html
+```
+
+```
+* Molecule *
+XYZ_NH3.xyz (NH3, 4 atoms)
+
+* Point group *
+C3v (Hermann-Mauguin: 3m)
+
+* Fragments *
+central atom: N; ligands: 3 H
+
+* Valence AO parameters (single-zeta STO, extended Hueckel) *
+N 2s:  zeta = 1.950 / bohr,  H_ii = -26.0 eV
+N 2p:  zeta = 1.950 / bohr,  H_ii = -13.4 eV
+H 1s:  zeta = 1.300 / bohr,  H_ii = -13.6 eV
+
+* Ligand SALCs (standard point-group axes) *
+-- 3H 1s --
+A1: [1s(H1) + 1s(H2) + 1s(H3)]
+E: [1s(H1) - 1s(H3), 1s(H1) - 2 1s(H2) + 1s(H3)]
+
+* Ligand SALC | central AO overlap integrals *
+  A1:  < a1 (E =  -16.44 eV) | N 2s >  S = 0.7205
+  A1:  < a1 (E =  -16.44 eV) | N 2p >  S = 0.2387
+   E:  < e (E =  -11.16 eV) | N 2p >  S = 0.5687
+
+* Molecular orbitals (Wolfsberg-Helmholz, K = 1.75) *
+    MO    E (eV)  occ  composition
+   4a1     21.14    0  70% SALC a1, 25% N 2s, 5% N 2p
+ 2e x2      2.78    0  59% SALC e, 41% N 2p
+   3a1    -13.75    2  95% N 2p, 4% SALC a1, 1% N 2s
+ 1e x2    -16.49    4  59% N 2p, 41% SALC e
+   2a1    -28.00    2  73% N 2s, 27% SALC a1
+
+* Electron filling (8 valence electrons) *
+(2a1)^2 (1e)^4 (3a1)^2
+(MO numbering counts the core shells, not shown: N 1s -> a1)
+HOMO = 3a1 (-13.75 eV), LUMO = 2e (2.78 eV), gap = 16.53 eV
+```
+
+The written `MolOD_XYZ_NH3.html` is the diagram below — this is the live
+output, not a screenshot: hover or click any level to see its composition and
+a drag-rotatable orbital sketch, zoom the energy window with Ctrl/Cmd +
+scroll:
+
+```{raw} html
+<iframe src="_static/embed/MolOD_XYZ_NH3.html" width="100%" height="660" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/MolOD_XYZ_NH3.html" target="_blank">Open the NH3 MO diagram full-screen</a></p>
 ```
 
 The construction follows the textbook route, made quantitative step by step:
@@ -196,6 +256,16 @@ crystod-mol --diagram --xyz XYZ_H2O.xyz --pyscf                # H2 | H2O | O
 crystod-mol --diagram --xyz XYZ_O2.xyz --pyscf --spin 2 --ao-left O --ao-right O
 crystod-mol --diagram --xyz XYZ_CH3OH.xyz --pyscf --ao-left H4 --ao-right CO
 crystod-mol --diagram --xyz XYZ_C6H6.xyz --pyscf --ao-left H6 --ao-right C6
+```
+
+The benzene run produces the diagram below (live output of the last command):
+the H6 cage on the left, the C6 ring on the right, and the pure-π `1e1g` HOMO /
+`1e2u` LUMO of benzene in the middle — click the π levels to see the familiar
+nodal patterns in the orbital sketch:
+
+```{raw} html
+<iframe src="_static/embed/MolOD_XYZ_C6H6_pyscf.html" width="100%" height="660" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/MolOD_XYZ_C6H6_pyscf.html" target="_blank">Open the benzene PySCF MO diagram full-screen</a></p>
 ```
 
 - The default fragments are the ligand cage | central atom, as in the

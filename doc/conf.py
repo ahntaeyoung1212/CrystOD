@@ -41,4 +41,6 @@ html_theme_options = {
     "show_toc_level": 2,
     "home_page_in_toc": True,
 }
-html_static_path = []
+# _static/embed/ holds interactive HTML outputs of the commands (BZ plots,
+# SALC viewers, MO diagrams) embedded into the pages as iframes
+html_static_path = ["_static"]

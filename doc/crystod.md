@@ -292,7 +292,11 @@ convention (positive = yellow, negative = blue) and rendered opaque with
 VESTA-like lighting by default, so the front/back occlusion of overlapping lobes
 is always correct. The lobe-opacity slider switches to a translucent view, where
 a distance-based fade keeps near/far lobes distinguishable. Cell/atom display
-controls and a camera-synchronized a/b/c compass (a red, b green, c blue) sit in
+controls and a camera-synchronized a/b/c compass (a red, b green, c blue;
+with `--conventional` it shows both lattices — the primitive vectors as short
+pastel arrows labeled `a_prim`/`b_prim`/`c_prim` and the conventional vectors
+of the displayed cell as full-color arrows labeled `a_conv`/`b_conv`/`c_conv`)
+sit in
 the sidebar and the lower-left corner.
 
 **The viewer layout is modeled after the
@@ -309,14 +313,49 @@ Further options:
   detected centring, exactly as in `crystod-phonon --vector`; file names get a
   `_conv` suffix, and for k != 0 the conventional cell is multiplied until the
   Bloch phase is commensurate).
-- `--bond EL1 EL2 MAX` (repeatable, e.g. `--bond Sc F 2.3`) draws bonds between
-  the two elements up to MAX Angstroms and renders the coordination polyhedra
-  around the EL1 atoms as translucent convex hulls, as in VESTA's Polyhedral
-  style; atoms at the cell boundary are completed VESTA-style so the polyhedra
-  are not cut off:
+- `--bond EL1 EL2 MAX` (repeatable, e.g.
+  `crystod --visualize -c 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 1/2 1/2 1/2 --real-coefficient --bond Sc F 2.3`)
+  draws bonds between the two elements up to MAX Angstroms and renders the
+  coordination polyhedra around the EL1 atoms as translucent convex hulls, as
+  in VESTA's Polyhedral style; atoms at the cell boundary are completed
+  VESTA-style so the polyhedra are not cut off.
+
+### Example 1: Sc d orbitals of ScF3 at the R point
 
 ```bash
-crystod --visualize -c 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 1/2 1/2 1/2 --real-coefficient --bond Sc F 2.3
+crystod -c 221_PPOSCAR_ScF3 --element Sc --orbital d --kpoint R --visualize --real-coefficient --bond Sc F 2.5
+```
+
+The viewer below is the live output of that command — an R-point example, so
+the commensurate 2x2x2 supercell is built and the Bloch phase alternates the
+lobe signs from cell to cell (the Sc d SALCs at R decompose as
+`R3+(2) + R5+(3)`). Click any row of the SALC table in the sidebar to switch
+the displayed basis vector, toggle the ScF6 polyhedra, and drag to rotate:
+
+```{raw} html
+<iframe src="_static/embed/SALC_Sc_d_R.html" width="100%" height="660" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/SALC_Sc_d_R.html" target="_blank">Open the ScF3 SALC viewer full-screen</a></p>
+```
+
+### Example 2: Ce f orbitals of CeO2 in the conventional cell (`--conventional`)
+
+```bash
+crystod --visualize -c 225_PPOSCAR_CeO2 --element Ce --orbital f --kpoint 0 0 0 --bond Ce O 3 --real-coefficient --conventional
+```
+
+CeO2 is face-centred (Fm-3m), so its primitive cell is the small rhombohedral
+one — hardly the picture one has in mind for fluorite. `--conventional`
+switches the display to the cubic conventional cell (four formula units, the
+familiar CeO8 cube arrangement) while the SALC coefficients themselves are
+unchanged. The corner compass then shows **both** lattices: the primitive
+vectors as short pastel arrows (a<sub>prim</sub>, b<sub>prim</sub>,
+c<sub>prim</sub> — the face diagonals) and the conventional vectors of the
+displayed cell as full-color arrows (a<sub>conv</sub>, b<sub>conv</sub>,
+c<sub>conv</sub> — the cubic axes):
+
+```{raw} html
+<iframe src="_static/embed/SALC_Ce_f_GM_conv.html" width="100%" height="660" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
+<p style="margin-top:0.3em"><a href="_static/embed/SALC_Ce_f_GM_conv.html" target="_blank">Open the CeO2 conventional-cell SALC viewer full-screen</a></p>
 ```
 
 - `--real-coefficient` re-combines degenerate SALC components into
