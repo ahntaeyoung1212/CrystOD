@@ -2,6 +2,15 @@
 # AMPLIMODES-style decomposition of a group-subgroup distortion into parent irreps
 # with mode amplitudes. References in ~/CrystOD-main/AMPLIMODES (Bilbao AMPLIMODES
 # PDFs: SrTiO3 Pm-3m -> I4/mcm R5- 0.3303 A; ZrO2 Fm-3m -> P4_2/nmc X2- 0.5773 A).
+#
+# Since v0.3.4 every run also writes one VESTA file per activated irrep,
+# {supergroup_file}_{irrep}.vesta, showing that irrep's displacement pattern as
+# arrows on the parent-derived reference structure (invariant-core cell; the
+# largest arrow is scaled to 1.5 A). The shipped 221_PPOSCAR_CaTiO3_*.vesta set
+# (X5+/M2+/M3+/R4+/R5+) is the output of the CaTiO3 example:
+#   crystod-group --supergroup-cif 221_PPOSCAR_CaTiO3.cif --subgroup-cif 62_PPOSCAR_CaTiO3.cif
+# (see Symmetry_mode_analysis_CaTiO3.pdf for the Bilbao reference).
+# The transcripts below predate the VESTA export and omit its closing section.
 
 $ crystod-group --supergroup-cif 221_PPOSCAR_SrTiO3.cif --subgroup-cif 140_PPOSCAR_SrTiO3.cif
 
