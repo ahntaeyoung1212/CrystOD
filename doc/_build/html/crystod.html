@@ -320,7 +320,10 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#irreps-of-salc-for-a-selected-element-and-orbital">2. Irreps of SALC for a selected element and orbital</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hybridization-analysis">3. Hybridization analysis</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hybridization-analysis-and-crystal-orbital-diagrams">3. Hybridization analysis and crystal-orbital diagrams</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#crystal-orbital-diagrams-diagram-co-left-co-right">Crystal-orbital diagrams (<code class="docutils literal notranslate"><span class="pre">--diagram</span> <span class="pre">--co-left</span> <span class="pre">...</span> <span class="pre">--co-right</span> <span class="pre">...</span></code>)</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#star-of-k">4. Star of k</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-1-sc-d-orbitals-of-scf3-at-the-r-point">Example 1: Sc d orbitals of ScF3 at the R point</a></li>
@@ -551,13 +554,87 @@ irreducible representations of the little group at each special k point:</p>
 <p>When <code class="docutils literal notranslate"><span class="pre">--kpoint</span></code> is omitted, all special k points of the space group are analyzed.
 Any arm of a special-point star is labeled correctly (since v0.3.1).</p>
 </section>
-<section id="hybridization-analysis">
-<h2>3. Hybridization analysis<a class="headerlink" href="#hybridization-analysis" title="Link to this heading">#</a></h2>
-<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/02_salc</span></code> (testsuite section 3)</em></p>
+<section id="hybridization-analysis-and-crystal-orbital-diagrams">
+<h2>3. Hybridization analysis and crystal-orbital diagrams<a class="headerlink" href="#hybridization-analysis-and-crystal-orbital-diagrams" title="Link to this heading">#</a></h2>
+<p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/03_hybridization</span></code> (testsuite section 3)</em></p>
 <p>Analyze the hybridization between selected atomic orbitals (<code class="docutils literal notranslate"><span class="pre">ELEMENT_ORBITAL</span></code> pairs):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_SrTiO3<span class="w"> </span>--atomic-orbital<span class="w"> </span>Ti_d<span class="w"> </span>O_p<span class="w"> </span>--kpoint<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>
 </pre></div>
 </div>
+<p>For each little-group irrep at the k point, the orbitals that transform as it
+are listed — orbitals sharing a line are symmetry-allowed to hybridize.</p>
+<section id="crystal-orbital-diagrams-diagram-co-left-co-right">
+<h3>Crystal-orbital diagrams (<code class="docutils literal notranslate"><span class="pre">--diagram</span> <span class="pre">--co-left</span> <span class="pre">...</span> <span class="pre">--co-right</span> <span class="pre">...</span></code>)<a class="headerlink" href="#crystal-orbital-diagrams-diagram-co-left-co-right" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">--diagram</span></code> draws the quantitative <strong>crystal orbital diagram (COD)</strong> — the
+crystalline analogue of the molecular-orbital diagram of
+<code class="docutils literal notranslate"><span class="pre">crystod-mol</span> <span class="pre">--diagram</span> <span class="pre">--ao-left</span> <span class="pre">...</span> <span class="pre">--ao-right</span> <span class="pre">...</span></code>.
+<code class="docutils literal notranslate"><span class="pre">--co-left</span></code>/<code class="docutils literal notranslate"><span class="pre">--co-right</span></code> split the crystal into two fragment sublattices by
+chemical formula (every atom must belong to one side; a count such as <code class="docutils literal notranslate"><span class="pre">O3</span></code>
+validates against the primitive cell), and each fragment is treated with its
+<strong>full valence basis</strong> — every parametrized shell of every atom — so the
+fragment Bloch states are the complete electronic states <em>before</em> chemical
+bond formation:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>--diagram<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--co-left<span class="w"> </span>Sc<span class="w"> </span>--co-right<span class="w"> </span>F3<span class="w"> </span>--atomic-orbital<span class="w"> </span>Sc-3d<span class="w"> </span>F-2p
+<span class="c1"># -&gt; CrystOD_221_PPOSCAR_ScF3.html</span>
+
+crystod<span class="w"> </span>--diagram<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_SrTiO3<span class="w"> </span>--co-left<span class="w"> </span>SrTi<span class="w"> </span>--co-right<span class="w"> </span>O3<span class="w"> </span>--atomic-orbital<span class="w"> </span>Ti-3d<span class="w"> </span>Ti-4s<span class="w"> </span>O-2p
+</pre></div>
+</div>
+<p>At every special k point of the space group,</p>
+<ol class="arabic simple">
+<li><p>the Bloch orbitals of each fragment (e.g. Sr 5s 5p + Ti 4s 4p 3d | O 2s
+2p) are symmetry-adapted per irrep of the little group of k (the
+site-symmetry induced representations of the hybridization analysis
+above);</p></li>
+<li><p>all intra- and inter-fragment overlaps are evaluated <strong>exactly</strong> as
+Bloch lattice sums of STO overlap integrals (single-zeta s/p, standard
+double-zeta d, sigma/pi/delta Slater-Koster assembly rotated with the
+exact real Wigner-D matrices), with a per-shell-pair lattice-sum cutoff
+probed from the actual STO tails (diffuse cation shells reach 30+ bohr);</p></li>
+<li><p>the generalized eigenvalue problem with the Wolfsberg-Helmholz
+Hamiltonian H_ij = K S_ij (H_ii + H_jj)/2 (the diagonal carries the
+same-orbital neighbour-cell Bloch sums, H_ii = h_ii + K h_ii (S_kk - 1))
+is solved: fragment orbitals sharing an irrep split into bonding and
+antibonding crystal orbitals, orbitals without a partner remain
+rigorously nonbonding — the COD mixing rule;</p></li>
+<li><p>an interactive HTML page is written with <strong>one energy diagram per k
+point</strong> (buttons switch the k point): fragment | crystal orbitals |
+fragment columns, correlation lines weighted by the composition,
+electron arrows, HOMO/LUMO markers, and the adjustable energy window,
+which opens on <strong>-20 .. 10 eV</strong> (“Show all energy levels” reveals the
+deep shells). <code class="docutils literal notranslate"><span class="pre">--atomic-orbital</span></code> (optional) selects the atomic orbitals
+drawn in the hover <strong>wave-function sketch</strong>: Re[psi] of exactly those
+components (<code class="docutils literal notranslate"><span class="pre">Ti-3d</span> <span class="pre">Ti-4s</span> <span class="pre">O-2p</span></code>; <code class="docutils literal notranslate"><span class="pre">Ti-d</span></code> = all d shells) on the
+k-commensurate supercell (2x2x2 at R, …) with VESTA-style +/- lobes
+for s, p, and d orbitals (drag-rotatable, degenerate partners
+switchable); without <code class="docutils literal notranslate"><span class="pre">--atomic-orbital</span></code> no sketches are embedded.</p></li>
+</ol>
+<p>For ScF3 (<code class="docutils literal notranslate"><span class="pre">--co-left</span> <span class="pre">Sc</span> <span class="pre">--co-right</span> <span class="pre">F3</span></code>) the diagram shows the textbook
+result: at GM the F-2s GM1+/GM3+ states form sigma bonds with
+Sc-4s/Sc-3d(eg) while the t2g-derived GM5+ stays 100% pure (nonbonding); at
+R the eg-derived R3+ states split strongly (sigma/sigma*), the t2g-derived
+R5+ states split weakly (pi/pi*), and R4+ remains pure F-2p — the
+paradigmatic perovskite crystal orbital diagram.</p>
+<ul class="simple">
+<li><p>electrons default to the neutral-atom valence counts (ScF3/SrTiO3: 24 per
+cell, filling exactly the anion 2s/2p manifolds — the d0 insulator);
+<code class="docutils literal notranslate"><span class="pre">--electrons</span> <span class="pre">N</span></code> overrides the filling;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--kpoint</span> <span class="pre">GM</span></code> restricts the analysis to one special point (labels only);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--output</span></code>/<code class="docutils literal notranslate"><span class="pre">--tolerance</span></code> as usual. Note that the irrep labels at
+zone-boundary points depend on the origin of the input structure (as in
+every SALC analysis); use the setting of your reference when comparing.</p></li>
+</ul>
+<p>Elements H-Bi of the standard extended-Hueckel tables are parameterized
+(3d/4d transition metals with double-zeta d shells). The terminal report
+prints the fragment levels (labeled by their dominant element+shell) and
+the full crystal-orbital table (energy, irrep, degeneracy, occupation,
+composition) at every k point. Physics note: in dense cation sublattices
+the diffuse valence shells (Sr 5s/5p, Ti 4s/4p, …) make a few Bloch
+combinations nearly linearly dependent on the rest of the basis; for those
+the extended-Hueckel energies diverge (the well-known overlap catastrophe),
+so combinations with an overlap eigenvalue below 0.2 are removed by
+canonical orthogonalization — the terminal report counts them per k point.</p>
+</section>
 </section>
 <section id="star-of-k">
 <h2>4. Star of k<a class="headerlink" href="#star-of-k" title="Link to this heading">#</a></h2>
@@ -720,7 +797,10 @@ basis choice within the irrep space is rotated.</p></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#irreps-of-salc-for-a-selected-element-and-orbital">2. Irreps of SALC for a selected element and orbital</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hybridization-analysis">3. Hybridization analysis</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hybridization-analysis-and-crystal-orbital-diagrams">3. Hybridization analysis and crystal-orbital diagrams</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#crystal-orbital-diagrams-diagram-co-left-co-right">Crystal-orbital diagrams (<code class="docutils literal notranslate"><span class="pre">--diagram</span> <span class="pre">--co-left</span> <span class="pre">...</span> <span class="pre">--co-right</span> <span class="pre">...</span></code>)</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#star-of-k">4. Star of k</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-1-sc-d-orbitals-of-scf3-at-the-r-point">Example 1: Sc d orbitals of ScF3 at the R point</a></li>
