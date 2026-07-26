@@ -352,7 +352,8 @@ def main(argv: list[str] | None = None) -> None:
             path_string, path_midpoints = _seekpath_path_midpoints(phonon)
         except Exception:
             pass
-    with open("phonon_irreps.yaml", "w") as fp:
+    yaml_name = "phonon_irreps_all.yaml" if args.all_irreps else "phonon_irreps.yaml"
+    with open(yaml_name, "w") as fp:
         fp.write(f"space_group: {dataset['international']}\n")
         fp.write("special_points:\n")
         for qname, q in zip(q_names, q_list):
@@ -404,6 +405,7 @@ def main(argv: list[str] | None = None) -> None:
                 fp.write(f"    irrep_label: {labels_mid[i]}\n")
                 fp.write(f"    frequency: %14.10f\n" % (freqs_mid[index[0]]))
             fp.write("\n")
+    print(f"Phonon irreps written to: {yaml_name}")
 
 
 if __name__ == "__main__":
