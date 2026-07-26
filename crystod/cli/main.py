@@ -112,7 +112,7 @@ def build_parser() -> ArgumentParser:
         default=None,
         metavar="EL_ORB",
         help="Atomic-orbital list for hybridization analysis, e.g. Ti_d O_p "
-        "(alternative to --element/--orbital).",
+        "or Ti-d O-p (either separator; alternative to --element/--orbital).",
     )
     parser.add_argument(
         "--kpoint",

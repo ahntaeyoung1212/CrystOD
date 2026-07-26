@@ -72,7 +72,9 @@ def build_parser() -> ArgumentParser:
     mode.add_argument(
         "--table",
         action="store_true",
-        help="Display the character table of the point group.",
+        help="Display the character table of the point group, or, with\n"
+        "--space-group and --kpoint, of the little group of k (irreptables\n"
+        "labels at tabulated k points, ISO-IR labels on lines/planes).",
     )
     mode.add_argument(
         "--decompose",
@@ -206,8 +208,9 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--conventional",
         action="store_true",
-        help="For --cif2poscar: write the conventional cell instead of the "
-        "primitive cell.",
+        help="For --cif2poscar: write the conventional cell instead of the\n"
+        "primitive cell. For --supergroup-cif: write the per-irrep mode\n"
+        "VESTA files in the parent conventional basis (_conv suffix).",
     )
     parser.add_argument(
         "--subgroup-cif",
@@ -232,7 +235,7 @@ def build_parser() -> ArgumentParser:
         dest="space_group",
         default=None,
         help="Space-group symbol or number, e.g. Pm-3m or 221\n"
-        "(for --basis/--generate-basis/--coset).",
+        "(for --table/--basis/--generate-basis/--coset).",
     )
     parser.add_argument(
         "--kpoint",
@@ -343,6 +346,8 @@ def main(argv: list[str] | None = None) -> None:
                          f"--subgroup-cif={args.subgroup_cif}"]
         if args.tolerance is not None:
             dispatch_argv.append(f"--tolerance={args.tolerance}")
+        if args.conventional:
+            dispatch_argv.append("--conventional")
 
         from ..symmetry_mode import main as symmetry_mode_main
 
@@ -452,6 +457,16 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.table:
+        if args.space_group:
+            # character table of the little group of k for a space group
+            # (irreptables labels at tabulated k, ISO-IR labels otherwise)
+            if args.kpoint is None:
+                parser.error("--table with --space-group requires --kpoint.")
+
+            from ..basis_function import format_spacegroup_table
+
+            print(format_spacegroup_table(args.space_group, args.kpoint))
+            return
         require_point_group("--table")
 
         from ..direct_product import main as direct_product_main
