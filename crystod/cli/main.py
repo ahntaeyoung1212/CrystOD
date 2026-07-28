@@ -55,7 +55,7 @@ needed: select the orbitals and the irrep decomposition runs directly.
 crystod -c 221_PPOSCAR_SrTiO3 --element Ti --orbital d
 crystod -c 221_PPOSCAR_SrTiO3 --element Ti --orbital d --kpoint 0 0 0 --spinor --show-irrep-table
 crystod -c 221_PPOSCAR_SrTiO3 --atomic-orbital Ti_d O_p --kpoint 0 0 0
-crystod --diagram -c 221_PPOSCAR_SrTiO3 --co-left SrTi --co-right O3 --atomic-orbital Ti-3d O-2p
+crystod --diagram -c 221_PPOSCAR_SrTiO3 --co-left SrTi --co-right O3
 crystod -c 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 0 0 0 --visualize
 crystod --star-of-k -c 221_PPOSCAR_ScF3 --kpoint 0.5 0.5 0
 """
@@ -131,8 +131,8 @@ def build_parser() -> ArgumentParser:
         "fragment sublattices given by --co-left/--co-right (full valence\n"
         "basis, e.g. --co-left SrTi --co-right O3) from symmetry +\n"
         "extended-Hueckel Bloch overlaps, written as interactive HTML\n"
-        "(CrystOD_{cell}.html). --atomic-orbital optionally selects the\n"
-        "orbitals drawn in the hover wave-function sketch (e.g. Ti-3d O-2p).",
+        "(CrystOD_{cell}.html). Every level carries a hover wave-function\n"
+        "sketch of all its atomic-orbital components.",
     )
     parser.add_argument(
         "--co-left",
@@ -154,7 +154,102 @@ def build_parser() -> ArgumentParser:
         type=float,
         default=None,
         help="Electrons per primitive cell in the --diagram\n"
-        "(default: neutral-atom valence counts).",
+        "(default: all electrons of the neutral atoms).",
+    )
+    parser.add_argument(
+        "--oxidation",
+        nargs="+",
+        default=None,
+        metavar="EL=Q",
+        help="Formal oxidation states for the removed-sublattice point\n"
+        "charges of the --diagram fragments, e.g. Sr=+2 Ti=+4 O=-2\n"
+        "(default: guessed with pymatgen).",
+    )
+    parser.add_argument(
+        "--pyscf",
+        action="store_true",
+        help="Make the --diagram quantitative with three periodic PySCF\n"
+        "calculations (left sublattice, right sublattice, crystal) that share\n"
+        "one AO space: the removed sublattice stays as ghost basis functions\n"
+        "and acts through its formal-charge point lattice, so every fragment\n"
+        "level is a real pre-bonding electronic state.",
+    )
+    parser.add_argument(
+        "--basis",
+        default=None,
+        help="PySCF Gaussian basis for --diagram --pyscf\n"
+        "(default: gth-dzvp-molopt-sr).",
+    )
+    parser.add_argument(
+        "--pseudo",
+        default=None,
+        help="PySCF GTH pseudopotential for --diagram --pyscf\n"
+        "(default: gth-pbe).",
+    )
+    parser.add_argument(
+        "--xc",
+        default=None,
+        help="Exchange-correlation functional for --diagram --pyscf, or 'hf'\n"
+        "(default: pbe).",
+    )
+    parser.add_argument(
+        "--kmesh",
+        type=int,
+        nargs=3,
+        default=None,
+        metavar=("N1", "N2", "N3"),
+        help="Regular k-mesh of the --diagram --pyscf self-consistent step\n"
+        "(default: round(8 Angstrom / |a_i|), i.e. 2 2 2 for a ~4 Angstrom cell).",
+    )
+    parser.add_argument(
+        "--ke-cutoff",
+        type=float,
+        default=None,
+        help="FFT-grid cutoff in Hartree for --diagram --pyscf (default: 200).",
+    )
+    parser.add_argument(
+        "--no-symmetrize",
+        action="store_true",
+        help="For --diagram --pyscf: keep the raw SCF eigenvalues instead of\n"
+        "re-diagonalizing the group-averaged Fock (debug; shows the grid-broken\n"
+        "degeneracies).",
+    )
+    parser.add_argument(
+        "--max-l",
+        type=int,
+        default=None,
+        help="For --diagram --pyscf: drop basis shells with l above this from\n"
+        "every element (e.g. 2 removes the f polarization functions).",
+    )
+    parser.add_argument(
+        "--no-ghost",
+        action="store_true",
+        help="For --diagram --pyscf: exclude the removed sublattice's basis\n"
+        "functions from the fragment calculations (hard constraint -- no\n"
+        "fragment wave function on the removed atoms; default keeps them as\n"
+        "counterpoise ghosts and reports the ghost weight per level).",
+    )
+    parser.add_argument(
+        "--no-align",
+        action="store_true",
+        help="For --diagram --pyscf: keep each calculation's own G=0 reference\n"
+        "instead of the deep-level (XPS-style) column alignment.",
+    )
+    parser.add_argument(
+        "--projection",
+        choices=("lowdin", "mulliken"),
+        default=None,
+        help="For --diagram --pyscf: population measure for the sketch lobe\n"
+        "sizes and the per-(element, shell) rows -- Loewdin |S^(1/2)c|^2\n"
+        "(default; non-negative, sums to 100%%) or Mulliken Re[c*(Sc)].",
+    )
+    parser.add_argument(
+        "--chk",
+        default=None,
+        metavar="FILE",
+        help="For --diagram --pyscf: WAVECAR-style restart file -- written\n"
+        "after the SCFs if missing, read (skipping all three SCFs) if present;\n"
+        "the defining parameters are verified before reuse.",
     )
     parser.add_argument(
         "--spinor",
@@ -320,7 +415,13 @@ def main(argv: list[str] | None = None) -> None:
                          "--co-left", *args.co_left,
                          "--co-right", *args.co_right]
         if args.atomic_orbital:
-            dispatch_argv.extend(["--atomic-orbital", *args.atomic_orbital])
+            parser.error(
+                "--diagram no longer takes --atomic-orbital: the hover "
+                "wave-function sketches are always embedded, for every level, "
+                "with all of its atomic-orbital components."
+            )
+        if args.oxidation:
+            dispatch_argv.extend(["--oxidation", *args.oxidation])
         if args.kpoint is not None:
             if len(args.kpoint) != 1:
                 parser.error(
@@ -335,14 +436,54 @@ def main(argv: list[str] | None = None) -> None:
         if args.tolerance is not None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
 
+        if args.pyscf:
+            for flag, value in (("--basis", args.basis), ("--pseudo", args.pseudo),
+                                ("--xc", args.xc)):
+                if value is not None:
+                    dispatch_argv.extend([flag, value])
+            if args.kmesh is not None:
+                dispatch_argv.extend(["--kmesh", *map(str, args.kmesh)])
+            if args.ke_cutoff is not None:
+                dispatch_argv.extend(["--ke-cutoff", str(args.ke_cutoff)])
+            if args.no_align:
+                dispatch_argv.append("--no-align")
+            if args.no_ghost:
+                dispatch_argv.append("--no-ghost")
+            if args.no_symmetrize:
+                dispatch_argv.append("--no-symmetrize")
+            if args.max_l is not None:
+                dispatch_argv.extend(["--max-l", str(args.max_l)])
+            if args.projection is not None:
+                dispatch_argv.extend(["--projection", args.projection])
+            if args.chk is not None:
+                dispatch_argv.extend(["--chk", args.chk])
+
+            from ..crystal_orbital_pyscf import main as pyscf_diagram_main
+
+            pyscf_diagram_main(dispatch_argv)
+            return
+
         from ..crystal_orbital_diagram import main as crystal_diagram_main
 
         crystal_diagram_main(dispatch_argv)
         return
+    for flag, value in (("--pyscf", args.pyscf), ("--basis", args.basis),
+                        ("--pseudo", args.pseudo), ("--kmesh", args.kmesh),
+                        ("--ke-cutoff", args.ke_cutoff),
+                        ("--no-align", args.no_align),
+                        ("--no-ghost", args.no_ghost),
+                        ("--no-symmetrize", args.no_symmetrize),
+                        ("--max-l", args.max_l is not None),
+                        ("--projection", args.projection),
+                        ("--chk", args.chk)):
+        if value:
+            parser.error(f"{flag} is only used with --diagram.")
     if args.electrons is not None:
         parser.error("--electrons is only used with --diagram.")
     if args.co_left or args.co_right:
         parser.error("--co-left/--co-right are only used with --diagram.")
+    if args.oxidation:
+        parser.error("--oxidation is only used with --diagram.")
 
     if args.atomic_orbital:
         if args.element or args.orbital:
