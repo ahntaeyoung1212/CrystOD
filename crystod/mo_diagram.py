@@ -878,7 +878,10 @@ class MODiagram:
         print("\n* Fragments *")
         print(f"central atom: {center_symbol}; ligands: {ligands}")
 
-        print("\n* Valence AO parameters (single-zeta STO, extended Hueckel) *")
+        print(
+            "\n* Valence Atomic Orbital (AO) parameters "
+            "(single-zeta STO, extended Hueckel) *"
+        )
         seen = set()
         for element in [center_symbol] + sorted(self.ligand_sites):
             if element in seen:
