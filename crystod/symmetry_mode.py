@@ -192,8 +192,14 @@ def _to_algebra_primitive(algebra, conventional, delta):
     shifted = (np.asarray(positions_conv) + delta) % 1.0
 
     for A in (M, M.T):
+        # consistent row convention: L_prim = A L_conv (rows = primitive
+        # vectors in conventional units) requires x_p = x_c A^-1 for the SAME
+        # Cartesian point.  Using A_inv.T here (the column convention) breaks
+        # the geometry whenever A is not symmetric -- C-centred groups! -- yet
+        # the damaged structure can still pass the group-invariance check
+        # below, because invariance is necessary but not sufficient.
         A_inv = np.linalg.inv(A)
-        prim_positions = (shifted @ A_inv.T) % 1.0  # column: x_p = A^-1 x_c
+        prim_positions = (shifted @ A_inv) % 1.0  # row: x_p = x_c A^-1
         lattice_prim = A @ np.asarray(lattice_conv)
         merged, merged_z = _merge_duplicates(prim_positions, numbers_conv)
         if _invariant_under_algebra(algebra, merged, merged_z):
@@ -597,33 +603,69 @@ class SymmetryModeAnalysis:
 
     # -- subgroup elements: parent operations preserving the child structure
     def _find_subgroup_members(self):
+        """Parent operations that survive in the child, selected adaptively.
+
+        Every (operation, translation) candidate gets a mismatch distance:
+        the worst atom-to-nearest-partner distance of the transformed child
+        structure.  Genuine members of H sit at the numerical-noise level of
+        the standardized child, while broken operations sit at the scale of
+        the symmetry-BREAKING part of the distortion — which can be far
+        smaller than any fixed cutoff (pseudo-symmetric structures whose
+        breaking component is ~0.001 A while the fully symmetric component
+        is large) or far larger (strong tilts).  A fixed threshold therefore
+        cannot work; instead, the child's own space group fixes how many
+        members MUST survive, and the threshold is placed at that point of
+        the sorted mismatch spectrum after checking the gap is clean."""
+        import spglib
+
         algebra = self.algebra
         S = self.S_core
         S_inv = np.linalg.inv(S)
         reps = _translation_reps(S)
         positions = self.core_child_frac
         numbers = self.ref_z
-        members = []
+        candidates = []
         for i in range(algebra.n_ops):
             W = algebra.rotations[i]
             v = np.array(algebra.translations[i], dtype=float) / DEN
             for t in reps:
-                good = True
+                worst = 0.0
                 for x, z in zip(positions, numbers):
                     image = W @ x + v + t
-                    hit = False
+                    best = None
                     for y, zz in zip(positions, numbers):
+                        if zz != z:
+                            continue
                         d = image - y
                         d = d - np.rint(d @ S_inv) @ S
-                        if zz == z and np.linalg.norm(d @ self.L_parent) < 0.05:
-                            hit = True
-                            break
-                    if not hit:
-                        good = False
-                        break
-                if good:
-                    members.append((i, np.asarray(t, dtype=np.int64)))
-        return members
+                        dist = np.linalg.norm(d @ self.L_parent)
+                        if best is None or dist < best:
+                            best = dist
+                    worst = max(worst, best)
+                candidates.append(((i, np.asarray(t, dtype=np.int64)), worst))
+        candidates.sort(key=lambda entry: entry[1])
+
+        # expected order of the child factor group on the core cell
+        child_ops = spglib.get_symmetry(self.child_prim, symprec=1e-5)
+        n_child = len(child_ops["rotations"])
+        if (n_child * self.core_size) % self.size != 0:
+            raise SystemExit(
+                "ERROR: inconsistent child symmetry count; please report "
+                "this case."
+            )
+        expected = n_child * self.core_size // self.size
+        if expected >= len(candidates):
+            return [entry[0] for entry in candidates]
+        low = candidates[expected - 1][1]
+        high = candidates[expected][1]
+        if high < 2.0 * low + 1e-6:
+            raise SystemExit(
+                "ERROR: cannot separate the surviving from the broken parent "
+                f"operations (mismatch gap {low:.2e} .. {high:.2e} A); the "
+                "child symmetry is ambiguous at this precision -- try a "
+                "different --tolerance."
+            )
+        return [entry[0] for entry in candidates[:expected]]
 
     # -- k points folding to the analysis-cell Gamma point
     def _folding_kpoints(self):

@@ -5,7 +5,14 @@ The crystalline counterpart of the molecular-orbital diagram of
 ``crystod-mol --diagram --ao-left ... --ao-right ...``: the two fragment
 sublattices given by ``--co-left``/``--co-right`` (e.g. the SrTi cation
 framework and the O3 anion framework of SrTiO3) are treated with their
-full valence basis -- every parametrized shell of every atom -- so their
+full-electron basis -- every core and valence shell of every atom
+(WIEN2k-style; core shells with Slater-rule exponents and the archived
+neutral-atom PySCF Hartree-Fock levels of reference/atomic_level_*,
+collected into crystod/atomic_levels.py; shells frozen into the def2
+effective core potential beyond Kr are omitted) -- and each fragment
+feels the removed
+sublattice as a point-charge lattice with the formal oxidation states
+(the Madelung ligand field; see crystod.point_charge_field), so their
 Bloch states are the complete electronic states before chemical bond
 formation.  At every high-symmetry k point,
 
@@ -25,10 +32,11 @@ formation.  At every high-symmetry k point,
    window opens on -20 .. 10 eV, "Show all energy levels" reveals the
    deep shells).
 
-``--atomic-orbital`` (optional) selects the atomic orbitals drawn in the
-hover wave-function sketch, e.g. ``--atomic-orbital Ti-3d Ti-4s O-2p``:
-the Re[psi] amplitudes of only these components are rendered on the
-k-commensurate supercell.  Without it no sketches are embedded.
+Every level carries a hover wave-function sketch: the Re[psi] amplitudes
+of all its atomic-orbital components, rendered on the k-commensurate
+supercell (same-l shells accumulate with their radial weights, so the
+drawn lobe signs are those of the real wave function in the bonding
+region).
 
 Reference: Y. Mochizuki, M. Nishibori and T. Fukushima, "Crystal Orbital
 Diagram of Perovskites: A Revisit from Symmetry-Adapted Linear
@@ -43,16 +51,24 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .atomic_levels import ATOMIC_LEVELS
 from .mo_diagram import (
     ANGSTROM_TO_BOHR,
+    CORE_SHELLS,
     EHT_PARAMETERS,
-    VALENCE_ELECTRONS,
     WOLFSBERG_HELMHOLZ_K,
     AtomicOrbital,
     make_aligned_cache,
     pair_overlap,
     render_diagram_page,
     svg_sub_digits,
+)
+from .point_charge_field import (
+    COULOMB_EV_ANGSTROM,
+    ewald_site_potential,
+    point_charge_block,
+    radial_overlap,
+    slater_zeta,
 )
 from .runtime_compat import get_character, get_chemical_symbols, get_scaled_positions
 from .spglib_compat import ensure_spglib_compat
@@ -70,8 +86,11 @@ IrrepTable, _Irrep = load_irreptables()
 
 _DEGENERACY_TOL = 1e-5
 
-# default view of the interactive energy window (eV); the "Show all energy
-# levels" button reveals everything outside it
+# default view of the interactive energy window: +-8 eV around the HOMO/LUMO
+# midpoint (the VBM/CBM region one usually inspects first); the "Show all
+# energy levels" button reveals everything outside it.  The fixed window below
+# is only the fallback when no HOMO/LUMO pair exists.
+_VIEW_HALF_WINDOW = 8.0
 _VIEW_E_MIN = -20.0
 _VIEW_E_MAX = 10.0
 
@@ -136,6 +155,20 @@ def parse_fragment_formula(tokens: list[str], flag: str) -> list[tuple[str, int 
     return pairs
 
 
+def parse_oxidation_tokens(tokens: list[str]) -> dict[str, float]:
+    """Parse El=Q tokens (Sr=+2, O=-2, Ti=4) into {element: charge}."""
+    oxidation = {}
+    for token in tokens:
+        match = re.fullmatch(r"([A-Z][a-z]?)=([+-]?\d+(?:\.\d+)?)", token)
+        if not match:
+            raise SystemExit(
+                f"ERROR: invalid --oxidation token '{token}' "
+                "(expected e.g. Sr=+2 Ti=+4 O=-2)."
+            )
+        oxidation[match.group(1)] = float(match.group(2))
+    return oxidation
+
+
 def parse_sketch_tokens(tokens: list[str]) -> list[tuple[str, str]]:
     """Parse El-shell tokens (Ti-3d, Ti-d, O_2p) into (element, shell)."""
     wanted = []
@@ -164,7 +197,8 @@ class CrystalOrbitalDiagram:
 
     def __init__(self, cell, left_tokens: list[str], right_tokens: list[str],
                  symprec: float = 1e-5, electrons: float | None = None,
-                 sketch_tokens: list[str] | None = None):
+                 sketch_tokens: list[str] | None = None,
+                 oxidation: dict[str, float] | None = None):
         self.builder = SymmetryAdaptedOrbitalBasis(cell=cell, symprec=symprec)
         primitive = self.builder.primitive_cell
         self.symbols = get_chemical_symbols(primitive)
@@ -218,18 +252,63 @@ class CrystalOrbitalDiagram:
                 f"{comp_str}; every atom must belong to one fragment)."
             )
 
-        # full valence basis: every parametrized shell of every atom,
-        # fragment-major so each fragment is one contiguous AO block
+        # formal oxidation states of the ions: the removed sublattice enters
+        # each fragment as a point-charge lattice with these charges
+        if oxidation is None:
+            from pymatgen.core import Composition
+
+            guesses = Composition(comp_str).oxi_state_guesses()
+            if not guesses:
+                raise SystemExit(
+                    "ERROR: could not guess the oxidation states of "
+                    f"{comp_str}; pass them explicitly, e.g. "
+                    "--oxidation Sr=+2 Ti=+4 O=-2."
+                )
+            oxidation = {el: float(q) for el, q in guesses[0].items()}
+        missing_ox = [el for el in composition if el not in oxidation]
+        if missing_ox:
+            raise SystemExit(
+                f"ERROR: --oxidation misses element(s) "
+                f"{', '.join(missing_ox)}."
+            )
+        net = sum(oxidation[el] * composition[el] for el in composition)
+        if abs(net) > 1e-6:
+            raise SystemExit(
+                f"ERROR: oxidation states are not charge-neutral "
+                f"(net {net:+g} per cell)."
+            )
+        self.oxidation = oxidation
+
+        # full-electron basis (core + valence shells of every atom),
+        # fragment-major so each fragment is one contiguous AO block; core
+        # shells get Slater-rule exponents and the archived PySCF
+        # neutral-atom Hartree-Fock levels (reference/atomic_level_*),
+        # valence shells the extended-Hueckel parameters.  Shells frozen
+        # into the def2 effective core potential (beyond Kr) do not exist
+        # in the atomic data and are omitted -- the pseudopotential
+        # picture.
         self.specs: list[SublatticeSpec] = []
         self.side_specs = {"left": [], "right": []}
         offset = 0
         for side in ("left", "right"):
             for element, _count in formulas[side]:
+                if element not in ATOMIC_LEVELS:
+                    raise SystemExit(
+                        f"ERROR: no archived atomic levels for {element}; "
+                        "run script/generate_atomic_levels.py and "
+                        "script/collect_atomic_levels.py."
+                    )
                 sites = [
                     index for index, symbol in enumerate(self.symbols)
                     if symbol == element
                 ]
-                for shell, n, l, zeta, h_ii in EHT_PARAMETERS[element]:
+                levels = ATOMIC_LEVELS[element]["levels"]
+                shells = [
+                    (shell, int(shell[0]), "spdf".index(shell[-1]),
+                     slater_zeta(element, shell), levels[shell])
+                    for shell in CORE_SHELLS[element] if shell in levels
+                ] + list(EHT_PARAMETERS[element])
+                for shell, n, l, zeta, h_ii in shells:
                     spec = SublatticeSpec(element, shell[-1], shell, n, l,
                                           zeta, h_ii, sites, side, offset)
                     self.specs.append(spec)
@@ -255,7 +334,7 @@ class CrystalOrbitalDiagram:
 
         self.side_electrons = {
             side: sum(
-                VALENCE_ELECTRONS[element] * composition[element]
+                ATOMIC_LEVELS[element]["electrons"] * composition[element]
                 for element, _count in formulas[side]
             )
             for side in ("left", "right")
@@ -292,6 +371,114 @@ class CrystalOrbitalDiagram:
         self._aligned = make_aligned_cache()
         self._cutoffs = self._pair_cutoffs()
         self._images = self._lattice_images(max(self._cutoffs.values()))
+        self._build_ligand_field()
+
+    # -------------------------------------------------- point-charge field
+
+    def _build_ligand_field(self, r_cut_angstrom: float = 7.0):
+        """Same-site matrices of the removed-sublattice point-charge field.
+
+        Every atom feels the complementary sublattice as a lattice of point
+        charges with the formal oxidation states: charges within
+        r_cut_angstrom enter as exact <phi_i|q/|r-R||phi_j> STO integrals
+        (monopole shift + multipole ligand-field splitting), the long-range
+        rest as the Ewald site potential (neutralizing-background
+        convention, as in charged periodic DFT cells).  The blocks are
+        added identically to the fragment and the crystal Hamiltonians, so
+        the three diagram columns share one energy reference."""
+        complementary = {"left": "right", "right": "left"}
+        side_of_atom = {}
+        for side in ("left", "right"):
+            for spec in self.side_specs[side]:
+                for site in spec.sites:
+                    side_of_atom[site] = side
+        charge_lattice = {
+            side: [
+                (self.oxidation[self.symbols[site]], self.positions[site])
+                for site in range(len(self.symbols))
+                if side_of_atom[site] == side
+            ]
+            for side in ("left", "right")
+        }
+        bounds = []
+        volume = abs(np.linalg.det(self.lattice))
+        for i in range(3):
+            j, k = (i + 1) % 3, (i + 2) % 3
+            perpendicular = volume / np.linalg.norm(
+                np.cross(self.lattice[j], self.lattice[k])
+            )
+            bounds.append(int(np.ceil(r_cut_angstrom / perpendicular)) + 1)
+        images = [
+            np.array([n1, n2, n3])
+            for n1 in range(-bounds[0], bounds[0] + 1)
+            for n2 in range(-bounds[1], bounds[1] + 1)
+            for n3 in range(-bounds[2], bounds[2] + 1)
+        ]
+
+        self.h_raw = np.array([o.h_ii for o in self.orbitals], dtype=float)
+        self.h_bar = self.h_raw.copy()
+        self.v_onsite = np.zeros((self.n_ao, self.n_ao))
+        self.site_potential = np.zeros(len(self.symbols))
+        for atom in range(len(self.symbols)):
+            charges = charge_lattice[complementary[side_of_atom[atom]]]
+            near = []
+            near_monopole = 0.0
+            for q, frac in charges:
+                for image in images:
+                    vector = (frac + image - self.positions[atom]) @ self.lattice
+                    distance = float(np.linalg.norm(vector))
+                    if distance <= r_cut_angstrom:
+                        near.append((q, vector * ANGSTROM_TO_BOHR))
+                        near_monopole += q / distance
+            v_ewald = ewald_site_potential(
+                self.lattice, charges, self.positions[atom]
+            )
+            self.site_potential[atom] = -COULOMB_EV_ANGSTROM * v_ewald
+            e_far = -COULOMB_EV_ANGSTROM * (v_ewald - near_monopole)
+            indices = [
+                index for index, orbital in enumerate(self.orbitals)
+                if orbital.atom == atom
+            ]
+            orbitals = [self.orbitals[index] for index in indices]
+            block = point_charge_block(orbitals, near)
+            # The EHT basis treats same-site shells of one l (2p/3p/4p,
+            # ...) as orthonormal, but the raw STO radials are not: the
+            # point-charge matrix must be expressed in the Loewdin-
+            # orthogonalized on-site basis, so that a constant potential
+            # maps exactly onto the identity (and the far-field term is
+            # exactly diagonal).
+            s_site = np.eye(len(indices))
+            for a_local, oa in enumerate(orbitals):
+                for b_local in range(a_local + 1, len(indices)):
+                    ob = orbitals[b_local]
+                    if (oa.l, oa.m) == (ob.l, ob.m) and oa.shell != ob.shell:
+                        s_site[a_local, b_local] = s_site[b_local, a_local] \
+                            = radial_overlap((oa.n, oa.zeta), (ob.n, ob.zeta))
+            s_values, s_vectors = np.linalg.eigh(s_site)
+            o_half = (s_vectors / np.sqrt(s_values)) @ s_vectors.T
+            block = o_half @ block @ o_half
+            block += np.eye(len(indices)) * e_far
+            # The monopole (Madelung) part of the site shift is omitted: it
+            # depends on the neutralizing-background convention of the
+            # charged sublattice array (it flips the SrTiO3 band ordering),
+            # and it largely cancels against the intra-atomic charging
+            # energy not present in the extended-Hueckel VSIPs -- the
+            # standard argument why neutral-atom VSIPs work in ionic
+            # crystals.  What remains is background-independent and
+            # absolutely convergent: the anisotropic multipole ligand field
+            # (t2g/eg splittings, ...) and the near-shell penetration
+            # corrections.  The omitted jellium-referenced monopole is kept
+            # in self.site_potential for the report.
+            block -= np.eye(len(indices)) * self.site_potential[atom]
+            self.v_onsite[np.ix_(indices, indices)] = block
+            # shell-averaged (rotation-invariant) shift for the W-H h_bar
+            shells = {}
+            for local, orbital in enumerate(orbitals):
+                shells.setdefault(orbital.shell, []).append(local)
+            for members in shells.values():
+                average = float(np.mean([block[m, m] for m in members]))
+                for m in members:
+                    self.h_bar[indices[m]] += average
 
     # ------------------------------------------------------------ Bloch sums
 
@@ -312,10 +499,17 @@ class CrystalOrbitalDiagram:
                 kinds.append(spec)
         cutoffs = {}
         for index, a_spec in enumerate(kinds):
-            a = AtomicOrbital(0, a_spec.element, a_spec.shell, a_spec.n,
-                              a_spec.l, sigma_m[a_spec.l], a_spec.zeta,
-                              a_spec.h_ii)
             for b_spec in kinds[index:]:
+                key_a = (a_spec.element, a_spec.shell)
+                key_b = (b_spec.element, b_spec.shell)
+                if a_spec.l > 2 or b_spec.l > 2:
+                    # f shells appear only as ultra-compact cores (Pb/Bi
+                    # 4f); their inter-site overlap is neglected
+                    cutoffs[key_a, key_b] = cutoffs[key_b, key_a] = 6.0
+                    continue
+                a = AtomicOrbital(0, a_spec.element, a_spec.shell, a_spec.n,
+                                  a_spec.l, sigma_m[a_spec.l], a_spec.zeta,
+                                  a_spec.h_ii)
                 b = AtomicOrbital(0, b_spec.element, b_spec.shell, b_spec.n,
                                   b_spec.l, sigma_m[b_spec.l], b_spec.zeta,
                                   b_spec.h_ii)
@@ -324,8 +518,6 @@ class CrystalOrbitalDiagram:
                     a, b, np.array([0.0, 0.0, r]), self._aligned
                 )) > tol:
                     r += 2.0
-                key_a = (a_spec.element, a_spec.shell)
-                key_b = (b_spec.element, b_spec.shell)
                 cutoffs[key_a, key_b] = r
                 cutoffs[key_b, key_a] = r
         return cutoffs
@@ -369,6 +561,8 @@ class CrystalOrbitalDiagram:
                     fractional = fractionals[image_index]
                     if distances[image_index] < 1e-9:
                         overlap = 1.0 if (a.shell, a.m) == (b.shell, b.m) else 0.0
+                    elif a.l > 2 or b.l > 2:
+                        overlap = 0.0   # compact f cores: no inter-site overlap
                     else:
                         overlap = pair_overlap(
                             a, b, fractional @ lattice_bohr, self._aligned
@@ -384,15 +578,19 @@ class CrystalOrbitalDiagram:
     def hamiltonian(self, S: np.ndarray) -> np.ndarray:
         """Wolfsberg-Helmholz Hamiltonian over the Bloch overlaps.
 
-        The diagonal of S_k is 1 + the same-orbital neighbour-cell Bloch
-        sum, so the diagonal is h_ii + K h_ii (S_kk - 1): only the on-site
-        (R = 0) term is the bare VSIP, every same-orbital inter-cell
-        overlap gets the usual K (h_i + h_j)/2 treatment like any other
-        pair."""
-        h = np.array([orbital.h_ii for orbital in self.orbitals])
-        H = 0.5 * WOLFSBERG_HELMHOLZ_K * (h[:, None] + h[None, :]) * S
-        H[np.diag_indices(self.n_ao)] = h * (
-            1.0 + WOLFSBERG_HELMHOLZ_K * (np.real(np.diag(S)) - 1.0)
+        The W-H prefactor uses the shell-averaged shifted energies h_bar
+        (rotation-invariant, so the symmetry of H stays exact); the on-site
+        blocks carry the bare atomic energies plus the full anisotropic
+        point-charge ligand-field matrices (v_onsite).  The diagonal of S_k
+        is 1 + the same-orbital neighbour-cell Bloch sum, so only the
+        on-site R = 0 term is the bare atomic energy: the diagonal
+        correction (1 - K) restores h + K h_bar (S_kk - 1) + V_ii."""
+        H = 0.5 * WOLFSBERG_HELMHOLZ_K * (
+            self.h_bar[:, None] + self.h_bar[None, :]
+        ) * S
+        H += self.v_onsite
+        H[np.diag_indices(self.n_ao)] += (
+            self.h_raw - WOLFSBERG_HELMHOLZ_K * self.h_bar
         )
         return H
 
@@ -539,6 +737,19 @@ class CrystalOrbitalDiagram:
                 "ERROR: Bloch-overlap gauge inconsistency "
                 f"(residual {worst:.2e}); please report this case."
             )
+        # ... and H (checks the point-charge ligand-field blocks against
+        # the site-symmetry representation, i.e. the real-harmonics
+        # conventions)
+        h_scale = float(np.max(np.abs(H)))
+        worst_h = max(
+            float(np.max(np.abs(D.conj().T @ H @ D - H)))
+            for D in representation
+        ) / max(h_scale, 1.0)
+        if worst_h > 1e-6:
+            raise SystemExit(
+                "ERROR: Hamiltonian symmetry inconsistency "
+                f"(relative residual {worst_h:.2e}); please report this case."
+            )
 
         def strip(label):
             return label.split("(")[0]
@@ -568,6 +779,18 @@ class CrystalOrbitalDiagram:
                         label=f"{spec.element} {spec.shell} {name}",
                         vectors=space,
                     ))
+            # two fragment levels can share (element, shell, irrep) -- e.g.
+            # the two F 2p GM4- combinations; number them so the crystal
+            # compositions stay readable
+            seen: dict[str, int] = {}
+            for level in levels[column]:
+                seen[level.label] = seen.get(level.label, 0) + 1
+            repeated = {label for label, n in seen.items() if n > 1}
+            occurrence: dict[str, int] = {}
+            for level in levels[column]:
+                if level.label in repeated:
+                    occurrence[level.label] = occurrence.get(level.label, 0) + 1
+                    level.label = f"{level.label}#{occurrence[level.label]}"
 
         # crystal levels
         energies, vectors, dropped = self._generalized_eigh(H, S)
@@ -586,13 +809,12 @@ class CrystalOrbitalDiagram:
                     energy=float(energy),
                     degeneracy=space.shape[1],
                     irrep=name,
-                    label=f"{name}({occurrence})",
+                    # "GM4- #2" = second GM4- multiplet from the bottom, the
+                    # same #N numbering as the fragment columns; "GM4-(2)"
+                    # read like a degeneracy count
+                    label=f"{name} #{occurrence}",
                     vectors=space,
                 ))
-        # drop the occurrence suffix from irreps appearing only once
-        for level in levels["mo"]:
-            if counts.get(level.irrep, 0) == 1:
-                level.label = level.irrep
 
         # compositions: crystal level onto fragment levels (S metric)
         for crystal in levels["mo"]:
@@ -657,7 +879,17 @@ class CrystalOrbitalDiagram:
         Bloch crystal orbital, so the sign alternation between the cells of
         the k-commensurate supercell is displayed faithfully; degenerate
         partners are realified and RREF-canonicalized like the molecular
-        sketch."""
+        sketch.
+
+        Same-l shells of one atom (e.g. Sc 2p/3p/4p) share their slots and
+        accumulate, each weighted by its STO radial amplitude at a
+        representative bonding-region radius (r0 = 2 bohr), so the drawn
+        lobe signs are the signs of the real wave function there.  (A bare
+        coefficient of one shell is wrong: a semicore level like Sc 3p
+        would be drawn from the tiny orthogonalization tail of the 4p
+        shell, whose sign is inverted -- the crystal analogue of the
+        contracted-GTO compression in the molecular PySCF sketch.)"""
+        from .point_charge_field import _primitives
         from .visualize_basis import realify_basis_space
 
         rows, _ = realify_basis_space(level.vectors.T)
@@ -665,6 +897,15 @@ class CrystalOrbitalDiagram:
         n_prim = len(self.symbols)
         width = 9
         slot_of = {0: 0, 1: 1, 2: 4}
+        r0 = 2.0  # bohr
+        angular = {0: 0.28209479, 1: 0.48860251, 2: 0.63078313}
+        radial_weight = [
+            angular[spec.l] * sum(
+                c * r0 ** (n - 1) * np.exp(-z * r0)
+                for c, n, z in _primitives(spec.n, spec.zeta)
+            ) if spec.l in slot_of else 0.0
+            for spec in self.specs
+        ]
         partner_rows = []
         for vector in rows:
             amp_re = np.zeros((len(cells) * n_prim, width))
@@ -672,6 +913,8 @@ class CrystalOrbitalDiagram:
             for spec_index, spec in enumerate(self.specs):
                 if (self.sketch_specs is not None
                         and spec_index not in self.sketch_specs):
+                    continue
+                if spec.l not in slot_of:
                     continue
                 slot = slot_of[spec.l]
                 w = 2 * spec.l + 1
@@ -682,10 +925,11 @@ class CrystalOrbitalDiagram:
                         phase = np.exp(2j * np.pi * float(np.dot(
                             kpoint, cell_vector + self.positions[site]
                         )))
-                        values = np.asarray(block) * phase
+                        values = (np.asarray(block) * phase
+                                  * radial_weight[spec_index])
                         row_index = c_index * n_prim + site
-                        amp_re[row_index, slot:slot + w] = values.real
-                        amp_im[row_index, slot:slot + w] = values.imag
+                        amp_re[row_index, slot:slot + w] += values.real
+                        amp_im[row_index, slot:slot + w] += values.imag
             choice = (amp_re if np.linalg.norm(amp_re) >= np.linalg.norm(amp_im)
                       else amp_im)
             partner_rows.append(choice.reshape(-1))
@@ -744,12 +988,16 @@ def _format_kpoint(kpoint) -> str:
 
 
 def _detail_html(level: DiagramLevel, names: dict) -> str:
+    # consumed as the SVG <title> textContent (the native hover tooltip),
+    # which renders newlines but shows HTML tags literally
     rows = [
         f"E = {level.energy:.2f} eV",
         f"irrep: {level.irrep} (degeneracy {level.degeneracy})",
         f"electrons: {level.electrons}",
     ]
-    return "<br>".join(rows)
+    if level.detail:
+        rows.append(level.detail)
+    return "\n".join(rows)
 
 
 def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
@@ -798,20 +1046,26 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                         if w > 0.005
                     ],
                     "detail": _detail_html(level, names),
-                    "orb": (diagram.sketch_partners(level, kpoint, cells)
-                            if diagram.sketch_specs is not None else None),
+                    "orb": diagram.sketch_partners(level, kpoint, cells),
                 })
         occupied = [lv for lv in levels["mo"] if lv.electrons > 0]
         empty = [lv for lv in levels["mo"] if lv.electrons == 0]
-        homo = max(occupied, key=lambda lv: lv.energy).level_id if occupied else None
-        lumo = min(empty, key=lambda lv: lv.energy).level_id if empty else None
+        homo_level = max(occupied, key=lambda lv: lv.energy) if occupied else None
+        lumo_level = min(empty, key=lambda lv: lv.energy) if empty else None
+        homo = homo_level.level_id if homo_level else None
+        lumo = lumo_level.level_id if lumo_level else None
         energies = [lv.energy for column in order for lv in levels[column]]
         e_min, e_max = min(energies), max(energies)
         padding = 0.08 * (e_max - e_min) or 1.0
-        # the interactive view opens on -20 .. 10 eV ("Show all energy
-        # levels" reveals the deep shells outside it)
-        view_lo = max(e_min - padding, _VIEW_E_MIN)
-        view_hi = min(e_max + padding, _VIEW_E_MAX)
+        # the interactive view opens on the frontier states: +-8 eV around the
+        # HOMO/LUMO midpoint ("Show all energy levels" reveals the deep shells
+        # outside it); without a HOMO/LUMO pair, fall back to a fixed window
+        if homo_level is not None and lumo_level is not None:
+            center = 0.5 * (homo_level.energy + lumo_level.energy)
+            view_lo, view_hi = center - _VIEW_HALF_WINDOW, center + _VIEW_HALF_WINDOW
+        else:
+            view_lo = max(e_min - padding, _VIEW_E_MIN)
+            view_hi = min(e_max + padding, _VIEW_E_MAX)
         if view_hi - view_lo < 1.0:
             view_lo, view_hi = e_min - padding, e_max + padding
         variants.append({
@@ -831,20 +1085,19 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         structure_label,
         f"{diagram.builder.spglib_dataset['international']} "
         f"(No. {diagram.builder.spglib_dataset['number']})",
-        f"{fragment_names} (all valence shells)",
+        f"{fragment_names} (full-electron basis)",
         f"{int(diagram.electrons)} electrons / cell",
-        ("sketch: " + " ".join(diagram.sketch_tokens)
-         if diagram.sketch_tokens else ""),
-        "extended H&uuml;ckel + SALC",
+        "point charges: " + " ".join(
+            f"{element}{diagram.oxidation[element]:+g}"
+            for element in dict.fromkeys(diagram.symbols)
+        ),
+        getattr(diagram, "method_chip", "extended H&uuml;ckel + SALC"),
     ]
     sketch_foot = (
-        " Click or hover a level for its composition"
-        + (" and the real-space wave function Re[&psi;] of its "
-           "--atomic-orbital components drawn on the k-commensurate "
-           "supercell (drag to rotate; degenerate partners switchable)."
-           if diagram.sketch_specs is not None else
-           " (pass --atomic-orbital, e.g. Ti-3d O-2p, to embed the "
-           "real-space wave-function sketches).")
+        " Click or hover a level for its composition and the real-space "
+        "wave function Re[&psi;] of all its atomic-orbital components drawn "
+        "on the k-commensurate supercell (drag to rotate; degenerate "
+        "partners switchable)."
     )
     render_diagram_page(
         output_path,
@@ -862,14 +1115,18 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         e_min=first["eMin"], e_max=first["eMax"],
         foot_html=(
             "Crystal-orbital diagram (COD): the fragment-sublattice Bloch "
-            "orbitals (columns, full valence basis) are the electronic "
-            "states before chemical bond formation; states sharing an irrep "
-            "of the little group at k mix into bonding/antibonding crystal "
-            "orbitals (center), states without a partner remain nonbonding. "
-            "Energies: symmetry-adapted extended H&uuml;ckel (VSIP diagonal "
-            "+ Wolfsberg-Helmholz off-diagonal over exact Bloch STO overlap "
+            "orbitals (columns, full-electron basis: every core and valence "
+            "shell) are the electronic states before chemical bond "
+            "formation, in the point-charge ligand field of the removed "
+            "sublattice (formal oxidation states; exact multipole + "
+            "penetration terms, background-dependent monopole omitted); "
+            "states sharing an irrep of the little group at k mix into "
+            "bonding/antibonding crystal orbitals (center), states without "
+            "a partner remain nonbonding. Energies: symmetry-adapted "
+            "extended H&uuml;ckel (VSIP/core-level diagonal + "
+            "Wolfsberg-Helmholz off-diagonal over exact Bloch STO overlap "
             "sums). The energy window opens on -20 .. 10 eV; use \"Show all "
-            "energy levels\" for the deep shells. Switch the k point with "
+            "energy levels\" for the core shells. Switch the k point with "
             "the buttons above." + sketch_foot
         ),
         geometry=variants[0]["geom"],
@@ -877,17 +1134,19 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
     )
 
 
-def report_and_write(cell, *, left, right, sketch, symprec, electrons,
-                     kpoint_filter, output_path, structure_label):
+def report_and_write(cell, *, left, right, symprec, electrons,
+                     kpoint_filter, output_path, structure_label,
+                     oxidation=None):
     """Terminal report + HTML for the crystal-orbital diagram."""
     diagram = CrystalOrbitalDiagram(
         cell, left, right, symprec=symprec, electrons=electrons,
-        sketch_tokens=sketch,
+        oxidation=oxidation,
     )
     dataset = diagram.builder.spglib_dataset
     print("\n * Space group *")
     print(f" {dataset['international']} ({dataset['number']})\n")
-    print(" * Fragments (all valence shells) *")
+    print(" * Fragments (full-electron basis: core + valence shells;"
+          " atomic levels from reference/atomic_level_*) *")
     for column in ("left", "right"):
         by_element: dict[str, list] = {}
         for spec in diagram.side_specs[column]:
@@ -895,19 +1154,38 @@ def report_and_write(cell, *, left, right, sketch, symprec, electrons,
         parts = " | ".join(
             f"{element} " + " ".join(spec.shell for spec in specs)
             + f" x{len(specs[0].sites)} site(s)"
+            + (f" [ECP-{ATOMIC_LEVELS[element]['ecp_core']} core frozen]"
+               if ATOMIC_LEVELS[element]["ecp_core"] else "")
             for element, specs in by_element.items()
         )
         print(f" {column:<5} {diagram.formula[column]:<6}: {parts}, "
               f"{diagram.side_electrons[column]} electrons")
     print(f" electrons per cell in the diagram: {int(diagram.electrons)}"
-          + (" (neutral-atom valence counts; override with --electrons,"
-             " e.g. the ionic filling)" if electrons is None else ""))
-    if diagram.sketch_tokens:
-        print(" wave-function sketch orbitals: "
-              + " ".join(diagram.sketch_tokens) + "\n")
-    else:
-        print(" (no --atomic-orbital: hover wave-function sketches are "
-              "not embedded)\n")
+          + (" (all electrons of the neutral atoms; override with"
+             " --electrons)" if electrons is None else ""))
+    print(" * Ligand-field point charges (removed sublattice) *")
+    shifts: dict[str, list] = {}
+    for atom, symbol in enumerate(diagram.symbols):
+        shifts.setdefault(symbol, []).append(diagram.site_potential[atom])
+    other = {"left": "right", "right": "left"}
+    for column in ("left", "right"):
+        felt = " + ".join(
+            f"{element}^{diagram.oxidation[element]:+g}"
+            for element in dict.fromkeys(
+                spec.element for spec in diagram.side_specs[other[column]]
+            )
+        )
+        own = ", ".join(
+            f"{element} {np.mean(shifts[element]):+.2f} eV"
+            for element in dict.fromkeys(
+                spec.element for spec in diagram.side_specs[column]
+            )
+        )
+        print(f" {column:<5} {diagram.formula[column]:<6} feels the {felt} "
+              f"lattice (multipole ligand field + penetration; "
+              f"jellium-referenced monopole {own} omitted)")
+    print(" hover wave-function sketches: all atomic-orbital components "
+          "of every level\n")
 
     entries = []
     kpoints = diagram.special_kpoints()
@@ -968,10 +1246,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--co-right", nargs="+", required=True,
                         metavar="FORMULA",
                         help="right fragment sublattice, e.g. O3")
-    parser.add_argument("--atomic-orbital", nargs="+", default=None,
-                        metavar="EL_SHELL",
-                        help="atomic orbitals drawn in the hover "
-                        "wave-function sketch, e.g. Ti-3d Ti-4s O-2p")
+    parser.add_argument("--oxidation", nargs="+", default=None,
+                        metavar="EL=Q",
+                        help="formal oxidation states for the removed-"
+                        "sublattice point charges, e.g. Sr=+2 Ti=+4 O=-2 "
+                        "(default: guessed with pymatgen)")
     parser.add_argument("--kpoint", default=None,
                         help="restrict to one special k point label (e.g. GM)")
     parser.add_argument("--electrons", type=float, default=None,
@@ -995,12 +1274,13 @@ def main(argv: list[str] | None = None) -> None:
         cell,
         left=args.co_left,
         right=args.co_right,
-        sketch=args.atomic_orbital,
         symprec=args.tolerance,
         electrons=args.electrons,
         kpoint_filter=args.kpoint,
         output_path=output_path,
         structure_label=stem,
+        oxidation=(parse_oxidation_tokens(args.oxidation)
+                   if args.oxidation else None),
     )
 
 

@@ -629,18 +629,25 @@ class PyscfDiagram:
     def _sketch_partners(self, column, level):
         """Per-atom s/p amplitudes of every partner orbital of a level.
 
-        Contracted s and p shells are summed per atom (the radial parts are
-        all positive at large r, so the sum approximates the far-field
-        lobes; d and higher shells are omitted). Only the REAL atoms of the
-        calculation are drawn: the fragment orbitals also carry small tails
-        on the ghost basis functions (counterpoise polarization), which
-        would obscure the pre-bonding SALC picture. Degenerate partners are
+        Every contracted s/p function is weighted by its actual radial
+        amplitude at a representative bonding-region radius (r0 = 2 bohr)
+        before the per-atom sum, so the drawn lobe signs are the signs of
+        the real wave function there.  (A bare coefficient sum is wrong:
+        tight and diffuse contracted functions enter one MO with opposite
+        signs, e.g. the bonding 1e of NH3 would get an inverted N-2p lobe
+        and become indistinguishable from the antibonding 2e.)  d and
+        higher shells are omitted.  Only the REAL atoms of the calculation
+        are drawn: the fragment orbitals also carry small tails on the
+        ghost basis functions (counterpoise polarization), which would
+        obscure the pre-bonding SALC picture.  Degenerate partners are
         canonicalized to match the SALC viewer."""
         calc = self.calculations[column]
         mol = calc["mol"]
         C = calc["mo_coeff"]
         real = set(calc["real_sites"])
         ao_loc = mol.ao_loc_nr()
+        r0 = 2.0  # bohr
+        angular = {0: 0.28209479, 1: 0.48860251}   # Y00, Y1m lobe constants
         partners = []
         for k in level.orbital_indices:
             vector = C[:, k]
@@ -655,13 +662,18 @@ class PyscfDiagram:
                 values = per_atom.setdefault(atom, [0.0, 0.0, 0.0, 0.0])
                 p0 = ao_loc[shell]
                 width = 2 * l + 1
+                exponents = np.asarray(mol.bas_exp(shell))
+                contractions = np.asarray(mol.bas_ctr_coeff(shell))
+                radial = angular[l] * r0**l * (
+                    contractions * np.exp(-exponents[:, None] * r0**2)
+                ).sum(axis=0)
                 for c in range(mol.bas_nctr(shell)):
                     block = vector[p0 + c * width:p0 + (c + 1) * width]
                     if l == 0:
-                        values[0] += float(block[0])
+                        values[0] += float(block[0]) * float(radial[c])
                     else:  # pyscf p order: (px, py, pz)
                         for m in range(3):
-                            values[1 + m] += float(block[m])
+                            values[1 + m] += float(block[m]) * float(radial[c])
             partners.append(per_atom)
         partners = canonical_sketch_partners(partners)
         return [_sketch_entries(per_atom) for per_atom in partners]
