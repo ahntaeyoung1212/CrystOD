@@ -1,0 +1,328 @@
+# Crystal-orbital diagrams and hybridization (crystod --diagram / --atomic-orbital);
+# testsuite section 3
+# The crystal orbital diagram (COD): the two fragment sublattices (--co-left/--co-right, full-electron
+# basis from the archived PySCF atomic levels in reference/ + point-charge ligand field of the removed
+# sublattice) are the pre-bonding states; states sharing a little-group irrep at k mix into bonding/antibonding.
+
+$ crystod --atomic-orbital Sc_d F_p -c 221_PPOSCAR_ScF3
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ Pm-3m (221)
+
+ * Position *
+ wyckoff letters      : ['a', 'd', 'd', 'd']
+ site symmetry letters: ['m-3m', '4/mm.m', '4/mm.m', '4/mm.m']
+
+ * Atomic Orbital *
+ ['Sc_d', 'F_p']
+
+ * Spinor *
+ False
+
+ * Result *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  Pm-3m (221)
+ GM1+(1): 
+ GM1-(1): 
+ GM2+(1): 
+ GM2-(1): 
+ GM3+(2): Sc(d)
+ GM3-(2): 
+ GM4+(3): 
+ GM4-(3): F(p)
+ GM5+(3): Sc(d)
+ GM5-(3): F(p)
+
+ k point (primitive):  R [0.5, 0.5, 0.5]
+ little group of k  :  Pm-3m (221)
+ R1+(1): F(p)
+ R1-(1): 
+ R2+(1): 
+ R2-(1): 
+ R3+(2): Sc(d) F(p)
+ R3-(2): 
+ R4+(3): F(p)
+ R4-(3): 
+ R5+(3): Sc(d) F(p)
+ R5-(3): 
+
+ k point (primitive):  M [0.5, 0.5, 0.0]
+ little group of k  :  P4/mmm (123)
+ M1+(1): Sc(d) F(p)
+ M1-(1): 
+ M2+(1): Sc(d) F(p)
+ M2-(1): 
+ M3+(1): F(p)
+ M3-(1): F(p)
+ M4+(1): Sc(d) F(p)
+ M4-(1): 
+ M5+(2): Sc(d) F(p)
+ M5-(2): F(p)
+
+ k point (primitive):  X [0.0, 0.5, 0.0]
+ little group of k  :  P4/mmm (123)
+ X1+(1): Sc(d) F(p)
+ X1-(1): 
+ X2+(1): Sc(d)
+ X2-(1): 
+ X3+(1): 
+ X3-(1): F(p)
+ X4+(1): Sc(d)
+ X4-(1): F(p)
+ X5+(2): Sc(d) F(p)
+ X5-(2): F(p)
+
+
+$ crystod --diagram -c 221_PPOSCAR_ScF3 --co-left Sc --co-right F3 --atomic-orbital Sc-3d F-2p
+
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ Pm-3m (221)
+
+ * Fragments (full-electron basis: core + valence shells; atomic levels from reference/atomic_level_*) *
+ left  Sc    : Sc 1s 2s 2p 3s 3p 4s 4p 3d x1 site(s), 21 electrons
+ right F3    : F 1s 2s 2p x3 site(s), 27 electrons
+ electrons per cell in the diagram: 48 (all electrons of the neutral atoms; override with --electrons)
+ * Ligand-field point charges (removed sublattice) *
+ left  Sc     feels the F^-1 lattice (multipole ligand field + penetration; jellium-referenced monopole Sc -1.02 eV omitted)
+ right F3     feels the Sc^+3 lattice (multipole ligand field + penetration; jellium-referenced monopole F +1.02 eV omitted)
+ wave-function sketch orbitals: Sc-3d F-2p
+
+ * k point GM (0,0,0) *
+   Sc        : Sc 1s GM1+ (-4514.11), Sc 2s GM1+ (-519.15), Sc 2p GM4- (-426.42), Sc 3s GM1+ (-69.89), Sc 3p GM4- (-42.90), Sc 4s GM1+ (-16.12), Sc 3d GM5+ (-8.82), Sc 3d GM3+ (-8.26), Sc 4p GM4- (-1.67)
+   F3        : F 1s GM1+ (-717.49), F 1s GM3+ (-717.49), F 2s GM1+ (-40.46), F 2s GM3+ (-39.77), F 2p GM4- (-19.45), F 2p GM4- (-17.44), F 2p GM5- (-17.40)
+   crystal   :
+     GM1+(1)     -4514.11 eV  x1  2e   Sc 1s GM1+ 100%
+     GM1+(2)      -717.53 eV  x1  2e   F 1s GM1+ 100%
+     GM3+(1)      -717.51 eV  x2  4e   F 1s GM3+ 100%
+     GM1+(3)      -519.15 eV  x1  2e   Sc 2s GM1+ 100%
+     GM4-(1)      -426.42 eV  x3  6e   Sc 2p GM4- 100%
+     GM1+(4)       -70.06 eV  x1  2e   Sc 3s GM1+ 98%  F 2s GM1+ 2%
+     GM4-(2)       -42.96 eV  x3  6e   Sc 3p GM4- 98%  F 2p GM4- 2%
+     GM1+(5)       -40.08 eV  x1  2e   F 2s GM1+ 70%  Sc 4s GM1+ 30%
+     GM3+(2)       -39.81 eV  x2  4e   F 2s GM3+ 86%  Sc 3d GM3+ 14%
+     GM4-(3)       -19.07 eV  x3  6e   F 2p GM4- 83%  Sc 4p GM4- 16%
+     GM4-(4)       -17.48 eV  x3  6e   F 2p GM4- 91%  Sc 4p GM4- 9%
+     GM5-          -17.40 eV  x3  6e   F 2p GM5- 100%
+     GM5+           -8.82 eV  x3       Sc 3d GM5+ 100%
+     GM3+(3)        -1.50 eV  x2       Sc 3d GM3+ 100%
+     GM1+(6)         4.20 eV  x1       Sc 4s GM1+ 99%
+     GM4-(5)         5.12 eV  x3       Sc 4p GM4- 100%
+
+ * k point R (1/2,1/2,1/2) *
+   (1 near-dependent diffuse Bloch combination(s) removed by canonical orthogonalization; overlap floor 0.2)
+   Sc        : Sc 1s R1+ (-4514.12), Sc 2s R1+ (-519.15), Sc 2p R4- (-426.42), Sc 3s R1+ (-69.90), Sc 3p R4- (-42.90), Sc 3d R5+ (-9.08), Sc 3d R3+ (-7.62), Sc 4p R4- (-5.76), Sc 4s R1+ (12.73)
+   F3        : F 1s R4- (-717.49), F 2s R4- (-40.00), F 2p R1+ (-19.67), F 2p R3+ (-19.33), F 2p R5+ (-17.56), F 2p R4+ (-17.30)
+   crystal   :
+     R1+(1)      -4514.11 eV  x1  2e   Sc 1s R1+ 100%
+     R4-(1)       -717.57 eV  x3  6e   F 1s R4- 100%
+     R1+(2)       -519.09 eV  x1  2e   Sc 2s R1+ 100%
+     R4-(2)       -426.42 eV  x3  6e   Sc 2p R4- 100%
+     R1+(3)        -69.71 eV  x1  2e   Sc 3s R1+ 98%  F 2p R1+ 2%
+     R4-(3)        -43.78 eV  x3  6e   Sc 3p R4- 75%  F 2s R4- 20%  Sc 4p R4- 6%
+     R4-(4)        -38.94 eV  x3  6e   F 2s R4- 60%  Sc 4p R4- 26%  Sc 3p R4- 13%
+     R3+(1)        -19.46 eV  x2  4e   F 2p R3+ 85%  Sc 3d R3+ 15%
+     R1+(4)        -19.38 eV  x1  2e   F 2p R1+ 69%  Sc 4s R1+ 31%
+     R5+(1)        -17.70 eV  x3  6e   F 2p R5+ 91%  Sc 3d R5+ 9%
+     R4+           -17.30 eV  x3  6e   F 2p R4+ 100%
+     R5+(2)         -8.18 eV  x3       Sc 3d R5+ 98%  F 2p R5+ 2%
+     R3+(2)         -5.21 eV  x2       Sc 3d R3+ 99%  F 2p R3+ 1%
+     R4-(5)         21.78 eV  x3       Sc 4p R4- 100%
+
+ * k point M (1/2,1/2,0) *
+   Sc        : Sc 1s M1+ (-4514.11), Sc 2s M1+ (-519.15), Sc 2p M3- (-426.42), Sc 2p M5- (-426.42), Sc 3s M1+ (-69.90), Sc 3p M3- (-42.91), Sc 3p M5- (-42.90), Sc 3d M4+ (-9.10), Sc 3d M5+ (-8.93), Sc 3d M1+ (-8.73), Sc 3d M2+ (-7.63), Sc 4p M5- (-6.66), Sc 4s M1+ (-4.29), Sc 4p M3- (2.58)
+   F3        : F 1s M1+ (-717.49), F 1s M5- (-717.49), F 2s M1+ (-40.00), F 2s M5- (-40.00), F 2p M1+ (-19.55), F 2p M3- (-19.44), F 2p M2+ (-19.33), F 2p M4+ (-17.56), F 2p M5- (-17.43), F 2p M5+ (-17.43), F 2p M3+ (-17.30)
+   crystal   :
+     M1+(1)      -4514.11 eV  x1  2e   Sc 1s M1+ 100%
+     M5-(1)       -717.55 eV  x2  4e   F 1s M5- 100%
+     M1+(2)       -717.53 eV  x1  2e   F 1s M1+ 100%
+     M1+(3)       -519.15 eV  x1  2e   Sc 2s M1+ 100%
+     M3-(1)       -426.42 eV  x1  2e   Sc 2p M3- 100%
+     M5-(2)       -426.42 eV  x2  4e   Sc 2p M5- 100%
+     M1+(4)        -69.97 eV  x1  2e   Sc 3s M1+ 98%  F 2p M1+ 1%
+     M5-(3)        -43.78 eV  x2  4e   Sc 3p M5- 75%  F 2s M5- 20%  Sc 4p M5- 5%
+     M3-(2)        -42.96 eV  x1  2e   Sc 3p M3- 98%  F 2p M3- 2%
+     M1+(5)        -40.00 eV  x1  2e   F 2s M1+ 73%  Sc 3d M1+ 18%  Sc 4s M1+ 9%
+     M5-(4)        -38.94 eV  x2  4e   F 2s M5- 63%  Sc 4p M5- 23%  Sc 3p M5- 14%
+     M2+(1)        -19.46 eV  x1  2e   F 2p M2+ 85%  Sc 3d M2+ 15%
+     M1+(6)        -19.35 eV  x1  2e   F 2p M1+ 79%  Sc 4s M1+ 21%
+     M3-(3)        -19.08 eV  x1  2e   F 2p M3- 80%  Sc 4p M3- 20%
+     M4+(1)        -17.70 eV  x1  2e   F 2p M4+ 91%  Sc 3d M4+ 9%
+     M5+(1)        -17.50 eV  x2  4e   F 2p M5+ 95%  Sc 3d M5+ 5%
+     M5-(5)        -17.43 eV  x2  4e   F 2p M5- 97%  Sc 4p M5- 3%
+     M3+           -17.30 eV  x1  2e   F 2p M3+ 100%
+     M5+(2)         -8.49 eV  x2       Sc 3d M5+ 99%
+     M4+(2)         -8.20 eV  x1       Sc 3d M4+ 98%  F 2p M4+ 2%
+     M2+(2)         -5.22 eV  x1       Sc 3d M2+ 99%  F 2p M2+ 1%
+     M1+(7)         -3.68 eV  x1       Sc 3d M1+ 64%  Sc 4s M1+ 35%  F 2p M1+ 1%
+     M3-(4)          9.43 eV  x1       Sc 4p M3- 100%
+     M5-(6)         15.38 eV  x2       Sc 4p M5- 100%
+     M1+(8)         21.55 eV  x1       Sc 4s M1+ 61%  Sc 3d M1+ 38%  F 2p M1+ 1%
+
+ * k point X (0,1/2,0) *
+   Sc        : Sc 1s X1+ (-4514.11), Sc 2s X1+ (-519.15), Sc 2p X3- (-426.42), Sc 2p X5- (-426.42), Sc 3s X1+ (-69.89), Sc 3p X5- (-42.91), Sc 3p X3- (-42.90), Sc 4s X1+ (-12.92), Sc 3d X5+ (-8.94), Sc 3d X4+ (-8.81), Sc 3d X2+ (-8.24), Sc 3d X1+ (-7.46), Sc 4p X3- (-7.40), Sc 4p X5- (0.31)
+   F3        : F 1s X1+ (-717.49), F 1s X3- (-717.49), F 1s X2+ (-717.49), F 2s X1+ (-40.23), F 2s X3- (-40.00), F 2s X2+ (-39.77), F 2p X5- (-19.44), F 2p X1+ (-19.44), F 2p X3- (-17.45), F 2p X5+ (-17.43), F 2p X5- (-17.42), F 2p X4- (-17.41)
+   crystal   :
+     X1+(1)      -4514.11 eV  x1  2e   Sc 1s X1+ 100%
+     X1+(2)       -717.54 eV  x1  2e   F 1s X1+ 100%
+     X3-(1)       -717.54 eV  x1  2e   F 1s X3- 100%
+     X2+(1)       -717.51 eV  x1  2e   F 1s X2+ 100%
+     X1+(3)       -519.15 eV  x1  2e   Sc 2s X1+ 100%
+     X3-(2)       -426.42 eV  x1  2e   Sc 2p X3- 100%
+     X5-(1)       -426.42 eV  x2  4e   Sc 2p X5- 100%
+     X1+(4)        -70.02 eV  x1  2e   Sc 3s X1+ 98%  F 2s X1+ 1%
+     X3-(3)        -43.78 eV  x1  2e   Sc 3p X3- 76%  F 2s X3- 20%  Sc 4p X3- 4%
+     X5-(2)        -42.96 eV  x2  4e   Sc 3p X5- 98%  F 2p X5- 2%
+     X1+(5)        -40.08 eV  x1  2e   F 2s X1+ 70%  Sc 4s X1+ 30%
+     X2+(2)        -39.80 eV  x1  2e   F 2s X2+ 86%  Sc 3d X2+ 14%
+     X3-(4)        -38.94 eV  x1  2e   F 2s X3- 65%  Sc 4p X3- 20%  Sc 3p X3- 15%
+     X1+(6)        -19.36 eV  x1  2e   F 2p X1+ 83%  Sc 3d X1+ 14%  Sc 4s X1+ 3%
+     X5-(3)        -19.08 eV  x2  4e   F 2p X5- 82%  Sc 4p X5- 18%
+     X5+(1)        -17.50 eV  x2  4e   F 2p X5+ 95%  Sc 3d X5+ 5%
+     X3-(5)        -17.45 eV  x1  2e   F 2p X3- 95%  Sc 4p X3- 5%
+     X5-(4)        -17.44 eV  x2  4e   F 2p X5- 95%  Sc 4p X5- 5%
+     X4-           -17.41 eV  x1  2e   F 2p X4- 100%
+     X4+            -8.81 eV  x1       Sc 3d X4+ 100%
+     X5+(2)         -8.50 eV  x2       Sc 3d X5+ 99%
+     X1+(7)         -4.95 eV  x1       Sc 3d X1+ 99%  F 2p X1+ 1%
+     X2+(3)         -1.49 eV  x1       Sc 3d X2+ 100%
+     X5-(5)          7.33 eV  x2       Sc 4p X5- 100%
+     X3-(6)          9.66 eV  x1       Sc 4p X3- 100%
+     X1+(8)         12.13 eV  x1       Sc 4s X1+ 99%
+
+Crystal-orbital diagram written to CrystOD_221_PPOSCAR_ScF3.html
+
+
+
+$ crystod --diagram -c 221_PPOSCAR_SrTiO3 --co-left SrTi --co-right O3 --atomic-orbital Ti-3d Ti-4s O-2p
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ Pm-3m (221)
+
+ * Fragments (full-electron basis: core + valence shells; atomic levels from reference/atomic_level_*) *
+ left  SrTi  : Sr 4s 4p 5s 5p x1 site(s) [ECP-28 core frozen] | Ti 1s 2s 2p 3s 3p 4s 4p 3d x1 site(s), 32 electrons
+ right O3    : O 1s 2s 2p x3 site(s), 24 electrons
+ electrons per cell in the diagram: 56 (all electrons of the neutral atoms; override with --electrons)
+ * Ligand-field point charges (removed sublattice) *
+ left  SrTi   feels the O^-2 lattice (multipole ligand field + penetration; jellium-referenced monopole Sr -12.76 eV, Ti -2.10 eV omitted)
+ right O3     feels the Sr^+2 + Ti^+4 lattice (multipole ligand field + penetration; jellium-referenced monopole O +5.65 eV omitted)
+ wave-function sketch orbitals: Ti-3d Ti-4s O-2p
+
+ * k point GM (0,0,0) *
+   (14 near-dependent diffuse Bloch combination(s) removed by canonical orthogonalization; overlap floor 0.2)
+   SrTi      : Ti 1s GM1+ (-4987.21), Ti 2s GM1+ (-583.16), Ti 2p GM4- (-484.57), Ti 3s GM1+ (-77.81), Sr 4s GM1+ (-57.53), Ti 3p GM4- (-49.16), Sr 4p GM4- (-30.21), Sr 5s GM1+ (-13.86), Ti 3d GM5+ (-12.38), Ti 3d GM3+ (-10.81)
+   O3        : O 1s GM1+ (-562.08), O 1s GM3+ (-562.08), O 2s GM1+ (-33.16), O 2s GM3+ (-31.87), O 2p GM4- (-16.70), O 2p GM4- (-13.88), O 2p GM5- (-13.80)
+   crystal   :
+     GM1+(1)     -4987.21 eV  x1  2e   Ti 1s GM1+ 100%
+     GM1+(2)      -583.17 eV  x1  2e   Ti 2s GM1+ 100%
+     GM3+(1)      -562.14 eV  x2  4e   O 1s GM3+ 100%
+     GM1+(3)      -562.13 eV  x1  2e   O 1s GM1+ 100%
+     GM4-(1)      -484.58 eV  x3  6e   Ti 2p GM4- 100%
+     GM1+(4)       -77.86 eV  x1  2e   Ti 3s GM1+ 99%
+     GM1+(5)       -57.74 eV  x1  2e   Sr 4s GM1+ 95%  O 2s GM1+ 5%
+     GM4-(2)       -49.19 eV  x3  6e   Ti 3p GM4- 99%  O 2p GM4- 1%
+     GM1+(6)       -32.42 eV  x1  2e   O 2s GM1+ 64%  Sr 5s GM1+ 36%
+     GM3+(2)       -32.39 eV  x2  4e   O 2s GM3+ 69%  Ti 3d GM3+ 31%
+     GM4-(3)       -30.26 eV  x3  6e   Sr 4p GM4- 99%
+     GM4-(4)       -16.21 eV  x3  6e   O 2p GM4- 100%
+     GM4-(5)       -14.02 eV  x3  6e   O 2p GM4- 100%
+     GM5-          -13.80 eV  x3  6e   O 2p GM5- 100%
+     GM5+          -12.38 eV  x3       Ti 3d GM5+ 100%
+     GM1+(7)        10.63 eV  x1       Sr 5s GM1+ 98%  O 2s GM1+ 2%
+     GM3+(3)        11.20 eV  x2       Ti 3d GM3+ 98%  O 2s GM3+ 2%
+
+ * k point R (1/2,1/2,1/2) *
+   (10 near-dependent diffuse Bloch combination(s) removed by canonical orthogonalization; overlap floor 0.2)
+   SrTi      : Ti 1s R2- (-4987.21), Ti 2s R2- (-583.16), Ti 2p R5+ (-484.58), Ti 3s R2- (-78.73), Sr 4s R1+ (-53.63), Ti 3p R5+ (-49.08), Sr 4p R4- (-30.24), Ti 3d R4- (-13.71), Ti 3d R3- (-6.72), Sr 5p R4- (6.42)
+   O3        : O 1s R5+ (-562.08), O 2s R5+ (-32.28), O 2p R2- (-17.08), O 2p R3- (-16.49), O 2p R4- (-14.12), O 2p R5- (-13.60)
+   crystal   :
+     R2-(1)      -4987.21 eV  x1  2e   Ti 1s R2- 100%
+     R2-(2)       -583.16 eV  x1  2e   Ti 2s R2- 100%
+     R5+(1)       -562.06 eV  x3  6e   O 1s R5+ 100%
+     R5+(2)       -484.58 eV  x3  6e   Ti 2p R5+ 100%
+     R2-(3)        -78.73 eV  x1  2e   Ti 3s R2- 98%  O 2p R2- 2%
+     R1+           -53.63 eV  x1  2e   Sr 4s R1+ 100%
+     R5+(3)        -49.19 eV  x3  6e   Ti 3p R5+ 98%  O 2s R5+ 2%
+     R5+(4)        -32.52 eV  x3  6e   O 2s R5+ 99%
+     R4-(1)        -30.26 eV  x3  6e   Sr 4p R4- 99%  O 2p R4- 1%
+     R3-(1)        -17.14 eV  x2  4e   O 2p R3- 72%  Ti 3d R3- 28%
+     R2-(4)        -16.32 eV  x1  2e   O 2p R2- 100%
+     R4-(2)        -16.10 eV  x3  6e   O 2p R4- 50%  Ti 3d R4- 48%  Sr 5p R4- 2%
+     R5-           -13.60 eV  x3  6e   O 2p R5- 100%
+     R4-(3)         -8.80 eV  x3       Ti 3d R4- 45%  O 2p R4- 38%  Sr 5p R4- 17%
+     R3-(2)         -0.60 eV  x2       Ti 3d R3- 94%  O 2p R3- 6%
+     R4-(4)          9.26 eV  x3       Sr 5p R4- 99%
+
+ * k point M (1/2,1/2,0) *
+   (12 near-dependent diffuse Bloch combination(s) removed by canonical orthogonalization; overlap floor 0.2)
+   SrTi      : Ti 1s M4+ (-4987.21), Ti 2s M4+ (-583.20), Ti 2p M5- (-484.58), Ti 2p M2- (-484.58), Ti 3s M4+ (-78.52), Sr 4s M1+ (-53.48), Ti 3p M2- (-49.25), Ti 3p M5- (-48.98), Sr 4p M5- (-32.50), Sr 4p M3- (-30.35), Sr 5p M5- (-16.66), Ti 3d M1+ (-13.46), Ti 3d M5+ (-12.99), Ti 3d M4+ (-10.86), Ti 3d M3+ (-6.80)
+   O3        : O 1s M5- (-562.08), O 1s M4+ (-562.08), O 2s M4+ (-32.30), O 2s M5- (-32.30), O 2p M4+ (-16.86), O 2p M2- (-16.68), O 2p M3+ (-16.49), O 2p M1+ (-14.12), O 2p M5+ (-13.85), O 2p M5- (-13.85), O 2p M2+ (-13.60)
+   crystal   :
+     M4+(1)      -4987.22 eV  x1  2e   Ti 1s M4+ 100%
+     M4+(2)       -583.21 eV  x1  2e   Ti 2s M4+ 100%
+     M5-(1)       -562.12 eV  x2  4e   O 1s M5- 100%
+     M4+(3)       -561.94 eV  x1  2e   O 1s M4+ 100%
+     M5-(2)       -484.58 eV  x2  4e   Ti 2p M5- 100%
+     M2-(1)       -484.58 eV  x1  2e   Ti 2p M2- 100%
+     M4+(4)        -78.59 eV  x1  2e   Ti 3s M4+ 98%  O 2p M4+ 1%
+     M1+(1)        -53.51 eV  x1  2e   Sr 4s M1+ 100%
+     M2-(2)        -49.26 eV  x1  2e   Ti 3p M2- 99%  O 2p M2- 1%
+     M5-(3)        -49.05 eV  x2  4e   Ti 3p M5- 98%  O 2s M5- 2%
+     M5-(4)        -35.22 eV  x2  4e   O 2s M5- 47%  Sr 4p M5- 41%  Sr 5p M5- 12%
+     M4+(5)        -33.50 eV  x1  2e   O 2s M4+ 72%  Ti 3d M4+ 28%
+     M3-           -30.35 eV  x1  2e   Sr 4p M3- 100%
+     M5-(5)        -29.74 eV  x2  4e   Sr 4p M5- 42%  O 2s M5- 32%  Sr 5p M5- 26%
+     M3+(1)        -17.14 eV  x1  2e   O 2p M3+ 72%  Ti 3d M3+ 28%
+     M4+(6)        -16.80 eV  x1  2e   O 2p M4+ 93%  Ti 3d M4+ 7%
+     M2-(3)        -16.23 eV  x1  2e   O 2p M2- 100%
+     M1+(2)        -16.15 eV  x1  2e   O 2p M1+ 53%  Ti 3d M1+ 47%
+     M5+(1)        -15.35 eV  x2  4e   O 2p M5+ 57%  Ti 3d M5+ 43%
+     M5-(6)        -14.12 eV  x2  4e   O 2p M5- 87%  Sr 5p M5- 13%
+     M2+           -13.60 eV  x1  2e   O 2p M2+ 100%
+     M5+(2)        -10.26 eV  x2       Ti 3d M5+ 61%  O 2p M5+ 39%
+     M1+(3)         -8.59 eV  x1       Ti 3d M1+ 58%  O 2p M1+ 42%
+     M3+(2)         -0.71 eV  x1       Ti 3d M3+ 94%  O 2p M3+ 6%
+     M5-(7)          2.04 eV  x2       Sr 5p M5- 87%  O 2p M5- 7%  O 2s M5- 5%  Sr 4p M5- 2%
+     M4+(7)          8.20 eV  x1       Ti 3d M4+ 97%  O 2p M4+ 2%
+
+ * k point X (0,1/2,0) *
+   (12 near-dependent diffuse Bloch combination(s) removed by canonical orthogonalization; overlap floor 0.2)
+   SrTi      : Ti 1s X3- (-4987.20), Ti 2s X3- (-583.10), Ti 2p X1+ (-484.58), Ti 2p X5+ (-484.58), Ti 3s X3- (-77.88), Ti 4p X1+ (-73.69), Ti 3p X5+ (-49.24), Ti 3p X1+ (-48.94), Sr 4p X3- (-31.54), Sr 4p X5- (-30.35), Sr 5s X1+ (-28.69), Sr 5p X3- (-13.25), Ti 3d X5- (-12.93), Ti 3d X2- (-12.30), Ti 3d X4- (-10.55), Ti 3d X3- (-6.23)
+   O3        : O 1s X1+ (-562.08), O 1s X3- (-562.08), O 1s X4- (-562.08), O 2s X3- (-32.74), O 2s X1+ (-32.31), O 2s X4- (-31.86), O 2p X5+ (-16.69), O 2p X3- (-16.67), O 2p X1+ (-13.89), O 2p X5- (-13.85), O 2p X5+ (-13.84), O 2p X2+ (-13.81)
+   crystal   :
+     X3-(1)      -4987.20 eV  x1  2e   Ti 1s X3- 100%
+     X3-(2)       -583.11 eV  x1  2e   Ti 2s X3- 100%
+     X3-(3)       -562.15 eV  x1  2e   O 1s X3- 100%
+     X4-(1)       -562.14 eV  x1  2e   O 1s X4- 100%
+     X1+(1)       -562.10 eV  x1  2e   O 1s X1+ 100%
+     X1+(2)       -484.58 eV  x1  2e   Ti 2p X1+ 100%
+     X5+(1)       -484.58 eV  x2  4e   Ti 2p X5+ 100%
+     X3-(4)        -77.95 eV  x1  2e   Ti 3s X3- 99%
+     X1+(3)        -73.57 eV  x1  2e   Ti 4p X1+ 92%  O 2s X1+ 6%  O 2p X1+ 1%
+     X5+(2)        -49.25 eV  x2  4e   Ti 3p X5+ 99%  O 2p X5+ 1%
+     X1+(4)        -48.98 eV  x1  2e   Ti 3p X1+ 99%  O 2s X1+ 1%
+     X3-(5)        -34.96 eV  x1  2e   O 2s X3- 51%  Sr 4p X3- 31%  Sr 5p X3- 18%
+     X1+(5)        -34.58 eV  x1  2e   O 2s X1+ 52%  Sr 5s X1+ 48%
+     X4-(2)        -32.37 eV  x1  2e   O 2s X4- 69%  Ti 3d X4- 31%
+     X5-(1)        -30.36 eV  x2  4e   Sr 4p X5- 100%
+     X3-(6)        -29.25 eV  x1  2e   Sr 4p X3- 50%  Sr 5p X3- 25%  O 2s X3- 24%
+     X1+(6)        -16.95 eV  x1  2e   O 2p X1+ 66%  Sr 5s X1+ 23%  O 2s X1+ 10%
+     X3-(7)        -16.82 eV  x1  2e   O 2p X3- 75%  Ti 3d X3- 25%
+     X5+(3)        -16.23 eV  x2  4e   O 2p X5+ 100%
+     X5-(2)        -15.29 eV  x2  4e   O 2p X5- 57%  Ti 3d X5- 43%
+     X5+(4)        -13.83 eV  x2  4e   O 2p X5+ 100%
+     X2+           -13.81 eV  x1  2e   O 2p X2+ 100%
+     X2-           -12.30 eV  x1       Ti 3d X2- 100%
+     X5-(3)        -10.21 eV  x2       Ti 3d X5- 62%  O 2p X5- 38%
+     X1+(7)         -5.61 eV  x1       O 2p X1+ 62%  O 2s X1+ 19%  Sr 5s X1+ 19%
+     X3-(8)         -1.27 eV  x1       Ti 3d X3- 95%  O 2p X3- 4%  Sr 5p X3- 2%
+     X4-(3)         11.66 eV  x1       Ti 3d X4- 98%  O 2s X4- 2%
+     X3-(9)         14.08 eV  x1       Sr 5p X3- 94%  Ti 3d X3- 3%  O 2s X3- 2%  Sr 4p X3- 1%
+
+Crystal-orbital diagram written to CrystOD_221_PPOSCAR_SrTiO3.html
