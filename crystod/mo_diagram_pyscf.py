@@ -44,6 +44,7 @@ from .mo_diagram import (
     _sketch_entries,
     canonical_sketch_partners,
     diagram_geometry,
+    element_color,
     lowercase_irrep,
     render_diagram_page,
     svg_sub_digits,
@@ -270,6 +271,9 @@ class PyscfDiagram:
         }
         self._build_levels()
         self._link_levels()
+        # COOP bonding character of every molecular MO (needs the occupations
+        # and tooltips, which _build_levels/_link_levels fill)
+        self._assign_bond_characters()
 
     # ---------------------------------------------------------------- setup
 
@@ -614,6 +618,97 @@ class PyscfDiagram:
                     f"{level.electrons} e-" + (f"  |  {parts}" if parts else "")
                 )
 
+    def _assign_bond_characters(self):
+        """COOP bonding character of every molecular MO between the left and
+        right fragment AO blocks, via the shared crystal-engine classifier
+        (crystal_orbital_diagram.assign_bond_characters).
+
+        The classifier reads fragment labels as "element shell irrep" for
+        its semicore detection (e.g. the N 1s core of NH3) and expects
+        (n_ao x degeneracy) vector matrices, so lightweight proxy levels
+        adapt the PySCF data: each fragment level is tagged with its
+        dominant (element, contracted-shell) block by Loewdin population --
+        the tag is also kept as level.dominant_spec for the VESTA line
+        colors of the fragment columns.  The physics is not duplicated.
+        """
+        from types import SimpleNamespace
+
+        from .crystal_orbital_diagram import assign_bond_characters
+
+        mol = self.calculations["mo"]["mol"]
+        S = mol.intor("int1e_ovlp")
+        values, vectors = np.linalg.eigh(S)
+        sqrt_overlap = (
+            vectors * np.sqrt(np.clip(values, 0.0, None))
+        ) @ vectors.T
+        ao_atom = np.zeros(mol.nao_nr(), dtype=int)
+        ao_loc = mol.ao_loc_nr()
+        for b in range(mol.nbas):
+            ao_atom[ao_loc[b]:ao_loc[b + 1]] = mol.bas_atom(b)
+        rows = {
+            "left": np.where(np.isin(ao_atom, self.left))[0],
+            "right": np.where(np.isin(ao_atom, self.right))[0],
+        }
+        # per-(element, contracted-shell) AO blocks: the AO labels carry the
+        # shell names, e.g. "0 N 1s" / "0 N 2px" / "1 H 1s" -> "1s", "2p"
+        spec_lists: dict[tuple[str, str], list[int]] = {}
+        for index, label in enumerate(mol.ao_labels()):
+            parts = label.split()
+            name = parts[2]
+            stripped = name.lstrip("0123456789")
+            shell = name[: len(name) - len(stripped)] + stripped[0]
+            spec_lists.setdefault((parts[1], shell), []).append(index)
+        spec_ranges = {
+            key: np.array(indices, dtype=int)
+            for key, indices in spec_lists.items()
+        }
+        proxy_levels: dict[str, list] = {}
+        for column in ("left", "right"):
+            row_set = set(rows[column].tolist())
+            side_ranges = {}
+            for key, indices in spec_ranges.items():
+                side = np.array([i for i in indices if i in row_set], dtype=int)
+                if side.size:
+                    side_ranges[key] = side
+            C = self.calculations[column]["mo_coeff"]
+            proxies = []
+            for level in self.levels[column]:
+                if level.real_fraction < GHOST_FRACTION_THRESHOLD:
+                    continue  # counterpoise/BSSE artifact level
+                space = C[:, level.orbital_indices]
+                gross = (np.abs(sqrt_overlap @ space) ** 2).sum(axis=1)
+                dominant = max(
+                    side_ranges,
+                    key=lambda key: float(gross[side_ranges[key]].sum()),
+                )
+                level.dominant_spec = dominant
+                proxies.append(SimpleNamespace(
+                    label=f"{dominant[0]} {dominant[1]} {level.label}",
+                    energy=level.energy,
+                    electrons=level.electrons,
+                ))
+            proxy_levels[column] = proxies
+        C_mo = self.calculations["mo"]["mo_coeff"]
+        proxy_levels["mo"] = [
+            SimpleNamespace(
+                vectors=C_mo[:, level.orbital_indices],   # (n_ao, degeneracy)
+                degeneracy=level.degeneracy,
+                electrons=level.electrons,
+                energy=level.energy,
+                label=level.label,
+                detail="",
+            )
+            for level in self.levels["mo"]
+        ]
+        assign_bond_characters(
+            proxy_levels, S, rows["left"], rows["right"], spec_ranges,
+            sqrt_overlap=sqrt_overlap,
+        )
+        for level, proxy in zip(self.levels["mo"], proxy_levels["mo"]):
+            level.bond_character = proxy.bond_character
+            level.overlap_population = proxy.overlap_population
+            level.detail += proxy.detail
+
     def _column_name(self, column):
         return {"left": self.left_name, "mo": self.formula,
                 "right": self.right_name}[column]
@@ -798,15 +893,24 @@ class PyscfDiagram:
             if level.real_fraction < GHOST_FRACTION_THRESHOLD
         )
         levels_json = []
+        bond_letter = {"bonding": "b", "nonbonding": "n", "antibonding": "a"}
         for column_levels in self.levels.values():
             for level in column_levels:
                 if level.real_fraction < GHOST_FRACTION_THRESHOLD:
                     continue
+                character = getattr(level, "bond_character", None)
+                # fragment levels carry the VESTA color of their dominant
+                # element (set in _assign_bond_characters)
+                spec = getattr(level, "dominant_spec", None)
+                elc = (element_color(spec[0])
+                       if level.column != "mo" and spec else None)
                 levels_json.append({
+                    **({"elc": elc} if elc else {}),
                     "id": level.level_id,
                     "col": level.column,
                     "e": round(level.energy, 4),
                     "deg": level.degeneracy,
+                    **({"bond": bond_letter[character]} if character else {}),
                     "label": level.label,
                     "el": level.electrons,
                     "occ": level.electrons > 0,
@@ -885,6 +989,16 @@ class PyscfDiagram:
                 + (f" {ghost_hidden} fragment level(s) dominated by the ghost "
                    "basis (BSSE artifacts, real-atom population &lt; 35%) are "
                    "not drawn." if ghost_hidden else "")
+                + (" MO line colors: "
+                   "<span style=\"color:#1565c0\">bonding</span> / "
+                   "<span style=\"color:#333\">nonbonding</span> / "
+                   "<span style=\"color:#d32f2f\">antibonding</span>, from "
+                   "the left&ndash;right overlap population 2 Re "
+                   "c<sub>L</sub>&#8224;S c<sub>R</sub> of each state "
+                   "(COOP-style; semicore orthogonality tails excluded; "
+                   "value in the level's tooltip)."
+                   if any(getattr(level, "bond_character", None)
+                          for level in self.levels["mo"]) else "")
                 + " PySCF: Q. Sun et al., WIREs Comput. Mol. "
                 "Sci. 8, e1340 (2018). Generated by CrystOD "
                 "(crystod-mol --diagram --pyscf)."

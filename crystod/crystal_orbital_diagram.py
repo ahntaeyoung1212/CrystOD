@@ -183,6 +183,186 @@ def parse_sketch_tokens(tokens: list[str]) -> list[tuple[str, str]]:
     return wanted
 
 
+# |overlap population| below this is displayed as nonbonding: it is exactly
+# 0 for symmetry-nonbonding states (irrep without a partner on the other
+# sublattice/fragment), while genuine bonding/antibonding states come out
+# at |P| = 0.02-6 (antibonding |P| is systematically the larger, the usual
+# non-orthogonal COOP asymmetry)
+BOND_CHARACTER_TOL = 0.01
+# a fragment shell whose own occupied levels all lie this far below the
+# fragment's HOMO is semicore: its orthogonality tails carry an
+# antibonding-signed overlap population that masks the valence character
+SEMICORE_DEPTH_EV = 10.0
+
+
+def assign_bond_characters(levels, overlap, rows_left, rows_right,
+                           spec_ranges, sqrt_overlap=None,
+                           hamiltonian=None) -> None:
+    """COOP bonding character for every crystal/molecular-orbital level.
+
+    P = 2 Re[c_L+ S_LR c_R] / degeneracy is the electron weight accumulated
+    between the two fragments: P > 0 in-phase (bonding, blue), P < 0
+    out-of-phase with an internuclear node (antibonding, red), P ~ 0
+    nonbonding (black; exactly 0 when the irrep has no partner on the other
+    fragment).  Sets level.bond_character / level.overlap_population and
+    appends the value to level.detail; requires the occupations to be
+    filled already.  An (F - E S) energy partition was rejected:
+    Mulliken-like cross terms of the diffuse shells give nonsense signs in
+    a non-orthogonal basis.
+
+    Semicore handling.  A filled semicore shell contributes to P in two
+    distinct ways: RESONANT filled-filled pairing (Sc 3p x F 2s of ScF3,
+    6 eV apart -- the He2-like closed-shell repulsion whose occupied upper
+    partner is genuinely antibonding) and far OFF-RESONANT orthogonality
+    tails (the same Sc 3p inside the F 2p band 23 eV above, or Sc 3s
+    against everything), which are not bonding physics and would flip the
+    sign of an otherwise donation-bonding state.  With ``hamiltonian``
+    given (the crystal Fock/EHT operator), semicore shells are flagged
+    against the CRYSTAL valence-band maximum -- occupied fragment levels
+    whose hamiltonian expectation <phi|H|phi> (reference-consistent with
+    the mo energies) tops out SEMICORE_DEPTH_EV below the VBM -- and a
+    flagged shell is excluded from a level's P only when the level is more
+    than SEMICORE_DEPTH_EV away from that shell's band top (the semicore
+    band and its resonant partners keep it).  Without ``hamiltonian`` the
+    legacy rule applies: flag against each fragment column's own HOMO and
+    keep the shell where it holds >= 40% of the level's weight -- fine for
+    molecules, but blind to a semicore that IS the fragment HOMO (Sc 3p
+    of Sc^3+).
+    """
+    semicore_tops: dict[tuple[str, str], float] = {}
+    if hamiltonian is not None:
+        vbm = max((lv.energy for lv in levels["mo"] if lv.electrons > 0),
+                  default=0.0)
+        tops: dict[tuple[str, str], float] = {}
+        for column in ("left", "right"):
+            for lv in levels[column]:
+                if lv.electrons <= 0:
+                    continue
+                parts = lv.label.split()
+                if len(parts) < 3 or (parts[0], parts[1]) not in spec_ranges:
+                    continue
+                expectation = float(np.trace(
+                    lv.vectors.conj().T @ hamiltonian @ lv.vectors
+                ).real) / lv.degeneracy
+                key = (parts[0], parts[1])
+                tops[key] = max(tops.get(key, -1e30), expectation)
+        semicore_tops = {key: top for key, top in tops.items()
+                         if top < vbm - SEMICORE_DEPTH_EV}
+    else:
+        for column in ("left", "right"):
+            occupied = [lv for lv in levels[column] if lv.electrons > 0]
+            if not occupied:
+                continue
+            homo_fragment = max(lv.energy for lv in occupied)
+            tops_column: dict[tuple[str, str], float] = {}
+            for lv in occupied:
+                parts = lv.label.split()
+                if len(parts) >= 3 and (parts[0], parts[1]) in spec_ranges:
+                    key = (parts[0], parts[1])
+                    tops_column[key] = max(tops_column.get(key, -1e30),
+                                           lv.energy)
+            semicore_tops.update({
+                key: top for key, top in tops_column.items()
+                if top < homo_fragment - SEMICORE_DEPTH_EV})
+    for level in levels["mo"]:
+        dropped: list = []
+        excluded = []
+        if semicore_tops and hamiltonian is not None:
+            for key, top in sorted(semicore_tops.items()):
+                if abs(level.energy - top) <= SEMICORE_DEPTH_EV:
+                    continue  # resonant filled-filled pair: genuine physics
+                indices = np.asarray(spec_ranges[key])
+                dropped.extend(indices.tolist())
+                excluded.append(" ".join(key))
+        elif semicore_tops:
+            if sqrt_overlap is not None:
+                gross = (np.abs(sqrt_overlap @ level.vectors) ** 2).sum(axis=1)
+            else:
+                gross = (np.conj(level.vectors)
+                         * (overlap @ level.vectors)).real.sum(axis=1)
+            total = float(gross.sum()) or 1.0
+            for key in sorted(semicore_tops):
+                indices = np.asarray(spec_ranges[key])
+                if float(gross[indices].sum()) < 0.4 * total:
+                    dropped.extend(indices.tolist())
+                    excluded.append(" ".join(key))
+        keep_left = np.setdiff1d(np.asarray(rows_left), dropped)
+        keep_right = np.setdiff1d(np.asarray(rows_right), dropped)
+        cross = (level.vectors[keep_left, :].conj().T
+                 @ overlap[np.ix_(keep_left, keep_right)]
+                 @ level.vectors[keep_right, :])
+        population = 2.0 * float(np.trace(cross).real) / level.degeneracy
+        level.overlap_population = population
+        if population > BOND_CHARACTER_TOL:
+            level.bond_character = "bonding"
+        elif population < -BOND_CHARACTER_TOL:
+            level.bond_character = "antibonding"
+        else:
+            level.bond_character = "nonbonding"
+        level.detail += (f"\n{level.bond_character}: left-right "
+                         "overlap population 2 Re c_L+ S c_R = "
+                         f"{population:+.3f}"
+                         + (f" (semicore {', '.join(excluded)} tails "
+                            "excluded)" if excluded else ""))
+
+
+def assign_fragment_compositions(levels, overlap) -> None:
+    """Crystal-level compositions in the LOEWDIN-ORTHOGONALIZED fragment
+    basis (sets level.composition, normalized, and
+    level.absolute_composition, the raw orthogonal weights).
+
+    The fragment eigenstates of the two columns are mutually
+    non-orthogonal (a diffuse Sc 4p against a compact F 2s combination
+    overlaps by 0.69 in ScF3), so plain projections |<phi|S|psi>|^2
+    double-count shared density: the occupied F 2s band state summed to
+    144% before renormalization and displayed as "Sc 4p 34%", and diffuse
+    virtuals (F 3s at +48 eV) showed up at 9% inside the semicore bands.
+    Symmetric (Loewdin) orthogonalization of the fragment-level basis --
+    the orthonormal set closest to the original fragment states, so the
+    labels keep their meaning -- removes the double counting: the weights
+    are |(G^{-1/2} Phi+ S psi)|^2 with G = Phi+ S Phi, they sum to the
+    span completeness (<= 100%), and the ScF3 examples become
+    F 2s 77 / Sc 4p 16 / Sc 3p 7 and F 3d 0.9 -> 0.1 for the t2g LUMO.
+    """
+    fragments = levels["left"] + levels["right"]
+    for crystal in levels["mo"]:
+        crystal.composition = []
+        crystal.absolute_composition = []
+    if not fragments:
+        return
+    basis = np.hstack([fragment.vectors for fragment in fragments])
+    gram = basis.conj().T @ overlap @ basis
+    values, vectors = np.linalg.eigh(gram)
+    keep = values > 1e-8 * float(values.max())
+    inverse_half = ((vectors[:, keep] / np.sqrt(values[keep]))
+                    @ vectors[:, keep].conj().T)
+    for crystal in levels["mo"]:
+        projections = basis.conj().T @ (overlap @ crystal.vectors)
+        tilde = inverse_half @ projections
+        weights = []
+        raw_weights = []
+        start = 0
+        for fragment in fragments:
+            count = fragment.vectors.shape[1]
+            rows = slice(start, start + count)
+            weight = float(np.sum(np.abs(tilde[rows]) ** 2))
+            weight /= crystal.degeneracy
+            raw = float(np.sum(np.abs(projections[rows]) ** 2))
+            raw /= crystal.degeneracy
+            start += count
+            if weight > 1e-6:
+                weights.append((fragment.level_id, weight))
+            if raw > 1e-6:
+                raw_weights.append((fragment.level_id, raw))
+        total = sum(weight for _, weight in weights) or 1.0
+        crystal.composition = [(i, w / total) for i, w in weights]
+        crystal.composition_completeness = float(
+            sum(weight for _, weight in weights))
+        # the RAW (double-counting) projections keep serving the alignment
+        # anchors, whose purity criteria were validated on them
+        crystal.absolute_composition = raw_weights
+
+
 def _composition_string(symbols: list[str]) -> str:
     counts: dict[str, int] = {}
     for symbol in symbols:
@@ -816,23 +996,59 @@ class CrystalOrbitalDiagram:
                     vectors=space,
                 ))
 
-        # compositions: crystal level onto fragment levels (S metric)
-        for crystal in levels["mo"]:
-            weights = []
-            for column in ("left", "right"):
-                for fragment in levels[column]:
-                    overlap = fragment.vectors.conj().T @ S @ crystal.vectors
-                    weight = float(np.sum(np.abs(overlap) ** 2))
-                    weight /= crystal.degeneracy
-                    if weight > 1e-6:
-                        weights.append((fragment.level_id, weight))
-            total = sum(w for _, w in weights) or 1.0
-            crystal.composition = [(i, w / total) for i, w in weights]
+        # compositions: crystal levels in the Loewdin-orthogonalized
+        # fragment-level basis (plain |<phi|S|psi>|^2 double-counts the
+        # strongly overlapping fragment states; see the helper)
+        assign_fragment_compositions(levels, S)
 
         # electron filling (aufbau, 2 electrons per orbital)
         self._fill(levels["mo"], self.electrons)
         for column in ("left", "right"):
             self._fill(levels[column], self.side_electrons[column])
+
+        # COOP bonding character of every crystal level (needs occupations)
+        spec_ranges: dict[tuple[str, str], np.ndarray] = {}
+        for column in ("left", "right"):
+            for spec in self.side_specs[column]:
+                key = (spec.element, spec.shell)
+                indices = np.arange(spec.offset, spec.offset + spec.n_ao)
+                spec_ranges[key] = (np.concatenate([spec_ranges[key], indices])
+                                    if key in spec_ranges else indices)
+
+        # the ONE displayed composition (panel bars, hover tooltip and the
+        # terminal): Loewdin AO-shell populations of each crystal state --
+        # the same partial-charge measure as the PySCF engine.  The fragment
+        # projection above keeps positioning the connector lines but its
+        # weights are not displayed (fragment eigenstates mix AO shells
+        # among themselves, so the two measures disagree).
+        eigenvalues, eigenvectors = np.linalg.eigh(S)
+        sqrt_overlap = (eigenvectors * np.sqrt(np.clip(eigenvalues.real,
+                                                       0.0, None))
+                        ) @ eigenvectors.conj().T
+        for crystal in levels["mo"]:
+            gross = (np.abs(sqrt_overlap @ crystal.vectors) ** 2
+                     ).sum(axis=1) / crystal.degeneracy
+            shares = []
+            for (element, shell), indices in spec_ranges.items():
+                value = float(gross[indices].sum())
+                if value >= 0.001:
+                    shares.append((value, f"{element} {shell}"))
+            shares.sort(key=lambda item: -item[0])
+            crystal.display_composition = [
+                (f"{name} {crystal.irrep}", value) for value, name in shares
+            ]
+            crystal.detail = "Loewdin: " + ", ".join(
+                f"{name} {100 * value:.1f}%" for value, name in shares)
+
+        assign_bond_characters(
+            levels, S,
+            np.arange(self.side_slice["left"].start,
+                      self.side_slice["left"].stop),
+            np.arange(self.side_slice["right"].start,
+                      self.side_slice["right"].stop),
+            spec_ranges,
+            hamiltonian=H,
+        )
         return levels, labels
 
     @staticmethod
@@ -1000,6 +1216,83 @@ def _detail_html(level: DiagramLevel, names: dict) -> str:
     return "\n".join(rows)
 
 
+def _periodic_sketch_geometry(diagram, cells, symbols, positions):
+    """VESTA-style periodic geometry for the orbital sketch.
+
+    Atoms sitting on the k-commensurate supercell boundary are drawn at
+    every translationally equivalent boundary position (an atom at
+    fractional 0 also appears at 1, a corner atom at all eight corners),
+    and the supercell outline is passed along as ``geometry["cell"]``
+    (origin + three lattice vectors, in the centered coordinates the
+    sketch uses) for the dashed frame.  Returns (geometry, replica_map)
+    with replica_map[source_row] = [rows of its boundary images].
+    """
+    from itertools import product
+
+    from .mo_diagram import diagram_geometry
+
+    repetitions = np.max(np.asarray(cells), axis=0) + 1
+    super_lattice = np.asarray(diagram.lattice, dtype=float) \
+        * np.asarray(repetitions, dtype=float)[:, None]
+    fractional = np.asarray(positions, dtype=float) @ np.linalg.inv(super_lattice)
+    tolerance = 1e-6
+    all_symbols = list(symbols)
+    all_positions = [np.asarray(p, dtype=float) for p in positions]
+    replica_map: dict[int, list[int]] = {}
+    for row, frac in enumerate(fractional):
+        choices = []
+        for axis in range(3):
+            choice = [0.0]
+            if frac[axis] < tolerance:
+                choice.append(1.0)
+            elif frac[axis] > 1.0 - tolerance:
+                choice.append(-1.0)
+            choices.append(choice)
+        for shift in product(*choices):
+            if not any(shift):
+                continue
+            replica_map.setdefault(row, []).append(len(all_symbols))
+            all_symbols.append(symbols[row])
+            all_positions.append(
+                all_positions[row] + np.asarray(shift) @ super_lattice)
+    geometry = diagram_geometry(all_symbols, np.array(all_positions))
+    # frame in the same centered frame as the atoms (diagram_geometry
+    # subtracts the centroid of the positions it is given)
+    center = np.array(all_positions).mean(axis=0)
+    geometry["cell"] = (
+        [[round(float(x), 4) for x in -center]]
+        + [[round(float(x), 4) for x in row] for row in super_lattice]
+    )
+    corners = np.array([
+        np.asarray(shift) @ super_lattice - center
+        for shift in product((0.0, 1.0), repeat=3)
+    ])
+    geometry["radius"] = max(
+        float(geometry["radius"]),
+        float(np.max(np.linalg.norm(corners, axis=1))),
+    )
+    return geometry, replica_map
+
+
+def _with_periodic_images(partners, replica_map):
+    """Copy each sketch entry onto the boundary images of its atom.
+
+    The images carry IDENTICAL amplitudes: within the k-commensurate
+    supercell the Bloch wave function is exactly periodic
+    (exp(i k . T_super) = 1 by construction), which is the whole point of
+    drawing that supercell.
+    """
+    if not partners or not replica_map:
+        return partners
+    extended = []
+    for entries in partners:
+        extra = [[image] + entry[1:]
+                 for entry in entries
+                 for image in replica_map.get(entry[0], [])]
+        extended.append(entries + extra)
+    return extended
+
+
 def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                                k_entries: list, output_path: str,
                                structure_label: str) -> None:
@@ -1014,24 +1307,36 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         "right": svg_sub_digits(diagram.formula["right"]),
     }
 
-    from .mo_diagram import diagram_geometry
-
     variants = []
     for name, kpoint, levels in k_entries:
         cells, super_symbols, super_positions = diagram.supercell_for(kpoint)
-        geometry = diagram_geometry(super_symbols, super_positions)
+        geometry, replica_map = _periodic_sketch_geometry(
+            diagram, cells, super_symbols, super_positions)
         names = {
             level.level_id: level.label
             for column in ("left", "right") for level in levels[column]
         }
         levels_json = []
+        bond_letter = {"bonding": "b", "nonbonding": "n", "antibonding": "a"}
+        from .mo_diagram import element_color
+
         for column in order:
             for level in levels[column]:
+                character = getattr(level, "bond_character", None)
+                # sublattice levels carry the VESTA color of their dominant
+                # element ("Sc 3d GM5+" -> the Sc color)
+                elc = None
+                if column != "mo":
+                    parts = level.label.split()
+                    if len(parts) >= 3:
+                        elc = element_color(parts[0])
                 levels_json.append({
+                    **({"elc": elc} if elc else {}),
                     "id": level.level_id,
                     "col": level.column,
                     "e": round(level.energy, 4),
                     "deg": level.degeneracy,
+                    **({"bond": bond_letter[character]} if character else {}),
                     "label": level.label,
                     "el": level.electrons,
                     "occ": level.electrons > 0,
@@ -1039,14 +1344,23 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                         [i, round(w, 4)]
                         for i, w in level.composition if w >= 0.02
                     ],
-                    "comp": [
-                        [names[i], round(100 * w, 1)]
-                        for i, w in sorted(level.composition,
-                                           key=lambda kv: -kv[1])
-                        if w > 0.005
-                    ],
+                    # crystal levels: the panel bars quote the SAME AO-shell
+                    # populations as the hover tooltip (display_composition);
+                    # the fragment projection only draws the links above
+                    "comp": (
+                        [[label, round(100 * w, 1)]
+                         for label, w in level.display_composition]
+                        if getattr(level, "display_composition", None)
+                        is not None else
+                        [[names[i], round(100 * w, 1)]
+                         for i, w in sorted(level.composition,
+                                            key=lambda kv: -kv[1])
+                         if w > 0.005]
+                    ),
                     "detail": _detail_html(level, names),
-                    "orb": diagram.sketch_partners(level, kpoint, cells),
+                    "orb": _with_periodic_images(
+                        diagram.sketch_partners(level, kpoint, cells),
+                        replica_map),
                 })
         occupied = [lv for lv in levels["mo"] if lv.electrons > 0]
         empty = [lv for lv in levels["mo"] if lv.electrons == 0]
@@ -1099,6 +1413,18 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         "on the k-commensurate supercell (drag to rotate; degenerate "
         "partners switchable)."
     )
+    bond_foot = ""
+    if any(getattr(level, "bond_character", None)
+           for _, _, levels in k_entries for level in levels["mo"]):
+        bond_foot = (
+            " Crystal-orbital line colors: "
+            "<span style=\"color:#1565c0\">bonding</span> / "
+            "<span style=\"color:#333\">nonbonding</span> / "
+            "<span style=\"color:#d32f2f\">antibonding</span>, from the "
+            "left&ndash;right overlap population 2 Re c<sub>L</sub>&#8224;"
+            "S c<sub>R</sub> of each state (COOP-style; semicore "
+            "orthogonality tails excluded; value in the level's tooltip)."
+        )
     render_diagram_page(
         output_path,
         title=f"Crystal orbital diagram: {structure_label}",
@@ -1127,7 +1453,7 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
             "Wolfsberg-Helmholz off-diagonal over exact Bloch STO overlap "
             "sums). The energy window opens on -20 .. 10 eV; use \"Show all "
             "energy levels\" for the core shells. Switch the k point with "
-            "the buttons above." + sketch_foot
+            "the buttons above." + bond_foot + sketch_foot
         ),
         geometry=variants[0]["geom"],
         variants=variants,
@@ -1215,15 +1541,11 @@ def report_and_write(cell, *, left, right, symprec, electrons,
             )
             print(f"   {diagram.formula[column]:<10}: {parts}")
         print("   crystal   :")
-        names = {
-            lv.level_id: lv.label
-            for column in ("left", "right") for lv in levels[column]
-        }
         for lv in sorted(levels["mo"], key=lambda lv: lv.energy):
+            # the same AO-population list as the HTML panel and tooltip
             composition = "  ".join(
-                f"{names[i]} {100 * w:.0f}%"
-                for i, w in sorted(lv.composition, key=lambda kv: -kv[1])
-                if w >= 0.01
+                f"{label} {100 * w:.1f}%"
+                for label, w in getattr(lv, "display_composition", [])
             )
             occupancy = f"{lv.electrons}e" if lv.electrons else "  "
             print(f"     {lv.label:<10} {lv.energy:9.2f} eV  x{lv.degeneracy}"

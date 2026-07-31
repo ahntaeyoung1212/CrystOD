@@ -431,6 +431,25 @@ def _atom_traces(
     return traces
 
 
+def _angular_peak(coefficients, l: int, n_theta: int = 16, n_phi: int = 32) -> float:
+    """max |Re[sum_m c_m X_lm]| over the sphere, for cross-atom size scaling."""
+    theta = np.linspace(0.0, np.pi, n_theta)
+    phi = np.linspace(0.0, 2.0 * np.pi, n_phi)
+    theta_grid, phi_grid = np.meshgrid(theta, phi, indexing="ij")
+    unit = np.stack(
+        [
+            np.sin(theta_grid) * np.cos(phi_grid),
+            np.sin(theta_grid) * np.sin(phi_grid),
+            np.cos(theta_grid),
+        ],
+        axis=-1,
+    ).reshape(-1, 3)
+    angular = orbital_angular_values(l, unit)
+    values = np.real(np.tensordot(
+        np.asarray(coefficients, dtype=complex), angular, axes=(0, 0)))
+    return float(np.max(np.abs(values)))
+
+
 def _orbital_surface(
     center: NDArray[np.float64],
     coefficients: NDArray[np.complex128],
@@ -438,6 +457,8 @@ def _orbital_surface(
     scale: float,
     n_theta: int = 22,
     n_phi: int = 44,
+    peak: float | None = None,
+    decimals: int = 3,
 ) -> dict | None:
     theta = np.linspace(0.0, np.pi, n_theta)
     phi = np.linspace(0.0, 2.0 * np.pi, n_phi)
@@ -455,7 +476,14 @@ def _orbital_surface(
     max_value = float(np.max(np.abs(values)))
     if max_value < 1e-8:
         return None
-    radius = scale * np.abs(values) / max_value
+    # by default every lobe surface is normalized to its own peak (the SALC
+    # basis modes have symmetry-equal atoms); with an explicit shared peak
+    # (the eigen-level pages) the relative sizes across atoms and channels
+    # are preserved, and negligible surfaces are dropped entirely
+    reference = max_value if peak is None else float(peak)
+    if peak is not None and max_value < 0.04 * reference:
+        return None
+    radius = scale * np.abs(values) / reference
     points = unit * radius[:, None] + center[None, :]
     shape = theta_grid.shape
     # sign-only coloring (VESTA style: + yellow, - blue) and 3-decimal
@@ -463,9 +491,9 @@ def _orbital_surface(
     sign = (values >= 0).astype(int)
     return {
         "type": "surface",
-        "x": np.round(points[:, 0], 3).reshape(shape).tolist(),
-        "y": np.round(points[:, 1], 3).reshape(shape).tolist(),
-        "z": np.round(points[:, 2], 3).reshape(shape).tolist(),
+        "x": np.round(points[:, 0], decimals).reshape(shape).tolist(),
+        "y": np.round(points[:, 1], decimals).reshape(shape).tolist(),
+        "z": np.round(points[:, 2], decimals).reshape(shape).tolist(),
         "surfacecolor": sign.reshape(shape).tolist(),
         "cmin": 0,
         "cmax": 1,
@@ -614,8 +642,19 @@ def write_html_visualization(
     conventional: bool = False,
     draw_cell: bool = True,
     axis_names: str = "abc",
+    level_modes: list | None = None,
+    basis_heading: str = "SALC basis (click to show)",
 ) -> None:
     """Write the standalone SALC viewer page.
+
+    ``level_modes`` switches the page from SALC basis modes to
+    caller-supplied rows (the PySCF eigen-levels of --visualize --pyscf):
+    one dict per table row with keys ``space``/``irrep``/``component`` (+
+    optional ``energy`` in eV, shown as a fourth column, and ``el``
+    electrons) and ``atoms`` = {primitive atom index: [(l, coefficients),
+    ...]} -- multi-element, multi-l wave functions.  The caller passes
+    element_indices spanning every primitive atom (the slot then equals
+    the atom index) and empty basis_spaces/basis_labels.
 
     The page layout (left control/mode sidebar + central 3D viewport) is
     modeled after the phonon website by Henrique Miranda
@@ -830,6 +869,29 @@ def write_html_visualization(
     dynamic_traces = []
     dynamic_centers = []  # lobe centers, for the view-depth opacity fade
     mode_specs = []  # dicts describing each selectable (mode space, component)
+    if level_modes is not None:
+        for spec in level_modes:
+            start = len(dynamic_traces)
+            peak = max(
+                (_angular_peak(channel, l_channel)
+                 for channels in spec["atoms"].values()
+                 for l_channel, channel in channels),
+                default=0.0,
+            )
+            for atom_slot, position, phase in target_slots:
+                for l_channel, channel in spec["atoms"].get(atom_slot, ()):
+                    coefficients = np.asarray(channel, dtype=complex) * phase
+                    surface = _orbital_surface(
+                        position, coefficients, l_channel, lobe_scale,
+                        n_theta=16, n_phi=32, peak=peak or None, decimals=2)
+                    if surface is not None:
+                        dynamic_traces.append(surface)
+                        dynamic_centers.append(
+                            [round(float(value), 2) for value in position])
+            entry = {key: value for key, value in spec.items() if key != "atoms"}
+            entry["start"] = start
+            entry["count"] = len(dynamic_traces) - start
+            mode_specs.append(entry)
     for space_index, (space, label) in enumerate(zip(basis_spaces, basis_labels)):
         if mode_index is not None and space_index != mode_index:
             continue
@@ -930,11 +992,17 @@ def write_html_visualization(
             "  <div class=\"control\"><label><input type=\"checkbox\" id=\"show-poly\" checked\n"
             "           onchange=\"applyVisibility()\"/> show polyhedra</label></div>\n"
         )
+    has_energy = any("energy" in spec for spec in mode_specs)
     mode_rows = "".join(
         f'<tr class="mode-row" data-index="{row_index}" onclick="setMode({row_index})">'
-        f'<td>{spec["space"]}</td><td class="irrep">{spec["irrep"]}</td><td>{spec["component"]}</td></tr>'
+        f'<td>{spec["space"]}</td><td class="irrep">{spec["irrep"]}</td><td>{spec["component"]}</td>'
+        + (f'<td>{spec["energy"]:.2f}</td>' if has_energy else "")
+        + "</tr>"
         for row_index, spec in enumerate(mode_specs)
     )
+    mode_header = ("<tr><th>Mode</th><th>Irrep</th><th>Comp.</th>"
+                   + ("<th>Energy (eV)</th>" if has_energy else "")
+                   + "</tr>")
 
     html = (
         "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\"/>\n"
@@ -990,9 +1058,9 @@ def write_html_visualization(
         f"  <table class=\"info\">{info_rows}</table>\n"
         "  <h2>Irreps of SALC</h2>\n"
         f"  <div class=\"mono\">{info.get('decomposition', '')}</div>\n"
-        "  <h2>SALC basis (click to show)</h2>\n"
+        f"  <h2>{basis_heading}</h2>\n"
         "  <table id=\"mode-table\">\n"
-        "    <tr><th>Mode</th><th>Irrep</th><th>Comp.</th></tr>\n"
+        f"    {mode_header}\n"
         f"    {mode_rows}\n"
         "  </table>\n"
         "  <h2>Display</h2>\n"
@@ -1049,7 +1117,9 @@ def write_html_visualization(
         "  });\n"
         "  var spec = MODES[index];\n"
         "  document.getElementById('mode-title').innerHTML =\n"
-        "    'Mode ' + spec.space + ' <span class=\"irrep\">' + spec.irrep + '</span> — component ' + spec.component;\n"
+        "    'Mode ' + spec.space + ' <span class=\"irrep\">' + spec.irrep + '</span> — component ' + spec.component\n"
+        "    + (spec.energy === undefined ? '' : '  ·  E = ' + spec.energy.toFixed(2) + ' eV')\n"
+        "    + (spec.el === undefined ? '' : '  ·  ' + spec.el + ' e−');\n"
         "  applyVisibility();\n"
         "}\n"
         "function currentCamera() {\n"

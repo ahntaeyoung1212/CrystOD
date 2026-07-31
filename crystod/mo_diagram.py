@@ -530,6 +530,9 @@ class MODiagram:
         self._project_fragment_salcs()
         self._count_core_shells()
         self._solve()
+        # COOP bonding character of every MO (needs the occupations, which
+        # _solve fills)
+        self._assign_bond_characters()
 
     def _symmetrize_coordinates(self) -> None:
         """Average the (numerically noisy) input geometry over the group orbit
@@ -853,6 +856,70 @@ class MODiagram:
         self.homo = occupied[-1] if occupied else None
         self.lumo = empty[0] if empty else None
 
+    def _assign_bond_characters(self) -> None:
+        """COOP bonding character of every MO between the ligand cage (left)
+        and the central atom (right), via the shared crystal-engine
+        classifier (crystal_orbital_diagram.assign_bond_characters).
+
+        The classifier reads fragment labels as "element shell irrep" for
+        its semicore detection and expects (n_ao x degeneracy) vector
+        matrices, so lightweight proxy levels adapt the molecular data
+        (fragment columns: one isolated shell per (element, shell) at H_ii
+        with the neutral-atom occupation); the physics is not duplicated.
+        """
+        from types import SimpleNamespace
+
+        from .crystal_orbital_diagram import assign_bond_characters
+
+        rows = {
+            side: np.array(
+                [i for i, ao in enumerate(self.orbitals)
+                 if (ao.atom == self.center) == (side == "right")],
+                dtype=int,
+            )
+            for side in ("left", "right")
+        }
+        spec_lists: dict[tuple[str, str], list[int]] = {}
+        for i, ao in enumerate(self.orbitals):
+            spec_lists.setdefault((ao.element, ao.shell), []).append(i)
+        spec_ranges = {
+            key: np.array(indices, dtype=int)
+            for key, indices in spec_lists.items()
+        }
+        fragments: dict[str, list] = {"left": [], "right": []}
+        seen: set[tuple[str, str, str]] = set()
+        for shell in self.fragment_shells:
+            side = "right" if shell.is_center else "left"
+            if (side, shell.element, shell.shell) in seen:
+                continue
+            seen.add((side, shell.element, shell.shell))
+            fragments[side].append(SimpleNamespace(
+                label=f"{shell.element} {shell.shell} -",
+                energy=shell.h_ii,
+                electrons=(shell_occupation(shell.element, shell.shell)
+                           * len(shell.sites)),
+            ))
+        proxies = [
+            SimpleNamespace(
+                vectors=np.array(level.vectors).T,   # (n_ao, degeneracy)
+                degeneracy=level.degeneracy,
+                electrons=level.electrons,
+                energy=level.energy,
+                label=level.label,
+                detail="",
+            )
+            for level in self.mo_levels
+        ]
+        assign_bond_characters(
+            {"left": fragments["left"], "mo": proxies,
+             "right": fragments["right"]},
+            self.S, rows["left"], rows["right"], spec_ranges,
+        )
+        for level, proxy in zip(self.mo_levels, proxies):
+            level.bond_character = proxy.bond_character
+            level.overlap_population = proxy.overlap_population
+            level.detail += proxy.detail
+
     def _level_name(self, level_id: str) -> str:
         for level in (self.salc_levels + self.center_levels + self.ligand_ao_levels):
             if level.level_id == level_id:
@@ -976,6 +1043,24 @@ COVALENT_RADII = {
     "O": 0.66, "F": 0.57, "Na": 1.66, "Mg": 1.41, "Al": 1.21, "Si": 1.11,
     "P": 1.07, "S": 1.05, "Cl": 1.02,
 }
+
+
+_ELEMENT_COLORS: dict | None = None
+
+
+def element_color(symbol: str) -> str:
+    """VESTA color of an element, for the fragment-level line colors."""
+    global _ELEMENT_COLORS
+    if _ELEMENT_COLORS is None:
+        colors_path = os.path.join(
+            os.path.dirname(__file__), "vesta_element_rgb.json")
+        try:
+            with open(colors_path) as handle:
+                _ELEMENT_COLORS = json.load(handle)
+        except OSError:
+            _ELEMENT_COLORS = {}
+    rgb = _ELEMENT_COLORS.get(symbol)
+    return "#{:02x}{:02x}{:02x}".format(*rgb) if rgb else "#607d8b"
 
 
 def diagram_geometry(symbols: list[str], coordinates: np.ndarray) -> dict:
@@ -1261,6 +1346,26 @@ function drawSketch(d) {
   const cx = 111, cyc = 92;
   const pts = GEOM.atoms.map(a => rot([a[1], a[2], a[3]]));
   const prims = [];
+  if (GEOM.cell) {
+    // periodic boundary: dashed supercell frame (crystal diagrams only;
+    // GEOM.cell = [origin, a1, a2, a3] in the centered sketch coordinates)
+    const [o, va, vb, vc] = GEOM.cell;
+    const corner = (fa, fb, fc) => rot([
+      o[0] + fa * va[0] + fb * vb[0] + fc * vc[0],
+      o[1] + fa * va[1] + fb * vb[1] + fc * vc[1],
+      o[2] + fa * va[2] + fb * vb[2] + fc * vc[2]]);
+    const C = [];
+    for (let fa = 0; fa <= 1; fa++)
+      for (let fb = 0; fb <= 1; fb++)
+        for (let fc = 0; fc <= 1; fc++) C.push(corner(fa, fb, fc));
+    [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],
+     [4,5],[4,6],[5,7],[6,7]].forEach(([i, j]) => {
+      prims.push([0.5 * (C[i][2] + C[j][2]) - 60,
+        '<line x1="' + (cx + scale * C[i][0]).toFixed(1) + '" y1="' + (cyc - scale * C[i][1]).toFixed(1) +
+        '" x2="' + (cx + scale * C[j][0]).toFixed(1) + '" y2="' + (cyc - scale * C[j][1]).toFixed(1) +
+        '" stroke="#90a4ae" stroke-width="1" stroke-dasharray="4 3"/>']);
+    });
+  }
   GEOM.bonds.forEach(([i, j]) => {
     prims.push([0.5 * (pts[i][2] + pts[j][2]) - 50,
       '<line x1="' + (cx + scale * pts[i][0]).toFixed(1) + '" y1="' + (cyc - scale * pts[i][1]).toFixed(1) +
@@ -1411,9 +1516,15 @@ function render() {
       const x = CFG.columns[col], y = rawY[i], h = CFG.half[col];
       const g = el('g', {'class': 'lvl', tabindex: 0});
       g.dataset.id = level.id;
-      const css = level.el !== null ? (level.occ ? 'occ' : 'virt') : 'frag';
+      let css = level.el !== null ? (level.occ ? 'occ' : 'virt') : 'frag';
+      // bonding-character coloring (crystal-orbital diagrams with --pyscf):
+      // blue = bonding, black = nonbonding, red = antibonding
+      if (level.bond) css += ' bond-' + level.bond;
       segments(level).forEach(([x1, x2], k) => {
-        g.appendChild(el('line', {x1: x1, y1: y, x2: x2, y2: y, 'class': 'seg ' + css}));
+        const seg = el('line', {x1: x1, y1: y, x2: x2, y2: y, 'class': 'seg ' + css});
+        // fragment/sublattice levels: VESTA element color of the dominant shell
+        if (level.elc) seg.style.stroke = level.elc;
+        g.appendChild(seg);
         if (level.el) {
           const d = level.deg;
           const ups = Math.min(level.el, d) > k ? 1 : 0;
@@ -1634,6 +1745,9 @@ def render_diagram_page(
  .seg.frag {{ stroke: #607d8b; }}
  .seg.occ {{ stroke: #1565c0; }}
  .seg.virt {{ stroke: #b0bec5; }}
+ .seg.bond-b {{ stroke: #1565c0; }}
+ .seg.bond-n {{ stroke: #333333; }}
+ .seg.bond-a {{ stroke: #d32f2f; }}
  .con {{ stroke: #888; stroke-width: 1; stroke-dasharray: 5 4; }}
  .con.hi {{ stroke: #e65100; stroke-width: 1.6; opacity: 0.95 !important; }}
  .con.dim {{ opacity: 0.06 !important; }}
@@ -1715,17 +1829,35 @@ def write_diagram_html(diagram: MODiagram, output_path: str) -> None:
                 values[1 + orbital.m] += float(vector[index])
         return components
 
+    bond_letter = {"bonding": "b", "nonbonding": "n", "antibonding": "a"}
+
+    def level_element(level):
+        """Element of the level's dominant shell (fragment columns only),
+        for the VESTA line color."""
+        if level.column == "center-ao":
+            return diagram.symbols[diagram.center]
+        if level.column == "ligand-ao":
+            return level.level_id.split("_")[1]      # "lig_{El}_{shell}"
+        if level.column == "salc" and level.composition:
+            source_id = max(level.composition, key=lambda kv: kv[1])[0]
+            return source_id.split("_")[1]
+        return None
+
     levels_json = []
     for level in all_levels:
         partners = canonical_sketch_partners(
             [per_atom_components(vector) for vector in level.vectors]
         )
         orb = [_sketch_entries(per_atom) for per_atom in partners] or None
+        character = getattr(level, "bond_character", None)
+        element = level_element(level)
         levels_json.append({
+            **({"elc": element_color(element)} if element else {}),
             "id": level.level_id,
             "col": level.column,
             "e": round(level.energy, 4),
             "deg": level.degeneracy,
+            **({"bond": bond_letter[character]} if character else {}),
             "label": level.label,
             "el": level.electrons if level.column == "mo" else None,
             "occ": bool(level.column == "mo" and level.electrons > 0),
@@ -1772,6 +1904,18 @@ def write_diagram_html(diagram: MODiagram, output_path: str) -> None:
         "extended H&uuml;ckel / STO overlaps",
     ]
 
+    bond_foot = ""
+    if any(getattr(level, "bond_character", None) for level in diagram.mo_levels):
+        bond_foot = (
+            " MO line colors: "
+            "<span style=\"color:#1565c0\">bonding</span> / "
+            "<span style=\"color:#333\">nonbonding</span> / "
+            "<span style=\"color:#d32f2f\">antibonding</span>, from the "
+            "ligand&ndash;central-atom overlap population 2 Re "
+            "c<sub>L</sub>&#8224;S c<sub>R</sub> of each state (COOP-style; "
+            "semicore orthogonality tails excluded; value in the level's "
+            "tooltip)."
+        )
     render_diagram_page(
         output_path,
         title=f"MO diagram: {diagram.formula} ({diagram.schoenflies})",
@@ -1785,8 +1929,9 @@ def write_diagram_html(diagram: MODiagram, output_path: str) -> None:
         foot_html=(
             "Semi-quantitative diagram from symmetry + overlap only "
             "(symmetry-adapted extended H&uuml;ckel, Wolfsberg&ndash;Helmholz "
-            "K = 1.75, single-&zeta; STOs, exact two-center overlap integrals). "
-            "Generated by CrystOD (crystod-mol --diagram)."
+            "K = 1.75, single-&zeta; STOs, exact two-center overlap integrals)."
+            + bond_foot
+            + " Generated by CrystOD (crystod-mol --diagram)."
         ),
         geometry=diagram_geometry(diagram.symbols, diagram.coordinates),
     )

@@ -97,6 +97,8 @@ from .crystal_orbital_diagram import (
     DiagramLevel,
     _composition_string,
     _format_kpoint,
+    assign_bond_characters,
+    assign_fragment_compositions,
     parse_fragment_formula,
     write_crystal_diagram_html,
 )
@@ -208,6 +210,11 @@ class AOBlock:
     sites: list[int]
     column: str
     radial: float = 1.0    # radial amplitude at the sketch radius r0
+    # amplitudes at SKETCH_RADII, for the multi-radius sign of the viewer:
+    # a single probe radius can sit right on the orthogonalization node of a
+    # semicore-carrying channel (Sc s of the valence R1+ of ScF3: -0.0013 at
+    # 2 bohr), where the drawn sign would be decided by noise
+    radial_profile: tuple = ()
 
 
 class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
@@ -479,6 +486,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         blocks: list[AOBlock] = []
         index = 0
         sketch_r0 = 2.0  # bohr, the representative bonding-region radius
+        sketch_radii = (1.5, 2.0, 2.5, 3.0)
         for shell in range(cell.nbas):
             atom = int(cell.bas_atom(shell))
             l = int(cell.bas_angular(shell))
@@ -493,6 +501,11 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 sketch_r0 ** l
                 * (contractions * np.exp(-exponents * sketch_r0 ** 2)[:, None]).sum(axis=0)
             )
+            profiles = [
+                radius ** l
+                * (contractions * np.exp(-exponents * radius ** 2)[:, None]).sum(axis=0)
+                for radius in sketch_radii
+            ]
             for contraction in range(cell.bas_nctr(shell)):
                 # the AO label carries the shell name, e.g. '0 Sc 3dxy' -> '3d'
                 name = raw_labels[index][2]
@@ -502,6 +515,8 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                     offset=index, n_ao=2 * l + 1, sites=[atom],
                     column=self.atom_column[atom],
                     radial=float(radial_amplitudes[contraction]),
+                    radial_profile=tuple(
+                        float(profile[contraction]) for profile in profiles),
                 ))
                 index += 2 * l + 1
         self.ao_blocks = blocks
@@ -1419,28 +1434,25 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                         occurrence[level.label] = occurrence.get(level.label, 0) + 1
                         level.label = f"{level.label}#{occurrence[level.label]}"
 
-        # composition: crystal level projected onto the fragment levels
+        # fragment projection (level.composition): crystal levels in the
+        # Loewdin-orthogonalized fragment-level basis.  Internal only -- it
+        # positions the connector lines and feeds the alignment anchors
+        # (absolute_composition keeps the unnormalized weights) but is NOT
+        # displayed as percentages: the fragment eigenstates mix AO shells
+        # among themselves (the "Sc 3d R5+" fragment level carries 4d AO
+        # character), so its weights disagree with the AO populations below
+        # and showing both confused more than it explained.
+        assign_fragment_compositions(levels, S)
         for crystal in levels["mo"]:
-            weights = []
-            for column in ("left", "right"):
-                for fragment in levels[column]:
-                    overlap = fragment.vectors.conj().T @ S @ crystal.vectors
-                    weight = float(np.sum(np.abs(overlap) ** 2)) / crystal.degeneracy
-                    if weight > 1e-6:
-                        weights.append((fragment.level_id, weight))
-            total = sum(weight for _, weight in weights) or 1.0
-            crystal.composition = [(i, w / total) for i, w in weights]
-            # unnormalized projections, for the alignment anchors: a crystal
-            # level living mostly on ghost-filtered fragment states keeps only
-            # a sliver of projection, which the normalization above inflates
-            # into a seemingly pure composition
-            crystal.absolute_composition = list(weights)
-            # per-(element, shell) populations in the selected projection
-            # (--projection lowdin/mulliken; Loewdin sums to 100% with
-            # non-negative entries): the fragment projection above silently
-            # loses the weight whose fragment partner was ghost-filtered (the
-            # empty Sc 4p GM4- level of ScF3 with --max-l 2 costs 4.5% this
-            # way) and the normalization then overstates the surviving entries
+            # the ONE displayed composition (panel bars, hover tooltip and
+            # the terminal all quote this list): per-(element, shell) AO
+            # populations of the PySCF eigenvector in the selected projection
+            # (--projection lowdin/mulliken; Loewdin sums to exactly 100%
+            # with non-negative entries) -- the same partial-charge measure
+            # as `crystod --dos --pyscf`.  Symmetry does the orbital
+            # selection: a state of irrep G only picks up the G-adapted
+            # combination of each shell (forbidden shells project to ~0), so
+            # every entry is labeled with the crystal irrep.
             if self.projection == "mulliken":
                 gross = (crystal.vectors.conj() * (S @ crystal.vectors)
                          ).real.sum(axis=1) / crystal.degeneracy
@@ -1453,18 +1465,12 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 if abs(value) >= 0.001:
                     shares.append((value, f"{spec.element} {spec.shell}"))
             shares.sort(key=lambda item: -item[0])
+            crystal.display_composition = [
+                (f"{name} {crystal.irrep}", value) for value, name in shares
+            ]
             populations = ", ".join(f"{name} {100 * value:.1f}%"
                                     for value, name in shares)
-            covered = sum(weight for _, weight in weights)
-            note = ""
-            if covered < 0.98:
-                note = (f" (the composition above covers {100 * covered:.1f}%"
-                        " and is renormalized; the rest projects onto no"
-                        " surviving fragment level)")
-            crystal.detail = f"{self.projection_label}: {populations}{note}"
-            crystal.population_row = (f"{self.projection_label}: "
-                                      f"{populations}")
-            crystal.projection_coverage = covered
+            crystal.detail = f"{self.projection_label}: {populations}"
 
         # left-right coupling <phi_left| F(k) |phi_right> of the crystal Fock
         # operator: same irrep and a large matrix element compared with the
@@ -1475,20 +1481,52 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             for right in levels["right"]:
                 if left.irrep != right.irrep:
                     continue
-                block = left.vectors.conj().T @ fock @ right.vectors
+                # the fragment states are NOT mutually orthogonal, so the bare
+                # matrix element h = <phi_L|F|phi_R> carries an
+                # overlap-times-mean-energy part s*(e_L+e_R)/2 that mimics a
+                # coupling even between non-interacting states (diffuse F 3s/3d
+                # fragment virtuals at +50 eV showed |h| of 5-15 eV against
+                # semicore levels this way).  The reported strength is the
+                # first-order Loewdin-orthogonalized coupling
+                #   H~ = h - s (e_L + e_R)/2
+                # with e_X = <phi_X|F|phi_X> the crystal-Fock expectations --
+                # invariant under the G=0 reference (F -> F + V S shifts h by
+                # V s and both e_X by V).
+                overlap_block = left.vectors.conj().T @ S @ right.vectors
+                raw_block = left.vectors.conj().T @ fock @ right.vectors
+                mean_energy = 0.5 * (
+                    float(np.trace(left.vectors.conj().T @ fock
+                                   @ left.vectors).real) / left.degeneracy
+                    + float(np.trace(right.vectors.conj().T @ fock
+                                     @ right.vectors).real) / right.degeneracy)
+                block = raw_block - mean_energy * overlap_block
                 strength = float(np.sqrt(np.sum(np.abs(block) ** 2) / left.degeneracy))
+                raw_strength = float(np.sqrt(
+                    np.sum(np.abs(raw_block) ** 2) / left.degeneracy))
+                overlap_norm = float(np.sqrt(
+                    np.sum(np.abs(overlap_block) ** 2) / left.degeneracy))
                 gap = abs(left.energy - right.energy)
                 # two-level mixing: tan(2 theta) = 2|H| / dE, so the minority
                 # weight of each mixed orbital is sin^2(theta)
                 angle = 0.5 * np.arctan2(2.0 * strength, gap)
                 self.last_coupling.append(
-                    (left, right, strength, gap, float(np.sin(angle) ** 2))
+                    (left, right, strength, gap, float(np.sin(angle) ** 2),
+                     overlap_norm, raw_strength)
                 )
         self.last_coupling.sort(key=lambda item: -item[4])
 
+        # COOP bonding character of every crystal level (see
+        # assign_bond_characters); the occupations must be filled first
         self._fill(levels["mo"], self.electrons)
         for column in ("left", "right"):
             self._fill(levels[column], self.side_electrons[column])
+        spec_ranges = {(spec.element, spec.shell): self.spec_indices[id(spec)]
+                       for spec in self.specs}
+        assign_bond_characters(
+            levels, S, self.embed_rows["left"], self.embed_rows["right"],
+            spec_ranges, sqrt_overlap=S_half, hamiltonian=fock,
+        )
+
         return levels, labels
 
 
@@ -1654,22 +1692,13 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
             )
             print(f"   {diagram.formula[column]:<10}: {parts}")
 
-        names = {lv.level_id: lv.label
-                 for column in ("left", "right") for lv in levels[column]}
         print("   crystal   :")
         for lv in sorted(levels["mo"], key=lambda lv: lv.energy):
+            # the same AO-population list as the HTML panel and tooltip
             composition = "  ".join(
-                f"{names[i]} {100 * w:.0f}%"
-                for i, w in sorted(lv.composition, key=lambda kv: -kv[1])
-                if w >= 0.01
+                f"{label} {100 * w:.1f}%"
+                for label, w in getattr(lv, "display_composition", [])
             )
-            # when the projections miss part of the state (its fragment
-            # partner was ghost-filtered), the renormalized list above is
-            # misleading -- show the population row next to it
-            coverage = getattr(lv, "projection_coverage", 1.0)
-            if coverage < 0.98:
-                composition += (f"  [projections cover {100 * coverage:.0f}%;"
-                                f" {getattr(lv, 'population_row', '')}]")
             occupancy = f"{lv.electrons}e" if lv.electrons else "  "
             print(f"     {lv.label:<10} {lv.energy:9.2f} eV  x{lv.degeneracy}"
                   f"  {occupancy:<4} {composition}")
@@ -1678,18 +1707,22 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
             # dE and the mixing fraction on the ALIGNED scale -- the raw
             # separations carried the per-calculation reference offsets
             rescored = []
-            for lv_left, lv_right, strength, _gap, _mix in record["coupling"]:
+            for (lv_left, lv_right, strength, _gap, _mix,
+                 overlap_norm, raw_strength) in record["coupling"]:
                 gap = abs(lv_left.energy - lv_right.energy)
                 mixing = float(np.sin(0.5 * np.arctan2(2.0 * strength, gap)) ** 2)
-                rescored.append((lv_left, lv_right, strength, gap, mixing))
+                rescored.append((lv_left, lv_right, strength, gap, mixing,
+                                 overlap_norm, raw_strength))
             rescored.sort(key=lambda item: -item[4])
             record["coupling_aligned"] = rescored
-            print("   same-irrep couplings <left|F(k)|right> "
+            print("   same-irrep couplings, Loewdin-corrected "
+                  "|H~| = |<L|F|R> - S (e_L+e_R)/2| "
                   "(mix = sin^2 of the two-level mixing angle):")
-            for lv_left, lv_right, strength, gap, mixing in rescored[:8]:
+            for (lv_left, lv_right, strength, gap, mixing,
+                 overlap_norm, _raw) in rescored[:8]:
                 print(f"     {lv_left.label:<16} x {lv_right.label:<16} "
-                      f"|H| = {strength:7.2f} eV   dE = {gap:7.2f} eV   "
-                      f"mix = {100 * mixing:4.1f}%")
+                      f"|H~| = {strength:6.2f} eV   |S| = {overlap_norm:5.3f}"
+                      f"   dE = {gap:7.2f} eV   mix = {100 * mixing:4.1f}%")
 
     # the terminal shows only the top-8 couplings per k point; the full list
     # is a result worth keeping, so it is written next to the HTML
@@ -1699,22 +1732,31 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
     coupling_path += "_coupling.txt"
     with open(coupling_path, "w") as handle:
         handle.write(
-            "# same-irrep resonance integrals <phi_left | F(k) | phi_right>\n"
-            "# of the converged crystal Fock operator; energies on the "
-            "aligned scale\n"
-            "# mix = sin^2(theta) with tan(2 theta) = 2|H| / dE "
+            "# same-irrep couplings between the fragment levels, from the\n"
+            "# converged crystal Fock operator F(k); energies on the aligned "
+            "scale\n"
+            "# |S|    = |<phi_L| S |phi_R>|: the fragment states are NOT\n"
+            "#          mutually orthogonal\n"
+            "# |H|raw = |<phi_L| F |phi_R>|: carries an unphysical\n"
+            "#          overlap-times-mean-energy part |S|*(e_L+e_R)/2\n"
+            "# |H~|   = |<phi_L|F|phi_R> - S (e_L+e_R)/2|, e_X = <phi_X|F|phi_X>:\n"
+            "#          first-order Loewdin-orthogonalized coupling, the\n"
+            "#          resonance integral to reason with\n"
+            "# mix = sin^2(theta) with tan(2 theta) = 2|H~| / dE "
             "(two-level mixing fraction)\n"
             f"# columns: irrep  left_level  E_left(eV)  right_level  "
-            "E_right(eV)  |H|(eV)  dE(eV)  mix(%)\n")
+            "E_right(eV)  |S|  |H|raw(eV)  |H~|(eV)  dE(eV)  mix(%)\n")
         for record in records:
             handle.write(f"\n# k point {record['name']} "
                          f"{_format_kpoint(record['kpoint'])}\n")
-            for lv_left, lv_right, strength, gap, mixing in record.get(
+            for (lv_left, lv_right, strength, gap, mixing,
+                 overlap_norm, raw_strength) in record.get(
                     "coupling_aligned", []):
                 handle.write(
                     f"{lv_left.irrep:<6} {lv_left.label:<18} "
                     f"{lv_left.energy:9.3f}  {lv_right.label:<18} "
-                    f"{lv_right.energy:9.3f}  {strength:8.3f} {gap:8.3f} "
+                    f"{lv_right.energy:9.3f}  {overlap_norm:6.3f} "
+                    f"{raw_strength:8.3f} {strength:8.3f} {gap:8.3f} "
                     f"{100 * mixing:7.2f}\n")
 
     entries = [(r["name"], r["kpoint"], r["levels"]) for r in records]
