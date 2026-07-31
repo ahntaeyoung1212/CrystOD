@@ -11,3 +11,7 @@ crystod --visualize -c 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 1/2 1/2
 crystod --visualize -c 221_PPOSCAR_ScF3 --element Sc --orbital d --kpoint 0 0 0 --bond Sc F 2.5 --real-coefficient
 crystod --visualize -c 221_PPOSCAR_ScF3 --element Sc --orbital d --kpoint 0.5 0.5 0.5 --bond Sc F 2.5 --real-coefficient
 crystod --visualize -c 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 0.5 0.5 0.5 --bond Sc F 2.5 --real-coefficient
+
+# Visualize the crystal orbitals of chemically bonded ScF3 with the energy levels calculated from PySCF
+# You can obtain SALC_pyscf_{poscar_name}_crystal_{kpoint}.html
+crystod --visualize --pyscf -c 221_PPOSCAR_ScF3 --bond Sc F 3 --real-coefficient --kmesh 2 2 2 --ke-cutoff 150 --max-l 2 --chk ScF3.chk --diagonalize
