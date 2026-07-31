@@ -450,19 +450,40 @@ def _angular_peak(coefficients, l: int, n_theta: int = 16, n_phi: int = 32) -> f
     return float(np.max(np.abs(values)))
 
 
-def _orbital_surface(
+def _monomial_matrix(l: int, unit: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Homogeneous degree-l monomials at unit vectors, in the fixed order
+    shared with the embedded lobe-builder JavaScript."""
+    x, y, z = unit[:, 0], unit[:, 1], unit[:, 2]
+    if l == 0:
+        columns = [np.ones_like(x)]
+    elif l == 1:
+        columns = [x, y, z]
+    elif l == 2:
+        columns = [x * x, y * y, z * z, x * y, x * z, y * z]
+    elif l == 3:
+        columns = [x**3, y**3, z**3, x * x * y, x * x * z, x * y * y,
+                   y * y * z, x * z * z, y * z * z, x * y * z]
+    else:
+        raise ValueError(f"lobe polynomials support l <= 3 (got {l})")
+    return np.stack(columns, axis=1)
+
+
+def _orbital_lobe(
     center: NDArray[np.float64],
     coefficients: NDArray[np.complex128],
     l: int,
     scale: float,
-    n_theta: int = 22,
-    n_phi: int = 44,
     peak: float | None = None,
     decimals: int = 3,
 ) -> dict | None:
-    theta = np.linspace(0.0, np.pi, n_theta)
-    phi = np.linspace(0.0, 2.0 * np.pi, n_phi)
-    theta_grid, phi_grid = np.meshgrid(theta, phi, indexing="ij")
+    """Compact lobe spec {c, l, p}: the angular function Re[sum_m c_m X_lm]
+    is a homogeneous degree-l polynomial on the unit sphere, so instead of
+    shipping the full surface grid (the old approach -- ~97% of the HTML
+    size) only the exact polynomial coefficients are embedded and the
+    surface grid is rebuilt client-side by the lobe-builder JavaScript."""
+    fit_theta = np.linspace(0.05, np.pi - 0.05, 12)
+    fit_phi = np.linspace(0.0, 2.0 * np.pi, 24, endpoint=False)
+    theta_grid, phi_grid = np.meshgrid(fit_theta, fit_phi, indexing="ij")
     unit = np.stack(
         [
             np.sin(theta_grid) * np.cos(phi_grid),
@@ -476,41 +497,25 @@ def _orbital_surface(
     max_value = float(np.max(np.abs(values)))
     if max_value < 1e-8:
         return None
-    # by default every lobe surface is normalized to its own peak (the SALC
-    # basis modes have symmetry-equal atoms); with an explicit shared peak
-    # (the eigen-level pages) the relative sizes across atoms and channels
-    # are preserved, and negligible surfaces are dropped entirely
+    # by default every lobe is normalized to its own peak (the SALC basis
+    # modes have symmetry-equal atoms); with an explicit shared peak (the
+    # eigen-level pages) the relative sizes across atoms and channels are
+    # preserved, and negligible lobes are dropped entirely
     reference = max_value if peak is None else float(peak)
     if peak is not None and max_value < 0.04 * reference:
         return None
-    radius = scale * np.abs(values) / reference
-    points = unit * radius[:, None] + center[None, :]
-    shape = theta_grid.shape
-    # sign-only coloring (VESTA style: + yellow, - blue) and 3-decimal
-    # coordinates keep the standalone HTML small.
-    sign = (values >= 0).astype(int)
+    target = scale * values / reference
+    matrix = _monomial_matrix(l, unit)
+    poly, *_ = np.linalg.lstsq(matrix, target, rcond=None)
+    residual = float(np.max(np.abs(matrix @ poly - target)))
+    if residual > 1e-6 * max(float(np.max(np.abs(target))), 1e-12):
+        raise RuntimeError(
+            f"lobe polynomial fit failed (l={l}, residual {residual:.2e})"
+        )
     return {
-        "type": "surface",
-        "x": np.round(points[:, 0], decimals).reshape(shape).tolist(),
-        "y": np.round(points[:, 1], decimals).reshape(shape).tolist(),
-        "z": np.round(points[:, 2], decimals).reshape(shape).tolist(),
-        "surfacecolor": sign.reshape(shape).tolist(),
-        "cmin": 0,
-        "cmax": 1,
-        "colorscale": [[0.0, "#26c6da"], [1.0, "#ffeb3b"]],
-        "showscale": False,
-        # opaque by default: WebGL depth testing then resolves front/back
-        # correctly (translucent surfaces cannot be depth-sorted by plotly)
-        "opacity": 1.0,
-        "lighting": {
-            "ambient": 0.55,
-            "diffuse": 0.75,
-            "specular": 0.4,
-            "roughness": 0.5,
-            "fresnel": 0.1,
-        },
-        "hoverinfo": "skip",
-        "showlegend": False,
+        "c": [round(float(value), decimals) for value in center],
+        "l": l,
+        "p": [round(float(value), 4) for value in poly],
     }
 
 
@@ -866,12 +871,14 @@ def write_html_visualization(
     component_names = ORBITAL_COMPONENT_NAMES[l]
     n_components = len(component_names)
 
-    dynamic_traces = []
-    dynamic_centers = []  # lobe centers, for the view-depth opacity fade
+    lobes = []  # compact lobe specs; the surface grids are built client-side
     mode_specs = []  # dicts describing each selectable (mode space, component)
+    # rendering grid of the client-side lobe builder (the eigen-level pages
+    # keep their slightly coarser historical resolution)
+    lobe_grid = (16, 32) if level_modes is not None else (22, 44)
     if level_modes is not None:
         for spec in level_modes:
-            start = len(dynamic_traces)
+            start = len(lobes)
             peak = max(
                 (_angular_peak(channel, l_channel)
                  for channels in spec["atoms"].values()
@@ -881,30 +888,27 @@ def write_html_visualization(
             for atom_slot, position, phase in target_slots:
                 for l_channel, channel in spec["atoms"].get(atom_slot, ()):
                     coefficients = np.asarray(channel, dtype=complex) * phase
-                    surface = _orbital_surface(
+                    lobe = _orbital_lobe(
                         position, coefficients, l_channel, lobe_scale,
-                        n_theta=16, n_phi=32, peak=peak or None, decimals=2)
-                    if surface is not None:
-                        dynamic_traces.append(surface)
-                        dynamic_centers.append(
-                            [round(float(value), 2) for value in position])
+                        peak=peak or None, decimals=2)
+                    if lobe is not None:
+                        lobes.append(lobe)
             entry = {key: value for key, value in spec.items() if key != "atoms"}
             entry["start"] = start
-            entry["count"] = len(dynamic_traces) - start
+            entry["count"] = len(lobes) - start
             mode_specs.append(entry)
     for space_index, (space, label) in enumerate(zip(basis_spaces, basis_labels)):
         if mode_index is not None and space_index != mode_index:
             continue
         for component_index, vector in enumerate(space):
-            start = len(dynamic_traces)
+            start = len(lobes)
             for atom_slot, position, phase in target_slots:
                 coefficients = (
                     vector[atom_slot * n_components : (atom_slot + 1) * n_components] * phase
                 )
-                surface = _orbital_surface(position, coefficients, l, lobe_scale)
-                if surface is not None:
-                    dynamic_traces.append(surface)
-                    dynamic_centers.append([round(float(value), 2) for value in position])
+                lobe = _orbital_lobe(position, coefficients, l, lobe_scale)
+                if lobe is not None:
+                    lobes.append(lobe)
             mode_specs.append(
                 {
                     "label": f"Mode {space_index + 1} [{label}] comp {component_index + 1}",
@@ -912,19 +916,11 @@ def write_html_visualization(
                     "irrep": label,
                     "component": component_index + 1,
                     "start": start,
-                    "count": len(dynamic_traces) - start,
+                    "count": len(lobes) - start,
                 }
             )
 
-    all_traces = static_traces + dynamic_traces
-    if mode_specs:
-        first = mode_specs[0]
-        for offset, trace in enumerate(all_traces):
-            dynamic_offset = offset - n_static
-            trace["visible"] = (
-                offset < n_static
-                or first["start"] <= dynamic_offset < first["start"] + first["count"]
-            )
+    all_traces = static_traces
 
     layout = {
         "scene": {
@@ -1082,14 +1078,75 @@ def write_html_visualization(
         "</div>\n"
         "</div>\n"
         "<script>\n"
-        f"var data = {json.dumps(all_traces)};\n"
+        f"var STATIC = {json.dumps(all_traces)};\n"
+        f"var LOBES = {json.dumps(lobes)};\n"
+        f"var LOBE_GRID = {json.dumps(list(lobe_grid))};\n"
         f"var layout = {json.dumps(layout)};\n"
         f"var N_STATIC = {n_static};\n"
         f"var CELL_END = {cell_end};\n"
         f"var ATOMS_END = {atoms_end};\n"
         f"var BONDS_END = {bonds_end};\n"
         f"var MODES = {json.dumps(mode_specs)};\n"
-        f"var DYNAMIC_CENTERS = {json.dumps(dynamic_centers)};\n"
+        "var DYNAMIC_CENTERS = LOBES.map(function (lobe) { return lobe.c; });\n"
+        "// Each lobe ships only its center and the exact degree-l polynomial\n"
+        "// of its angular function; the surface grids are rebuilt here (this\n"
+        "// keeps the standalone HTML ~50-100x smaller than embedded grids).\n"
+        "function lobeValue(l, p, ux, uy, uz) {\n"
+        "  if (l === 0) { return p[0]; }\n"
+        "  if (l === 1) { return p[0] * ux + p[1] * uy + p[2] * uz; }\n"
+        "  if (l === 2) {\n"
+        "    return p[0] * ux * ux + p[1] * uy * uy + p[2] * uz * uz\n"
+        "         + p[3] * ux * uy + p[4] * ux * uz + p[5] * uy * uz;\n"
+        "  }\n"
+        "  return p[0] * ux * ux * ux + p[1] * uy * uy * uy + p[2] * uz * uz * uz\n"
+        "       + p[3] * ux * ux * uy + p[4] * ux * ux * uz + p[5] * ux * uy * uy\n"
+        "       + p[6] * uy * uy * uz + p[7] * ux * uz * uz + p[8] * uy * uz * uz\n"
+        "       + p[9] * ux * uy * uz;\n"
+        "}\n"
+        "function lobeTraces() {\n"
+        "  var NT = LOBE_GRID[0], NP = LOBE_GRID[1];\n"
+        "  var cosT = [], sinT = [], cosP = [], sinP = [];\n"
+        "  for (var i = 0; i < NT; i++) {\n"
+        "    var t = Math.PI * i / (NT - 1);\n"
+        "    cosT.push(Math.cos(t)); sinT.push(Math.sin(t));\n"
+        "  }\n"
+        "  for (var j = 0; j < NP; j++) {\n"
+        "    var f = 2 * Math.PI * j / (NP - 1);\n"
+        "    cosP.push(Math.cos(f)); sinP.push(Math.sin(f));\n"
+        "  }\n"
+        "  return LOBES.map(function (lobe) {\n"
+        "    var xs = [], ys = [], zs = [], colors = [];\n"
+        "    for (var i = 0; i < NT; i++) {\n"
+        "      var rowX = [], rowY = [], rowZ = [], rowC = [];\n"
+        "      for (var j = 0; j < NP; j++) {\n"
+        "        var ux = sinT[i] * cosP[j], uy = sinT[i] * sinP[j], uz = cosT[i];\n"
+        "        var value = lobeValue(lobe.l, lobe.p, ux, uy, uz);\n"
+        "        var radius = Math.abs(value);\n"
+        "        rowX.push(lobe.c[0] + radius * ux);\n"
+        "        rowY.push(lobe.c[1] + radius * uy);\n"
+        "        rowZ.push(lobe.c[2] + radius * uz);\n"
+        "        rowC.push(value >= 0 ? 1 : 0);\n"
+        "      }\n"
+        "      xs.push(rowX); ys.push(rowY); zs.push(rowZ); colors.push(rowC);\n"
+        "    }\n"
+        "    return {type: 'surface', x: xs, y: ys, z: zs, surfacecolor: colors,\n"
+        "            cmin: 0, cmax: 1,\n"
+        "            colorscale: [[0.0, '#26c6da'], [1.0, '#ffeb3b']],\n"
+        "            showscale: false, opacity: 1.0,\n"
+        "            lighting: {ambient: 0.55, diffuse: 0.75, specular: 0.4,\n"
+        "                       roughness: 0.5, fresnel: 0.1},\n"
+        "            hoverinfo: 'skip', showlegend: false};\n"
+        "  });\n"
+        "}\n"
+        "var data = STATIC.concat(lobeTraces());\n"
+        "if (MODES.length) {\n"
+        "  var firstMode = MODES[0];\n"
+        "  for (var lobeIndex = N_STATIC; lobeIndex < data.length; lobeIndex++) {\n"
+        "    var lobeOffset = lobeIndex - N_STATIC;\n"
+        "    data[lobeIndex].visible = lobeOffset >= firstMode.start\n"
+        "      && lobeOffset < firstMode.start + firstMode.count;\n"
+        "  }\n"
+        "}\n"
         "var currentMode = 0;\n"
         "var baseOpacity = 1.0;\n"
         "var plotDiv = document.getElementById('plot');\n"

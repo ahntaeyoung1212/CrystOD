@@ -1025,20 +1025,45 @@ class CrystalOrbitalDiagram:
         sqrt_overlap = (eigenvectors * np.sqrt(np.clip(eigenvalues.real,
                                                        0.0, None))
                         ) @ eigenvectors.conj().T
-        for crystal in levels["mo"]:
-            gross = (np.abs(sqrt_overlap @ crystal.vectors) ** 2
-                     ).sum(axis=1) / crystal.degeneracy
-            shares = []
-            for (element, shell), indices in spec_ranges.items():
-                value = float(gross[indices].sum())
-                if value >= 0.001:
-                    shares.append((value, f"{element} {shell}"))
-            shares.sort(key=lambda item: -item[0])
-            crystal.display_composition = [
-                (f"{name} {crystal.irrep}", value) for value, name in shares
-            ]
-            crystal.detail = "Loewdin: " + ", ".join(
-                f"{name} {100 * value:.1f}%" for value, name in shares)
+        # fragment columns included: a repeated label like "F 2p GM4-#2"
+        # only names the dominant shell of a same-irrep mixture, and the
+        # bars/tooltip must reveal the mixture itself.  Fragment levels
+        # list their own sublattice's shells only (they are sublattice
+        # states; the Loewdin attribution reaching the other side is
+        # aggregated into one closing note).
+        side_keys = {
+            column: {(spec.element, spec.shell)
+                     for spec in self.side_specs[column]}
+            for column in ("left", "right")
+        }
+        for column in ("mo", "left", "right"):
+            for level in levels[column]:
+                gross = (np.abs(sqrt_overlap @ level.vectors) ** 2
+                         ).sum(axis=1) / level.degeneracy
+                shares = []
+                for (element, shell), indices in spec_ranges.items():
+                    if column != "mo" and (element, shell) \
+                            not in side_keys[column]:
+                        continue
+                    value = float(gross[indices].sum())
+                    if value >= 0.001:
+                        shares.append((value, f"{element} {shell}"))
+                shares.sort(key=lambda item: -item[0])
+                level.display_composition = [
+                    (f"{name} {level.irrep}", value)
+                    for value, name in shares
+                ]
+                row = "Loewdin: " + ", ".join(
+                    f"{name} {100 * value:.1f}%" for value, name in shares)
+                if column != "mo":
+                    remainder = 1.0 - sum(value for value, _ in shares)
+                    if remainder >= 0.005:
+                        row += (f" (+{100 * remainder:.1f}% Loewdin-"
+                                "attributed to the other sublattice's "
+                                "basis: overlap density; the state has no "
+                                "coefficients there)")
+                level.detail = (row if not level.detail
+                                else f"{row}\n{level.detail}")
 
         assign_bond_characters(
             levels, S,
@@ -1399,11 +1424,16 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         structure_label,
         f"{diagram.builder.spglib_dataset['international']} "
         f"(No. {diagram.builder.spglib_dataset['number']})",
-        f"{fragment_names} (full-electron basis)",
+        f"{fragment_names} "
+        + getattr(diagram, "basis_chip", "(full-electron basis)"),
         f"{int(diagram.electrons)} electrons / cell",
-        "point charges: " + " ".join(
-            f"{element}{diagram.oxidation[element]:+g}"
-            for element in dict.fromkeys(diagram.symbols)
+        # --onsite pages replace the point-charge chip: there is no
+        # point-charge embedding in the single-Hamiltonian mode
+        getattr(diagram, "embedding_chip", "") or (
+            "point charges: " + " ".join(
+                f"{element}{diagram.oxidation[element]:+g}"
+                for element in dict.fromkeys(diagram.symbols)
+            )
         ),
         getattr(diagram, "method_chip", "extended H&uuml;ckel + SALC"),
     ]
@@ -1440,20 +1470,24 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         lumo_id=first["lumo"],
         e_min=first["eMin"], e_max=first["eMax"],
         foot_html=(
-            "Crystal-orbital diagram (COD): the fragment-sublattice Bloch "
-            "orbitals (columns, full-electron basis: every core and valence "
-            "shell) are the electronic states before chemical bond "
-            "formation, in the point-charge ligand field of the removed "
-            "sublattice (formal oxidation states; exact multipole + "
-            "penetration terms, background-dependent monopole omitted); "
-            "states sharing an irrep of the little group at k mix into "
-            "bonding/antibonding crystal orbitals (center), states without "
-            "a partner remain nonbonding. Energies: symmetry-adapted "
-            "extended H&uuml;ckel (VSIP/core-level diagonal + "
-            "Wolfsberg-Helmholz off-diagonal over exact Bloch STO overlap "
-            "sums). The energy window opens on -20 .. 10 eV; use \"Show all "
-            "energy levels\" for the core shells. Switch the k point with "
-            "the buttons above." + bond_foot + sketch_foot
+            # engines override foot_intro (the PySCF pages used to reuse the
+            # extended-Hueckel energetics sentence below, which was wrong)
+            (getattr(diagram, "foot_intro", "") or (
+                "Crystal-orbital diagram (COD): the fragment-sublattice "
+                "Bloch orbitals (columns, full-electron basis: every core "
+                "and valence shell) are the electronic states before "
+                "chemical bond formation, in the point-charge ligand field "
+                "of the removed sublattice (formal oxidation states; exact "
+                "multipole + penetration terms, background-dependent "
+                "monopole omitted); states sharing an irrep of the little "
+                "group at k mix into bonding/antibonding crystal orbitals "
+                "(center), states without a partner remain nonbonding. "
+                "Energies: symmetry-adapted extended H&uuml;ckel "
+                "(VSIP/core-level diagonal + Wolfsberg-Helmholz "
+                "off-diagonal over exact Bloch STO overlap sums)."))
+            + " The energy window opens on the frontier states; use \"Show "
+            "all energy levels\" for the deep shells. Switch the k point "
+            "with the buttons above." + bond_foot + sketch_foot
         ),
         geometry=variants[0]["geom"],
         variants=variants,

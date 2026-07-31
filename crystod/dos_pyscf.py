@@ -50,7 +50,7 @@ def report_and_write(cell, *, sublattice_left, sublattice_right,
                      electrons=None, oxidation=None, basis=None,
                      pseudo=None, xc="pbe", kmesh=None, ke_cutoff=200.0,
                      scf_sigma=0.0, no_ghost=False, max_l=None, chk=None,
-                     verbose=0):
+                     onsite=False, verbose=0):
     """Dense-mesh DOS/PDOS + partial charges from the (restarted) SCF."""
     import os
 
@@ -68,12 +68,15 @@ def report_and_write(cell, *, sublattice_left, sublattice_right,
         left, right = sublattice_left, sublattice_right
     else:
         left, right, _ = _canonical_split(cell, None)
+    # the DOS only ever uses the crystal density: --onsite skips the two
+    # fragment SCFs entirely (and accepts the crystal-only chk files an
+    # --onsite diagram run writes)
     diagram = PySCFCrystalOrbitalDiagram(
         cell, left, right, symprec=symprec, electrons=electrons,
         oxidation=oxidation, basis=basis or "gth-dzvp-molopt-sr",
         pseudo=pseudo or "gth-pbe", xc=xc, kmesh=kmesh, ke_cutoff=ke_cutoff,
         sigma=scf_sigma, no_ghost=no_ghost, max_l=max_l,
-        projection=projection, chk=chk, verbose=verbose,
+        projection=projection, chk=chk, onsite=onsite, verbose=verbose,
     )
     print(f" * DOS from the PySCF density matrix: "
           f"{diagram.formula['left'] + diagram.formula['right']} *")
@@ -281,6 +284,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--no-ghost", action="store_true")
     parser.add_argument("--max-l", type=int, default=None)
     parser.add_argument("--chk", default=None, metavar="FILE")
+    parser.add_argument("--onsite", action="store_true",
+                        help="run (or reuse) only the crystal SCF -- the DOS "
+                        "never needs the fragment densities; also accepts "
+                        "the crystal-only chk files an --onsite diagram run "
+                        "writes")
     parser.add_argument("--output", default=None)
     parser.add_argument("--tolerance", type=float, default=1e-5)
     parser.add_argument("--verbose", type=int, default=0)
@@ -317,6 +325,7 @@ def main(argv: list[str] | None = None) -> None:
         no_ghost=args.no_ghost,
         max_l=args.max_l,
         chk=args.chk,
+        onsite=args.onsite,
         verbose=args.verbose,
     )
 

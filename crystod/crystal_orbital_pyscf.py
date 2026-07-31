@@ -119,6 +119,11 @@ KMESH_TARGET_ANGSTROM = 8.0
 # fragment, and is dropped (same rule as crystod-mol --pyscf).
 GHOST_FRACTION_THRESHOLD = 0.35
 
+# --onsite block diagonalization: sublattice Bloch combinations whose overlap
+# eigenvalue falls below this are dropped (canonical orthogonalization), the
+# same near-dependence guard the SCF itself applies to the full basis
+ONSITE_OVERLAP_FLOOR = 1.0e-7
+
 # Seed window in eV for clustering degenerate levels.  The uniform FFT grid on
 # which the Coulomb, the exchange-correlation and the point-charge potentials
 # are evaluated does not respect the point group exactly, so levels that are
@@ -229,8 +234,8 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                  basis="gth-dzvp-molopt-sr", pseudo="gth-pbe", xc="pbe",
                  kmesh=None, ke_cutoff=200.0, oxidation=None, electrons=None,
                  sigma=0.0, degeneracy_tol=None, no_ghost=False, symmetrize=True,
-                 max_l=None, projection="lowdin", chk=None, conv_tol=1e-8,
-                 max_cycle=100, max_memory=4000.0, verbose=0):
+                 max_l=None, projection="lowdin", chk=None, onsite=False,
+                 conv_tol=1e-8, max_cycle=100, max_memory=4000.0, verbose=0):
         _import_pyscf()
 
         self.builder = SymmetryAdaptedOrbitalBasis(cell=cell, symprec=symprec)
@@ -278,6 +283,57 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         self.sketch_specs = None      # sketches always use all AO components
         self.sketch_tokens = None
         self.method_chip = f"PySCF {xc.upper()}/{basis}"
+        # --onsite: single-Hamiltonian mode.  Only the crystal SCF runs; the
+        # fragment columns are the sublattice BLOCKS of its converged Fock,
+        # F[rows,rows] c = E S[rows,rows] c -- the pre-bonding sublattice
+        # states with the left-right mixing switched off.  One operator for
+        # every column, so no reference alignment is needed and a level's
+        # rise/drop against its parents is purely the orbital interaction.
+        self.onsite = bool(onsite)
+        self.scf_columns = ("mo",) if self.onsite else ("mo", "left", "right")
+        if self.onsite and self.no_ghost:
+            print("NOTE: --onsite ignores --no-ghost (no fragment SCF runs; "
+                  "the columns are crystal-Fock blocks).")
+            # canonicalize: the flag is numerically inert here, and keeping
+            # it would poison the chk parameter check for no reason
+            self.no_ghost = False
+        self.basis_chip = "(GTH valence basis)"
+        if self.onsite:
+            self.embedding_chip = "one Hamiltonian: crystal-Fock blocks"
+            self.foot_intro = (
+                "Crystal-orbital diagram (COD, --onsite): every column comes "
+                "from the ONE converged crystal Fock operator F(k).  The "
+                "fragment columns are the per-(element, shell) ON-SITE "
+                "multiplets -- F(k) diagonalized within each shell's own "
+                "symmetry-adapted Bloch orbitals, the tight-binding on-site "
+                "energies &lt;&phi;|F|&phi;&gt; of the actual AO shells, one "
+                "level per induced irrep and no cross-shell mixing -- the "
+                "center its full eigenstates; states sharing an irrep of the "
+                "little group at k mix into bonding/antibonding crystal "
+                "orbitals.  No fragment SCF and no reference alignment: a "
+                "crystal level's drop/rise against its parents is the "
+                "orbital interaction (level repulsion/hybridization) with "
+                "everything else, cross-shell and left&ndash;right alike.  "
+                "Column occupations (electron arrows) are the formal ionic "
+                "counts from the oxidation states -- a display convention, "
+                "not an output of the Fock operator.")
+        else:
+            self.embedding_chip = ""
+            self.foot_intro = (
+                "Crystal-orbital diagram (COD): the fragment-sublattice "
+                "Bloch orbitals (columns) are the electronic states before "
+                "chemical bond formation -- each fragment is its own "
+                "periodic DFT calculation (formal-charge ions + ghost basis "
+                "+ point-charge lattice of the removed sublattice); states "
+                "sharing an irrep of the little group at k mix into "
+                "bonding/antibonding crystal orbitals (center).  Energies: "
+                f"PySCF {xc.upper()} eigenvalues, the three calculations put "
+                "on one scale by deep-level (XPS-style) alignment.  NOTE the "
+                "parent&rarr;crystal vertical offsets also carry the "
+                "point-charge-model-vs-crystal environment difference "
+                "(site-dependent, up to ~1.5 eV) -- read bonding from the "
+                "line colors (COOP), not from the offsets; --onsite removes "
+                "this by drawing every column from the crystal Fock itself.")
 
         self._assign_fragments(left_tokens, right_tokens)
         self._resolve_oxidation(oxidation)
@@ -689,7 +745,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         # charged cation fragment with diffuse shells (SrTi^6+ with dzvp) it
         # starts so far away that the SCF never finds its way back.
         slices = self.cells["mo"].aoslice_by_atom()
-        for column in ("mo", "left", "right"):
+        for column in self.scf_columns:
             cell = self.cells[column]
             # symmetry-reduced SCF mesh: only the irreducible wedge is solved
             # (2x2x2 in Pm-3m: 4 of 8 k points), then to_khf() expands the
@@ -796,16 +852,18 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
 
         with open(self.chk_path, "wb") as handle:
             # a file handle keeps the exact name (np.savez would append .npz)
+            # --onsite runs (and therefore saves) only the crystal SCF; the
+            # energy_columns array records which densities the file holds
             np.savez_compressed(
                 handle,
                 params=json.dumps(self._chk_params(), sort_keys=True),
                 positions=self.positions, lattice=self.lattice,
                 smeared=np.array(sorted(self.smeared)),
+                energy_columns=np.array(list(self.scf_columns)),
                 energies=np.array([self.scf_energy[c]
-                                   for c in ("mo", "left", "right")]),
-                dm_mo=np.asarray(self.density_matrix["mo"]),
-                dm_left=np.asarray(self.density_matrix["left"]),
-                dm_right=np.asarray(self.density_matrix["right"]),
+                                   for c in self.scf_columns]),
+                **{f"dm_{column}": np.asarray(self.density_matrix[column])
+                   for column in self.scf_columns},
             )
         report(f"   SCF saved to {self.chk_path} (reuse with --chk; delete "
                "the file to force a fresh SCF)")
@@ -816,8 +874,12 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         data = np.load(self.chk_path, allow_pickle=False)
         saved = json.loads(str(data["params"]))
         current = self._chk_params()
+        # --onsite reads only the crystal density, which no_ghost never
+        # touches (it shapes the fragment SCFs) -- a full-run chk written
+        # with either setting is equally valid here
+        ignored = {"no_ghost"} if self.onsite else set()
         mismatched = [key for key in current
-                      if saved.get(key) != current[key]]
+                      if key not in ignored and saved.get(key) != current[key]]
         if (not np.allclose(np.asarray(data["positions"]), self.positions,
                             atol=1e-6)
                 or not np.allclose(np.asarray(data["lattice"]), self.lattice,
@@ -827,10 +889,23 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             raise SystemExit(
                 f"ERROR: {self.chk_path} was written with different "
                 f"parameters ({', '.join(sorted(mismatched))}); delete the "
-                "file or rerun with the matching options.")
+                "file or rerun with the matching options.\n"
+                f"       (crystod --chk-info {self.chk_path} shows the "
+                "stored conditions and a ready-to-paste option string)")
         self.smeared = set(str(s) for s in data["smeared"])
         energies = np.asarray(data["energies"], dtype=float)
-        for index, column in enumerate(("mo", "left", "right")):
+        # pre-onsite checkpoints carry no energy_columns record; they always
+        # hold all three calculations in this fixed order
+        stored = ([str(c) for c in data["energy_columns"]]
+                  if "energy_columns" in data.files
+                  else ["mo", "left", "right"])
+        for column in self.scf_columns:
+            if f"dm_{column}" not in data.files:
+                raise SystemExit(
+                    f"ERROR: {self.chk_path} was written with --onsite and "
+                    "holds only the crystal density; rerun without --chk (or "
+                    "with a checkpoint from a full three-SCF run) to build "
+                    f"the {column} fragment column.")
             cell = self.cells[column]
             # a mean-field object is still needed for get_bands, but with the
             # density matrix passed explicitly it is never iterated
@@ -838,13 +913,17 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             self.mean_field[column] = self._make_mean_field(
                 cell, kpts, column, sigma=self.sigma)
             self.density_matrix[column] = np.asarray(data[f"dm_{column}"])
-            self.scf_energy[column] = float(energies[index])
+            energy = float(energies[stored.index(column)])
+            self.scf_energy[column] = energy
             report(f"   {column:<5} {self.formula.get(column, 'crystal'):<8} "
-                   f"E = {energies[index]:16.8f} Hartree   "
+                   f"E = {energy:16.8f} Hartree   "
                    f"({cell.nelectron} electrons, charge {cell.charge:+d})  "
                    f"[read from {self.chk_path}]")
-        if self.smeared:
-            report(f"   ({', '.join(sorted(self.smeared))} carried Fermi "
+        # only name the calculations this run actually uses (--onsite reads
+        # the crystal density alone; a smeared fragment SCF never enters it)
+        relevant = self.smeared & set(self.scf_columns)
+        if relevant:
+            report(f"   ({', '.join(sorted(relevant))} carried Fermi "
                    "smearing when the file was written)")
 
     def prepare_bands(self, kpoints) -> None:
@@ -856,7 +935,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         """
         self._band_cache = {}
         keys = [self._kpoint_key(kpoint) for kpoint in kpoints]
-        for column in ("left", "right", "mo"):
+        for column in self.scf_columns:
             cell = self.cells[column]
             kpts_band = cell.get_abs_kpts(np.array(kpoints, dtype=float))
             energies, coefficients = self.mean_field[column].get_bands(
@@ -885,6 +964,65 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         )
         return (np.asarray(energies[0]).real * HARTREE_TO_EV,
                 self._embed(column, np.asarray(coefficients[0])))
+
+    def _population_shares(self, vectors, degeneracy, S, S_half, specs=None):
+        """Sorted per-(element, shell) AO populations of one level space in
+        the selected projection (the displayed composition measure).
+        ``specs`` restricts the listed shells (fragment columns list their
+        own sublattice only)."""
+        if self.projection == "mulliken":
+            gross = (vectors.conj() * (S @ vectors)
+                     ).real.sum(axis=1) / degeneracy
+        else:
+            gross = (np.abs(S_half @ vectors) ** 2).sum(axis=1) / degeneracy
+        shares = []
+        for spec in (self.specs if specs is None else specs):
+            value = float(gross[self.spec_indices[id(spec)]].sum())
+            if abs(value) >= 0.001:
+                shares.append((value, f"{spec.element} {spec.shell}"))
+        shares.sort(key=lambda item: -item[0])
+        return shares
+
+    def _block_bands(self, column, S):
+        """Per-shell on-site multiplets of the crystal Fock (--onsite).
+
+        For every (element, shell) of the sublattice, diagonalizes (F, S)
+        restricted to THAT SHELL's own Bloch AOs -- the tight-binding
+        on-site energies <phi|F|phi> of the actual shells, one level per
+        induced irrep, matching the site-symmetry table exactly.  No
+        cross-shell mixing on purpose: diagonalizing a whole sublattice
+        block instead is variationally unstable with this diffuse basis --
+        the raw AO block lets diffuse cation functions fall into the
+        removed side's potential wells (a "Ti 3d GM3+" at O-2p depth with
+        28% Loewdin weight on O: a disguised anion state, caught by the
+        user on SrTiO3), while Loewdin- or projection-orthogonalized
+        blocks load strongly overlapped shells with huge orthogonalization
+        penalties (the O 2s on-site swung from -6.9 to +0.5 to +12.6 eV
+        across those three conventions; per-shell Rayleigh quotients have
+        no such freedom).  Shell AO sets map onto themselves under the
+        space group, so exact multiplets of the group-averaged Fock carry
+        over (raw FFT-grid splittings under --no-symmetrize).
+        """
+        fock = self.fock["mo"]
+        chunks = []
+        dropped = 0
+        for spec in self.side_specs[column]:
+            rows = np.asarray(self.spec_indices[id(spec)])
+            overlap = S[np.ix_(rows, rows)]
+            values, vectors = np.linalg.eigh(overlap)
+            keep = values > ONSITE_OVERLAP_FLOOR
+            dropped += int(values.size - int(keep.sum()))
+            basis = vectors[:, keep] / np.sqrt(values[keep])
+            energies, mixing = np.linalg.eigh(
+                basis.conj().T @ fock[np.ix_(rows, rows)] @ basis)
+            states = basis @ mixing
+            full = np.zeros((self.n_ao, states.shape[1]), dtype=complex)
+            full[rows] = states
+            chunks.append((energies.real, full))
+        energies = np.concatenate([e for e, _ in chunks])
+        coefficients = np.hstack([c for _, c in chunks])
+        order = np.argsort(energies)
+        return energies[order], coefficients[:, order], dropped
 
     def overlap_at(self, kpoint) -> np.ndarray:
         cell = self.cells["mo"]
@@ -1365,12 +1503,20 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         levels = {"left": [], "mo": [], "right": []}
         self.fock = {}
         self.last_symbreak = {}
-        for column in ("left", "right", "mo"):
-            energies, coefficients = self._bands_at(column, kpoint)
-            if self.symmetrize:
-                energies, coefficients, deviation = self._symmetrized_bands(
-                    column, energies, coefficients, S, representation)
-                self.last_symbreak[column] = deviation
+        # --onsite solves the crystal first: the fragment columns are the
+        # sublattice blocks of its Fock operator and need it in hand
+        order = (("mo", "left", "right") if self.onsite
+                 else ("left", "right", "mo"))
+        for column in order:
+            if self.onsite and column != "mo":
+                energies, coefficients, dropped = self._block_bands(column, S)
+                self.last_dropped += dropped
+            else:
+                energies, coefficients = self._bands_at(column, kpoint)
+                if self.symmetrize:
+                    energies, coefficients, deviation = self._symmetrized_bands(
+                        column, energies, coefficients, S, representation)
+                    self.last_symbreak[column] = deviation
             if column == "mo":
                 # F(k) = S C E C+ S, exact for the eigenvectors of F with metric S
                 self.fock["mo"] = (
@@ -1453,24 +1599,45 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             # selection: a state of irrep G only picks up the G-adapted
             # combination of each shell (forbidden shells project to ~0), so
             # every entry is labeled with the crystal irrep.
-            if self.projection == "mulliken":
-                gross = (crystal.vectors.conj() * (S @ crystal.vectors)
-                         ).real.sum(axis=1) / crystal.degeneracy
-            else:
-                gross = (np.abs(S_half @ crystal.vectors) ** 2
-                         ).sum(axis=1) / crystal.degeneracy
-            shares = []
-            for spec in self.specs:
-                value = float(gross[self.spec_indices[id(spec)]].sum())
-                if abs(value) >= 0.001:
-                    shares.append((value, f"{spec.element} {spec.shell}"))
-            shares.sort(key=lambda item: -item[0])
+            shares = self._population_shares(
+                crystal.vectors, crystal.degeneracy, S, S_half)
             crystal.display_composition = [
                 (f"{name} {crystal.irrep}", value) for value, name in shares
             ]
             populations = ", ".join(f"{name} {100 * value:.1f}%"
                                     for value, name in shares)
             crystal.detail = f"{self.projection_label}: {populations}"
+        # the fragment/onsite columns carry the same displayed composition,
+        # but list ONLY their own sublattice's shells -- a fragment level is
+        # a sublattice state, and per-shell entries of the other element
+        # read as contamination ("O states inside a Ti-only level").  The
+        # weight that does sit beyond the own shells (the counterpoise
+        # ghost tail in the fragment-SCF mode, and in every mode the
+        # Loewdin attribution of the overlap density) is aggregated into
+        # one closing note instead.
+        for column in ("left", "right"):
+            own = self.side_specs[column]
+            for level in levels[column]:
+                shares = self._population_shares(
+                    level.vectors, level.degeneracy, S, S_half, specs=own)
+                level.display_composition = [
+                    (f"{name} {level.irrep}", value) for value, name in shares
+                ]
+                row = self.projection_label + ": " + ", ".join(
+                    f"{name} {100 * value:.1f}%" for value, name in shares)
+                remainder = 1.0 - sum(value for value, _ in shares)
+                if remainder >= 0.005:
+                    if self.onsite:
+                        row += (f" (+{100 * remainder:.1f}% "
+                                f"{self.projection_label}-attributed to the "
+                                "other sublattice's basis: overlap density; "
+                                "the state has no coefficients there)")
+                    else:
+                        row += (f" (+{100 * remainder:.1f}% on the removed "
+                                "sublattice's basis: ghost tail + "
+                                f"{self.projection_label} attribution)")
+                level.detail = (row if not level.detail
+                                else f"{row}\n{level.detail}")
 
         # left-right coupling <phi_left| F(k) |phi_right> of the crystal Fock
         # operator: same irrep and a large matrix element compared with the
@@ -1533,19 +1700,96 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
 # --------------------------------------------------------------------- report
 
 
+def describe_chk(path: str) -> None:
+    """Print the calculation conditions stored in a --chk checkpoint.
+
+    The file is a compressed npz (binary for size and load speed); this is
+    the human-readable window into it: the defining parameters, what it
+    holds, and a ready-to-paste option string that reproduces them
+    (``crystod --chk-info FILE``).
+    """
+    import json
+    import os
+
+    if not os.path.exists(path):
+        raise SystemExit(f"ERROR: {path} does not exist.")
+    try:
+        data = np.load(path, allow_pickle=False)
+        params = json.loads(str(data["params"]))
+    except Exception as error:
+        raise SystemExit(
+            f"ERROR: {path} is not a CrystOD --chk checkpoint ({error}).")
+
+    stored = ([str(c) for c in data["energy_columns"]]
+              if "energy_columns" in data.files
+              else ["mo", "left", "right"])
+    energies = np.asarray(data["energies"], dtype=float)
+    lattice = np.asarray(data["lattice"], dtype=float)
+    lengths = np.linalg.norm(lattice, axis=1)
+    n_kpts, n_ao = np.asarray(data["dm_mo"]).shape[:2]
+    smeared = sorted(str(s) for s in data["smeared"])
+    kind = ("full three-SCF run"
+            if all(f"dm_{c}" in data.files for c in ("mo", "left", "right"))
+            else "crystal density only (--onsite run)")
+    oxidation = " ".join(f"{el}={q:+g}"
+                         for el, q in sorted(params["oxidation"].items()))
+
+    size = os.path.getsize(path) / 1e6
+    print(f" * {path} -- CrystOD SCF checkpoint "
+          f"(WAVECAR-style restart, {size:.1f} MB) *")
+    print(f"   structure : {params['left']} + {params['right']}, "
+          f"{len(params['symbols'])} atoms/cell, "
+          f"a = {lengths[0]:.4f} / {lengths[1]:.4f} / {lengths[2]:.4f} A")
+    print(f"   method    : {params['xc'].upper()} / {params['basis']} / "
+          f"{params['pseudo']}, ke_cutoff {params['ke_cutoff']:g} Ha, "
+          f"k-mesh {'x'.join(map(str, params['kmesh']))}"
+          + (f", max_l {params['max_l']}"
+             if params.get("max_l") is not None else "")
+          + (f", smearing sigma {params['sigma']:g} eV"
+             if params.get("sigma") else ""))
+    print(f"   electrons : {params['electrons']:g} per cell "
+          f"(oxidation {oxidation})")
+    print(f"   fragments : left {params['left']} | right {params['right']}"
+          + (", own-sublattice basis (--no-ghost)"
+             if params.get("no_ghost") else ", counterpoise ghosts"))
+    print(f"   contents  : {kind}; densities on {n_kpts} k points x "
+          f"{n_ao} AOs")
+    print("   energies  : " + "  |  ".join(
+        f"{column} {energies[index]:.8f} Ha"
+        for index, column in enumerate(stored)))
+    if smeared:
+        print(f"   smearing  : {', '.join(smeared)} carried Fermi smearing "
+              "when written")
+    reuse = (f"--co-left {params['left']} --co-right {params['right']} "
+             f"--xc {params['xc']} --basis {params['basis']} "
+             f"--pseudo {params['pseudo']} "
+             f"--kmesh {' '.join(map(str, params['kmesh']))} "
+             f"--ke-cutoff {params['ke_cutoff']:g}"
+             + (f" --max-l {params['max_l']}"
+                if params.get("max_l") is not None else "")
+             + (" --no-ghost" if params.get("no_ghost") else "")
+             + (f" --sigma {params['sigma']:g}"
+                if params.get("sigma") else "")
+             + f" --oxidation {oxidation}"
+             # a crystal-only checkpoint can only feed --onsite runs
+             + ("" if kind.startswith("full") else " --onsite"))
+    print(f"   reuse with: {reuse} --chk {path}")
+
+
 def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
                      output_path, structure_label, oxidation=None, basis=None,
                      pseudo=None, xc="pbe", kmesh=None, ke_cutoff=200.0,
                      sigma=0.0, degeneracy_tol=None, align=True, no_ghost=False,
                      symmetrize=True, max_l=None, projection="lowdin",
-                     chk=None, verbose=0):
+                     chk=None, onsite=False, verbose=0):
     """Terminal report + HTML for the PySCF crystal-orbital diagram."""
     diagram = PySCFCrystalOrbitalDiagram(
         cell, left, right, symprec=symprec, electrons=electrons,
         oxidation=oxidation, basis=basis or "gth-dzvp-molopt-sr",
         pseudo=pseudo or "gth-pbe", xc=xc, kmesh=kmesh, ke_cutoff=ke_cutoff, sigma=sigma,
         degeneracy_tol=degeneracy_tol, no_ghost=no_ghost, symmetrize=symmetrize,
-        max_l=max_l, projection=projection, chk=chk, verbose=verbose,
+        max_l=max_l, projection=projection, chk=chk, onsite=onsite,
+        verbose=verbose,
     )
     dataset = diagram.builder.spglib_dataset
     print("\n * Space group *")
@@ -1567,27 +1811,48 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
     print(f" AO space shared by all three calculations: {diagram.n_ao} orbitals\n")
 
     # ---- the fragments ----------------------------------------------------
-    print(" * Fragments (formal-charge ions + ghost basis of the removed "
-          "sublattice) *")
-    other = {"left": "right", "right": "left"}
-    for column in ("left", "right"):
-        felt = " + ".join(
-            f"{element}^{diagram.oxidation[element]:+g}"
-            for element in dict.fromkeys(
-                diagram.symbols[i] for i in diagram.side_atoms[other[column]]
+    if diagram.onsite:
+        print(" * Fragment columns (--onsite): sublattice blocks of the "
+              "crystal Fock *")
+        for column in ("left", "right"):
+            print(f" {column:<5} {diagram.formula[column]:<8} "
+                  f"{diagram.side_electrons[column]} electrons (formal "
+                  "count), levels = per-shell on-site multiplets "
+                  "<phi|F(k)|phi> of its own shells")
+        print(f" crystal {diagram.formula['left'] + diagram.formula['right']:<7} "
+              f"{diagram.crystal_electrons} electrons "
+              f"= {diagram.side_electrons['left']} + "
+              f"{diagram.side_electrons['right']}")
+        print(" ONE Hamiltonian for every column (no fragment SCF, no point\n"
+              " charges, no reference alignment): a crystal level's rise or\n"
+              " drop against its parents is purely the left-right orbital\n"
+              " interaction\n")
+    else:
+        print(" * Fragments (formal-charge ions + ghost basis of the removed "
+              "sublattice) *")
+        other = {"left": "right", "right": "left"}
+        for column in ("left", "right"):
+            felt = " + ".join(
+                f"{element}^{diagram.oxidation[element]:+g}"
+                for element in dict.fromkeys(
+                    diagram.symbols[i]
+                    for i in diagram.side_atoms[other[column]]
+                )
             )
-        )
-        print(f" {column:<5} {diagram.formula[column]:<8} charge "
-              f"{diagram.side_charge[column]:+g}, "
-              f"{diagram.side_electrons[column]} electrons, in the {felt} "
-              "point-charge lattice")
-    print(f" crystal {diagram.formula['left'] + diagram.formula['right']:<7} "
-          f"{diagram.crystal_electrons} electrons "
-          f"= {diagram.side_electrons['left']} + {diagram.side_electrons['right']}")
-    print(" every cell is neutral (no monopole divergence), but each calculation\n"
-          " still pins its own G=0 average potential to zero, so the raw columns\n"
-          " are offset by one constant each -- removed below by deep-level alignment")
-    if diagram.no_ghost:
+            print(f" {column:<5} {diagram.formula[column]:<8} charge "
+                  f"{diagram.side_charge[column]:+g}, "
+                  f"{diagram.side_electrons[column]} electrons, in the {felt} "
+                  "point-charge lattice")
+        print(f" crystal {diagram.formula['left'] + diagram.formula['right']:<7} "
+              f"{diagram.crystal_electrons} electrons "
+              f"= {diagram.side_electrons['left']} + "
+              f"{diagram.side_electrons['right']}")
+        print(" every cell is neutral (no monopole divergence), but each calculation\n"
+              " still pins its own G=0 average potential to zero, so the raw columns\n"
+              " are offset by one constant each -- removed below by deep-level alignment")
+    if diagram.onsite:
+        pass
+    elif diagram.no_ghost:
         print(" fragment basis: OWN sublattice only (--no-ghost) -- the removed\n"
               " sublattice's functions are excluded from the variational space,\n"
               " so no fragment wave function can sit on the removed atoms\n")
@@ -1632,7 +1897,14 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
         })
 
     # ---- deep-level alignment ----------------------------------------------
-    if align:
+    if diagram.onsite:
+        align = False
+        print("\n * Single-Hamiltonian mode (--onsite): every column is "
+              "measured on the\n   crystal Fock's own scale -- no alignment "
+              "step needed *")
+    if diagram.onsite:
+        pass
+    elif align:
         shifts, anchors = diagram.align_fragment_columns(records)
         print("\n * Deep-level alignment (pre-bonding reference) *")
         if shifts is None:
@@ -1731,10 +2003,11 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
         coupling_path = coupling_path[: -len(".html")]
     coupling_path += "_coupling.txt"
     with open(coupling_path, "w") as handle:
+        scale_note = ("energies on the crystal Fock's own scale (--onsite)"
+                      if diagram.onsite else "energies on the aligned scale")
         handle.write(
             "# same-irrep couplings between the fragment levels, from the\n"
-            "# converged crystal Fock operator F(k); energies on the aligned "
-            "scale\n"
+            f"# converged crystal Fock operator F(k); {scale_note}\n"
             "# |S|    = |<phi_L| S |phi_R>|: the fragment states are NOT\n"
             "#          mutually orthogonal\n"
             "# |H|raw = |<phi_L| F |phi_R>|: carries an unphysical\n"
@@ -1817,6 +2090,14 @@ def main(argv: list[str] | None = None) -> None:
                         help="WAVECAR-style restart file: written after the "
                         "SCFs if missing, read (skipping all three SCFs) if "
                         "present; parameters are verified before reuse")
+    parser.add_argument("--onsite", action="store_true",
+                        help="single-Hamiltonian mode: only the crystal SCF "
+                        "runs, and the fragment columns are the per-shell "
+                        "on-site multiplets <phi|F|phi> of the crystal Fock "
+                        "(tight-binding on-site energies, one level per "
+                        "induced irrep) -- no point charges, no reference "
+                        "alignment; a full-run --chk is reused, only the "
+                        "crystal density is read")
     parser.add_argument("--output", default=None)
     parser.add_argument("--tolerance", type=float, default=1e-5)
     parser.add_argument("--verbose", type=int, default=0)
@@ -1848,6 +2129,7 @@ def main(argv: list[str] | None = None) -> None:
         degeneracy_tol=args.degeneracy_tol,
         align=not args.no_align,
         no_ghost=args.no_ghost,
+        onsite=args.onsite,
         symmetrize=not args.no_symmetrize,
         max_l=args.max_l,
         projection=args.projection,
