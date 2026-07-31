@@ -272,26 +272,40 @@ def test_03_hybridization() -> None:
         html_path = os.path.join(tmp, "CrystOD_ScF3.html")
         code, out = run_cli(
             ["-c", POSCAR_ScF3, "--diagram", "--co-left", "Sc",
-             "--co-right", "F3", "--atomic-orbital", "Sc-3d", "F-2p",
-             "--output", html_path]
+             "--co-right", "F3", "--output", html_path]
         )
         report("--diagram ScF3 --co-left Sc --co-right F3 exit 0",
                code == 0, out)
-        report("full valence basis: all shells and 24 electrons per cell",
-               "Sc 4s 4p 3d" in out and "F 2s 2p" in out
-               and "electrons per cell in the diagram: 24" in out, out)
-        report("GM: F-2s/Sc-3d eg sigma bond, t2g GM5+ pure nonbonding",
-               re.search(r"GM3\+\(1\)\s+-39\.\d+ eV\s+x2\s+4e\s+"
-                         r"F 2s GM3\+ \d+%\s+Sc 3d GM3\+ \d+%", out)
+        report("full-electron basis: core + valence shells, 48 electrons",
+               "Sc 1s 2s 2p 3s 3p 4s 4p 3d" in out and "F 1s 2s 2p" in out
+               and "electrons per cell in the diagram: 48" in out, out)
+        report("ligand-field point charges guessed (Sc +3, F -1)",
+               "feels the F^-1 lattice" in out
+               and "feels the Sc^+3 lattice" in out, out)
+        report("core levels flat at the archived PySCF atomic levels",
+               re.search(r"GM1\+ #1\s+-4514\.1\d eV\s+x1\s+2e\s+"
+                         r"Sc 1s GM1\+ 100\.0%", out) is not None
+               and re.search(r"F 1s GM\S+ (?:100\.0|99\.\d)%", out)
                is not None
-               and re.search(r"GM5\+\s+-8\.\d+ eV\s+x3\s+"
-                             r"Sc 3d GM5\+ 100%", out) is not None, out)
+               and "atomic levels from reference/atomic_level_*" in out,
+               out)
+        report("fragment eg above t2g (octahedral F^-1 ligand field)",
+               re.search(r"Sc 3d GM5\+ \(-8\.8\d\)", out) is not None
+               and re.search(r"Sc 3d GM3\+ \(-8\.2\d\)", out) is not None,
+               out)
+        report("GM: F-2s/Sc-3d eg sigma bond, t2g GM5+ pure nonbonding",
+               re.search(r"GM3\+ #2\s+-39\.\d+ eV\s+x2\s+4e\s+"
+                         r"F 2s GM3\+ \d+\.\d%\s+Sc 3d GM3\+ \d+\.\d%", out)
+               is not None
+               and re.search(r"GM5\+ #\d\s+-8\.\d+ eV\s+x3\s+"
+                             r"Sc 3d GM5\+ 100\.0%", out) is not None, out)
         report("R: eg (R3+) splits into bonding/antibonding, R4+ nonbonding",
-               re.search(r"R3\+\(1\)\s+-18\.\d+ eV\s+x2\s+4e\s+F 2p R3\+ \d+%"
-                         r"\s+Sc 3d R3\+ \d+%", out) is not None
-               and re.search(r"R3\+\(2\)", out) is not None
-               and re.search(r"R4\+\s+-1[78]\.\d+ eV\s+x3\s+6e\s+"
-                             r"F 2p R4\+ 100%", out) is not None, out)
+               re.search(r"R3\+ #1\s+-19\.\d+ eV\s+x2\s+4e\s+"
+                         r"F 2p R3\+ \d+\.\d%"
+                         r"\s+Sc 3d R3\+ \d+\.\d%", out) is not None
+               and re.search(r"R3\+ #2", out) is not None
+               and re.search(r"R4\+ #1\s+-17\.\d+ eV\s+x3\s+6e\s+"
+                             r"F 2p R4\+ 100\.0%", out) is not None, out)
         report("R: near-dependent diffuse Bloch combination removed",
                "near-dependent diffuse Bloch combination(s) removed" in out
                and "overlap floor" in out, out)
@@ -308,9 +322,51 @@ def test_03_hybridization() -> None:
                    html.count('"orb": [[') > 50
                    and html.count('"geom":') == 4
                    and "jacobi3" in html, html_path)
-            report("energy window opens on -20 .. 10 eV",
-                   '"eMin": -20.0' in html
+            report("frontier-centered view window (HOMO/LUMO midpoint ±8 eV)",
+                   re.search(r'"eMin": -2[01]\.\d+', html) is not None
                    and "Show all energy levels" in html, html_path)
+
+        # multi-shell same-l sketch filter (Sc-p = 2p+3p+4p): the shells
+        # must accumulate with their STO radial amplitudes at r0 = 2 bohr,
+        # not overwrite each other (the last shell's raw coefficient used
+        # to win).  The semicore Sc-3p/F-2s pair at X is the sharp probe:
+        # the bonding X3- level (Sc 3p ~76%) must draw a dominant Sc p
+        # lobe in phase with its +y neighbor F 2s, the antibonding X3-
+        # level (F 2s ~65%) the opposite phase -- with the overwrite bug
+        # the bonding Sc lobe was the inverted 4p tail (|amp| ~ 0.06) and
+        # the antibonding Sc lobe vanished below the display threshold
+        scp_path = os.path.join(tmp, "scp_X.html")
+        code, out = run_cli(
+            ["-c", POSCAR_ScF3, "--diagram", "--co-left", "Sc",
+             "--co-right", "F3", "--kpoint", "X", "--output", scp_path]
+        )
+        report("--diagram --kpoint X (single k point) exit 0",
+               code == 0, out)
+        match = None
+        if os.path.isfile(scp_path):
+            with open(scp_path) as handle:
+                match = re.search(r"const VARIANTS = (\[.*?\]);\n",
+                                  handle.read(), re.S)
+        phases = {}
+        if match:
+            for level in json.loads(match.group(1))[0]["levels"]:
+                if level.get("col") != "mo" or not level.get("comp"):
+                    continue
+                leader = level["comp"][0][0]
+                if leader not in ("Sc 3p X3-", "F 2s X3-"):
+                    continue
+                entries = {row[0]: row for row in level["orb"][0]}
+                if 0 in entries and 1 in entries:
+                    # (Sc py lobe, its product with the F 2s at +y)
+                    phases[leader] = (entries[0][3],
+                                      entries[0][3] * entries[1][1])
+        report("Sc-p sums 2p+3p+4p: semicore X3- lobe is the 3p, not the "
+               "raw 4p tail",
+               len(phases) == 2 and abs(phases["Sc 3p X3-"][0]) > 0.5
+               and abs(phases["F 2s X3-"][0]) > 0.5, str(phases))
+        report("X3- bonding/antibonding Sc-F sketch phases",
+               len(phases) == 2 and phases["Sc 3p X3-"][1] > 0
+               > phases["F 2s X3-"][1], str(phases))
 
         # SrTiO3, no sketch filter, one k point
         code, out = run_cli(
@@ -319,29 +375,38 @@ def test_03_hybridization() -> None:
              "--output", os.path.join(tmp, "sto_R.html")]
         )
         report("--diagram SrTiO3 --co-left SrTi --co-right O3 exit 0",
-               code == 0 and "electrons per cell in the diagram: 24" in out,
+               code == 0 and "electrons per cell in the diagram: 56" in out,
                out)
+        report("Sr deep core ECP-frozen, semicore Sr-4s/4p + O-1s present",
+               "[ECP-28 core frozen]" in out and "Sr 3d" not in out
+               and re.search(r"Sr 4s R1\+ \(-53\.\d+\)", out) is not None
+               and re.search(r"O 1s R5\+ 100\.0%", out) is not None, out)
         report("R: t2g (R4-) pi and eg (R3-) sigma bonding/antibonding",
-               re.search(r"R3-\(1\)\s+-15\.\d+ eV\s+x2\s+4e\s+O 2p R3- \d+%"
-                         r"\s+Ti 3d R3- \d+%", out) is not None
-               and re.search(r"R4-\(2\)\s+-8\.\d+ eV\s+x3\s+"
-                             r"Ti 3d R4- \d+%", out) is not None, out)
-        report("no --atomic-orbital: sketches not embedded",
-               "hover wave-function sketches are not embedded" in out, out)
+               re.search(r"R3- #1\s+-17\.\d+ eV\s+x2\s+4e\s+"
+                         r"O 2p R3- \d+\.\d%"
+                         r"\s+Ti 3d R3- \d+\.\d%", out) is not None
+               and re.search(r"R4- #3\s+-8\.\d+ eV\s+x3\s+"
+                             r"Ti 3d R4- \d+\.\d%", out) is not None, out)
+        report("R: semicore Ti-3p at the PySCF Hartree-Fock level",
+               re.search(r"R5\+ #3\s+-49\.\d+ eV\s+x3\s+6e\s+"
+                         r"Ti 3p R5\+ \d+\.\d%", out) is not None, out)
+        report("sketches always embedded, all components",
+               "hover wave-function sketches" in out, out)
         with open(os.path.join(tmp, "sto_R.html")) as handle:
             html = handle.read()
-        report("HTML carries no sketch without --atomic-orbital",
-               '"orb": [[' not in html and '"orb": null' in html, html_path)
+        report("HTML embeds the sketches without any flag",
+               '"orb": [[' in html, html_path)
 
-        # electron-count override
+        # electron-count override and explicit oxidation states
         code, out = run_cli(
             ["-c", POSCAR_ScF3, "--diagram", "--co-left", "Sc",
              "--co-right", "F3", "--electrons", "18", "--kpoint", "GM",
+             "--oxidation", "Sc=+3", "F=-1",
              "--output", os.path.join(tmp, "ionic.html")]
         )
-        report("--electrons 18 overrides the neutral-atom filling",
+        report("--electrons 18 and explicit --oxidation accepted",
                code == 0 and "electrons per cell in the diagram: 18" in out
-               and "neutral-atom" not in out, out)
+               and "all electrons of the neutral atoms" not in out, out)
 
     # errors
     code, out = run_cli(["-c", POSCAR_SrTiO3, "--diagram"])
@@ -389,9 +454,27 @@ def test_03_hybridization() -> None:
         ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
          "--co-right", "O3", "--atomic-orbital", "Ti-5d", "--kpoint", "GM"]
     )
-    report("sketch token without a matching basis orbital rejected",
-           code != 0 and "matches no basis orbital" in out
-           and "Ti-3d" in out, out)
+    report("--diagram rejects --atomic-orbital (sketches always embedded)",
+           code != 0 and "no longer takes --atomic-orbital" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
+         "--co-right", "O3", "--oxidation", "Sr2", "--kpoint", "GM"]
+    )
+    report("malformed --oxidation token rejected",
+           code != 0 and "invalid --oxidation token" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
+         "--co-right", "O3", "--oxidation", "Sr=+2", "Ti=+4", "O=-1",
+         "--kpoint", "GM"]
+    )
+    report("charge-non-neutral --oxidation rejected",
+           code != 0 and "not charge-neutral" in out, out)
+    code, out = run_cli(
+        ["-c", POSCAR_SrTiO3, "--oxidation", "Sr=+2", "--element", "O",
+         "--orbital", "p"]
+    )
+    report("--oxidation outside --diagram rejected cleanly",
+           code != 0 and "only used with --diagram" in out, out)
     code, out = run_cli(
         ["-c", POSCAR_SrTiO3, "--electrons", "18", "--element", "O",
          "--orbital", "p"]
@@ -2136,6 +2219,35 @@ def test_33_molod() -> None:
             report("Show-all-energy-levels button present",
                    'id="eshowall"' in pyscf_html
                    and "Show all energy levels" in pyscf_html, pyscf_html_path)
+
+        # bonding/antibonding phase in the sketches (NH3 1e vs 2e): the
+        # radial-weighted compression must keep the true wave-function
+        # signs -- a bare contracted-coefficient sum inverts the N-2p lobe
+        # of the bonding 1e and both sketches come out identical
+        nh3_code, nh3_out = run_mol(["--diagram", "--xyz", xyz_nh3,
+                                     "--pyscf"], cwd=tmp)
+        report("--pyscf NH3 exit 0", nh3_code == 0, nh3_out)
+        nh3_html_path = os.path.join(tmp, "MolOD_XYZ_NH3_pyscf.html")
+        if os.path.isfile(nh3_html_path):
+            with open(nh3_html_path) as handle:
+                match = re.search(r"LEVELS = (\[\{.*?\}\]);", handle.read(),
+                                  re.S)
+            levels = json.loads(match.group(1)) if match else []
+            phases = {}
+            for level in levels:
+                if level.get("col") == "mo" and level["label"] in ("1e", "2e"):
+                    entries = {row[0]: row for row in level["orb"][0]}
+                    # relative sign of the N px lobe vs the +x hydrogen
+                    n_px = entries[0][2]
+                    h_s = max((row[1] for atom, row in entries.items()
+                               if atom != 0), key=abs)
+                    phases[level["label"]] = n_px * h_s
+            report("NH3 1e bonding / 2e antibonding phases in the sketch",
+                   len(phases) == 2 and phases["1e"] > 0 > phases["2e"],
+                   str(phases))
+        else:
+            report("NH3 1e bonding / 2e antibonding phases in the sketch",
+                   False, nh3_out)
         report("friendly method/basis wording",
                "Hartree-Fock method / sto-3g basis" in out, out)
         report("PySCF citation printed",
@@ -2883,6 +2995,53 @@ def test_16_symmetry_mode() -> None:
                os.path.isfile(
                    os.path.join(tmp, "225_PPOSCAR_ZrO2_X2-.vesta")
                ), out)
+
+        # C-centred parent (Cmcm -> Pnma, permuted child axes): regression for
+        # the non-symmetric primitive-matrix conversion bug -- the row-vector
+        # positions must use x_c A^-1, not x_c A^-T (third AMPLIMODES PDF, in
+        # example/16_symmetry_mode/debug)
+        debug = os.path.join(example, "debug")
+        code, out = run_group(
+            ["--supergroup-cif",
+             os.path.join(debug, "CONTCAR-POSCAR_SrLi2Nb2O7_Cmcm.cif"),
+             "--subgroup-cif",
+             os.path.join(debug, "CONTCAR-POSCAR_SrLi2Nb2O7_Pnma.cif")],
+            cwd=tmp,
+        )
+        report("SrLi2Nb2O7 Cmcm -> Pnma maps (C-centred parent, permuted axes)",
+               code == 0 and "Cmcm (No. 63)" in out
+               and "Pnma (No. 62)" in out, out)
+        report("SrLi2Nb2O7 Y2- at (1/2,1/2,0) with amplitude 0.1361 A "
+               "(AMPLIMODES value)",
+               "(1/2,1/2,0)" in out
+               and re.search(r"Y2-\s+\S+\s+62 Pnma\s+10\s+0\.1361", out)
+               is not None, out)
+        report("SrLi2Nb2O7 secondary GM1+ 0.0011 A, max displacement 0.0293 A, "
+               "total 0.1362 A",
+               re.search(r"GM1\+\s+\S+\s+63 Cmcm\s+9\s+0\.0011", out)
+               is not None
+               and "maximum atomic displacement: 0.0293 A" in out
+               and "total distortion amplitude : 0.1362 A" in out, out)
+
+        # pseudo-symmetric child (symmetry-breaking component ~0.001 A while
+        # the fully symmetric GM1+ relaxation is ~0.3 A): regression for the
+        # adaptive subgroup-member selection -- a fixed 0.05 A cutoff sees
+        # every broken operation as intact, H becomes the full parent group,
+        # and the Y2- mode was dropped ("distortion is not fully captured")
+        code, out = run_group(
+            ["--supergroup-cif",
+             os.path.join(debug, "63_POSCAR_Li2SrNb2O7.cif"),
+             "--subgroup-cif",
+             os.path.join(debug, "62_POSCAR_Li2SrNb2O7.cif"),
+             "--tolerance", "0.001"],
+            cwd=tmp,
+        )
+        report("pseudo-symmetric Li2SrNb2O7 (--tolerance 0.001) decomposes",
+               code == 0 and "Pnma (No. 62)" in out
+               and re.search(r"Y2-\s+\S+\s+62 Pnma\s+10\s+0\.0030", out)
+               is not None
+               and re.search(r"GM1\+\s+\S+\s+63 Cmcm\s+9\s+0\.3257", out)
+               is not None, out)
 
         # per-irrep VESTA export: the multi-mode CaTiO3 case
         code, out = run_group(
