@@ -301,6 +301,57 @@ def build_parser() -> ArgumentParser:
         help="Re-combine degenerate SALC components into real-coefficient form "
         "(--visualize mode).",
     )
+    parser.add_argument(
+        "--dos",
+        action="store_true",
+        help="With --pyscf: DOS/PDOS and partial charges from the (restarted)\n"
+        "density matrix, diagonalized non-self-consistently on --dos-kmesh\n"
+        "(VASP-style two-step; reuses a --chk file, so no new SCF is needed).",
+    )
+    parser.add_argument(
+        "--dos-kmesh",
+        type=int,
+        nargs=3,
+        default=None,
+        metavar=("N1", "N2", "N3"),
+        help="Dense k mesh of the --dos band step (default 8 8 8).",
+    )
+    parser.add_argument(
+        "--sublattice",
+        nargs="+",
+        default=None,
+        metavar="FORMULA",
+        help="For --visualize --pyscf: show the PySCF levels of this fragment\n"
+        "sublattice (formal-charge ions + ghost basis + point-charge lattice,\n"
+        "as in --diagram --pyscf), e.g. --sublattice Sc or --sublattice F3;\n"
+        "omit for the full crystal's levels.",
+    )
+    parser.add_argument(
+        "--window",
+        nargs=2,
+        type=float,
+        default=None,
+        metavar=("LO", "HI"),
+        help="For --visualize --pyscf: energy window in eV on the aligned\n"
+        "scale (default: HOMO-15 .. LUMO+10 eV of the displayed column).",
+    )
+    parser.add_argument(
+        "--diagonalize",
+        action="store_true",
+        help="For --visualize --pyscf: canonicalize degenerate partners\n"
+        "(RREF) so the drawn s/p/d/f combinations are axis-aligned instead\n"
+        "of the SCF's arbitrary unitary mixture; energies are unchanged.",
+    )
+    parser.add_argument(
+        "--valence-only",
+        action="store_true",
+        help="For --visualize --pyscf: drop semicore shells (occupied\n"
+        "fragment bands > 12 eV below the crystal VBM, e.g. Sc 3s/3p and\n"
+        "F 2s of ScF3) from the drawn wave functions -- their admixture in\n"
+        "a valence level is the on-site orthogonality tail whose radial\n"
+        "node makes a bonding sigma level look antibonding; levels the\n"
+        "shell dominates (the semicore bands themselves) keep it.",
+    )
     add_output_argument(parser, "Output HTML path for --visualize.")
     parser.add_argument(
         "--tolerance",
@@ -367,7 +418,109 @@ def main(argv: list[str] | None = None) -> None:
     if args.conventional and not args.visualize:
         parser.error("--conventional is only available with --visualize.")
 
+    if args.dos:
+        if not args.pyscf:
+            parser.error("--dos requires --pyscf (it reads the PySCF "
+                         "density matrix).")
+        dispatch_argv = ["--poscar", args.cell]
+        if args.co_left:
+            dispatch_argv.extend(["--co-left", *args.co_left])
+        if args.co_right:
+            dispatch_argv.extend(["--co-right", *args.co_right])
+        if args.dos_kmesh is not None:
+            dispatch_argv.extend(["--dos-kmesh", *map(str, args.dos_kmesh)])
+        if args.oxidation:
+            dispatch_argv.extend(["--oxidation", *args.oxidation])
+        if args.electrons is not None:
+            dispatch_argv.extend(["--electrons", str(args.electrons)])
+        if args.output is not None:
+            dispatch_argv.extend(["--output", args.output])
+        if args.tolerance is not None:
+            dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        for flag, value in (("--basis", args.basis),
+                            ("--pseudo", args.pseudo), ("--xc", args.xc)):
+            if value is not None:
+                dispatch_argv.extend([flag, value])
+        if args.kmesh is not None:
+            dispatch_argv.extend(["--kmesh", *map(str, args.kmesh)])
+        if args.ke_cutoff is not None:
+            dispatch_argv.extend(["--ke-cutoff", str(args.ke_cutoff)])
+        if args.no_ghost:
+            dispatch_argv.append("--no-ghost")
+        if args.max_l is not None:
+            dispatch_argv.extend(["--max-l", str(args.max_l)])
+        if args.projection is not None:
+            dispatch_argv.extend(["--projection", args.projection])
+        if args.chk is not None:
+            dispatch_argv.extend(["--chk", args.chk])
+
+        from ..dos_pyscf import main as dos_pyscf_main
+
+        dos_pyscf_main(dispatch_argv)
+        return
+
     if args.visualize:
+        if args.pyscf:
+            # PySCF eigen-levels in the SALC viewer: all special k points
+            # automatically, one page per k; --sublattice picks a fragment
+            dispatch_argv = ["--poscar", args.cell]
+            if args.sublattice:
+                dispatch_argv.extend(["--sublattice", *args.sublattice])
+            for el1, el2, max_length in args.bond or []:
+                dispatch_argv.extend(["--bond", el1, el2, max_length])
+            if args.real_coefficient:
+                dispatch_argv.append("--real-coefficient")
+            if args.kpoint is not None:
+                if len(args.kpoint) != 1:
+                    parser.error(
+                        "--visualize --pyscf --kpoint takes a special-point "
+                        "label such as GM/X/M/R (pages are written per "
+                        "special k point; omit it for all of them)."
+                    )
+                dispatch_argv.extend(["--kpoint", args.kpoint[0]])
+            if args.window is not None:
+                dispatch_argv.extend(["--window", *map(str, args.window)])
+            if args.diagonalize:
+                dispatch_argv.append("--diagonalize")
+            if args.valence_only:
+                dispatch_argv.append("--valence-only")
+            if args.oxidation:
+                dispatch_argv.extend(["--oxidation", *args.oxidation])
+            if args.electrons is not None:
+                dispatch_argv.extend(["--electrons", str(args.electrons)])
+            if args.output is not None:
+                dispatch_argv.extend(["--output", args.output])
+            if args.tolerance is not None:
+                dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+            for flag, value in (("--basis", args.basis),
+                                ("--pseudo", args.pseudo),
+                                ("--xc", args.xc)):
+                if value is not None:
+                    dispatch_argv.extend([flag, value])
+            if args.kmesh is not None:
+                dispatch_argv.extend(["--kmesh", *map(str, args.kmesh)])
+            if args.ke_cutoff is not None:
+                dispatch_argv.extend(["--ke-cutoff", str(args.ke_cutoff)])
+            if args.no_align:
+                dispatch_argv.append("--no-align")
+            if args.no_ghost:
+                dispatch_argv.append("--no-ghost")
+            if args.no_symmetrize:
+                dispatch_argv.append("--no-symmetrize")
+            if args.max_l is not None:
+                dispatch_argv.extend(["--max-l", str(args.max_l)])
+            if args.projection is not None:
+                dispatch_argv.extend(["--projection", args.projection])
+            if args.chk is not None:
+                dispatch_argv.extend(["--chk", args.chk])
+
+            from ..visualize_pyscf import main as visualize_pyscf_main
+
+            visualize_pyscf_main(dispatch_argv)
+            return
+
+        if args.sublattice or args.window is not None:
+            parser.error("--sublattice/--window require --visualize --pyscf.")
         if not args.element or not args.orbital:
             parser.error("--visualize requires --element and --orbital.")
         if args.kpoint is None:
@@ -407,9 +560,8 @@ def main(argv: list[str] | None = None) -> None:
             parser.error(
                 "--diagram requires --co-left and --co-right with the two "
                 "fragment sublattices (full valence basis), e.g. "
-                "--co-left SrTi --co-right O3. --atomic-orbital optionally "
-                "selects the orbitals drawn in the wave-function sketch, "
-                "e.g. --atomic-orbital Ti-3d Ti-4s O-2p."
+                "--co-left SrTi --co-right O3; the hover wave-function "
+                "sketches are always embedded."
             )
         dispatch_argv = ["--poscar", args.cell,
                          "--co-left", *args.co_left,
@@ -475,9 +627,14 @@ def main(argv: list[str] | None = None) -> None:
                         ("--no-symmetrize", args.no_symmetrize),
                         ("--max-l", args.max_l is not None),
                         ("--projection", args.projection),
-                        ("--chk", args.chk)):
+                        ("--chk", args.chk),
+                        ("--sublattice", args.sublattice),
+                        ("--window", args.window is not None),
+                        ("--diagonalize", args.diagonalize),
+                        ("--valence-only", args.valence_only)):
         if value:
-            parser.error(f"{flag} is only used with --diagram.")
+            parser.error(f"{flag} is only used with --diagram or "
+                         "--visualize --pyscf.")
     if args.electrons is not None:
         parser.error("--electrons is only used with --diagram.")
     if args.co_left or args.co_right:
