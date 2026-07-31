@@ -315,8 +315,13 @@ At every special k point of the space group,
    region; "Show all energy levels" reveals the core shells). Every level
    carries a hover **wave-function sketch**: Re[psi] of all its
    atomic-orbital components on the k-commensurate supercell (2x2x2 at R,
-   ...) with VESTA-style +/- lobes (drag-rotatable, degenerate partners
-   switchable).
+   ...) with VESTA-style +/- lobes and VESTA-style periodic boundary
+   conditions — atoms on the supercell boundary are drawn at every
+   translationally equivalent position (a corner atom at all eight
+   corners) with *identical* lobes, since the Bloch function is exactly
+   periodic over the k-commensurate supercell (e^{ik·T_super} = 1), and
+   the supercell outline appears as a dashed frame (drag-rotatable,
+   degenerate partners switchable).
 
 For ScF3 (`--co-left Sc --co-right F3`) the diagram shows the textbook
 result: the fragment Sc-3d states split into t2g below eg (the octahedral
@@ -409,6 +414,23 @@ crystal Fock operator with the resulting two-level mixing fraction, since two
 levels of one irrep only mix appreciably when that matrix element is large
 compared with their separation.
 
+Crystal-orbital lines are colored by **bonding character** (extended-
+Hückel and `--pyscf` alike, and the same applies to the molecular
+`crystod-mol --diagram` pages): blue = bonding, black = nonbonding,
+red = antibonding, from the COOP-style left–right overlap population
+P = 2 Re[c_L† S_LR c_R] of each eigenstate (charge accumulated between
+the sublattices; exactly 0 for symmetry-nonbonding states; the value
+appears in the level tooltip and the legend in the page footer). The
+fragment/sublattice columns are drawn in the **VESTA color of each
+level's dominant element** — a composite sublattice like SrTi shows Sr
+levels in the Sr color and Ti levels in the Ti color — with occupation
+still visible through the electron arrows. Semicore orthogonality tails (shells
+whose own bands lie ≥ 10 eV below their fragment column's HOMO) are
+excluded unless the level *is* that semicore band — with the Sc 3s tail
+included, the bonding σ R1+ of ScF3 would read P = −0.015 instead of
++0.112. Antibonding |P| is systematically larger than bonding |P| (the
+usual non-orthogonal COOP asymmetry).
+
 The raw SCF has **no point-group constraint**: the FFT grid breaks
 degeneracies numerically (<1 meV for semilocal functionals, but several
 0.1 eV for grid-evaluated exact exchange of hybrids at low cutoffs). All
@@ -433,20 +455,23 @@ consistency — ~2 mHa BSSE per ScF3 fragment — and shifts some crystal-orbita
 composition onto the other fragment's polarization shells, which then have to
 describe the tail region).
 
-The **composition list** projects the crystal orbital onto the surviving
-fragment levels, so it silently loses the weight whose fragment partner was
-ghost-filtered — e.g. with `--max-l 2` the empty Sc 4p GM4⁻ fragment level of
-ScF3 is removed, and the crystal GM4⁻ valence level's genuine ~8% Sc p
-weight (diffuse 4p + semicore 3p, the symmetry-allowed T1u ligand→metal
-donation) disappeared from a list that then renormalized to "pure F". Every
-crystal level's detail tooltip and terminal row therefore also show the
-per-(element, shell) **Löwdin populations** — |coefficient|² in the
-symmetrically orthogonalized basis, the orthonormal set closest to the
-atomic orbitals, i.e. the intuitive "squared LCAO weight" made rigorous for
-a non-orthogonal basis (non-negative, always summing to 100%; Mulliken's
+The **composition list** — the Level-details bars, the hover tooltip and
+the terminal all quote one identical list — is the per-(element, shell)
+**AO population of the PySCF eigenvector** (the same partial-charge measure
+as `crystod --dos --pyscf`): Löwdin |coefficient|² in the symmetrically
+orthogonalized basis by default — the orthonormal set closest to the atomic
+orbitals, i.e. the intuitive "squared LCAO weight" made rigorous for a
+non-orthogonal basis (non-negative, summing to exactly 100%; Mulliken's
 overlap cross terms instead go negative or overshoot on diffuse empty
-levels) — together with the fragment-projection coverage whenever it falls
-below 98%.
+levels). Symmetry does the orbital selection: a crystal state of irrep Γ
+only picks up the Γ-adapted combination of each shell (symmetry-forbidden
+shells project to ~0 and are culled at 0.1%), so every entry carries the
+crystal irrep — `Sc 3d R5+ 76.0%`. Projections onto the *fragment
+eigenstates* are deliberately **not** displayed as percentages (they still
+position the correlation lines and the alignment anchors): a fragment level
+such as "Sc 3d R5+" itself mixes 3d and 4d AO character, so its weights
+disagree with the AO populations, and the two lists shown side by side
+read as a contradiction.
 
 Options: `--basis` (default `gth-dzvp-molopt-sr`), `--pseudo` (default
 `gth-pbe`), `--xc` (default `pbe`, or `hf`), `--ke-cutoff` (default 200
@@ -516,6 +541,62 @@ crystod -c example/test_POSCARs/221_PPOSCAR_ScF3 --element F --orbital p --kpoin
 crystod -c example/test_POSCARs/221_PPOSCAR_ScF3 --element Sc --orbital d --kpoint 0 0 0 --real-coefficient --visualize
 crystod -c example/test_POSCARs/221_PPOSCAR_ScF3 --element F --orbital p --kpoint GM --output SALC_F-p_GM.html --visualize
 ```
+
+### PySCF eigen-levels in the viewer (`--visualize --pyscf`)
+
+The SALCs above are the symmetry-adapted *basis* — the states before any
+Hamiltonian. With `--pyscf` the same page shows the actual **PySCF
+eigenstates**, either of one fragment sublattice (the pre-bonding states
+in the removed sublattice's point-charge field, exactly the
+`--diagram --pyscf` columns) or of the full crystal (the states after
+bonding):
+
+```bash
+crystod --visualize --pyscf -c 221_PPOSCAR_ScF3 --sublattice Sc --bond Sc F 3 --real-coefficient --chk scf3.chk
+crystod --visualize --pyscf -c 221_PPOSCAR_ScF3 --sublattice F3 --bond Sc F 3 --real-coefficient --chk scf3.chk
+crystod --visualize --pyscf -c 221_PPOSCAR_ScF3 --bond Sc F 3 --real-coefficient --chk scf3.chk
+```
+
+No `--element/--orbital/--kpoint` are needed: the special k points come
+from the space group automatically (one page per k point; `--kpoint GM`
+restricts the output). The SALC-basis table becomes **Mode | Irrep |
+Comp. | Energy (eV)** — one row per degenerate partner, level labels in
+the diagram convention (`GM4- #2`, `Sc 3d R3+`), energies on the shared
+deep-level-aligned scale, so the Sc, F3 and crystal pages are directly
+comparable (`--no-align` keeps the raw references). Clicking a row draws
+the eigenvector's wave function: every element, all shells s..f, lobe
+sizes calibrated to the `--projection` populations with one shared
+normalization per level, on the k-commensurate display cell with the
+usual VESTA-style bonds and polyhedra. All `--diagram --pyscf` options
+apply; with a shared `--chk` the three commands above pay the SCF once
+(~5 s per page set afterwards). The default energy window is
+HOMO−15 .. LUMO+10 eV of the displayed column (`--window LO HI`
+overrides; a full fragment spectrum would put hundreds of plotly
+surfaces on one page).
+
+`--diagonalize` canonicalizes the degenerate partners (RREF, as in the
+diagram sketches): the SCF returns an arbitrary unitary mixture within
+a multiplet, which draws e.g. a tilted d_z², and the canonical rotation
+makes the components axis-aligned (the R5+ t2g triplet of ScF3 becomes
+pure d_xy / d_yz / d_xz) — energies are unchanged. Each channel's sign
+is probed at the radius (1.5–3 bohr) where its accumulated amplitude is
+largest, since a fixed radius can sit on an orthogonalization node.
+Reading note: a valence level can *faithfully* look "antibonding" around
+a semicore-carrying atom — the F 2p σ R1+ level of ScF3 carries
+Sc 3s(semicore) c = +0.26 vs Sc 4s c = +0.05, so the true wave function
+(verified against real-space `pbc_eval_gto`) has a radial node 0.7 Å
+from Sc and is negative near the atom: the orthogonality tail against
+the −50 eV Sc 3s band, not a drawing error. The scale separation is the
+⟨r⟩ one: in this basis ⟨r⟩(Sc 3s) = 0.77 Å vs ⟨r⟩(Sc 4s) = 1.86 Å
+against the 2.03 Å bond — the compact semicore shell cannot bond, its
+admixture is on-site orthogonality. `--valence-only` applies exactly
+this reasoning to the drawing: shells whose occupied fragment bands lie
+more than 12 eV below the crystal VBM on the aligned scale (Sc 3s, Sc
+3p, F 2s here; detected automatically and printed) are dropped from the
+drawn wave functions, so the σ level shows its bonding Sc 4s component
+(Sc s flips from −0.48 to +0.47 against the same F p lobes), while
+levels a semicore shell dominates — the semicore bands themselves —
+keep it.
 
 The irreducible decomposition is consistent with the plain SALC analysis
 (e.g. `2.0 [GM4-(3)] + 1.0 [GM5-(3)]` for F_p at GM in Pm-3m ScF3).
