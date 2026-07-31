@@ -161,9 +161,10 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         default=None,
         metavar="EL=Q",
-        help="Formal oxidation states for the removed-sublattice point\n"
-        "charges of the --diagram fragments, e.g. Sr=+2 Ti=+4 O=-2\n"
-        "(default: guessed with pymatgen).",
+        help="Formal oxidation states of the --diagram fragments: they set\n"
+        "the removed-sublattice point charges AND the fragment-column\n"
+        "electron counts (with --onsite only the counts remain in use),\n"
+        "e.g. Sr=+2 Ti=+4 O=-2 (default: guessed with pymatgen).",
     )
     parser.add_argument(
         "--pyscf",
@@ -252,6 +253,23 @@ def build_parser() -> ArgumentParser:
         "the defining parameters are verified before reuse.",
     )
     parser.add_argument(
+        "--chk-info",
+        default=None,
+        metavar="FILE",
+        help="Print the calculation conditions stored in a --chk checkpoint\n"
+        "(binary npz): method, k-mesh, fragments, stored densities, and a\n"
+        "ready-to-paste option string that reproduces them.",
+    )
+    parser.add_argument(
+        "--onsite",
+        action="store_true",
+        help="For --diagram --pyscf: single-Hamiltonian mode -- only the\n"
+        "crystal SCF runs, and the fragment columns are the per-shell\n"
+        "on-site multiplets <phi|F|phi> of its Fock (tight-binding on-site\n"
+        "energies, one level per induced irrep; no point charges, no\n"
+        "reference alignment). A full-run --chk is reused.",
+    )
+    parser.add_argument(
         "--spinor",
         action="store_true",
         help="Use double-group / spinor representations.",
@@ -317,6 +335,28 @@ def build_parser() -> ArgumentParser:
         help="Dense k mesh of the --dos band step (default 8 8 8).",
     )
     parser.add_argument(
+        "--band",
+        action="store_true",
+        help="With --pyscf: electronic band structure along the automatic\n"
+        "seekpath high-symmetry path, diagonalized non-self-consistently\n"
+        "from the (restarted) density matrix (VASP-style two-step; reuses\n"
+        "a --chk file, so no new SCF is needed).",
+    )
+    parser.add_argument(
+        "--fatband",
+        action="store_true",
+        help="With --band: element- and (element, l)-projected fatbands\n"
+        "(one overview page in VESTA colors + one page per element with\n"
+        "the s/p/d/f breakdown; --projection picks the measure).",
+    )
+    parser.add_argument(
+        "--band-points",
+        type=int,
+        default=None,
+        metavar="N",
+        help="k points per path leg of --band (default 41).",
+    )
+    parser.add_argument(
         "--sublattice",
         nargs="+",
         default=None,
@@ -332,8 +372,16 @@ def build_parser() -> ArgumentParser:
         type=float,
         default=None,
         metavar=("LO", "HI"),
-        help="For --visualize --pyscf: energy window in eV on the aligned\n"
-        "scale (default: HOMO-15 .. LUMO+10 eV of the displayed column).",
+        help="For --visualize --pyscf and --band: energy window in eV\n"
+        "(visualize default: HOMO-15 .. LUMO+10 of the displayed column;\n"
+        "band default: the band range clipped to -25 .. 15).",
+    )
+    parser.add_argument(
+        "--align",
+        choices=("vbm", "absolute"),
+        default=None,
+        help="For --band/--dos (--pyscf): energy reference of the plots --\n"
+        "the valence-band maximum (default) or the raw absolute scale.",
     )
     parser.add_argument(
         "--diagonalize",
@@ -397,6 +445,20 @@ def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.chk_info:
+        from ..crystal_orbital_pyscf import describe_chk
+
+        describe_chk(args.chk_info)
+        return
+
+    # these guards must run before ANY mode branch returns
+    if args.fatband and not args.band:
+        parser.error("--fatband is only used with --band.")
+    if args.band_points is not None and not args.band:
+        parser.error("--band-points is only used with --band.")
+    if args.align is not None and not (args.band or args.dos):
+        parser.error("--align is only used with --band or --dos (--pyscf).")
+
     if args.star_of_k:
         if args.visualize:
             parser.error("--star-of-k and --visualize cannot be combined.")
@@ -418,17 +480,45 @@ def main(argv: list[str] | None = None) -> None:
     if args.conventional and not args.visualize:
         parser.error("--conventional is only available with --visualize.")
 
-    if args.dos:
+    if args.band:
         if not args.pyscf:
-            parser.error("--dos requires --pyscf (it reads the PySCF "
+            parser.error("--band requires --pyscf (it reads the PySCF "
                          "density matrix).")
+        for flag, value in (("--dos", args.dos),
+                            ("--diagram", args.diagram),
+                            ("--visualize", args.visualize)):
+            if value:
+                parser.error(f"--band and {flag} are separate runs; call "
+                             "them one at a time (they can share the same "
+                             "--chk).")
+        if args.dos_kmesh is not None:
+            parser.error("--dos-kmesh is only used with --dos (the band "
+                         "step runs on the seekpath line, --band-points "
+                         "per leg).")
+        for flag, value in (("--sublattice", args.sublattice),
+                            ("--no-align", args.no_align),
+                            ("--no-symmetrize", args.no_symmetrize),
+                            ("--diagonalize", args.diagonalize),
+                            ("--valence-only", args.valence_only),
+                            ("--kpoint", args.kpoint),
+                            ("--real-coefficient", args.real_coefficient),
+                            ("--bond", args.bond),
+                            ("--conventional", args.conventional)):
+            if value:
+                parser.error(f"{flag} is not used with --band.")
         dispatch_argv = ["--poscar", args.cell]
         if args.co_left:
             dispatch_argv.extend(["--co-left", *args.co_left])
         if args.co_right:
             dispatch_argv.extend(["--co-right", *args.co_right])
-        if args.dos_kmesh is not None:
-            dispatch_argv.extend(["--dos-kmesh", *map(str, args.dos_kmesh)])
+        if args.fatband:
+            dispatch_argv.append("--fatband")
+        if args.band_points is not None:
+            dispatch_argv.extend(["--band-points", str(args.band_points)])
+        if args.align is not None:
+            dispatch_argv.extend(["--align", args.align])
+        if args.window is not None:
+            dispatch_argv.extend(["--window", *map(str, args.window)])
         if args.oxidation:
             dispatch_argv.extend(["--oxidation", *args.oxidation])
         if args.electrons is not None:
@@ -453,6 +543,55 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--projection", args.projection])
         if args.chk is not None:
             dispatch_argv.extend(["--chk", args.chk])
+        if args.onsite:
+            dispatch_argv.append("--onsite")
+
+        from ..band_pyscf import main as band_pyscf_main
+
+        band_pyscf_main(dispatch_argv)
+        return
+
+    if args.dos:
+        if not args.pyscf:
+            parser.error("--dos requires --pyscf (it reads the PySCF "
+                         "density matrix).")
+        dispatch_argv = ["--poscar", args.cell]
+        if args.co_left:
+            dispatch_argv.extend(["--co-left", *args.co_left])
+        if args.co_right:
+            dispatch_argv.extend(["--co-right", *args.co_right])
+        if args.dos_kmesh is not None:
+            dispatch_argv.extend(["--dos-kmesh", *map(str, args.dos_kmesh)])
+        if args.align is not None:
+            dispatch_argv.extend(["--align", args.align])
+        if args.oxidation:
+            dispatch_argv.extend(["--oxidation", *args.oxidation])
+        if args.electrons is not None:
+            dispatch_argv.extend(["--electrons", str(args.electrons)])
+        if args.output is not None:
+            dispatch_argv.extend(["--output", args.output])
+        if args.tolerance is not None:
+            dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        for flag, value in (("--basis", args.basis),
+                            ("--pseudo", args.pseudo), ("--xc", args.xc)):
+            if value is not None:
+                dispatch_argv.extend([flag, value])
+        if args.kmesh is not None:
+            dispatch_argv.extend(["--kmesh", *map(str, args.kmesh)])
+        if args.ke_cutoff is not None:
+            dispatch_argv.extend(["--ke-cutoff", str(args.ke_cutoff)])
+        if args.no_ghost:
+            dispatch_argv.append("--no-ghost")
+        if args.max_l is not None:
+            dispatch_argv.extend(["--max-l", str(args.max_l)])
+        if args.projection is not None:
+            dispatch_argv.extend(["--projection", args.projection])
+        if args.chk is not None:
+            dispatch_argv.extend(["--chk", args.chk])
+        if args.onsite:
+            # the DOS only ever uses the crystal density, so the
+            # single-SCF mode (and its crystal-only chk files) fit here too
+            dispatch_argv.append("--onsite")
 
         from ..dos_pyscf import main as dos_pyscf_main
 
@@ -460,6 +599,11 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.visualize:
+        if args.onsite:
+            parser.error(
+                "--onsite is not supported with --visualize: the SALC "
+                "viewer draws the fragment SCF eigenstates; use --onsite "
+                "with --diagram --pyscf or --dos --pyscf.")
         if args.pyscf:
             # PySCF eigen-levels in the SALC viewer: all special k points
             # automatically, one page per k; --sublattice picks a fragment
@@ -588,6 +732,10 @@ def main(argv: list[str] | None = None) -> None:
         if args.tolerance is not None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
 
+        if not args.pyscf and args.onsite:
+            parser.error("--onsite needs --pyscf: the extended-Hueckel "
+                         "columns already come from the one shared "
+                         "Hamiltonian.")
         if args.pyscf:
             for flag, value in (("--basis", args.basis), ("--pseudo", args.pseudo),
                                 ("--xc", args.xc)):
@@ -609,6 +757,8 @@ def main(argv: list[str] | None = None) -> None:
                 dispatch_argv.extend(["--projection", args.projection])
             if args.chk is not None:
                 dispatch_argv.extend(["--chk", args.chk])
+            if args.onsite:
+                dispatch_argv.append("--onsite")
 
             from ..crystal_orbital_pyscf import main as pyscf_diagram_main
 
@@ -629,12 +779,17 @@ def main(argv: list[str] | None = None) -> None:
                         ("--projection", args.projection),
                         ("--chk", args.chk),
                         ("--sublattice", args.sublattice),
-                        ("--window", args.window is not None),
                         ("--diagonalize", args.diagonalize),
                         ("--valence-only", args.valence_only)):
         if value:
             parser.error(f"{flag} is only used with --diagram or "
                          "--visualize --pyscf.")
+    if args.onsite:
+        parser.error("--onsite is only used with --diagram --pyscf, "
+                     "--dos --pyscf or --band --pyscf.")
+    if args.window is not None:
+        parser.error("--window is only used with --visualize --pyscf "
+                     "or --band.")
     if args.electrons is not None:
         parser.error("--electrons is only used with --diagram.")
     if args.co_left or args.co_right:
