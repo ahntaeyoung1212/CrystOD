@@ -2250,8 +2250,16 @@ def test_33_molod() -> None:
                    False, nh3_out)
         report("friendly method/basis wording",
                "Hartree-Fock method / sto-3g basis" in out, out)
-        report("PySCF citation printed",
-               "WIREs Comput. Mol. Sci. 8, e1340 (2018)" in out, out)
+        # the three PySCF papers are SOFTWARE citations, so they must be
+        # printed under their own "please cite" heading and never read as
+        # the source of the fragment/irrep method
+        report("PySCF cited as software, separate from the method line",
+               "Method: fragment-resolved SCF MO diagram\n" in out
+               and "If you use PySCF in your research, please cite:" in out
+               and "J. Chem. Phys. 153, 024109 (2020)" in out
+               and "WIREs Comput. Mol. Sci. 8, e1340 (2018)" in out
+               and "J. Comput. Chem. 36, 1664 (2015)" in out
+               and "MO diagram (PySCF)." not in out, out)
 
         # O2: triplet, homonuclear partition, sigma/pi labels
         code, out = run_mol(["--diagram", "--xyz", xyz_o2, "--pyscf",

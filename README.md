@@ -1089,7 +1089,7 @@ crystod-mol --diagram --xyz XYZ_C6H6.xyz --pyscf --ao-left H6 --ao-right C6
 - Irrep labels come from crystod's own point-group machinery — the characters of every (degenerate group of) MO(s) under the exact character-table operations, evaluated with the symmetry representation on the PySCF AO basis — so the labels agree with the symmetry-only diagram and with `crystod-group` (CH4 `1t2` HOMO, H2O `1b2`, benzene `1e1g` HOMO / `1e2u` LUMO at the Koopmans level); linear molecules use PySCF's Dooh/Coov labels rendered as σ/π/δ (triplet O2: `(1πu)^4 (1πg)^2`, two single arrows on the half-filled 1πg).
 - `--basis` (default def2-svp), `--theory scf|dft`, `--xc` (default b3lyp), `--charge`, and `--spin` (2S; default by electron parity, e.g. `--spin 2` for triplet O2) follow the conventions of `script/calc_pyscf.py`; open-shell calculations use ROHF/ROKS so the diagram keeps a single orbital-energy set. Core levels (O 1s at −560 eV, I 1s at −33 keV, ...) are computed and included; whenever levels lie below −40 eV the default energy window is clamped to the chemically relevant [−40, 15] eV (the LUMO is never hidden), and the **Show all energy levels** button in the page expands the window to the full range. 
 
-References: Q. Sun et al., WIREs Comput. Mol. Sci. 8, e1340 (2018); Q. Sun et al., J. Chem. Phys. 153, 024109 (2020).
+The SCF engine is PySCF — a software dependency, not the source of the fragment/irrep construction above. If you use PySCF in your research, please cite: Q. Sun et al., J. Chem. Phys. 153, 024109 (2020); Q. Sun et al., WIREs Comput. Mol. Sci. 8, e1340 (2018); Q. Sun, J. Comput. Chem. 36, 1664 (2015).
 
 ## Command Summary
 
