@@ -38,6 +38,14 @@ overlap integrals (symmetry-adapted extended Hueckel), and the result is
 written as an interactive HTML diagram (ligand AOs | ligand SALCs | MOs |
 central AOs, with correlation lines and electron filling).
 
+With --diagram --ao-left/--ao-right (no --pyscf), the molecule is instead
+split into two arbitrary submolecules by formula (e.g. H6 + C6 for benzene)
+and the same extended-Hueckel machinery draws a three-column diagram
+(left fragment MOs | molecule MOs | right fragment MOs): fragment levels are
+the eigenstates of the fragment's own (H, S) sub-block in the one molecular
+AO space, and the molecular MOs are projected onto them through the shared
+overlap matrix.
+
 With --diagram --pyscf, the diagram becomes quantitative: three PySCF SCF
 calculations in one AO space (the molecule, and the two fragments with ghost
 basis functions on the removed atoms, i.e. counterpoise-consistent) give the
@@ -54,6 +62,7 @@ crystod-mol --xyz XYZ_CH4.xyz --element H --orbital s --show-matrix
 crystod-mol --xyz XYZ_NH3.xyz --element H --orbital p --visualize --bond N H 1.2
 crystod-mol --diagram --xyz XYZ_NH3.xyz
 crystod-mol --diagram --xyz XYZ_SF6.xyz --center S --output SF6_MO.html
+crystod-mol --diagram --xyz XYZ_C6H6.xyz --ao-left H6 --ao-right C6
 crystod-mol --diagram --xyz XYZ_H2O.xyz --pyscf
 crystod-mol --diagram --xyz XYZ_O2.xyz --pyscf --spin 2 --ao-left O --ao-right O
 crystod-mol --diagram --xyz XYZ_CH3OH.xyz --pyscf --ao-left H4 --ao-right CO
@@ -136,15 +145,17 @@ def build_parser() -> ArgumentParser:
         "--ao-left",
         default=None,
         metavar="FORMULA",
-        help="Left-fragment formula for --pyscf, e.g. H4 or O\n"
-             "(default: the ligand atoms).",
+        help="Left-fragment formula for --diagram, e.g. H4 or O.\n"
+             "Without --pyscf: two-fragment extended-Hueckel diagram\n"
+             "(both --ao-left and --ao-right required).\n"
+             "With --pyscf: fragment partition (default: the ligand atoms).",
     )
     parser.add_argument(
         "--ao-right",
         default=None,
         metavar="FORMULA",
-        help="Right-fragment formula for --pyscf, e.g. CO or O\n"
-             "(default: the central atom).",
+        help="Right-fragment formula for --diagram, e.g. CO or O\n"
+             "(with --pyscf, default: the central atom).",
     )
     parser.add_argument(
         "--element",
@@ -215,10 +226,10 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--center is only available with --diagram.")
     if args.pyscf and not args.diagram:
         parser.error("--pyscf is only available with --diagram.")
-    if not args.pyscf and (args.ao_left or args.ao_right
-                           or args.spin is not None or args.charge):
-        parser.error("--ao-left/--ao-right/--charge/--spin require "
-                     "--diagram --pyscf.")
+    if not args.pyscf and (args.spin is not None or args.charge):
+        parser.error("--charge/--spin require --diagram --pyscf.")
+    if not args.diagram and (args.ao_left or args.ao_right):
+        parser.error("--ao-left/--ao-right require --diagram.")
     if args.diagram:
         if args.show_matrix or args.align or args.visualize or args.bond:
             parser.error("--show-matrix/--align/--visualize/--bond are not "
@@ -229,16 +240,16 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--center", args.center])
         if args.output:
             dispatch_argv.extend(["--output", args.output])
+        if args.ao_left:
+            dispatch_argv.extend(["--ao-left", args.ao_left])
+        if args.ao_right:
+            dispatch_argv.extend(["--ao-right", args.ao_right])
         if args.pyscf:
             dispatch_argv.extend(["--pyscf", "--basis", args.basis,
                                   "--theory", args.theory, "--xc", args.xc,
                                   "--charge", str(args.charge)])
             if args.spin is not None:
                 dispatch_argv.extend(["--spin", str(args.spin)])
-            if args.ao_left:
-                dispatch_argv.extend(["--ao-left", args.ao_left])
-            if args.ao_right:
-                dispatch_argv.extend(["--ao-right", args.ao_right])
 
         from ..mo_diagram import main as mo_diagram_main
 

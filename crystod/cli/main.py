@@ -21,7 +21,12 @@ from __future__ import annotations
 from argparse import ArgumentParser, RawTextHelpFormatter
 from fractions import Fraction
 
-from .common import add_cell_argument, add_output_argument, banner
+from .common import (
+    add_cell_argument,
+    add_output_argument,
+    banner,
+    print_crystod_citation,
+)
 
 # Flat mode flags of the pre-v0.3.0 interface, removed in v0.3.0: each maps
 # to the guidance shown in the error message. --star-of-k is absent on
@@ -310,8 +315,9 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--conventional",
         action="store_true",
-        help="Display the SALC in the conventional cell instead of the primitive\n"
-        "cell (--visualize mode).",
+        help="Display in the conventional cell instead of the primitive cell:\n"
+        "the SALC in --visualize mode, the hover wave-function sketches in\n"
+        "--diagram mode.",
     )
     parser.add_argument(
         "--real-coefficient",
@@ -458,6 +464,11 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--band-points is only used with --band.")
     if args.align is not None and not (args.band or args.dos):
         parser.error("--align is only used with --band or --dos (--pyscf).")
+    if args.bond and not args.visualize:
+        parser.error("--bond is only available with --visualize.")
+    if args.conventional and not (args.visualize or args.diagram):
+        parser.error("--conventional is only available with --visualize "
+                     "or --diagram.")
 
     if args.star_of_k:
         if args.visualize:
@@ -474,11 +485,6 @@ def main(argv: list[str] | None = None) -> None:
 
         star_of_k_main(dispatch_argv)
         return
-
-    if args.bond and not args.visualize:
-        parser.error("--bond is only available with --visualize.")
-    if args.conventional and not args.visualize:
-        parser.error("--conventional is only available with --visualize.")
 
     if args.band:
         if not args.pyscf:
@@ -555,6 +561,12 @@ def main(argv: list[str] | None = None) -> None:
         if not args.pyscf:
             parser.error("--dos requires --pyscf (it reads the PySCF "
                          "density matrix).")
+        for flag, value in (("--diagram", args.diagram),
+                            ("--visualize", args.visualize)):
+            if value:
+                parser.error(f"--dos and {flag} are separate runs; call "
+                             "them one at a time (they can share the same "
+                             "--chk).")
         dispatch_argv = ["--poscar", args.cell]
         if args.co_left:
             dispatch_argv.extend(["--co-left", *args.co_left])
@@ -657,6 +669,8 @@ def main(argv: list[str] | None = None) -> None:
                 dispatch_argv.extend(["--projection", args.projection])
             if args.chk is not None:
                 dispatch_argv.extend(["--chk", args.chk])
+            if args.conventional:
+                dispatch_argv.append("--conventional")
 
             from ..visualize_pyscf import main as visualize_pyscf_main
 
@@ -731,6 +745,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--output", args.output])
         if args.tolerance is not None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        if args.conventional:
+            dispatch_argv.append("--conventional")
 
         if not args.pyscf and args.onsite:
             parser.error("--onsite needs --pyscf: the extended-Hueckel "
@@ -763,11 +779,13 @@ def main(argv: list[str] | None = None) -> None:
             from ..crystal_orbital_pyscf import main as pyscf_diagram_main
 
             pyscf_diagram_main(dispatch_argv)
+            print_crystod_citation()
             return
 
         from ..crystal_orbital_diagram import main as crystal_diagram_main
 
         crystal_diagram_main(dispatch_argv)
+        print_crystod_citation()
         return
     for flag, value in (("--pyscf", args.pyscf), ("--basis", args.basis),
                         ("--pseudo", args.pseudo), ("--kmesh", args.kmesh),
