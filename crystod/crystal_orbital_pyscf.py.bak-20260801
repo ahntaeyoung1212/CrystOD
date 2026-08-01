@@ -235,13 +235,8 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                  kmesh=None, ke_cutoff=200.0, oxidation=None, electrons=None,
                  sigma=0.0, degeneracy_tol=None, no_ghost=False, symmetrize=True,
                  max_l=None, projection="lowdin", chk=None, onsite=False,
-                 conventional=False, conv_tol=1e-8, max_cycle=100,
-                 max_memory=4000.0, verbose=0):
+                 conv_tol=1e-8, max_cycle=100, max_memory=4000.0, verbose=0):
         _import_pyscf()
-
-        # --conventional: draw the hover sketches in the conventional cell
-        # (display-only -- deliberately NOT part of _chk_params)
-        self.conventional = bool(conventional)
 
         self.builder = SymmetryAdaptedOrbitalBasis(cell=cell, symprec=symprec)
         primitive = self.builder.primitive_cell
@@ -541,8 +536,6 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
 
     def _build_ao_blocks(self) -> None:
         """(element, shell) blocks of the PySCF AO space, in AO order."""
-        from pyscf.gto.mole import gto_norm
-
         cell = self.cells["mo"]
         slices = cell.aoslice_by_atom()
         raw_labels = [label.split() for label in cell.ao_labels()]
@@ -554,10 +547,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             atom = int(cell.bas_atom(shell))
             l = int(cell.bas_angular(shell))
             exponents = np.asarray(cell.bas_exp(shell), dtype=float)
-            # bas_ctr_coeff is over unit-normalized primitives; the gto_norm
-            # factor makes the amplitudes below the actual AO values
-            contractions = (np.asarray(cell.bas_ctr_coeff(shell), dtype=float)
-                            * gto_norm(l, exponents)[:, None])
+            contractions = np.asarray(cell.bas_ctr_coeff(shell), dtype=float)
             # radial amplitude of each contracted function at r0, for the
             # wave-function sketch: same-l shells of one atom accumulate with
             # these weights, so the drawn lobe signs are those of the real
@@ -1296,11 +1286,10 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
 
     # ---------------------------------------------------- wave-function sketch
 
-    def sketch_partners(self, level, kpoint, sites):
+    def sketch_partners(self, level, kpoint, cells):
         """Per-partner lobes on the supercell atoms, from the PySCF AO
         coefficients -- same entry format as the extended-Hueckel sketch:
-        [atom, s, px, py, pz, dxy, dyz, dz2, dxz, dx2-y2]; ``sites`` is the
-        (atom index, translation) list of supercell_for.
+        [atom, s, px, py, pz, dxy, dyz, dz2, dxz, dx2-y2].
 
         The PySCF eigenvectors are in the atomic Bloch gauge, so the
         cell-to-cell phase is exp(2 pi i k . T) without the site offset.
@@ -1336,11 +1325,6 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         column = getattr(level, "column", "mo")
         blocks = [b for b in self.ao_blocks
                   if column == "mo" or b.column == column]
-        # one representative display row per primitive atom (|amp| is the
-        # same on every translate of an atom, the Bloch phase is unimodular)
-        representative: dict[int, int] = {}
-        for row_index, (atom, _) in enumerate(sites):
-            representative.setdefault(atom, row_index)
         raw_partners = []
         channel_pop = np.zeros((n_prim, width))    # multiplet-summed Loewdin
         channel_amp2 = np.zeros((n_prim, width))   # multiplet-summed |amp|^2
@@ -1355,7 +1339,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 gross = (v.conj() * (overlap @ v)).real
             else:
                 gross = np.abs(overlap @ v) ** 2
-            amp_re = np.zeros((len(sites), width))
+            amp_re = np.zeros((len(cells) * n_prim, width))
             amp_im = np.zeros_like(amp_re)
             for block in blocks:
                 if block.l not in slot_of:
@@ -1367,19 +1351,17 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 coefficients = np.asarray(
                     vector[block.offset:block.offset + block.n_ao]
                 ) * (angular[block.l] * block.radial)
-                for row_index, (atom, translation) in enumerate(sites):
-                    if atom != site:
-                        continue
-                    phase = np.exp(2j * np.pi * float(np.dot(kpoint, translation)))
+                for cell_index, cell_vector in enumerate(cells):
+                    phase = np.exp(2j * np.pi * float(np.dot(kpoint, cell_vector)))
                     values = coefficients * phase
+                    row_index = cell_index * n_prim + site
                     amp_re[row_index, slot:slot + block.n_ao] += values.real
                     amp_im[row_index, slot:slot + block.n_ao] += values.imag
             for site in range(n_prim):
-                row0 = representative[site]
                 for l, slot in slot_of.items():
                     n_m = 2 * l + 1
-                    channel = (amp_re[row0, slot:slot + n_m]
-                               + 1j * amp_im[row0, slot:slot + n_m])
+                    channel = (amp_re[site, slot:slot + n_m]
+                               + 1j * amp_im[site, slot:slot + n_m])
                     channel_amp2[site, slot] += float(np.linalg.norm(channel)) ** 2
             raw_partners.append((amp_re, amp_im))
         # one calibration factor per (atom, l) channel, from the MULTIPLET
@@ -1399,7 +1381,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 if amp2 > 1e-24:
                     col_factor[site, slot:slot + n_m] = np.sqrt(
                         max(channel_pop[site, slot], 0.0) / amp2)
-        tiled = col_factor[[atom for atom, _ in sites], :]
+        tiled = np.tile(col_factor, (len(cells), 1))
         partner_rows = []
         for amp_re, amp_im in raw_partners:
             amp_re = amp_re * tiled
@@ -1419,7 +1401,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 rows_arr = np.array(canonical, dtype=float)
         partners = []
         for row in rows_arr:
-            grid = row.reshape(len(sites), width)
+            grid = row.reshape(len(cells) * n_prim, width)
             peak = np.max(np.abs(grid)) or 1.0
             entries = []
             for atom_index in range(grid.shape[0]):
@@ -1799,7 +1781,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
                      pseudo=None, xc="pbe", kmesh=None, ke_cutoff=200.0,
                      sigma=0.0, degeneracy_tol=None, align=True, no_ghost=False,
                      symmetrize=True, max_l=None, projection="lowdin",
-                     chk=None, onsite=False, conventional=False, verbose=0):
+                     chk=None, onsite=False, verbose=0):
     """Terminal report + HTML for the PySCF crystal-orbital diagram."""
     diagram = PySCFCrystalOrbitalDiagram(
         cell, left, right, symprec=symprec, electrons=electrons,
@@ -1807,7 +1789,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
         pseudo=pseudo or "gth-pbe", xc=xc, kmesh=kmesh, ke_cutoff=ke_cutoff, sigma=sigma,
         degeneracy_tol=degeneracy_tol, no_ghost=no_ghost, symmetrize=symmetrize,
         max_l=max_l, projection=projection, chk=chk, onsite=onsite,
-        conventional=conventional, verbose=verbose,
+        verbose=verbose,
     )
     dataset = diagram.builder.spglib_dataset
     print("\n * Space group *")
@@ -2116,19 +2098,14 @@ def main(argv: list[str] | None = None) -> None:
                         "induced irrep) -- no point charges, no reference "
                         "alignment; a full-run --chk is reused, only the "
                         "crystal density is read")
-    parser.add_argument("--conventional", action="store_true",
-                        help="draw the hover wave-function sketches in the "
-                        "conventional cell instead of the primitive "
-                        "k-commensurate supercell (display-only; compatible "
-                        "with any --chk)")
     parser.add_argument("--output", default=None)
     parser.add_argument("--tolerance", type=float, default=1e-5)
     parser.add_argument("--verbose", type=int, default=0)
     args = parser.parse_args(argv)
 
-    from .star_of_k import read_poscar_or_exit
+    from phonopy.interface.calculator import read_crystal_structure
 
-    cell = read_poscar_or_exit(args.poscar)
+    cell, _ = read_crystal_structure(args.poscar, interface_mode="vasp")
     stem = Path(args.poscar).name
     for extension in (".vasp", ".poscar"):
         if stem.lower().endswith(extension):
@@ -2153,7 +2130,6 @@ def main(argv: list[str] | None = None) -> None:
         align=not args.no_align,
         no_ghost=args.no_ghost,
         onsite=args.onsite,
-        conventional=args.conventional,
         symmetrize=not args.no_symmetrize,
         max_l=args.max_l,
         projection=args.projection,

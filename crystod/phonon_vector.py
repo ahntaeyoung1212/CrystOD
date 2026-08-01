@@ -323,9 +323,17 @@ def reduced_formula(symbols: list[str]) -> str:
 def get_conventional_matrix(centring: str) -> NDArray[np.int_]:
     """Integer primitive-to-conventional matrix; rows are the conventional
     lattice vectors expressed in the primitive basis (e.g. cubic-F:
-    [[-1, 1, 1], [1, -1, 1], [1, 1, -1]])."""
+    [[-1, 1, 1], [1, -1, 1], [1, 1, -1]]).
+
+    phonopy's primitive matrix M acts on COLUMN-vector lattices,
+    (a_p, b_p, c_p) = (a_c, b_c, c_c) M, i.e. L_p = M^T L_c for the
+    row-vector lattices used throughout CrystOD -- so the row matrix here
+    is inv(M)^T, NOT inv(M).  The two coincide for the symmetric P/F/I
+    matrices, but bare inv(M) drew a wrong (non-conventional) cell for R
+    centring (an oblique det-3 supercell instead of the hexagonal cell)
+    and axis-swapped cells for A/C."""
     primitive_matrix = np.array(get_primitive_matrix_by_centring(centring), dtype=float)
-    conventional = np.linalg.inv(primitive_matrix)
+    conventional = np.linalg.inv(primitive_matrix).T
     conventional_int = np.rint(conventional).astype(int)
     if not np.allclose(conventional, conventional_int, atol=1e-8):
         raise ValueError(f"Non-integer primitive-to-conventional matrix for centring '{centring}'.")

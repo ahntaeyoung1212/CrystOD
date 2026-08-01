@@ -632,6 +632,12 @@ def _axis_traces(
     return traces
 
 
+def _crystod_citation_html() -> str:
+    from .cli.common import CRYSTOD_CITATION_HTML
+
+    return CRYSTOD_CITATION_HTML
+
+
 def write_html_visualization(
     output_path: str,
     orbitals: SymmetryAdaptedOrbitalBasis,
@@ -1070,7 +1076,8 @@ def write_html_visualization(
         + bond_controls +
         "  <div class=\"credit\">Viewer layout inspired by the\n"
         "    <a href=\"https://henriquemiranda.github.io/phononwebsite/\" target=\"_blank\">phonon website</a>\n"
-        "    by Henrique Miranda (BSD-3-Clause). 3D rendering by plotly.</div>\n"
+        "    by Henrique Miranda (BSD-3-Clause). 3D rendering by plotly.<br><br>\n"
+        f"    {_crystod_citation_html()}</div>\n"
         "</div>\n"
         "<div id=\"main\">\n"
         "  <div id=\"mode-title\"></div>\n"

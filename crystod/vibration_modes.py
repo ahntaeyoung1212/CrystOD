@@ -546,8 +546,10 @@ def _print_mode_spaces(basis_spaces: list[NDArray[np.complex128]], irrep_labels:
 
 
 def main(argv: list[str] | None = None) -> None:
+    from .star_of_k import read_poscar_or_exit
+
     args = build_parser().parse_args(argv)
-    cell, _ = read_crystal_structure(args.poscar, interface_mode="vasp")
+    cell = read_poscar_or_exit(args.poscar)
     vibrations = SymmetryOnlyVibrations(cell=cell, symprec=args.tolerance)
 
     qpoint_map = vibrations.get_high_symmetry_qpoints()

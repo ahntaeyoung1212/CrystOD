@@ -733,12 +733,20 @@ class PyscfDiagram:
         the real wave function there.  (A bare coefficient sum is wrong:
         tight and diffuse contracted functions enter one MO with opposite
         signs, e.g. the bonding 1e of NH3 would get an inverted N-2p lobe
-        and become indistinguishable from the antibonding 2e.)  d and
+        and become indistinguishable from the antibonding 2e.)  The lobe
+        SIZE is then rescaled to the Loewdin population of the (atom, l)
+        channel, mirroring the crystal-engine sketch
+        (crystal_orbital_pyscf.sketch_partners): raw r0 amplitudes misstate
+        the sizes, and on core levels (e.g. the C 1s combinations of C6H6,
+        whose contracted 1s has died off at r0) they would draw the valence
+        orthogonalization tails instead of the 1s spheres.  d and
         higher shells are omitted.  Only the REAL atoms of the calculation
         are drawn: the fragment orbitals also carry small tails on the
         ghost basis functions (counterpoise polarization), which would
         obscure the pre-bonding SALC picture.  Degenerate partners are
         canonicalized to match the SALC viewer."""
+        from pyscf.gto.mole import gto_norm
+
         calc = self.calculations[column]
         mol = calc["mol"]
         C = calc["mo_coeff"]
@@ -746,9 +754,22 @@ class PyscfDiagram:
         ao_loc = mol.ao_loc_nr()
         r0 = 2.0  # bohr
         angular = {0: 0.28209479, 1: 0.48860251}   # Y00, Y1m lobe constants
+        cache = getattr(self, "_sketch_sqrt_overlap", None)
+        if cache is None:
+            cache = self._sketch_sqrt_overlap = {}
+        sqrt_overlap = cache.get(column)
+        if sqrt_overlap is None:
+            S = mol.intor("int1e_ovlp")
+            values_S, vectors_S = np.linalg.eigh(S)
+            sqrt_overlap = cache[column] = (
+                vectors_S * np.sqrt(np.clip(values_S, 0.0, None))
+            ) @ vectors_S.T
         partners = []
+        channel_pop: dict[tuple[int, int], float] = {}   # multiplet-summed
+        channel_amp2: dict[tuple[int, int], float] = {}  # Loewdin / |amp|^2
         for k in level.orbital_indices:
             vector = C[:, k]
+            gross = np.abs(sqrt_overlap @ vector) ** 2
             per_atom: dict[int, list[float]] = {}
             for shell in range(mol.nbas):
                 l = mol.bas_angular(shell)
@@ -761,11 +782,17 @@ class PyscfDiagram:
                 p0 = ao_loc[shell]
                 width = 2 * l + 1
                 exponents = np.asarray(mol.bas_exp(shell))
-                contractions = np.asarray(mol.bas_ctr_coeff(shell))
+                # bas_ctr_coeff is over unit-normalized primitives; the
+                # gto_norm factor makes this the actual AO value at r0
+                contractions = np.asarray(mol.bas_ctr_coeff(shell)) \
+                    * gto_norm(l, exponents)[:, None]
                 radial = angular[l] * r0**l * (
                     contractions * np.exp(-exponents[:, None] * r0**2)
                 ).sum(axis=0)
-                for c in range(mol.bas_nctr(shell)):
+                n_ctr = mol.bas_nctr(shell)
+                channel_pop[(atom, l)] = channel_pop.get((atom, l), 0.0) + \
+                    float(gross[p0:p0 + n_ctr * width].sum())
+                for c in range(n_ctr):
                     block = vector[p0 + c * width:p0 + (c + 1) * width]
                     if l == 0:
                         values[0] += float(block[0]) * float(radial[c])
@@ -773,7 +800,39 @@ class PyscfDiagram:
                         for m in range(3):
                             values[1 + m] += float(block[m]) * float(radial[c])
             partners.append(per_atom)
+            for atom, values in per_atom.items():
+                channel_amp2[(atom, 0)] = channel_amp2.get((atom, 0), 0.0) + \
+                    values[0] ** 2
+                channel_amp2[(atom, 1)] = channel_amp2.get((atom, 1), 0.0) + \
+                    values[1] ** 2 + values[2] ** 2 + values[3] ** 2
+        # one shared factor per (atom, l) channel across the multiplet: keeps
+        # symmetry-equivalent atoms exactly equal and the sigma/pi contrast
+        # between partners, while lobe areas track the electron weight
+        factor = {
+            key: np.sqrt(max(channel_pop.get(key, 0.0), 0.0) / amp2)
+            for key, amp2 in channel_amp2.items() if amp2 > 1e-24
+        }
+        partners = [
+            {
+                atom: [values[0] * factor.get((atom, 0), 0.0)]
+                + [values[m] * factor.get((atom, 1), 0.0) for m in (1, 2, 3)]
+                for atom, values in per_atom.items()
+            }
+            for per_atom in partners
+        ]
         partners = canonical_sketch_partners(partners)
+        # non-degenerate levels skip the RREF canonicalization above; fix
+        # their arbitrary global phase so the dominant lobe is positive
+        # (first lobe within tolerance of the max, so symmetry-equal lobes
+        # whose ordering is decided by numerical noise stay reproducible)
+        if len(partners) == 1 and partners[0]:
+            flat = np.array([v for row in partners[0].values() for v in row])
+            anchor = int(np.argmax(np.abs(flat) >= (1 - 1e-4) * np.abs(flat).max()))
+            if flat[anchor] < 0:
+                partners[0] = {
+                    atom: [-v for v in row]
+                    for atom, row in partners[0].items()
+                }
         return [_sketch_entries(per_atom) for per_atom in partners]
 
     def _core_count(self, column):
@@ -1050,4 +1109,3 @@ def run_pyscf_diagram(args) -> None:
     output_path = args.output or f"MolOD_{stem}_pyscf.html"
     diagram.write_html(output_path)
     print(f"\nMO diagram written to {output_path}")
-    print()

@@ -378,7 +378,11 @@ class CrystalOrbitalDiagram:
     def __init__(self, cell, left_tokens: list[str], right_tokens: list[str],
                  symprec: float = 1e-5, electrons: float | None = None,
                  sketch_tokens: list[str] | None = None,
-                 oxidation: dict[str, float] | None = None):
+                 oxidation: dict[str, float] | None = None,
+                 conventional: bool = False):
+        # --conventional: draw the hover sketches in the conventional cell
+        # (display-only; the diagram itself is unchanged)
+        self.conventional = bool(conventional)
         self.builder = SymmetryAdaptedOrbitalBasis(cell=cell, symprec=symprec)
         primitive = self.builder.primitive_cell
         self.symbols = get_chemical_symbols(primitive)
@@ -1090,30 +1094,72 @@ class CrystalOrbitalDiagram:
     # ---------------------------------------------------- wave-function sketch
 
     def supercell_for(self, kpoint):
-        """k-commensurate supercell: (cells, symbols, cartesian positions)."""
+        """Display supercell for the sketch:
+        (sites, symbols, cartesian positions, display lattice, description).
+
+        ``sites`` holds one (primitive atom index, integer lattice
+        translation) pair per drawn atom.  Default: the k-commensurate
+        diagonal supercell of the primitive cell.  With --conventional the
+        display cell is the conventional cell of the detected centring
+        (times the diagonal multiples that make exp(2 pi i k . T) = 1 for
+        its edge vectors, as in the SALC viewer), and each atom is wrapped
+        into it with its own primitive-lattice translation -- the Bloch
+        phases stay exact because every conventional-cell position is a
+        primitive-lattice translate of a basis atom.
+        """
         from fractions import Fraction
+        from itertools import product
 
-        repetitions = [
-            Fraction(float(value)).limit_denominator(12).denominator
-            for value in kpoint
-        ]
-        cells = [
-            np.array([n1, n2, n3])
-            for n1 in range(repetitions[0])
-            for n2 in range(repetitions[1])
-            for n3 in range(repetitions[2])
-        ]
-        symbols, cartesian = [], []
-        for cell_vector in cells:
-            for index, symbol in enumerate(self.symbols):
-                symbols.append(symbol)
-                cartesian.append((self.positions[index] + cell_vector)
-                                 @ self.lattice)
-        return cells, symbols, np.array(cartesian)
+        if self.conventional:
+            from .phonon_vector import (get_commensurate_supercell_matrix,
+                                        get_conventional_matrix)
 
-    def sketch_partners(self, level: DiagramLevel, kpoint, cells):
+            centring = self.builder.spglib_dataset["international"][0]
+            base_matrix = get_conventional_matrix(centring)
+            cell_matrix = np.array(
+                get_commensurate_supercell_matrix(kpoint, base_matrix),
+                dtype=int)
+            multiples = np.rint(np.diag(
+                cell_matrix @ np.linalg.inv(np.array(base_matrix, dtype=float))
+            )).astype(int)
+            description = (f"conventional cell ({centring} centring), "
+                           f"{multiples[0]} x {multiples[1]} x {multiples[2]}")
+        else:
+            repetitions = [
+                Fraction(float(value)).limit_denominator(12).denominator
+                for value in kpoint
+            ]
+            cell_matrix = np.diag(repetitions).astype(int)
+            description = (f"primitive cell, {repetitions[0]} x "
+                           f"{repetitions[1]} x {repetitions[2]}")
+        display_lattice = np.array(cell_matrix, dtype=float) @ self.lattice
+        inverse_cell = np.linalg.inv(np.array(cell_matrix, dtype=float))
+        corners = np.array([np.asarray(shift) @ cell_matrix
+                            for shift in product((0, 1), repeat=3)])
+        t_low = corners.min(axis=0) - 1
+        t_high = corners.max(axis=0) + 1
+        eps = 1e-6
+        sites, symbols, cartesian = [], [], []
+        for t1 in range(int(t_low[0]), int(t_high[0]) + 1):
+            for t2 in range(int(t_low[1]), int(t_high[1]) + 1):
+                for t3 in range(int(t_low[2]), int(t_high[2]) + 1):
+                    translation = np.array([t1, t2, t3], dtype=float)
+                    for index, symbol in enumerate(self.symbols):
+                        frac = ((self.positions[index] + translation)
+                                @ inverse_cell)
+                        if np.any(frac < -eps) or np.any(frac >= 1 - eps):
+                            continue
+                        sites.append((index, translation))
+                        symbols.append(symbol)
+                        cartesian.append((self.positions[index] + translation)
+                                         @ self.lattice)
+        return (sites, symbols, np.array(cartesian), display_lattice,
+                description)
+
+    def sketch_partners(self, level: DiagramLevel, kpoint, sites):
         """Per-partner real wave-function amplitudes on the supercell atoms,
-        as sketch entries [atom, s, px, py, pz, dxy, dyz, dz2, dxz, dx2-y2].
+        as sketch entries [atom, s, px, py, pz, dxy, dyz, dz2, dxz, dx2-y2];
+        ``sites`` is the (atom index, translation) list of supercell_for.
 
         Only the --atomic-orbital components (self.sketch_specs) are drawn.
         The amplitudes are Re[psi] (or Im[psi] when Re vanishes) of the
@@ -1135,7 +1181,6 @@ class CrystalOrbitalDiagram:
 
         rows, _ = realify_basis_space(level.vectors.T)
         rows = np.asarray(rows)
-        n_prim = len(self.symbols)
         width = 9
         slot_of = {0: 0, 1: 1, 2: 4}
         r0 = 2.0  # bohr
@@ -1149,7 +1194,7 @@ class CrystalOrbitalDiagram:
         ]
         partner_rows = []
         for vector in rows:
-            amp_re = np.zeros((len(cells) * n_prim, width))
+            amp_re = np.zeros((len(sites), width))
             amp_im = np.zeros_like(amp_re)
             for spec_index, spec in enumerate(self.specs):
                 if (self.sketch_specs is not None
@@ -1162,13 +1207,14 @@ class CrystalOrbitalDiagram:
                 for site_pos, site in enumerate(spec.sites):
                     start = spec.offset + site_pos * w
                     block = vector[start:start + w]
-                    for c_index, cell_vector in enumerate(cells):
+                    for row_index, (atom, translation) in enumerate(sites):
+                        if atom != site:
+                            continue
                         phase = np.exp(2j * np.pi * float(np.dot(
-                            kpoint, cell_vector + self.positions[site]
+                            kpoint, translation + self.positions[site]
                         )))
                         values = (np.asarray(block) * phase
                                   * radial_weight[spec_index])
-                        row_index = c_index * n_prim + site
                         amp_re[row_index, slot:slot + w] += values.real
                         amp_im[row_index, slot:slot + w] += values.imag
             choice = (amp_re if np.linalg.norm(amp_re) >= np.linalg.norm(amp_im)
@@ -1186,7 +1232,7 @@ class CrystalOrbitalDiagram:
                 rows_arr = np.array(canonical, dtype=float)
         partners = []
         for row in rows_arr:
-            grid = row.reshape(len(cells) * n_prim, width)
+            grid = row.reshape(len(sites), width)
             peak = np.max(np.abs(grid)) or 1.0
             entries = []
             for atom_index in range(grid.shape[0]):
@@ -1241,24 +1287,24 @@ def _detail_html(level: DiagramLevel, names: dict) -> str:
     return "\n".join(rows)
 
 
-def _periodic_sketch_geometry(diagram, cells, symbols, positions):
+def _periodic_sketch_geometry(display_lattice, symbols, positions,
+                              description=None):
     """VESTA-style periodic geometry for the orbital sketch.
 
-    Atoms sitting on the k-commensurate supercell boundary are drawn at
-    every translationally equivalent boundary position (an atom at
-    fractional 0 also appears at 1, a corner atom at all eight corners),
-    and the supercell outline is passed along as ``geometry["cell"]``
-    (origin + three lattice vectors, in the centered coordinates the
-    sketch uses) for the dashed frame.  Returns (geometry, replica_map)
-    with replica_map[source_row] = [rows of its boundary images].
+    Atoms sitting on the display-cell boundary are drawn at every
+    translationally equivalent boundary position (an atom at fractional 0
+    also appears at 1, a corner atom at all eight corners), and the
+    display-cell outline is passed along as ``geometry["cell"]`` (origin +
+    three lattice vectors, in the centered coordinates the sketch uses)
+    for the dashed frame; ``description`` becomes ``geometry["desc"]``
+    (shown under the sketch).  Returns (geometry, replica_map) with
+    replica_map[source_row] = [rows of its boundary images].
     """
     from itertools import product
 
     from .mo_diagram import diagram_geometry
 
-    repetitions = np.max(np.asarray(cells), axis=0) + 1
-    super_lattice = np.asarray(diagram.lattice, dtype=float) \
-        * np.asarray(repetitions, dtype=float)[:, None]
+    super_lattice = np.asarray(display_lattice, dtype=float)
     fractional = np.asarray(positions, dtype=float) @ np.linalg.inv(super_lattice)
     tolerance = 1e-6
     all_symbols = list(symbols)
@@ -1296,6 +1342,8 @@ def _periodic_sketch_geometry(diagram, cells, symbols, positions):
         float(geometry["radius"]),
         float(np.max(np.linalg.norm(corners, axis=1))),
     )
+    if description:
+        geometry["desc"] = description
     return geometry, replica_map
 
 
@@ -1334,9 +1382,11 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
 
     variants = []
     for name, kpoint, levels in k_entries:
-        cells, super_symbols, super_positions = diagram.supercell_for(kpoint)
+        (sites, super_symbols, super_positions, display_lattice,
+         cell_description) = diagram.supercell_for(kpoint)
         geometry, replica_map = _periodic_sketch_geometry(
-            diagram, cells, super_symbols, super_positions)
+            display_lattice, super_symbols, super_positions,
+            cell_description)
         names = {
             level.level_id: level.label
             for column in ("left", "right") for level in levels[column]
@@ -1384,7 +1434,7 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                     ),
                     "detail": _detail_html(level, names),
                     "orb": _with_periodic_images(
-                        diagram.sketch_partners(level, kpoint, cells),
+                        diagram.sketch_partners(level, kpoint, sites),
                         replica_map),
                 })
         occupied = [lv for lv in levels["mo"] if lv.electrons > 0]
@@ -1437,10 +1487,15 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         ),
         getattr(diagram, "method_chip", "extended H&uuml;ckel + SALC"),
     ]
+    sketch_cell = (
+        "the conventional cell (&times; the multiples that make the Bloch "
+        "phase commensurate)" if getattr(diagram, "conventional", False)
+        else "the k-commensurate supercell"
+    )
     sketch_foot = (
         " Click or hover a level for its composition and the real-space "
         "wave function Re[&psi;] of all its atomic-orbital components drawn "
-        "on the k-commensurate supercell (drag to rotate; degenerate "
+        f"on {sketch_cell} (drag to rotate; degenerate "
         "partners switchable)."
     )
     bond_foot = ""
@@ -1496,11 +1551,11 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
 
 def report_and_write(cell, *, left, right, symprec, electrons,
                      kpoint_filter, output_path, structure_label,
-                     oxidation=None):
+                     oxidation=None, conventional=False):
     """Terminal report + HTML for the crystal-orbital diagram."""
     diagram = CrystalOrbitalDiagram(
         cell, left, right, symprec=symprec, electrons=electrons,
-        oxidation=oxidation,
+        oxidation=oxidation, conventional=conventional,
     )
     dataset = diagram.builder.spglib_dataset
     print("\n * Space group *")
@@ -1612,13 +1667,17 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--electrons", type=float, default=None,
                         help="electrons per primitive cell "
                         "(default: neutral-atom valence counts)")
+    parser.add_argument("--conventional", action="store_true",
+                        help="draw the hover wave-function sketches in the "
+                        "conventional cell instead of the primitive "
+                        "k-commensurate supercell")
     parser.add_argument("--output", default=None)
     parser.add_argument("--tolerance", type=float, default=1e-5)
     args = parser.parse_args(argv)
 
-    from phonopy.interface.calculator import read_crystal_structure
+    from .star_of_k import read_poscar_or_exit
 
-    cell, _ = read_crystal_structure(args.poscar, interface_mode="vasp")
+    cell = read_poscar_or_exit(args.poscar)
     from pathlib import Path
 
     stem = Path(args.poscar).name
@@ -1637,6 +1696,7 @@ def main(argv: list[str] | None = None) -> None:
         structure_label=stem,
         oxidation=(parse_oxidation_tokens(args.oxidation)
                    if args.oxidation else None),
+        conventional=args.conventional,
     )
 
 

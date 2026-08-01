@@ -1254,7 +1254,9 @@ function show(id) {
     if (sketchLevel !== id) sketchPartner = 0;
     html += '<div id="onav"></div>';
     html += '<svg id="oview" viewBox="0 0 222 190" width="222" height="190"></svg>';
-    html += '<div class="ohint">orbital sketch — drag to rotate</div>';
+    html += '<div class="ohint">orbital sketch'
+         + (GEOM && GEOM.desc ? ' (' + GEOM.desc + ')' : '')
+         + ' — drag to rotate</div>';
   }
   const body = document.getElementById('pbody');
   body.innerHTML = html;
@@ -1697,6 +1699,8 @@ def render_diagram_page(
         )
         kbar_html = f'<div id="kbar">k point: {buttons}</div>'
 
+    from .cli.common import CRYSTOD_CITATION_HTML as citation_html
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1789,7 +1793,7 @@ def render_diagram_page(
 <div id="panel"><h2>Level details</h2>
 <div class="sub">hover or click a level</div><div id="pbody"></div></div>
 </div>
-<div id="foot">{foot_html}</div>
+<div id="foot">{foot_html}<br>{citation_html}</div>
 </div>
 <script>
 {script}
@@ -1974,30 +1978,40 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Molecular spin 2S (--pyscf; default: 0 or 1 by "
                              "electron parity, e.g. use --spin 2 for triplet O2).")
     parser.add_argument("--ao-left", default=None, metavar="FORMULA",
-                        help="Left-fragment formula for --pyscf, e.g. H4 or O "
-                             "(default: the ligand atoms).")
+                        help="Left-fragment formula, e.g. H4 or O; without "
+                             "--pyscf this selects the two-fragment "
+                             "extended-Hueckel diagram (with --pyscf, "
+                             "default: the ligand atoms).")
     parser.add_argument("--ao-right", default=None, metavar="FORMULA",
-                        help="Right-fragment formula for --pyscf, e.g. CO or O "
-                             "(default: the central atom).")
+                        help="Right-fragment formula, e.g. CO or O "
+                             "(with --pyscf, default: the central atom).")
     return parser
 
 
 def main(argv: list[str] | None = None) -> None:
+    from .cli.common import print_crystod_citation
+
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.pyscf:
         from .mo_diagram_pyscf import run_pyscf_diagram
 
         run_pyscf_diagram(args)
+        print_crystod_citation()
         return
     if args.ao_left or args.ao_right:
-        parser.error("--ao-left/--ao-right require --pyscf.")
+        from .mo_diagram_fragment import run_fragment_diagram
+
+        run_fragment_diagram(args)
+        print_crystod_citation()
+        return
     diagram = MODiagram(args.xyz, args.tolerance, args.center)
     diagram.print_report()
     stem = os.path.splitext(os.path.basename(args.xyz))[0]
     output_path = args.output or f"MolOD_{stem}.html"
     diagram.write_html(output_path)
     print(f"\nMO diagram written to {output_path}")
+    print_crystod_citation()
     print()
 
 

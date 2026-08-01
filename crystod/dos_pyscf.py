@@ -294,9 +294,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--verbose", type=int, default=0)
     args = parser.parse_args(argv)
 
-    from phonopy.interface.calculator import read_crystal_structure
+    from .star_of_k import read_poscar_or_exit
 
-    cell, _ = read_crystal_structure(args.poscar, interface_mode="vasp")
+    cell = read_poscar_or_exit(args.poscar)
     stem = Path(args.poscar).name
     for extension in (".vasp", ".poscar"):
         if stem.lower().endswith(extension):

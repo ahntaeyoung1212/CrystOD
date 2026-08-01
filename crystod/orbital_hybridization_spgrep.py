@@ -689,7 +689,9 @@ def split_element_orbital(token: str) -> tuple[str, str]:
 def main(argv: Optional[list[str]] = None) -> None:
     args = build_parser().parse_args(argv)
 
-    cell, _ = read_crystal_structure(args.poscar, interface_mode='vasp')
+    from .star_of_k import read_poscar_or_exit
+
+    cell = read_poscar_or_exit(args.poscar)
     crystal_orbital = CrystalOrbital(cell=cell, symprec=args.tolerance, spior=args.spinor)
 
     input_orbitals = args.orbital

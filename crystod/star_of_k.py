@@ -161,7 +161,7 @@ def read_poscar_or_exit(poscar_path: str):
     import os
 
     if not os.path.isfile(poscar_path):
-        raise SystemExit(f"ERROR: POSCAR file not found: '{poscar_path}'")
+        raise SystemExit(f"ERROR: No POSCAR named {poscar_path}!")
     cell, _ = read_crystal_structure(poscar_path, interface_mode="vasp")
     if cell is None:
         raise SystemExit(f"ERROR: failed to read POSCAR file: '{poscar_path}'")

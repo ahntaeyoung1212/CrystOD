@@ -212,7 +212,7 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
                      kmesh=None, ke_cutoff=200.0, sigma=0.0,
                      degeneracy_tol=None, align=True, no_ghost=False,
                      symmetrize=True, max_l=None, projection="lowdin",
-                     chk=None, verbose=0):
+                     chk=None, conventional=False, verbose=0):
     """Solve the three periodic SCFs and write one viewer page per k."""
     from .crystal_orbital_pyscf import PySCFCrystalOrbitalDiagram
     from .crystal_orbital_spgrep import format_kpoint
@@ -361,6 +361,7 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
             title=(f"PySCF levels: {described} ({diagram.xc.upper()}) "
                    f"at {name} {format_kpoint(kpoint)}"),
             info=info, bonds=bonds,
+            conventional=conventional,
             level_modes=level_modes,
             basis_heading="PySCF levels (click to show)",
         )
@@ -423,14 +424,17 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--projection", choices=("lowdin", "mulliken"),
                         default="lowdin")
     parser.add_argument("--chk", default=None, metavar="FILE")
+    parser.add_argument("--conventional", action="store_true",
+                        help="display in the conventional cell instead of "
+                        "the primitive k-commensurate supercell")
     parser.add_argument("--output", default=None)
     parser.add_argument("--tolerance", type=float, default=1e-5)
     parser.add_argument("--verbose", type=int, default=0)
     args = parser.parse_args(argv)
 
-    from phonopy.interface.calculator import read_crystal_structure
+    from .star_of_k import read_poscar_or_exit
 
-    cell, _ = read_crystal_structure(args.poscar, interface_mode="vasp")
+    cell = read_poscar_or_exit(args.poscar)
     stem = Path(args.poscar).name
     for extension in (".vasp", ".poscar"):
         if stem.lower().endswith(extension):
@@ -467,6 +471,7 @@ def main(argv: list[str] | None = None) -> None:
         max_l=args.max_l,
         projection=args.projection,
         chk=args.chk,
+        conventional=args.conventional,
         verbose=args.verbose,
     )
 
