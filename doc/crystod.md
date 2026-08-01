@@ -336,6 +336,16 @@ F-2p — the paradigmatic perovskite crystal orbital diagram.
   core), filling the flat core levels and exactly the anion valence
   manifolds — the d0 insulator; `--electrons N` overrides;
 - `--kpoint GM` restricts the analysis to one special point (labels only);
+- `--conventional` draws the hover sketches in the **conventional cell**
+  of the detected centring instead of the primitive k-commensurate
+  supercell (same flag as the SALC viewer, works with `--pyscf` too):
+  every atom is wrapped into the conventional cell with its own
+  primitive-lattice translation, carrying the exact Bloch phase — ZrO2
+  Fm-3m shows the full 12-atom fluorite cube at GM and X instead of the
+  3-atom rhombohedral cell (times commensurate multiples where the k
+  point needs them: 2x1x1 at W, 2x2x2 at L; the sketch caption names the
+  displayed cell). Display-only: the diagram, the populations and any
+  `--chk` are untouched;
 - `--output`/`--tolerance` as usual. Note that the irrep labels at
   zone-boundary points depend on the origin of the input structure (as in
   every SALC analysis); use the setting of your reference when comparing.
@@ -491,6 +501,72 @@ pairs, |H|, ΔE, mixing fraction, per k point, aligned scale) are written to
 labeled `GM4- #2` — the second GM4⁻ multiplet from the bottom, the same
 `#N` convention as the fragment columns (`GM4-(2)` read like a degeneracy
 count); the extended-Hückel `--diagram` uses the same format.
+**`--onsite` — the single-Hamiltonian diagram.** The default mode solves
+each fragment as its own SCF (formal-charge ions + point charges + ghost
+basis), so the three columns live on three different electrostatic
+references; deep-level alignment removes one rigid constant per column,
+but the *site-dependent* part of the point-charge-model error remains — a
+weakly bonding level can appear ~1.5 eV *above* its parent (SrTiO3: the
+chemically inert Sr 4s column proves the shift is pure environment).
+`--onsite` removes the problem structurally: only the crystal SCF runs,
+and the fragment columns are the **per-(element, shell) on-site
+multiplets of the converged crystal Fock** — F(k) diagonalized within
+each shell's own symmetry-adapted Bloch orbitals (⟨φ|F|φ⟩, one level per
+induced irrep, no cross-shell mixing). Whole-sublattice blocks are *not*
+used: with a diffuse basis the raw AO block lets cation functions fall
+variationally into the removed side's potential wells (disguised anion
+states), and orthogonalized blocks load strongly-overlapped shells with
+large orthogonalization penalties — the per-shell Rayleigh quotient has
+no variational freedom to abuse. No point charges, no alignment: a
+crystal level's drop or rise against its parents is the orbital
+interaction (level repulsion/hybridization), cross-shell and left–right
+alike. Column occupations stay the formal ionic counts (a display
+convention). A full-run `--chk` is reused (only the crystal density is
+read; a fresh `--onsite` run with `--chk` saves a crystal-only
+checkpoint, which a later full-mode run rejects with a clear message).
+`crystod --dos --pyscf` takes `--onsite` as well — the DOS never needs
+the fragment densities, so it runs on the single SCF and accepts the
+crystal-only checkpoints.
+
+**Regression test.** Testsuite section 3 exercises this engine with a
+deliberately small run, skipped when pyscf is not installed:
+`--diagram --pyscf --onsite` on NaCl at X with `--kmesh 1 1 1
+--ke-cutoff 80`, which needs a single crystal SCF and about a minute of
+wall clock. It asserts the report (one SCF and no fragment SCF, the
+`D+ S D = S` verification, the induced representations of every shell,
+the Cl-3p valence band bonding with Na 3p, the written coupling table)
+and two invariants of the embedded wave-function sketches, which manual
+inspection alone used to cover: the drawn σ lobe phases along the Na–Cl
+bonds must reproduce the bonding/antibonding letter that the engine
+derives independently from the COOP overlap population, and the Na/Cl
+ratio of the p-channel lobe sizes must equal the square root of the
+ratio of the level's Löwdin populations — the per-(atom, l) calibration
+described above, whose collapse the earlier extended-Hückel tests could
+not see. A `--conventional` rerun against the written `--chk` then
+covers the conventional-cell display path with no second SCF.
+
+**Band structure, fatbands and DOS from the same checkpoint.** Before
+zooming into the special k points with the diagram, read the whole band
+structure: `crystod --band --pyscf -c POSCAR --chk FILE [--fatband]`
+diagonalizes the recorded density matrix non-self-consistently along the
+automatic seekpath high-symmetry path (VASP-style two-step; no new SCF
+with a matching `--chk`). E_F/VBM/CBM come from a zero-temperature
+filling of the uniform SCF mesh (metal-safe), the plots are
+VBM-referenced, and the terminal names the band-edge k points (ScF3: VBM
+at R, CBM at Γ, gap 5.199 eV — exactly the `--dos` mesh gap).
+`--fatband` adds the element-projected overview (VESTA colors) plus one
+page per element with the s/p/d/f breakdown, using the same
+`--projection` measure as the DOS and the diagram compositions; outputs
+are `BAND_<structure>.pdf` (+ `_fatband*.pdf`), a CSV of every band
+energy and weight, and a TXT summary. `crystod --dos --pyscf` is the
+k-integrated companion (Gaussian-broadened total DOS + element×angular
+PDOS + partial charges in both Löwdin and Mulliken conventions, on a
+dense `--dos-kmesh`). Both accept `--onsite` and share one checkpoint
+with the diagram runs. `crystod --chk-info FILE` prints the conditions
+a (binary) checkpoint stores — method, k-mesh, fragments, which
+densities it holds — plus a ready-to-paste option string that
+reproduces them, so a parameter-mismatch error never needs guesswork.
+
 The hover wave-function sketches are embedded here too, drawn from the PySCF
 AO coefficients: lobe signs and orientation come from the r0 = 2 bohr radial
 amplitudes (so semicore orthogonalization tails keep their inverted phases),
@@ -566,10 +642,11 @@ deep-level-aligned scale, so the Sc, F3 and crystal pages are directly
 comparable (`--no-align` keeps the raw references). Clicking a row draws
 the eigenvector's wave function: every element, all shells s..f, lobe
 sizes calibrated to the `--projection` populations with one shared
-normalization per level, on the k-commensurate display cell with the
-usual VESTA-style bonds and polyhedra. All `--diagram --pyscf` options
-apply; with a shared `--chk` the three commands above pay the SCF once
-(~5 s per page set afterwards). The default energy window is
+normalization per level, on the k-commensurate display cell (or the
+conventional cell with `--conventional`, as in the classic viewer) with
+the usual VESTA-style bonds and polyhedra. All `--diagram --pyscf`
+options apply; with a shared `--chk` the three commands above pay the
+SCF once (~5 s per page set afterwards). The default energy window is
 HOMO−15 .. LUMO+10 eV of the displayed column (`--window LO HI`
 overrides; a full fragment spectrum would put hundreds of plotly
 surfaces on one page).
