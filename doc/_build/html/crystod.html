@@ -327,6 +327,7 @@
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#star-of-k">4. Star of k</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pyscf-eigen-levels-in-the-viewer-visualize-pyscf">PySCF eigen-levels in the viewer (<code class="docutils literal notranslate"><span class="pre">--visualize</span> <span class="pre">--pyscf</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-1-sc-d-orbitals-of-scf3-at-the-r-point">Example 1: Sc d orbitals of ScF3 at the R point</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-2-ce-f-orbitals-of-ceo2-in-the-conventional-cell-conventional">Example 2: Ce f orbitals of CeO2 in the conventional cell (<code class="docutils literal notranslate"><span class="pre">--conventional</span></code>)</a></li>
 </ul>
@@ -627,13 +628,17 @@ without a partner remain rigorously nonbonding — the COD mixing rule;</p></li>
 point</strong> (buttons switch the k point): fragment | crystal orbitals |
 fragment columns, correlation lines weighted by the composition,
 electron arrows, HOMO/LUMO markers, and the adjustable energy window,
-which opens on <strong>-20 .. 10 eV</strong> (“Show all energy levels” reveals the
-core shells). <code class="docutils literal notranslate"><span class="pre">--atomic-orbital</span></code> (optional) selects the atomic orbitals
-drawn in the hover <strong>wave-function sketch</strong>: Re[psi] of exactly those
-components (<code class="docutils literal notranslate"><span class="pre">Ti-3d</span> <span class="pre">Ti-4s</span> <span class="pre">O-2p</span></code>; <code class="docutils literal notranslate"><span class="pre">Ti-d</span></code> = all d shells; core tokens
-like <code class="docutils literal notranslate"><span class="pre">F-1s</span></code> work too) on the k-commensurate supercell (2x2x2 at R,
-…) with VESTA-style +/- lobes (drag-rotatable, degenerate partners
-switchable); without <code class="docutils literal notranslate"><span class="pre">--atomic-orbital</span></code> no sketches are embedded.</p></li>
+which opens on <strong>±8 eV around the HOMO/LUMO midpoint</strong> (the VBM/CBM
+region; “Show all energy levels” reveals the core shells). Every level
+carries a hover <strong>wave-function sketch</strong>: Re[psi] of all its
+atomic-orbital components on the k-commensurate supercell (2x2x2 at R,
+…) with VESTA-style +/- lobes and VESTA-style periodic boundary
+conditions — atoms on the supercell boundary are drawn at every
+translationally equivalent position (a corner atom at all eight
+corners) with <em>identical</em> lobes, since the Bloch function is exactly
+periodic over the k-commensurate supercell (e^{ik·T_super} = 1), and
+the supercell outline appears as a dashed frame (drag-rotatable,
+degenerate partners switchable).</p></li>
 </ol>
 <p>For ScF3 (<code class="docutils literal notranslate"><span class="pre">--co-left</span> <span class="pre">Sc</span> <span class="pre">--co-right</span> <span class="pre">F3</span></code>) the diagram shows the textbook
 result: the fragment Sc-3d states split into t2g below eg (the octahedral
@@ -738,12 +743,143 @@ and the same-irrep coupling <code class="docutils literal notranslate"><span cla
 crystal Fock operator with the resulting two-level mixing fraction, since two
 levels of one irrep only mix appreciably when that matrix element is large
 compared with their separation.</p>
+<p>Crystal-orbital lines are colored by <strong>bonding character</strong> (extended-
+Hückel and <code class="docutils literal notranslate"><span class="pre">--pyscf</span></code> alike, and the same applies to the molecular
+<code class="docutils literal notranslate"><span class="pre">crystod-mol</span> <span class="pre">--diagram</span></code> pages): blue = bonding, black = nonbonding,
+red = antibonding, from the COOP-style left–right overlap population
+P = 2 Re[c_L† S_LR c_R] of each eigenstate (charge accumulated between
+the sublattices; exactly 0 for symmetry-nonbonding states; the value
+appears in the level tooltip and the legend in the page footer). The
+fragment/sublattice columns are drawn in the <strong>VESTA color of each
+level’s dominant element</strong> — a composite sublattice like SrTi shows Sr
+levels in the Sr color and Ti levels in the Ti color — with occupation
+still visible through the electron arrows. Semicore orthogonality tails (shells
+whose own bands lie ≥ 10 eV below their fragment column’s HOMO) are
+excluded unless the level <em>is</em> that semicore band — with the Sc 3s tail
+included, the bonding σ R1+ of ScF3 would read P = −0.015 instead of
++0.112. Antibonding |P| is systematically larger than bonding |P| (the
+usual non-orthogonal COOP asymmetry).</p>
+<p>The raw SCF has <strong>no point-group constraint</strong>: the FFT grid breaks
+degeneracies numerically (&lt;1 meV for semilocal functionals, but several
+0.1 eV for grid-evaluated exact exchange of hybrids at low cutoffs). All
+displayed levels are therefore re-diagonalized from the <strong>group-averaged
+Fock</strong> F̄ = (1/|G|) Σ_g D(g)† F D(g), which is exactly invariant under the
+verified AO representation — degeneracies are exact by construction, and the
+raw breaking magnitude is printed per k point (<code class="docutils literal notranslate"><span class="pre">--no-symmetrize</span></code> disables
+this for debugging). <code class="docutils literal notranslate"><span class="pre">--max-l</span> <span class="pre">L</span></code> drops basis shells above l = L, e.g.
+<code class="docutils literal notranslate"><span class="pre">--max-l</span> <span class="pre">2</span></code> removes the f polarization functions whose tails otherwise
+appear as small cation-4f weights in the anion-p valence compositions.</p>
+<p>A fragment level may carry weight on the <strong>ghost basis</strong> of the removed
+sublattice — the symmetry-allowed variational tail of the fragment density
+toward the point charges (for ScF3 it appears exactly in the irreps with a
+Sc partner: GM4⁻ = Sc p, R1⁺ = Sc s, and not in GM5⁻). Fragment sketches
+therefore draw only the fragment’s own components, and the ghost weight of
+each level is reported in the terminal and in the Level-details panel.
+<code class="docutils literal notranslate"><span class="pre">--no-ghost</span></code> applies the hard constraint instead: the removed sublattice’s
+functions are excluded from the fragment variational space entirely (no
+fragment wave function can sit on the removed atoms; costs the counterpoise
+consistency — ~2 mHa BSSE per ScF3 fragment — and shifts some crystal-orbital
+composition onto the other fragment’s polarization shells, which then have to
+describe the tail region).</p>
+<p>The <strong>composition list</strong> — the Level-details bars, the hover tooltip and
+the terminal all quote one identical list — is the per-(element, shell)
+<strong>AO population of the PySCF eigenvector</strong> (the same partial-charge measure
+as <code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--dos</span> <span class="pre">--pyscf</span></code>): Löwdin |coefficient|² in the symmetrically
+orthogonalized basis by default — the orthonormal set closest to the atomic
+orbitals, i.e. the intuitive “squared LCAO weight” made rigorous for a
+non-orthogonal basis (non-negative, summing to exactly 100%; Mulliken’s
+overlap cross terms instead go negative or overshoot on diffuse empty
+levels). Symmetry does the orbital selection: a crystal state of irrep Γ
+only picks up the Γ-adapted combination of each shell (symmetry-forbidden
+shells project to ~0 and are culled at 0.1%), so every entry carries the
+crystal irrep — <code class="docutils literal notranslate"><span class="pre">Sc</span> <span class="pre">3d</span> <span class="pre">R5+</span> <span class="pre">76.0%</span></code>. Projections onto the <em>fragment
+eigenstates</em> are deliberately <strong>not</strong> displayed as percentages (they still
+position the correlation lines and the alignment anchors): a fragment level
+such as “Sc 3d R5+” itself mixes 3d and 4d AO character, so its weights
+disagree with the AO populations, and the two lists shown side by side
+read as a contradiction.</p>
 <p>Options: <code class="docutils literal notranslate"><span class="pre">--basis</span></code> (default <code class="docutils literal notranslate"><span class="pre">gth-dzvp-molopt-sr</span></code>), <code class="docutils literal notranslate"><span class="pre">--pseudo</span></code> (default
 <code class="docutils literal notranslate"><span class="pre">gth-pbe</span></code>), <code class="docutils literal notranslate"><span class="pre">--xc</span></code> (default <code class="docutils literal notranslate"><span class="pre">pbe</span></code>, or <code class="docutils literal notranslate"><span class="pre">hf</span></code>), <code class="docutils literal notranslate"><span class="pre">--ke-cutoff</span></code> (default 200
-Hartree), <code class="docutils literal notranslate"><span class="pre">--kmesh</span></code>, <code class="docutils literal notranslate"><span class="pre">--sigma</span></code> (Fermi smearing in eV; the driver retries a
-non-converging SCF with 0.2 eV automatically and reports it). The hover
-wave-function sketches (<code class="docutils literal notranslate"><span class="pre">--atomic-orbital</span></code>) belong to the extended-Hueckel
-diagram and are not available with <code class="docutils literal notranslate"><span class="pre">--pyscf</span></code>.</p>
+Hartree), <code class="docutils literal notranslate"><span class="pre">--kmesh</span></code>, <code class="docutils literal notranslate"><span class="pre">--sigma</span></code> (Fermi smearing in eV; a non-converging SCF
+escalates through a smearing/level-shift ladder automatically and reports it).
+<code class="docutils literal notranslate"><span class="pre">--chk</span> <span class="pre">FILE</span></code> is the WAVECAR analogue: after the SCFs the three converged
+density matrices (all the band step needs) and the defining parameters are
+saved to FILE, and a rerun with the file present skips all three SCFs — the
+parameters are verified first, and a mismatch aborts naming the offending
+options. <code class="docutils literal notranslate"><span class="pre">--projection</span> <span class="pre">lowdin|mulliken</span></code> selects the population measure for
+the sketch lobe sizes and the per-(element, shell) rows (default Löwdin;
+the two measures agree in kind on occupied levels but disagree strongly on
+diffuse empty ones, where atomic attribution is convention-dependent). The
+full same-irrep resonance-integral tables <code class="docutils literal notranslate"><span class="pre">&lt;φ_left|F(k)|φ_right&gt;</span></code> (all
+pairs, |H|, ΔE, mixing fraction, per k point, aligned scale) are written to
+<code class="docutils literal notranslate"><span class="pre">&lt;output-stem&gt;_coupling.txt</span></code> next to the HTML. Crystal-column levels are
+labeled <code class="docutils literal notranslate"><span class="pre">GM4-</span> <span class="pre">#2</span></code> — the second GM4⁻ multiplet from the bottom, the same
+<code class="docutils literal notranslate"><span class="pre">#N</span></code> convention as the fragment columns (<code class="docutils literal notranslate"><span class="pre">GM4-(2)</span></code> read like a degeneracy
+count); the extended-Hückel <code class="docutils literal notranslate"><span class="pre">--diagram</span></code> uses the same format.
+<strong><code class="docutils literal notranslate"><span class="pre">--onsite</span></code> — the single-Hamiltonian diagram.</strong> The default mode solves
+each fragment as its own SCF (formal-charge ions + point charges + ghost
+basis), so the three columns live on three different electrostatic
+references; deep-level alignment removes one rigid constant per column,
+but the <em>site-dependent</em> part of the point-charge-model error remains — a
+weakly bonding level can appear ~1.5 eV <em>above</em> its parent (SrTiO3: the
+chemically inert Sr 4s column proves the shift is pure environment).
+<code class="docutils literal notranslate"><span class="pre">--onsite</span></code> removes the problem structurally: only the crystal SCF runs,
+and the fragment columns are the <strong>per-(element, shell) on-site
+multiplets of the converged crystal Fock</strong> — F(k) diagonalized within
+each shell’s own symmetry-adapted Bloch orbitals (⟨φ|F|φ⟩, one level per
+induced irrep, no cross-shell mixing). Whole-sublattice blocks are <em>not</em>
+used: with a diffuse basis the raw AO block lets cation functions fall
+variationally into the removed side’s potential wells (disguised anion
+states), and orthogonalized blocks load strongly-overlapped shells with
+large orthogonalization penalties — the per-shell Rayleigh quotient has
+no variational freedom to abuse. No point charges, no alignment: a
+crystal level’s drop or rise against its parents is the orbital
+interaction (level repulsion/hybridization), cross-shell and left–right
+alike. Column occupations stay the formal ionic counts (a display
+convention). A full-run <code class="docutils literal notranslate"><span class="pre">--chk</span></code> is reused (only the crystal density is
+read; a fresh <code class="docutils literal notranslate"><span class="pre">--onsite</span></code> run with <code class="docutils literal notranslate"><span class="pre">--chk</span></code> saves a crystal-only
+checkpoint, which a later full-mode run rejects with a clear message).
+<code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--dos</span> <span class="pre">--pyscf</span></code> takes <code class="docutils literal notranslate"><span class="pre">--onsite</span></code> as well — the DOS never needs
+the fragment densities, so it runs on the single SCF and accepts the
+crystal-only checkpoints.</p>
+<p><strong>Band structure, fatbands and DOS from the same checkpoint.</strong> Before
+zooming into the special k points with the diagram, read the whole band
+structure: <code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--band</span> <span class="pre">--pyscf</span> <span class="pre">-c</span> <span class="pre">POSCAR</span> <span class="pre">--chk</span> <span class="pre">FILE</span> <span class="pre">[--fatband]</span></code>
+diagonalizes the recorded density matrix non-self-consistently along the
+automatic seekpath high-symmetry path (VASP-style two-step; no new SCF
+with a matching <code class="docutils literal notranslate"><span class="pre">--chk</span></code>). E_F/VBM/CBM come from a zero-temperature
+filling of the uniform SCF mesh (metal-safe), the plots are
+VBM-referenced, and the terminal names the band-edge k points (ScF3: VBM
+at R, CBM at Γ, gap 5.199 eV — exactly the <code class="docutils literal notranslate"><span class="pre">--dos</span></code> mesh gap).
+<code class="docutils literal notranslate"><span class="pre">--fatband</span></code> adds the element-projected overview (VESTA colors) plus one
+page per element with the s/p/d/f breakdown, using the same
+<code class="docutils literal notranslate"><span class="pre">--projection</span></code> measure as the DOS and the diagram compositions; outputs
+are <code class="docutils literal notranslate"><span class="pre">BAND_&lt;structure&gt;.pdf</span></code> (+ <code class="docutils literal notranslate"><span class="pre">_fatband*.pdf</span></code>), a CSV of every band
+energy and weight, and a TXT summary. <code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--dos</span> <span class="pre">--pyscf</span></code> is the
+k-integrated companion (Gaussian-broadened total DOS + element×angular
+PDOS + partial charges in both Löwdin and Mulliken conventions, on a
+dense <code class="docutils literal notranslate"><span class="pre">--dos-kmesh</span></code>). Both accept <code class="docutils literal notranslate"><span class="pre">--onsite</span></code> and share one checkpoint
+with the diagram runs. <code class="docutils literal notranslate"><span class="pre">crystod</span> <span class="pre">--chk-info</span> <span class="pre">FILE</span></code> prints the conditions
+a (binary) checkpoint stores — method, k-mesh, fragments, which
+densities it holds — plus a ready-to-paste option string that
+reproduces them, so a parameter-mismatch error never needs guesswork.</p>
+<p>The hover wave-function sketches are embedded here too, drawn from the PySCF
+AO coefficients: lobe signs and orientation come from the r0 = 2 bohr radial
+amplitudes (so semicore orthogonalization tails keep their inverted phases),
+while lobe <strong>sizes</strong> follow the per-(atom, l) Löwdin population — a diffuse
+gth-dzvp Sc 4p has 5.4x the amplitude of an F 2p at r0, which used to draw an
+~8%-population Sc admixture at 83% of the largest F lobe; it now draws at its
+electron weight (~0.4 relative). The calibration factor of each (atom, l)
+channel comes from the multiplet-summed populations, so symmetry-equivalent
+atoms draw exactly equal lobes and the sigma/pi contrast between degenerate
+partners survives. For speed, the SCF solves only the irreducible wedge of the
+k-mesh and the fragments start from the crystal density restricted to their
+own sublattice block; <code class="docutils literal notranslate"><span class="pre">--ke-cutoff</span> <span class="pre">100</span></code> roughly halves the cost and
+<code class="docutils literal notranslate"><span class="pre">--basis</span> <span class="pre">gth-szv-molopt-sr</span></code> is a fast draft mode. crystod sets the PySCF
+OpenMP thread count to all cores automatically – but note that the macOS
+pip wheels of pyscf are built <em>without</em> OpenMP (a warning is printed), in
+which case each run is single-threaded and the way to use a many-core
+machine is to run several systems in parallel.</p>
 </section>
 </section>
 <section id="star-of-k">
@@ -772,6 +908,58 @@ crystod<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/22
 crystod<span class="w"> </span>-c<span class="w"> </span>example/test_POSCARs/221_PPOSCAR_ScF3<span class="w"> </span>--element<span class="w"> </span>F<span class="w"> </span>--orbital<span class="w"> </span>p<span class="w"> </span>--kpoint<span class="w"> </span>GM<span class="w"> </span>--output<span class="w"> </span>SALC_F-p_GM.html<span class="w"> </span>--visualize
 </pre></div>
 </div>
+<section id="pyscf-eigen-levels-in-the-viewer-visualize-pyscf">
+<h3>PySCF eigen-levels in the viewer (<code class="docutils literal notranslate"><span class="pre">--visualize</span> <span class="pre">--pyscf</span></code>)<a class="headerlink" href="#pyscf-eigen-levels-in-the-viewer-visualize-pyscf" title="Link to this heading">#</a></h3>
+<p>The SALCs above are the symmetry-adapted <em>basis</em> — the states before any
+Hamiltonian. With <code class="docutils literal notranslate"><span class="pre">--pyscf</span></code> the same page shows the actual <strong>PySCF
+eigenstates</strong>, either of one fragment sublattice (the pre-bonding states
+in the removed sublattice’s point-charge field, exactly the
+<code class="docutils literal notranslate"><span class="pre">--diagram</span> <span class="pre">--pyscf</span></code> columns) or of the full crystal (the states after
+bonding):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>--visualize<span class="w"> </span>--pyscf<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--sublattice<span class="w"> </span>Sc<span class="w"> </span>--bond<span class="w"> </span>Sc<span class="w"> </span>F<span class="w"> </span><span class="m">3</span><span class="w"> </span>--real-coefficient<span class="w"> </span>--chk<span class="w"> </span>scf3.chk
+crystod<span class="w"> </span>--visualize<span class="w"> </span>--pyscf<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--sublattice<span class="w"> </span>F3<span class="w"> </span>--bond<span class="w"> </span>Sc<span class="w"> </span>F<span class="w"> </span><span class="m">3</span><span class="w"> </span>--real-coefficient<span class="w"> </span>--chk<span class="w"> </span>scf3.chk
+crystod<span class="w"> </span>--visualize<span class="w"> </span>--pyscf<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--bond<span class="w"> </span>Sc<span class="w"> </span>F<span class="w"> </span><span class="m">3</span><span class="w"> </span>--real-coefficient<span class="w"> </span>--chk<span class="w"> </span>scf3.chk
+</pre></div>
+</div>
+<p>No <code class="docutils literal notranslate"><span class="pre">--element/--orbital/--kpoint</span></code> are needed: the special k points come
+from the space group automatically (one page per k point; <code class="docutils literal notranslate"><span class="pre">--kpoint</span> <span class="pre">GM</span></code>
+restricts the output). The SALC-basis table becomes <strong>Mode | Irrep |
+Comp. | Energy (eV)</strong> — one row per degenerate partner, level labels in
+the diagram convention (<code class="docutils literal notranslate"><span class="pre">GM4-</span> <span class="pre">#2</span></code>, <code class="docutils literal notranslate"><span class="pre">Sc</span> <span class="pre">3d</span> <span class="pre">R3+</span></code>), energies on the shared
+deep-level-aligned scale, so the Sc, F3 and crystal pages are directly
+comparable (<code class="docutils literal notranslate"><span class="pre">--no-align</span></code> keeps the raw references). Clicking a row draws
+the eigenvector’s wave function: every element, all shells s..f, lobe
+sizes calibrated to the <code class="docutils literal notranslate"><span class="pre">--projection</span></code> populations with one shared
+normalization per level, on the k-commensurate display cell with the
+usual VESTA-style bonds and polyhedra. All <code class="docutils literal notranslate"><span class="pre">--diagram</span> <span class="pre">--pyscf</span></code> options
+apply; with a shared <code class="docutils literal notranslate"><span class="pre">--chk</span></code> the three commands above pay the SCF once
+(~5 s per page set afterwards). The default energy window is
+HOMO−15 .. LUMO+10 eV of the displayed column (<code class="docutils literal notranslate"><span class="pre">--window</span> <span class="pre">LO</span> <span class="pre">HI</span></code>
+overrides; a full fragment spectrum would put hundreds of plotly
+surfaces on one page).</p>
+<p><code class="docutils literal notranslate"><span class="pre">--diagonalize</span></code> canonicalizes the degenerate partners (RREF, as in the
+diagram sketches): the SCF returns an arbitrary unitary mixture within
+a multiplet, which draws e.g. a tilted d_z², and the canonical rotation
+makes the components axis-aligned (the R5+ t2g triplet of ScF3 becomes
+pure d_xy / d_yz / d_xz) — energies are unchanged. Each channel’s sign
+is probed at the radius (1.5–3 bohr) where its accumulated amplitude is
+largest, since a fixed radius can sit on an orthogonalization node.
+Reading note: a valence level can <em>faithfully</em> look “antibonding” around
+a semicore-carrying atom — the F 2p σ R1+ level of ScF3 carries
+Sc 3s(semicore) c = +0.26 vs Sc 4s c = +0.05, so the true wave function
+(verified against real-space <code class="docutils literal notranslate"><span class="pre">pbc_eval_gto</span></code>) has a radial node 0.7 Å
+from Sc and is negative near the atom: the orthogonality tail against
+the −50 eV Sc 3s band, not a drawing error. The scale separation is the
+⟨r⟩ one: in this basis ⟨r⟩(Sc 3s) = 0.77 Å vs ⟨r⟩(Sc 4s) = 1.86 Å
+against the 2.03 Å bond — the compact semicore shell cannot bond, its
+admixture is on-site orthogonality. <code class="docutils literal notranslate"><span class="pre">--valence-only</span></code> applies exactly
+this reasoning to the drawing: shells whose occupied fragment bands lie
+more than 12 eV below the crystal VBM on the aligned scale (Sc 3s, Sc
+3p, F 2s here; detected automatically and printed) are dropped from the
+drawn wave functions, so the σ level shows its bonding Sc 4s component
+(Sc s flips from −0.48 to +0.47 against the same F p lobes), while
+levels a semicore shell dominates — the semicore bands themselves —
+keep it.</p>
 <p>The irreducible decomposition is consistent with the plain SALC analysis
 (e.g. <code class="docutils literal notranslate"><span class="pre">2.0</span> <span class="pre">[GM4-(3)]</span> <span class="pre">+</span> <span class="pre">1.0</span> <span class="pre">[GM5-(3)]</span></code> for F_p at GM in Pm-3m ScF3).
 <code class="docutils literal notranslate"><span class="pre">--kpoint</span></code> accepts either three primitive reciprocal coordinates or a
@@ -813,6 +1001,7 @@ coordination polyhedra around the EL1 atoms as translucent convex hulls, as
 in VESTA’s Polyhedral style; atoms at the cell boundary are completed
 VESTA-style so the polyhedra are not cut off.</p></li>
 </ul>
+</section>
 <section id="example-1-sc-d-orbitals-of-scf3-at-the-r-point">
 <h3>Example 1: Sc d orbitals of ScF3 at the R point<a class="headerlink" href="#example-1-sc-d-orbitals-of-scf3-at-the-r-point" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod<span class="w"> </span>-c<span class="w"> </span>221_PPOSCAR_ScF3<span class="w"> </span>--element<span class="w"> </span>Sc<span class="w"> </span>--orbital<span class="w"> </span>d<span class="w"> </span>--kpoint<span class="w"> </span>R<span class="w"> </span>--visualize<span class="w"> </span>--real-coefficient<span class="w"> </span>--bond<span class="w"> </span>Sc<span class="w"> </span>F<span class="w"> </span><span class="m">2</span>.5
@@ -914,6 +1103,7 @@ basis choice within the irrep space is rotated.</p></li>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#star-of-k">4. Star of k</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#salc-basis-visualization-visualize">5. SALC basis visualization (<code class="docutils literal notranslate"><span class="pre">--visualize</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pyscf-eigen-levels-in-the-viewer-visualize-pyscf">PySCF eigen-levels in the viewer (<code class="docutils literal notranslate"><span class="pre">--visualize</span> <span class="pre">--pyscf</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-1-sc-d-orbitals-of-scf3-at-the-r-point">Example 1: Sc d orbitals of ScF3 at the R point</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-2-ce-f-orbitals-of-ceo2-in-the-conventional-cell-conventional">Example 2: Ce f orbitals of CeO2 in the conventional cell (<code class="docutils literal notranslate"><span class="pre">--conventional</span></code>)</a></li>
 </ul>

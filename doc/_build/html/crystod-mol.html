@@ -335,9 +335,10 @@
                   
   <section class="tex2jax_ignore mathjax_ignore" id="crystod-mol">
 <h1>crystod-mol<a class="headerlink" href="#crystod-mol" title="Link to this heading">#</a></h1>
-<p>Molecular point-group detection, molecular SALCs, and molecular-orbital
-diagrams — the molecular counterpart of the crystalline analyses, working on
-molecules (XYZ files) instead of periodic structures.</p>
+<p>Molecular point-group detection, molecular SALCs (symmetry-adapted linear
+combinations of atomic orbitals), and molecular-orbital diagrams — the
+molecular counterpart of the crystalline analyses, working on molecules (XYZ
+coordinate files) instead of periodic structures.</p>
 <section id="molecular-point-groups-and-molecular-salcs">
 <h2>32. Molecular point groups and molecular SALCs<a class="headerlink" href="#molecular-point-groups-and-molecular-salcs" title="Link to this heading">#</a></h2>
 <p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/32_molecular_salc</span></code> (testsuite section 32;
@@ -356,20 +357,28 @@ molecule files in <code class="docutils literal notranslate"><span class="pre">e
 <span class="n">D</span><span class="o">*</span><span class="n">h</span> <span class="p">(</span><span class="n">linear</span> <span class="n">molecule</span><span class="p">;</span> <span class="n">continuous</span> <span class="n">non</span><span class="o">-</span><span class="n">crystallographic</span> <span class="n">group</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>For the 32 crystallographic point groups, the Hermann-Mauguin symbol and the
-symmetry operations grouped by class are printed as well (e.g. NH3:
-<code class="docutils literal notranslate"><span class="pre">C3v</span> <span class="pre">(Hermann-Mauguin:</span> <span class="pre">3m)</span></code>, <code class="docutils literal notranslate"><span class="pre">E,</span> <span class="pre">2C3,</span> <span class="pre">3sgv</span></code>). <code class="docutils literal notranslate"><span class="pre">--tolerance</span></code> (Angstrom,
-default 0.3 as in pymatgen) controls the symmetry detection, like
-<code class="docutils literal notranslate"><span class="pre">phonopy</span> <span class="pre">--tolerance</span></code>.</p>
+<p>For the 32 crystallographic point groups, the report also prints the
+Hermann-Mauguin symbol — the international crystallographic name of the group,
+as opposed to the Schoenflies name used above — and the symmetry operations
+sorted into classes, i.e. sets of operations that the group maps onto one
+another and that therefore share the same character (e.g. NH3:
+<code class="docutils literal notranslate"><span class="pre">C3v</span> <span class="pre">(Hermann-Mauguin:</span> <span class="pre">3m)</span></code>, <code class="docutils literal notranslate"><span class="pre">E,</span> <span class="pre">2C3,</span> <span class="pre">3sgv</span></code>). <code class="docutils literal notranslate"><span class="pre">--tolerance</span></code> (in Angstrom,
+default 0.3 as in pymatgen) sets how much distortion the symmetry detection
+will tolerate, like <code class="docutils literal notranslate"><span class="pre">phonopy</span> <span class="pre">--tolerance</span></code>.</p>
 </section>
 <section id="molecular-salcs-element-orbital">
 <h3>Molecular SALCs (<code class="docutils literal notranslate"><span class="pre">--element</span></code>/<code class="docutils literal notranslate"><span class="pre">--orbital</span></code>)<a class="headerlink" href="#molecular-salcs-element-orbital" title="Link to this heading">#</a></h3>
-<p>Build the molecular SALCs (symmetry-adapted linear combinations of atomic
-orbitals) for the sites of an element: the site-permutation representation of
-the selected sites is constructed, its characters are multiplied class by
-class by the characters of the atomic orbital (s/p/d/f), the product is
-decomposed into the irreps of the molecular point group, and the explicit
-SALCs are projected out with the projection-operator technique:</p>
+<p>Build the molecular SALCs — symmetry-adapted linear combinations of atomic
+orbitals, i.e. the combinations of the atomic orbitals on equivalent sites
+that transform cleanly under the symmetry of the molecule — for the sites of
+one element. Three steps are carried out. First the site-permutation
+representation of the selected sites is constructed: a record of how each
+symmetry operation shuffles those sites among themselves. Its characters (the
+traces of the corresponding matrices) are then multiplied, class by class, by
+the characters of the atomic orbital in question (s/p/d/f). Finally the
+product is decomposed into the irreducible representations (irreps) of the
+molecular point group — the elementary symmetry types A1, E, T2, … — and the
+explicit SALCs are projected out with the projection-operator technique:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-mol<span class="w"> </span>--xyz<span class="w"> </span>XYZ_NH3.xyz<span class="w"> </span>--element<span class="w"> </span>H<span class="w"> </span>--orbital<span class="w"> </span>s
 </pre></div>
 </div>
@@ -400,19 +409,22 @@ SALCs are projected out with the projection-operator technique:</p>
 </div>
 <p>The irrep labels come from the same point-group character tables as
 <code class="docutils literal notranslate"><span class="pre">crystod-group</span></code> (<code class="docutils literal notranslate"><span class="pre">--decompose</span></code>/<code class="docutils literal notranslate"><span class="pre">--ligand-field</span></code>), so molecular and crystalline
-analyses share one labeling convention. The detected Schoenflies group is
-mapped to its Hermann-Mauguin symbol, the molecular symmetry operations are
-matched onto the exact character-table matrices (which also removes the
-numerical noise of the input geometry from the SALC coefficients), and for
-p/d/f orbitals the site-permutation representation is multiplied by the
-real-orbital Wigner-D representation (<code class="docutils literal notranslate"><span class="pre">wigner_D_real</span></code>, section 1 of
-<a class="reference internal" href="crystod.html"><span class="doc">crystod (main command)</span></a>), so the SALCs mix orbital components correctly — e.g. NH3
-<code class="docutils literal notranslate"><span class="pre">--element</span> <span class="pre">N</span> <span class="pre">--orbital</span> <span class="pre">p</span></code> gives <code class="docutils literal notranslate"><span class="pre">A1:</span> <span class="pre">[pz(N1)]</span></code>, <code class="docutils literal notranslate"><span class="pre">E:</span> <span class="pre">[px(N1),</span> <span class="pre">py(N1)]</span></code>.</p>
+analyses share one labeling convention. The detected Schoenflies group (the <code class="docutils literal notranslate"><span class="pre">C3v</span></code>-style name) is mapped to its
+Hermann-Mauguin symbol, and the molecular symmetry operations are matched onto
+the exact matrices of the character table; this also removes the numerical
+noise of the input geometry from the SALC coefficients. For p/d/f orbitals a
+symmetry operation does not merely move an orbital to another site, it also
+rotates the orbital itself, so the site-permutation representation is
+multiplied by the real-orbital Wigner-D representation — the matrices
+describing how the real p/d/f orbitals rotate (<code class="docutils literal notranslate"><span class="pre">wigner_D_real</span></code>, section 1 of
+<a class="reference internal" href="crystod.html"><span class="doc">crystod (main command)</span></a>). The SALCs therefore mix the orbital components correctly —
+e.g. NH3 <code class="docutils literal notranslate"><span class="pre">--element</span> <span class="pre">N</span> <span class="pre">--orbital</span> <span class="pre">p</span></code> gives <code class="docutils literal notranslate"><span class="pre">A1:</span> <span class="pre">[pz(N1)]</span></code>,
+<code class="docutils literal notranslate"><span class="pre">E:</span> <span class="pre">[px(N1),</span> <span class="pre">py(N1)]</span></code>.</p>
 <p>Options:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--align</span></code> rotates the molecule into the standard point-group orientation
-(principal axis along z) before the analysis, so the SALC coefficients
-follow the textbook axis convention — e.g. the (arbitrarily rotated) CH4
+(the highest-order rotation axis, the principal axis, placed along z) before
+the analysis, so the SALC coefficients follow the textbook axis convention — e.g. the (arbitrarily rotated) CH4
 example with <code class="docutils literal notranslate"><span class="pre">--element</span> <span class="pre">C</span> <span class="pre">--orbital</span> <span class="pre">d</span> <span class="pre">--align</span></code> gives the clean crystal-field
 splitting <code class="docutils literal notranslate"><span class="pre">E:</span> <span class="pre">[dz2,</span> <span class="pre">dx2-y2]</span></code>, <code class="docutils literal notranslate"><span class="pre">T2:</span> <span class="pre">[dxy,</span> <span class="pre">dyz,</span> <span class="pre">dxz]</span></code>;</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--show-matrix</span></code> prints the site-permutation matrix of every symmetry
@@ -451,9 +463,11 @@ molecules (D*h/C*v) analyze a finite subgroup with <code class="docutils literal
 <h2>33. Molecular-orbital diagrams from symmetry + overlap (<code class="docutils literal notranslate"><span class="pre">--diagram</span></code>)<a class="headerlink" href="#molecular-orbital-diagrams-from-symmetry-overlap-diagram" title="Link to this heading">#</a></h2>
 <p><em>Example directory: <code class="docutils literal notranslate"><span class="pre">example/33_molod</span></code> (testsuite section 33)</em></p>
 <p><code class="docutils literal notranslate"><span class="pre">crystod-mol</span> <span class="pre">--diagram</span></code> draws the molecular-orbital diagram of a single-center
-molecule (one central atom + surrounding ligands, e.g. NH3, CH4, SF6) from
-<strong>symmetry and overlap alone</strong> — no self-consistent quantum-chemistry
-calculation:</p>
+molecule (one central atom plus the surrounding ligands, i.e. the atoms bonded
+to it, e.g. NH3, CH4, SF6) from <strong>symmetry and overlap alone</strong>. The level
+ordering follows from the symmetry of the orbitals and from how strongly they
+overlap in space; no self-consistent quantum-chemistry calculation — no
+iterative solution of the electronic structure — is run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-mol<span class="w"> </span>--diagram<span class="w"> </span>--xyz<span class="w"> </span>XYZ_NH3.xyz
 <span class="c1"># -&gt; MolOD_XYZ_NH3.html</span>
 </pre></div>
@@ -467,7 +481,7 @@ calculation:</p>
 <span class="o">*</span> <span class="n">Fragments</span> <span class="o">*</span>
 <span class="n">central</span> <span class="n">atom</span><span class="p">:</span> <span class="n">N</span><span class="p">;</span> <span class="n">ligands</span><span class="p">:</span> <span class="mi">3</span> <span class="n">H</span>
 
-<span class="o">*</span> <span class="n">Valence</span> <span class="n">AO</span> <span class="n">parameters</span> <span class="p">(</span><span class="n">single</span><span class="o">-</span><span class="n">zeta</span> <span class="n">STO</span><span class="p">,</span> <span class="n">extended</span> <span class="n">Hueckel</span><span class="p">)</span> <span class="o">*</span>
+<span class="o">*</span> <span class="n">Valence</span> <span class="n">Atomic</span> <span class="n">Orbital</span> <span class="p">(</span><span class="n">AO</span><span class="p">)</span> <span class="n">parameters</span> <span class="p">(</span><span class="n">single</span><span class="o">-</span><span class="n">zeta</span> <span class="n">STO</span><span class="p">,</span> <span class="n">extended</span> <span class="n">Hueckel</span><span class="p">)</span> <span class="o">*</span>
 <span class="n">N</span> <span class="mi">2</span><span class="n">s</span><span class="p">:</span>  <span class="n">zeta</span> <span class="o">=</span> <span class="mf">1.950</span> <span class="o">/</span> <span class="n">bohr</span><span class="p">,</span>  <span class="n">H_ii</span> <span class="o">=</span> <span class="o">-</span><span class="mf">26.0</span> <span class="n">eV</span>
 <span class="n">N</span> <span class="mi">2</span><span class="n">p</span><span class="p">:</span>  <span class="n">zeta</span> <span class="o">=</span> <span class="mf">1.950</span> <span class="o">/</span> <span class="n">bohr</span><span class="p">,</span>  <span class="n">H_ii</span> <span class="o">=</span> <span class="o">-</span><span class="mf">13.4</span> <span class="n">eV</span>
 <span class="n">H</span> <span class="mi">1</span><span class="n">s</span><span class="p">:</span>  <span class="n">zeta</span> <span class="o">=</span> <span class="mf">1.300</span> <span class="o">/</span> <span class="n">bohr</span><span class="p">,</span>  <span class="n">H_ii</span> <span class="o">=</span> <span class="o">-</span><span class="mf">13.6</span> <span class="n">eV</span>
@@ -507,56 +521,105 @@ scroll:</p>
 symmetry-adapted per irrep (the SALCs of section 32) — for NH3,
 <code class="docutils literal notranslate"><span class="pre">A1:</span> <span class="pre">[1s(H1)</span> <span class="pre">+</span> <span class="pre">1s(H2)</span> <span class="pre">+</span> <span class="pre">1s(H3)]</span></code> and
 <code class="docutils literal notranslate"><span class="pre">E:</span> <span class="pre">[1s(H1)</span> <span class="pre">-</span> <span class="pre">1s(H3),</span> <span class="pre">1s(H1)</span> <span class="pre">-</span> <span class="pre">2</span> <span class="pre">1s(H2)</span> <span class="pre">+</span> <span class="pre">1s(H3)]</span></code>;</p></li>
-<li><p>every valence orbital is a single-zeta Slater-type orbital (STO) with the
-standard extended-Hückel exponents and diagonal energies H_ii
-(valence-state ionization energies);</p></li>
-<li><p>all two-center overlap integrals between the STOs are evaluated <strong>exactly</strong>
-(Gauss-Laguerre x Gauss-Legendre quadrature in prolate-spheroidal
-coordinates, machine precision — validated against the analytic H 1s-1s
-formula), so ligand-ligand overlap is <em>not</em> neglected; the
-ligand-SALC | central-AO overlap integrals are printed per irrep
+<li><p>every valence orbital — the outer, chemically active orbital of each atom —
+is represented by a single-zeta Slater-type orbital (STO), i.e. by one
+exponential function per orbital, with the standard extended-Hückel
+exponents. Each orbital also carries a diagonal energy H_ii, taken from its
+valence-state ionization energy, which measures how tightly that orbital
+binds an electron in the free atom;</p></li>
+<li><p>all two-center overlap integrals between the STOs — the numbers S that
+measure how much two orbitals on different atoms occupy the same region of
+space — are evaluated <strong>exactly</strong>, by Gauss-Laguerre x Gauss-Legendre
+quadrature in prolate-spheroidal coordinates, to machine precision and
+validated against the analytic H 1s-1s formula. Ligand-ligand overlap is
+therefore <em>not</em> neglected. The overlaps between each ligand SALC and each
+central-atom atomic orbital (AO) are printed per irrep
 (NH3: <code class="docutils literal notranslate"><span class="pre">&lt;</span> <span class="pre">a1</span> <span class="pre">|</span> <span class="pre">N</span> <span class="pre">2s</span> <span class="pre">&gt;</span> <span class="pre">S</span> <span class="pre">=</span> <span class="pre">0.72</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;</span> <span class="pre">e</span> <span class="pre">|</span> <span class="pre">N</span> <span class="pre">2p</span> <span class="pre">&gt;</span> <span class="pre">S</span> <span class="pre">=</span> <span class="pre">0.57</span></code>);</p></li>
-<li><p>within each irrep block the generalized eigenvalue problem with the
-Wolfsberg-Helmholz off-diagonals H_ij = K S_ij (H_ii + H_jj)/2 (K = 1.75)
-is solved — a large overlap integral therefore directly produces a large
-bonding/antibonding splitting (symmetry-adapted extended Hückel);</p></li>
+<li><p>orbitals belonging to different irreps cannot mix, so the problem falls
+apart into one small block per irrep. Within each block the generalized
+eigenvalue problem — the secular equation whose solutions are the
+molecular-orbital energies and their coefficients — is solved with the
+Wolfsberg-Helmholz off-diagonal elements
+H_ij = K S_ij (H_ii + H_jj)/2 (K = 1.75). A large overlap integral
+therefore directly produces a large splitting between the bonding and the
+antibonding level (this is symmetry-adapted extended Hückel);</p></li>
 <li><p>the result is written as an interactive HTML/SVG diagram <strong>by default</strong>:
 four columns (isolated ligand AOs | ligand-group SALCs | molecular
-orbitals | central-atom AOs) with dashed correlation lines weighted by the
-orbital composition, electron arrows, HOMO/LUMO markers, and a click/hover
-panel showing the composition of every level in percent. The energy window is adjustable in the page itself (min/max input boxes, Ctrl/Cmd + scroll or pinch to zoom, drag to pan) – useful when deep ligand levels stretch the scale. Hovering or clicking any level additionally shows an <strong>orbital sketch</strong> in the details panel — the molecule with VESTA-style +/− lobes (yellow/cyan) built from that level’s actual eigenvector, drag-rotatable, with buttons to flip through degenerate partners.</p></li>
+orbitals | central-atom AOs), joined by dashed correlation lines — each line
+ties a molecular orbital to a fragment orbital it is built from, and is
+drawn the more heavily the larger that contribution is. Electron arrows mark
+the occupied levels, the HOMO (highest occupied molecular orbital) and the
+LUMO (lowest unoccupied molecular orbital) are flagged, and a click/hover
+panel gives the composition of every level in percent. The energy window is adjustable in the page itself (min/max input boxes, Ctrl/Cmd + scroll or pinch to zoom, drag to pan) — useful when deep ligand levels stretch the scale. Hovering or clicking any level additionally shows an <strong>orbital sketch</strong> in the details panel: the molecule drawn with VESTA-style +/− lobes (yellow/cyan), built from that level’s actual eigenvector, i.e. from the computed mixing coefficients of that orbital rather than from a schematic picture. The sketch is drag-rotatable, and buttons flip through the degenerate partners — the orbitals that symmetry forces to have exactly the same energy.</p></li>
 </ol>
-<p>The MO numbering counts the core shells as in photoelectron spectroscopy, so
-CH4 gives the textbook <code class="docutils literal notranslate"><span class="pre">(2a1)^2</span> <span class="pre">(1t2)^6</span></code> (1a1 = C 1s core; antibonding 2t2
-and 3a1 empty), NH3 gives <code class="docutils literal notranslate"><span class="pre">(2a1)^2</span> <span class="pre">(1e)^4</span> <span class="pre">(3a1)^2</span></code> with the 3a1 lone pair as
-HOMO, and SF6 fills 48 valence electrons up to the nonbonding F 2p block
-(1t1g/3eg) below the 6a1g LUMO. The terminal report lists the AO parameters,
-the ligand SALCs, the inter-fragment overlap integrals, and the full MO table
-(energy, occupation, composition).</p>
+<p>The molecular-orbital (MO) numbering counts the core shells, as in
+photoelectron spectroscopy. CH4 therefore gives the textbook
+<code class="docutils literal notranslate"><span class="pre">(2a1)^2</span> <span class="pre">(1t2)^6</span></code> (1a1 = C 1s core; the antibonding 2t2 and 3a1 stay empty),
+and NH3 gives <code class="docutils literal notranslate"><span class="pre">(2a1)^2</span> <span class="pre">(1e)^4</span> <span class="pre">(3a1)^2</span></code> with the 3a1 lone pair as HOMO. SF6
+fills 48 valence electrons up to the nonbonding F 2p block (1t1g/3eg) —
+levels that are neither bonding nor antibonding — which sits just below the
+6a1g LUMO. The terminal report lists the AO parameters, the ligand SALCs, the
+overlap integrals between the two fragments, and the full MO table (energy,
+occupation, composition).</p>
 <p><code class="docutils literal notranslate"><span class="pre">--center</span> <span class="pre">EL</span></code> selects the central atom explicitly (default: the atom closest
 to the molecular center); <code class="docutils literal notranslate"><span class="pre">--output</span></code>/<code class="docutils literal notranslate"><span class="pre">--tolerance</span></code> as usual. Elements H-Cl
-are parameterized. The energies are semi-quantitative (extended Hückel); the
-intended use is the <em>crystal-orbital diagram</em> counterpart for materials
-design, where the same symmetry + overlap logic connects crystal SALCs
+are parameterized. The energies are semi-quantitative, as extended Hückel theory always is: read
+them for level orderings and trends, not as accurate absolute values. The
+intended use is as the <em>crystal-orbital diagram</em> counterpart for materials
+design, where the same symmetry-plus-overlap logic connects crystal SALCs
 (<a class="reference internal" href="crystod.html"><span class="doc">crystod (main command)</span></a>) to band structures.</p>
 <p>References: M. Wolfsberg and L. Helmholz, J. Chem. Phys. 20, 837 (1952);
 R. Hoffmann, J. Chem. Phys. 39, 1397 (1963).</p>
 <section id="quantitative-diagrams-with-pyscf-pyscf">
 <h3>Quantitative diagrams with PySCF (<code class="docutils literal notranslate"><span class="pre">--pyscf</span></code>)<a class="headerlink" href="#quantitative-diagrams-with-pyscf-pyscf" title="Link to this heading">#</a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">--diagram</span> <span class="pre">--pyscf</span></code> replaces the extended-Hückel estimate by <strong>three
-self-consistent-field calculations sharing one AO space</strong> (PySCF): the full
-molecule, and the two fragments with <strong>ghost basis functions</strong> on the removed
-atoms — i.e. counterpoise-consistent, so the fragment levels are true
-pre-bonding states in the molecular basis, the molecular MOs can be
-<strong>projected exactly</strong> onto the fragment MOs (correlation lines and
-composition panel), and the printed interaction energy
-E(mol) − E(left) − E(right) is BSSE-free. The diagram becomes three columns:
-left fragment | molecule | right fragment. The hover panel shows the orbital
-sketch of every level (fragment MOs included), drawn from the PySCF MO
-coefficients; fragment sketches show the real atoms only (the small
-counterpoise tails on the ghost basis are omitted) and degenerate
-partners are canonicalized, so they match the visualized SALCs of
-<code class="docutils literal notranslate"><span class="pre">--visualize</span></code> exactly. Fragment levels are attributed by their real-atom Mulliken population: levels living mostly on the ghost basis (population &lt; 35%) are BSSE artifacts, not fragment states — they are omitted from the diagram and the compositions, and the remaining projections are weighted by the real-atom population (benzene: the pure-π 1e1g HOMO is 100% C6 1e1g, with no spurious “H6” character from ghost-carbon levels).</p>
+self-consistent-field (SCF) calculations sharing one AO space</strong> (PySCF) —
+three genuine electronic-structure calculations, each iterated until the
+orbitals and the field they feel agree with one another, and all expressed in
+the <em>same</em> set of atomic-orbital basis functions. The three are the full
+molecule and its two fragments, the latter carrying <strong>ghost basis functions</strong>
+on the atoms that have been removed.</p>
+<div class="note admonition">
+<p class="admonition-title">Why ghost atoms? The basis-set superposition error (BSSE)</p>
+<p>A quantum-chemistry calculation builds the wave function — the mathematical
+object from which every property of the electrons follows — out of a
+<strong>finite</strong> set of atom-centred basis functions, so its quality depends on how
+many functions sit near the electrons. Compute the O atom of H2O in the basis
+of O alone, then the whole molecule in the basis of O <strong>and</strong> the two H atoms,
+and the molecule has extra freedom to describe its electrons — more functions
+to build them from — that the isolated fragment never had. Its energy drops
+for a reason that has nothing to do with chemical bonding.
+The spurious part of the stabilization is the <strong>basis-set superposition error
+(BSSE)</strong> — an artefact of the finite basis rather than a physical effect. It
+makes computed interaction energies look too attractive, and it does not
+vanish simply by enlarging the basis on one side only.</p>
+<p>The standard cure is the <strong>counterpoise correction</strong> of Boys and Bernardi:
+compute each fragment in the <em>full</em> molecular basis, keeping the basis
+functions of the removed atoms but not their nuclei or electrons. Such
+nucleus-free, electron-free basis centres are called <strong>ghost atoms</strong>. Both
+fragments then carry exactly the same basis-set quality as the molecule, so
+the difference E(mol) − E(left) − E(right) contains bonding only.</p>
+<p>CrystOD needs this twice over. First, the interaction energy printed under the
+diagram is BSSE-free. Second, because all three calculations live in <em>one and
+the same</em> AO space, every molecular MO can be <strong>projected exactly</strong> onto the
+fragment MOs — written as an exact combination of them, with no fitting and no
+approximation. That is what makes the correlation lines and the percentage
+compositions quantitative rather than merely indicative. The price is that a few
+fragment solutions end up living mostly on the ghost centres; those are
+filtered out, as described just below.</p>
+</div>
+<p>The fragment levels are therefore true pre-bonding states — the orbitals each
+half of the molecule has <em>before</em> the two halves are allowed to interact —
+described in the full molecular basis. The molecular MOs are projected exactly
+onto them, which is what the correlation lines and the composition panel
+display, and the printed interaction energy E(mol) − E(left) − E(right) is
+BSSE-free. The diagram becomes three columns:
+left fragment | molecule | right fragment. The hover panel shows the orbital sketch of every level, fragment MOs
+included, drawn from the PySCF MO coefficients. Fragment sketches show the
+real atoms only — the small counterpoise tails on the ghost basis are left
+out — and degenerate partners are canonicalized, i.e. the arbitrary mixing
+within a set of equal-energy orbitals is fixed to one standard choice, so the
+sketches match the SALCs drawn by <code class="docutils literal notranslate"><span class="pre">--visualize</span></code> exactly. Each fragment level is judged by its real-atom Mulliken population — the share of the electron density that Mulliken’s standard partitioning assigns to the real atoms rather than to the ghost centres. A level sitting mostly on the ghost basis (population &lt; 35%) is a BSSE artifact rather than a genuine fragment state, so it is dropped from the diagram and from the compositions. The remaining projections are weighted by the real-atom population; in benzene this makes the pure-π 1e1g HOMO come out as 100% C6 1e1g, with no spurious “H6” character borrowed from ghost-carbon levels.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>crystod-mol<span class="w"> </span>--diagram<span class="w"> </span>--xyz<span class="w"> </span>XYZ_H2O.xyz<span class="w"> </span>--pyscf<span class="w">                </span><span class="c1"># H2 | H2O | O</span>
 crystod-mol<span class="w"> </span>--diagram<span class="w"> </span>--xyz<span class="w"> </span>XYZ_O2.xyz<span class="w"> </span>--pyscf<span class="w"> </span>--spin<span class="w"> </span><span class="m">2</span><span class="w"> </span>--ao-left<span class="w"> </span>O<span class="w"> </span>--ao-right<span class="w"> </span>O
 crystod-mol<span class="w"> </span>--diagram<span class="w"> </span>--xyz<span class="w"> </span>XYZ_CH3OH.xyz<span class="w"> </span>--pyscf<span class="w"> </span>--ao-left<span class="w"> </span>H4<span class="w"> </span>--ao-right<span class="w"> </span>CO
@@ -570,34 +633,47 @@ nodal patterns in the orbital sketch:</p>
 <iframe src="_static/embed/MolOD_XYZ_C6H6_pyscf.html" width="100%" height="660" loading="lazy" style="border:1px solid #8884; border-radius:8px; background:#fff;"></iframe>
 <p style="margin-top:0.3em"><a href="_static/embed/MolOD_XYZ_C6H6_pyscf.html" target="_blank">Open the benzene PySCF MO diagram full-screen</a></p><ul class="simple">
 <li><p>The default fragments are the ligand cage | central atom, as in the
-symmetry-only mode; <code class="docutils literal notranslate"><span class="pre">--ao-left</span></code>/<code class="docutils literal notranslate"><span class="pre">--ao-right</span></code> select <strong>any partition by
-chemical formula</strong> — required for molecules without a single center
-(benzene <code class="docutils literal notranslate"><span class="pre">H6</span></code>/<code class="docutils literal notranslate"><span class="pre">C6</span></code>) and for homonuclear diatomics (<code class="docutils literal notranslate"><span class="pre">O</span></code> / <code class="docutils literal notranslate"><span class="pre">O</span></code>, displayed as
-O(L)/O(R)).</p></li>
-<li><p>Fragments are <strong>spin/spherically averaged</strong> (fractional occupation of
-degenerate frontier shells): a partially filled shell (C 2p², the t2² of an
-H4 cage) would otherwise break the point-group symmetry, whereas the
-pre-bonding reference should keep it.</p></li>
-<li><p>Irrep labels come from crystod’s own point-group machinery — the characters
-of every MO under the exact character-table operations, evaluated with the
-symmetry representation on the PySCF AO basis — so the labels agree with
-the symmetry-only diagram and with <code class="docutils literal notranslate"><span class="pre">crystod-group</span></code> (CH4 <code class="docutils literal notranslate"><span class="pre">1t2</span></code> HOMO, H2O
-<code class="docutils literal notranslate"><span class="pre">1b2</span></code>, benzene <code class="docutils literal notranslate"><span class="pre">1e1g</span></code> HOMO / <code class="docutils literal notranslate"><span class="pre">1e2u</span></code> LUMO at the Koopmans level); linear
-molecules use PySCF’s Dooh/Coov labels rendered as σ/π/δ (triplet O2:
-<code class="docutils literal notranslate"><span class="pre">(1πu)^4</span> <span class="pre">(1πg)^2</span></code>, two single arrows on the half-filled 1πg).</p></li>
+symmetry-only mode. <code class="docutils literal notranslate"><span class="pre">--ao-left</span></code>/<code class="docutils literal notranslate"><span class="pre">--ao-right</span></code> instead select <strong>any partition
+by chemical formula</strong>, which is required for molecules that have no single
+central atom (benzene, split as <code class="docutils literal notranslate"><span class="pre">H6</span></code>/<code class="docutils literal notranslate"><span class="pre">C6</span></code>) and for homonuclear diatomics —
+two-atom molecules of one element (<code class="docutils literal notranslate"><span class="pre">O</span></code> / <code class="docutils literal notranslate"><span class="pre">O</span></code>, displayed as O(L)/O(R)).</p></li>
+<li><p>Fragments are <strong>spin/spherically averaged</strong>: the electrons of a partly
+filled frontier shell are spread evenly over it, so that each degenerate
+orbital of the shell takes the same fractional occupation. Without this, a
+partially filled shell (C 2p², the t2² of an H4 cage) would break the
+point-group symmetry, whereas the pre-bonding reference should preserve it.</p></li>
+<li><p>Irrep labels come from crystod’s own point-group machinery: for every MO the
+characters under the exact character-table operations are evaluated with the
+symmetry representation on the PySCF AO basis. The labels therefore agree
+with the symmetry-only diagram and with <code class="docutils literal notranslate"><span class="pre">crystod-group</span></code> — CH4 <code class="docutils literal notranslate"><span class="pre">1t2</span></code> HOMO,
+H2O <code class="docutils literal notranslate"><span class="pre">1b2</span></code>, benzene <code class="docutils literal notranslate"><span class="pre">1e1g</span></code> HOMO / <code class="docutils literal notranslate"><span class="pre">1e2u</span></code> LUMO, all quoted at the Koopmans
+level, i.e. reading the orbital energies themselves as the ionization
+energies. Linear molecules use PySCF’s Dooh/Coov labels rendered as σ/π/δ
+(triplet O2: <code class="docutils literal notranslate"><span class="pre">(1πu)^4</span> <span class="pre">(1πg)^2</span></code>, with two single arrows on the half-filled
+1πg).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--basis</span></code> (default def2-svp), <code class="docutils literal notranslate"><span class="pre">--theory</span> <span class="pre">scf|dft</span></code>, <code class="docutils literal notranslate"><span class="pre">--xc</span></code> (default b3lyp),
-<code class="docutils literal notranslate"><span class="pre">--charge</span></code>, and <code class="docutils literal notranslate"><span class="pre">--spin</span></code> (2S; default by electron parity, e.g. <code class="docutils literal notranslate"><span class="pre">--spin</span> <span class="pre">2</span></code>
-for triplet O2) follow the conventions of <code class="docutils literal notranslate"><span class="pre">script/calc_pyscf.py</span></code>;
-open-shell calculations use ROHF/ROKS so the diagram keeps a single
-orbital-energy set. Core levels (O 1s at −560 eV, I 1s at −33 keV, …)
-are computed and included; whenever levels lie below −40 eV the default
-energy window is clamped to the chemically relevant [−40, 15] eV (the
-LUMO is never hidden), and the <strong>Show all energy levels</strong> button in the
-page expands the window to the full range. PySCF is an optional
-dependency (only needed for <code class="docutils literal notranslate"><span class="pre">--pyscf</span></code>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">--charge</span></code> and <code class="docutils literal notranslate"><span class="pre">--spin</span></code> follow the conventions of <code class="docutils literal notranslate"><span class="pre">script/calc_pyscf.py</span></code>.
+<code class="docutils literal notranslate"><span class="pre">--theory</span></code> chooses between a plain self-consistent-field (Hartree-Fock)
+calculation and density-functional theory, and <code class="docutils literal notranslate"><span class="pre">--xc</span></code> names the
+exchange-correlation functional used in the latter. <code class="docutils literal notranslate"><span class="pre">--spin</span></code> is given as 2S,
+the number of unpaired electrons, and defaults to the smallest value
+compatible with the electron count (e.g. <code class="docutils literal notranslate"><span class="pre">--spin</span> <span class="pre">2</span></code> for triplet O2).
+Open-shell systems — those with unpaired electrons — are treated with the
+restricted open-shell methods ROHF and ROKS (restricted open-shell
+Hartree-Fock and Kohn-Sham), so that the diagram keeps a single set of
+orbital energies rather than one per spin. Core levels — the deep,
+chemically inert inner-shell orbitals
+(O 1s at −560 eV, I 1s at −33 keV, …) — are computed and included.
+Whenever levels lie below −40 eV, the default energy window is clamped to
+the chemically relevant range [−40, 15] eV so that the valence region stays
+legible, and the LUMO is never hidden. The <strong>Show all energy levels</strong> button
+in the page expands the window to the full range.</p></li>
 </ul>
-<p>References: Q. Sun et al., WIREs Comput. Mol. Sci. 8, e1340 (2018);
-Q. Sun et al., J. Chem. Phys. 153, 024109 (2020).</p>
+<p>The SCF engine is PySCF — a software dependency, not the source of the
+fragment/irrep construction above. If you use PySCF in your research,
+please cite: Q. Sun et al., J. Chem. Phys. 153, 024109 (2020);
+Q. Sun et al., WIREs Comput. Mol. Sci. 8, e1340 (2018);
+Q. Sun, J. Comput. Chem. 36, 1664 (2015).</p>
 </section>
 </section>
 </section>
