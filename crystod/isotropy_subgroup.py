@@ -1,6 +1,6 @@
 """Isotropy subgroups of space-group irreps (crystod-group --supergroup).
 
-Given a space group G and one of its irreps (CDML label), a distortion that
+Given a space group G and one of its irreps (ISO-IR label), a distortion that
 transforms as that irrep reduces the symmetry to the isotropy subgroup
 
     H(eta) = { g in G : D(g) eta = eta }
@@ -45,11 +45,12 @@ ENANTIOMORPHIC_PAIRS = {
     172: 171, 178: 179, 179: 178, 180: 181, 181: 180, 212: 213, 213: 212,
 }
 
-# CDML irrep labels that differ between the tables used by crystod
-# (irreptables, the Bilbao convention validated by the DIRPRO reference set)
-# and ISOTROPY at the same k point. Established table-for-table by the
-# ISOSUBGROUP reference sweep (script/validate_isosubgroup.py); multi-label
-# entries mean the corresponding ISOTROPY tables are identical.
+# Irrep labels that differ between the tables used by crystod (the ISO-IR
+# 2011 data files, whose labels coincide with the Bilbao/DIRPRO reference
+# set at every maximal k point) and the ISOTROPY/ISOSUBGROUP software at
+# the same k point. Established table-for-table by the ISOSUBGROUP
+# reference sweep (script/validate_isosubgroup.py); multi-label entries
+# mean the corresponding ISOTROPY tables are identical.
 ISOTROPY_LABELS = {
     (64, "Y"): {"Y1+": "Y3+", "Y1-": "Y3-", "Y2+": "Y4+", "Y2-": "Y4-",
                 "Y3+": "Y1+", "Y3-": "Y1-", "Y4+": "Y2+", "Y4-": "Y2-"},
@@ -108,7 +109,7 @@ class InducedRepresentation:
         ]
         self._realify()
 
-    # -- small irrep matrices matched to the CDML label
+    # -- small irrep matrices matched to the ISO-IR label
     def _small_matrices(self):
         algebra, irrep = self.algebra, self.irrep
         from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
@@ -133,28 +134,11 @@ class InducedRepresentation:
         except SystemExit:
             refined = None
         if refined is None:
-            # some +-k pairs are tabulated in the conjugate gauge (e.g. the
-            # P/PA pair of I-42d): retry with the conjugate characters -- the
-            # analysis then runs on the conjugate-partner irrep, which gives
-            # the identical physical (real) order parameter
-            conjugate_table = {op: np.conj(v) for op, v in table.items()}
-            try:
-                refined = algebra._refine_small_characters(
-                    np.asarray(self.k), conjugate_table
-                )
-            except SystemExit:
-                refined = None
-        if refined is None:
-            # a few entries are tabulated with the operators in a different
-            # origin choice (e.g. P of I4_1/a): the characters differ by the
-            # gauge e^(2 pi i k.(W-1)x0); scan origin shifts and accept a
-            # unique match (or a unique conjugate pair -- the physically
-            # irreducible doubled form is the same for both partners)
+            # defensive fallback: identify the tabulated irrep up to an
+            # origin-shift gauge e^(2 pi i k.(W-1)x0) (not expected to be
+            # needed with the ISO-IR tables, whose asymmetric points are
+            # resolved inside _refine_small_characters)
             refined = self._match_with_origin_shift(table)
-        if refined is None:
-            # broken irreptables gauge with a fitted name table (e.g. N of
-            # I4_132): select the spgrep candidate by its fitted CDML name
-            refined = self._match_fitted_name()
         if refined is None:
             raise SystemExit(
                 f"ERROR: the tabulated characters of {irrep.name} are not those "
@@ -229,28 +213,6 @@ class InducedRepresentation:
                     for op in matched[0]
                 ):
                     return {op: complex(v) for op, v in matched[0].items()}
-        return None
-
-    def _match_fitted_name(self) -> dict | None:
-        """Select the spgrep candidate by the fitted CDML name table (broken
-        irreptables entries only)."""
-        from .dirpro_line_names import LINE_IRREP_NAMES
-        from .spacegroup_product import _character_fingerprint
-
-        algebra = self.algebra
-        key = tuple(int(x) for x in np.mod(self.k, DEN))
-        entry = LINE_IRREP_NAMES.get((algebra.sg_type.number, key))
-        if entry is None:
-            return None
-        _, name_map = entry
-        try:
-            candidates = algebra.computed_irreps_at(np.asarray(self.k))
-        except SystemExit:
-            return None
-        for candidate in candidates:
-            fingerprint = _character_fingerprint(candidate["chi"])
-            if name_map.get(fingerprint) == self.irrep.name:
-                return {op: complex(v) for op, v in candidate["chi"].items()}
         return None
 
     def _induce(self, small: dict) -> list[np.ndarray]:
@@ -394,7 +356,7 @@ class InducedRepresentation:
         self.elements = new_elements
 
     def conjugate_partner(self) -> str | None:
-        """CDML label of the complex-conjugate partner irrep (same k star,
+        """ISO-IR label of the complex-conjugate partner irrep (same k star,
         or the -k star for +-k pairs such as P/PA), identified via the
         induced characters (ours taken directly from the induced blocks)."""
         # when the tabulated entry was matched in the conjugate gauge, our
@@ -1120,7 +1082,7 @@ def main(argv: list[str] | None = None) -> None:
         "--irrep",
         required=True,
         nargs="+",
-        help="CDML irrep label(s), e.g. GM4-; several labels (e.g. X3- X2+) "
+        help="ISO-IR irrep label(s), e.g. GM4-; several labels (e.g. X3- X2+) "
         "enumerate the isotropy subgroups of the coupled order parameters.",
     )
     parser.add_argument(
@@ -1179,8 +1141,8 @@ def main(argv: list[str] | None = None) -> None:
             )
     if label_notes:
         print()
-        print("note: the CDML irrep labels at this k point differ between the")
-        print("irreptables/Bilbao convention (used by crystod) and ISOTROPY:")
+        print("note: the irrep labels at this k point differ between the ISO-IR")
+        print("data files (used by crystod) and the ISOTROPY/ISOSUBGROUP software:")
         print(f"{'; '.join(label_notes)} (see SUBGROUP/VALIDATION.md).")
     print()
 

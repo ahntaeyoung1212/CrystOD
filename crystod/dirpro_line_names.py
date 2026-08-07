@@ -1,21 +1,13 @@
-"""CDML names for small irreps at non-tabulated (symmetry-line) k points.
+"""RETIRED: CDML (Bilbao/DIRPRO) names for small irreps at symmetry lines.
 
-Keyed by (space-group number, canonical star representative in units of 1/24);
-each value is (point name, {character fingerprint: CDML irrep name}).
-
-The names were fitted against (and are in one-to-one agreement with) the
-direct-product tables of the Bilbao Crystallographic Server DIRPRO program
-[M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006)] for the space groups
-listed here; the fingerprints are basis-independent character data of the
-spgrep-computed small irreps, so the assignment is stable.
-
-These entries OVERRIDE the general ISO-IR fallback of spacegroup_product
-(``SpaceGroupIrrepAlgebra._isoir_line_labels``): for space groups not
-listed, line irreps are named from the ISO-IR (ISOTROPY, Miller-Love)
-tables, and positional names remain only when both sources fail.  The map
-cannot be retired in favour of ISO-IR because the two conventions genuinely
-differ at several of the DIRPRO-validated points (checked 2026-07-27
-against the spgrep character fingerprints):
+This map is no longer consulted anywhere in crystod.  Since the switch of
+every irrep table to ISO-IR (CIR_data.txt.gz, 2026-08), line-point irreps
+are named directly from the ISO-IR (ISOTROPY, Miller-Love) tables via
+``SpaceGroupIrrepAlgebra._isoir_line_labels`` so that a single labeling
+convention is used throughout.  The file is kept as documentation of how
+the CDML (Bradley-Cracknell / Bilbao DIRPRO) line names relate to the
+ISO-IR ones at the DIRPRO-validated points (checked 2026-07-27 against
+the spgrep character fingerprints):
 
   identical      : 122 P, 214 N, 216 DT/SM, 217 DT, 225 SM, 230 P
   different letter: 139 V = ISO LD; 164/191/194 T = ISO LD, S = ISO Q
@@ -23,8 +15,14 @@ against the spgrep character fingerprints):
   same letter but permuted numbering: 225 DT3/DT4 = ISO DT4/DT3;
                     230 DT2/DT3/DT4 = ISO DT4/DT2/DT3
   no ISO-IR entry : 122 PA, 217 PA (the -k stars; ISO-IR tabulates only +k,
-                    which the fallback handles by conjugation with an 'A'
+                    which crystod handles by conjugation with an 'A'
                     suffix)
+
+Keyed by (space-group number, canonical star representative in units of
+1/24); each value is (point name, {character fingerprint: CDML irrep
+name}).  NOTE: the fingerprints reference operation indices of the FORMER
+irreptables operator ordering and are not valid against the ISO-IR
+operator ordering.
 """
 
 LINE_IRREP_NAMES = {

@@ -127,7 +127,7 @@ def get_label_overrides(
     kpoint_name: Optional[str],
     spinor: bool,
 ) -> dict[str, str]:
-    """Return manual label overrides for known Bilbao/irreptables naming mismatches."""
+    """Return manual label overrides for known naming mismatches in the ISO-IR tables."""
     return {}
 
 class CrystalOrbital:
@@ -157,6 +157,15 @@ class CrystalOrbital:
         self._spglib_translations = dataset['translations']
         self.transformation_matrix = dataset['transformation_matrix'] # primitive matrix
         self.irt_character_table = IrrepTable(dataset['number'], self.spinor)
+        # Special k-point names/coordinates do not depend on spinor; the
+        # bundled ISO-IR tables carry single-valued irreps only (the spinor
+        # table has no irreps), so enumerate special points from the
+        # single-valued table.
+        self.irt_kpoint_table = (
+            self.irt_character_table
+            if not self.spinor
+            else IrrepTable(dataset['number'], False)
+        )
 
         self.rotations, self.translations = self._sort_symmetry_operations_in_order_of_irt(
             self._spglib_rotations,
@@ -169,7 +178,7 @@ class CrystalOrbital:
         spglib_R: NDArray[np.int_],
         spglib_t: NDArray[np.float_],
     ) -> tuple[NDArray[np.int_], NDArray[np.float_]]:
-        """Sort symmetry operations found by spglib in the irreptables order."""
+        """Sort symmetry operations found by spglib in the ISO-IR table order."""
         irt_conv_R = np.array([sym.R for sym in self.irt_character_table.symmetries], dtype=float)
         irt_prim_R = similarity_transformation(np.linalg.inv(self.transformation_matrix), irt_conv_R)
 
@@ -188,11 +197,11 @@ class CrystalOrbital:
                     found = True
                     break
             if not found:
-                raise ValueError("Failed to sort symmetry operations in irreptables order.")
+                raise ValueError("Failed to sort symmetry operations in ISO-IR table order.")
         return np.array(sorted_R), np.array(sorted_t)
 
     def get_irt_irreps_at_k(self, k: list[float]) -> list[Irrep]:
-        """Get irreps at the k point from irreptables."""
+        """Get irreps at the k point from the ISO-IR tables."""
         k = canonicalize_kpoint(k)
         trans_inv = np.linalg.inv(self.transformation_matrix)
         conventional_k = np.array(k) @ trans_inv
@@ -203,7 +212,7 @@ class CrystalOrbital:
         return irreps_at_k
 
     def get_kpoint_name(self, k: list[float]) -> Optional[str]:
-        """Get the special k-point name from irreptables if available.
+        """Get the special k-point name from the ISO-IR tables if available.
 
         Any arm of a tabulated star is recognized, not only the tabulated arm.
         """
@@ -228,8 +237,8 @@ class CrystalOrbital:
     def _find_irt_star_arm(self, k: list[float]) -> Optional[tuple[int, list[float]]]:
         """(g_index, k_rep) mapping k onto the tabulated arm of its star, or None.
 
-        The operations are sorted in irreptables order, so g_index doubles as
-        the irreptables operation index.
+        The operations are sorted in the ISO-IR table order, so g_index doubles
+        as the ISO-IR table operation index.
         """
         _, special_points = self.get_irt_special_points()
         return find_star_arm(k, self.rotations, special_points)
@@ -246,10 +255,10 @@ class CrystalOrbital:
         )
 
     def get_irt_special_points(self) -> tuple[list[str], list[list[float]]]:
-        """Get unique special k-points from irreptables in primitive basis."""
+        """Get unique special k-points from the ISO-IR tables in primitive basis."""
         primitive_kpoints = []
         kpoint_names = []
-        for irrep in self.irt_character_table.irreps:
+        for irrep in self.irt_kpoint_table.irreps:
             primitive_k = canonicalize_kpoint(list(np.array(irrep.k) @ self.transformation_matrix))
             if primitive_k not in primitive_kpoints:
                 primitive_kpoints.append(primitive_k)
@@ -310,7 +319,7 @@ class CrystalOrbital:
         irreps,
         mapping_little_group: NDArray[np.int_],
     ) -> dict[str, str]:
-        """Map spgrep irreps to irreptables labels by comparing characters."""
+        """Map spgrep irreps to ISO-IR labels by comparing characters."""
         k = canonicalize_kpoint(k)
         irt_irreps = self.get_irt_irreps_at_k(k)
         char_indices: list[int] = list(mapping_little_group)
@@ -329,9 +338,10 @@ class CrystalOrbital:
                         irt_irreps = candidate_irreps
                         char_indices, char_phases = conjugated
         if not irt_irreps:
-            # Not in irreptables (e.g. a symmetry line/plane or generic k):
-            # fall back to the ISO-IR (ISOTROPY) tables, which cover every
-            # k-vector type.  Labels then follow the Miller-Love convention.
+            # Not among the tabulated special-point irreps (e.g. a symmetry
+            # line/plane or generic k): fall back to the full ISO-IR (ISOTROPY)
+            # labeler, which covers every k-vector type.  Labels then follow
+            # the Miller-Love convention.
             isoir_labels = self._get_isoir_labels(k, irreps, mapping_little_group)
             if isoir_labels is not None:
                 return isoir_labels
@@ -615,7 +625,7 @@ class CrystalOrbital:
         # For spinor irreps, direct character matching can fail because each irrep may
         # differ by a projective gauge. Gauge-invariant quotients chi_a * chi_b^* are
         # still comparable, so resolve the remaining labels by matching those quotient
-        # patterns against irreptables.
+        # patterns against the ISO-IR tables.
         progress = True
         while progress:
             progress = False
@@ -1074,6 +1084,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     print(f" wyckoff letters      : {wyckoff_letters}")
     print(f" site symmetry letters: {site_symmetry_symbols}\n")
     print(f" * Spinor *\n {args.spinor}\n")
+    if args.spinor:
+        print(" (Double-valued irrep labels are not contained in the bundled ISO-IR")
+        print("  tables; spinor irreps are shown with generic labels.)\n")
 
     mapping_little_group, irreps, bandreps, irrep_labels = crystal_orbital.irreducible_decomposition(
         k=args.kpoint,
@@ -1104,9 +1117,6 @@ def main(argv: Optional[list[str]] = None) -> None:
     )
     irreps_result = "+".join([f" {value} [{key}] " for key, value in sorted_bandreps])
     print(irreps_result + "\n")
-    if getattr(crystal_orbital, "labels_from_isoir", False):
-        print(" (This k point is absent from the irreptables (BCS) tables;")
-        print("  irrep labels follow the ISO-IR (ISOTROPY, Miller-Love) convention.)\n")
 
 
 if __name__ == "__main__":

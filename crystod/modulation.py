@@ -408,7 +408,7 @@ class SymmetryAdaptedModulation:
     def get_mode_labels(self) -> list[str]:
         """Per-mode irrep labels (e.g. 'X3-(1)'); '-' when labeling is unavailable.
 
-        Uses the irreptables-based labeling of crystod-phonon --vector/--irreps.
+        Uses the ISO-IR-table-based labeling of crystod-phonon --vector/--irreps.
         The label of band i applies to mode i because the symmetry-adapted
         frequencies are verified to match the plain phonopy spectrum.
         """
@@ -431,7 +431,7 @@ class SymmetryAdaptedModulation:
         return self._mode_labels
 
     def get_q_label(self) -> str:
-        """Short q label for file names: the CDML name (e.g. 'X') when q lies
+        """Short q label for file names: the ISO-IR name (e.g. 'X') when q lies
         in the star of a tabulated special point, else 'q_<coordinates>'."""
         if self._q_label is None:
             label = "q" + "".join(f"_{value:g}" for value in self.qpoint).replace("/", "o")

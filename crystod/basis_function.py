@@ -447,7 +447,7 @@ def _decompose_by_operations(
 def _sympify_character(value, tol: float = 1e-6):
     """Convert a numeric character to an exact sympy value.
 
-    Characters coming from spgrep/irreptables are complex floats carrying
+    Characters coming from spgrep/the ISO-IR tables are complex floats carrying
     numerical noise (e.g. -2.0000000000000004 + 6.7e-16j). Feeding these to
     nsimplify directly yields astronomically large exact rationals, so the
     real and imaginary parts are chopped and simplified with a tolerance
@@ -606,7 +606,7 @@ def _synthetic_conventional_cell(
     conventional_translations: np.ndarray,
 ):
     """Generic two-orbit structure carrying exactly the space-group symmetry,
-    in the conventional setting of the irreptables operations.
+    in the conventional setting of the ISO-IR table operations.
 
     --basis works from a space-group symbol without a structure file; this
     synthetic cell lets the ISO-IR labeler determine the transformation into
@@ -654,8 +654,8 @@ def _resolve_isoir_labels(
     conventional_translations: np.ndarray,
 ):
     """ISO-IR (Miller-Love) labels for the spgrep irreps at a k point absent
-    from the irreptables tables.  Returns ({irrep index: label}, k-type
-    letter) or None; never raises."""
+    from the tabulated ISO-IR special points.  Returns ({irrep index: label},
+    k-type letter) or None; never raises."""
     try:
         from .isoir import get_isoir_label_map
 
@@ -813,9 +813,10 @@ def _spacegroup_irrep_context(space_group_symbol: str, kpoint: list[float]):
     """Space-group little-group irreps at k with resolved labels.
 
     Shared by the --basis/--generate-basis analysis and the --table display:
-    builds the group from the irreptables operations, computes the spgrep
-    small irreps at k, resolves the labels (irreptables at tabulated k,
-    ISO-IR fallback otherwise), and prepares the display strings.
+    builds the group from the ISO-IR table operations, computes the spgrep
+    small irreps at k, resolves the labels (ISO-IR special-point tables at
+    tabulated k, ISO-IR labeler fallback otherwise), and prepares the
+    display strings.
     """
     from types import SimpleNamespace
 
@@ -858,7 +859,8 @@ def _spacegroup_irrep_context(space_group_symbol: str, kpoint: list[float]):
     )
     isoir_kpoint_name = None
     if not irt_irreps:
-        # k point absent from irreptables (symmetry line/plane/general point):
+        # k point absent from the tabulated ISO-IR special points (symmetry
+        # line/plane/general point):
         # fall back to the ISO-IR (ISOTROPY, Miller-Love) tables
         isoir_result = _resolve_isoir_labels(
             sg_type=sg_type,
@@ -915,8 +917,8 @@ def format_spacegroup_table(space_group_symbol: str, kpoint: list[float]) -> str
     """Character table of the little group of k for a space group.
 
     The `crystod-group --table --space-group SG --kpoint ...` display: the
-    space-group analogue of the point-group character table, with irreptables
-    (BCS) labels at tabulated k points and ISO-IR (Miller-Love) labels at
+    space-group analogue of the point-group character table, with ISO-IR
+    (ISOTROPY, Miller-Love) labels both at tabulated k points and at
     symmetry lines/planes/general points.
     """
     context = _spacegroup_irrep_context(space_group_symbol, kpoint)
@@ -1059,8 +1061,8 @@ def _format_expression(expr) -> str:
 
 
 def _get_special_kpoints(space_group_symbol: str) -> tuple[list[str], list[list[float]]]:
-    """Unique special k-points of the space group from irreptables, in the
-    primitive basis (same convention as --salc and --phonon-irrep)."""
+    """Unique special k-points of the space group from the ISO-IR tables, in
+    the primitive basis (same convention as --salc and --phonon-irrep)."""
     sg_type = _resolve_space_group_type(space_group_symbol)
     irt_table = IrrepTable(sg_type.number, spinor=False)
     primitive_matrix = np.array(

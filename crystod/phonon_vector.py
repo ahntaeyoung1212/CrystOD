@@ -807,7 +807,7 @@ def _get_mode_labels(
     try:
         irt_table = IrrepTable(dataset["number"], spinor=False)
         prim_mat = get_primitive_matrix_by_centring(dataset["international"][0])
-        # irreptables tabulates one arm per star; map q onto that arm so every
+        # The ISO-IR tables tabulate one arm per star; map q onto that arm so every
         # arm gets labels. The spectra of star arms are identical band by band,
         # so the labels at the representative apply to the modes at q.
         label_q = list(qpoint)

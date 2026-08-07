@@ -384,9 +384,10 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
                     irt_irreps = candidate_irreps
                     conjugated = transported
         if not irt_irreps:
-            # Not in irreptables (e.g. a symmetry line/plane or generic q):
-            # fall back to the ISO-IR (ISOTROPY) tables, which cover every
-            # k-vector type.  Labels then follow the Miller-Love convention.
+            # Not tabulated as a special point (e.g. a symmetry line/plane or
+            # generic q): fall back to the general ISO-IR (ISOTROPY) k-vector
+            # lookup, which covers every k-vector type.  Labels then follow
+            # the Miller-Love convention.
             return (
                 self._get_isoir_label_list(qpoint, irreps, mapping_little_group)
                 or generic_labels

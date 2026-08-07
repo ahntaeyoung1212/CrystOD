@@ -16,7 +16,7 @@ def snap_qpoint(
     """Snap k-point coordinates to the nearest simple fractions.
 
     Decimal-rounded coordinates (e.g. 1/3 -> 0.333333) break little-group
-    detection and irreptables lookups, which need the exact value; snapping
+    detection and ISO-IR table lookups, which need the exact value; snapping
     restores the exact double of the underlying fraction.
     """
     return [float(Fraction(float(value)).limit_denominator(max_denominator)) for value in qpoint]
@@ -27,7 +27,7 @@ def parse_qpoint_token(value: str | float, tol: float = 1e-6, max_denominator: i
 
     Fractions such as '1/3' are taken exactly; decimal values within ``tol``
     of a simple fraction are snapped to it (0.333333 -> 1/3), since the
-    truncated decimal breaks little-group detection and irreptables lookups.
+    truncated decimal breaks little-group detection and ISO-IR table lookups.
     Other values are returned unchanged.
     """
     number = float(Fraction(value)) if isinstance(value, str) else float(value)
@@ -244,7 +244,7 @@ def find_star_arm(
 ) -> tuple[int, list[float]] | None:
     """Map k onto the tabulated arm of its star.
 
-    irreptables lists only one representative arm per special point (e.g. only
+    The ISO-IR tables list only one representative arm per special point (e.g. only
     (1/2, 1/2, 0) for the three M arms of Pm-3m), so a direct coordinate lookup
     fails for the other arms. Returns (g_index, k_rep) where rotation g sends k
     onto the tabulated point k_rep (k' = k R, modulo reciprocal-lattice

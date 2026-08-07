@@ -6,9 +6,9 @@ little-group irreps of high-symmetry k points) into full space-group irreps:
     chi_(k1,mu) x chi_(k2,nu) = sum over stars k3 in star(k1)+star(k2) of
                                 n_(k3,lam) chi_(k3,lam)
 
-The characters come from the CDML tables shipped with ``irreptables`` (the
-same source as every other crystod irrep label), induced from the little
-group to the full group over the star arms. The reduction coefficients are
+The characters come from the ISO-IR tables bundled with crystod (the same
+source as every other crystod irrep label), induced from the little group
+to the full group over the star arms. The reduction coefficients are
 the standard character inner products over the finite factor group G/T_N;
 the translation sum is carried out analytically, leaving the momentum
 conservation condition k1_a + k2_b = k3_c (mod reciprocal lattice) over the
@@ -26,14 +26,11 @@ M. I. Aroyo, A. Kirov, C. Capillas, J. M. Perez-Mato and H. Wondratschek,
 "Bilbao Crystallographic Server II: Representations of crystallographic
 point groups and space groups", Acta Cryst. A62, 115-128 (2006).
 
-Product terms at k points absent from the CDML tables (symmetry lines
-reached by sums of star arms) are computed with spgrep and named from the
-hand-fitted, DIRPRO-validated ``LINE_IRREP_NAMES`` map when available;
-otherwise from the ISO-IR tables (``crystod.isoir``), whose labels follow
-the ISOTROPY (Miller-Love) convention and are marked ``[ISO-IR labels]``
-in the report.  The two conventions can genuinely differ at lines (CDML V
-= ISOTROPY LD in I4/mmm; the DT numbering of Fm-3m/Ia-3d is permuted), so
-the fitted CDML entries always take precedence.
+Product terms at k points absent from the tables (symmetry lines reached
+by sums of star arms) are computed with spgrep and named from the ISO-IR
+tables (``crystod.isoir``); they are marked ``[ISO-IR labels]`` in the
+report.  All labels follow the ISO-IR (ISOTROPY, Miller-Love) convention
+throughout.
 """
 
 from __future__ import annotations
@@ -44,25 +41,25 @@ import numpy as np
 from phonopy.structure.cells import get_primitive_matrix_by_centring
 
 from .basis_function import _resolve_space_group_type, _synthetic_conventional_cell
-from .dirpro_line_names import LINE_IRREP_NAMES
 from .irreptables_compat import load_irreptables
 
 IrrepTable, _Irrep = load_irreptables()
 
 # global denominator for exact fractional arithmetic on k vectors and
-# translations: every special-point coordinate tabulated in irreptables
-# (all 230 space groups) and every space-group fractional translation is a
-# multiple of 1/24, and sums of 1/24-grid vectors stay on the grid
+# translations: every special-point coordinate tabulated in the ISO-IR
+# tables (all 230 space groups) and every space-group fractional
+# translation is a multiple of 1/24, and sums of 1/24-grid vectors stay
+# on the grid
 DEN = 24
 
-# sign convention of the translation phase in the CDML/irreptables small
+# sign convention of the translation phase in the crystod-internal small
 # representations: D(W, v + t) = exp(SIGMA * 2j*pi * k.t) * D(W, v)
 SIGMA = -1.0
 
 
 class _ComputedIrrep:
     """Line-point small irrep computed on the fly (spgrep); mimics the
-    irreptables irrep interface used by the report."""
+    tabulated-irrep interface used by the report."""
 
     def __init__(
         self, name: str, dim: int, kpname: str, k_int, star_size: int,
@@ -73,14 +70,14 @@ class _ComputedIrrep:
         self.kpname = kpname
         self.k_int = np.asarray(k_int, dtype=np.int64)
         self.star_size = star_size
-        # naming convention of .name: "cdml" (DIRPRO-fitted LINE_IRREP_NAMES),
-        # "isoir" (ISO-IR / ISOTROPY Miller-Love tables) or None (positional)
+        # naming convention of .name: "isoir" (ISO-IR / ISOTROPY Miller-Love
+        # tables) or None (positional)
         self.label_source = label_source
 
 
 class _SyntheticIrrep:
     """Tabulated-like irrep synthesized from another one (e.g. the conjugate
-    irreps of the -k star for polar space groups, CDML 'A' points)."""
+    irreps of the -k star for polar space groups, 'A'-suffixed points)."""
 
     def __init__(self, name: str, dim: int, kpname: str, characters: dict):
         self.name = name
@@ -125,7 +122,7 @@ def _snap(values, denominator: int = DEN) -> np.ndarray:
 
 
 class SpaceGroupIrrepAlgebra:
-    """Space-group symmetry + CDML irrep tables in the primitive basis,
+    """Space-group symmetry + ISO-IR irrep tables in the primitive basis,
     with runtime-verified conventions (group closure, little-group match)."""
 
     def __init__(self, space_group_symbol: str):
@@ -157,11 +154,18 @@ class SpaceGroupIrrepAlgebra:
             conventional_translations @ inverse.T,
             conventional_translations @ inverse,
         ):
-            translations = np.mod(_snap(candidate), DEN)
+            exact_translations = _snap(candidate)
+            translations = np.mod(exact_translations, DEN)
             if self._is_closed(rotations, translations):
                 break
         else:
             raise SystemExit("ERROR: could not build a closed primitive-setting space group.")
+
+        # lattice translation wrapped away by the mod above (integer
+        # vectors, primitive basis): needed to relate the tabulated small
+        # characters (defined at the exact translations) to spgrep
+        # characters computed at the wrapped translations
+        self.wrap_delta = ((exact_translations - translations) // DEN).astype(np.int64)
 
         self.rotations = rotations                      # (n, 3, 3) int
         self.inverse_rotations = np.rint(
@@ -194,8 +198,8 @@ class SpaceGroupIrrepAlgebra:
         """Synthesize the -k ('A') stars of polar space groups.
 
         For space groups without inversion, -k may belong to a star that is
-        not tabulated in irreptables (e.g. PA of I-43m). The allowed small
-        irreps at -k are the complex conjugates of those at k; CDML names
+        not tabulated in the ISO-IR tables (e.g. PA of I-43m). The allowed small
+        irreps at -k are the complex conjugates of those at k; the names
         them with an 'A' suffix on the k-point letter (P1 -> PA1).
         """
         for kname in list(self.k_by_kname):
@@ -312,16 +316,11 @@ class SpaceGroupIrrepAlgebra:
         }
         refined = self._refine_small_characters(k, small)
         if refined is None:
-            # tabulated characters are not those of any allowed small irrep
-            # (broken table entry, e.g. P of SG 230): use the fitted
-            # computed small irrep carrying this CDML name instead
-            substitute = self._substitute_broken_small(irrep, k)
-            result = self.induced_characters_at(
-                np.array(substitute["__at__"], dtype=np.int64),
-                {"chi": substitute["chi"]},
+            raise SystemExit(
+                f"ERROR: the tabulated characters of {irrep.name} "
+                f"(space group {self.sg_type.number}) do not correspond to "
+                "any allowed small representation. Please report this case."
             )
-            self._induced_cache[cache_key] = result
-            return result
         small = refined
 
         C = np.zeros((self.n_ops, len(arms)), dtype=np.complex128)
@@ -347,16 +346,17 @@ class SpaceGroupIrrepAlgebra:
         return arms, C
 
     def _refine_small_characters(self, k: np.ndarray, small: dict) -> dict | None:
-        """Replace rounded table characters with the exact spgrep values.
+        """Match the tabulated characters onto the exact spgrep values.
 
-        irreptables stores characters with a few decimals (e.g. 0.8660 for
-        sqrt(3)/2), which is too coarse for exact reduction coefficients.
         When exactly one spgrep-computed small irrep at the same k matches
-        the table characters within the rounding error, its exact characters
-        are used instead. Paired ("physical") table irreps that correspond
-        to a sum of two computed irreps are kept as tabulated. Returns None
-        when the tabulated characters match NO allowed small irrep at all
-        (broken table entry).
+        the table characters, its exact characters are used.  Where the
+        small-irrep family is not self-conjugate (P/N/W points of some
+        body-/face-centred nonsymmorphic groups), the tabulated ISO-IR
+        characters (phase convention exp(+2*pi*i k.t), exact translations)
+        relate to the spgrep candidates (exp(-2*pi*i k.t), mod-1-wrapped
+        translations) by complex conjugation times the wrapped-lattice
+        phase; that branch resolves the assignment.  Returns None when the
+        tabulated characters match no allowed small irrep at all.
         """
         try:
             computed = self.computed_irreps_at(k)
@@ -380,48 +380,30 @@ class SpaceGroupIrrepAlgebra:
                     abs(c1["chi"][op] + c2["chi"][op] - small[op]) < 5e-3 for op in small
                 ):
                     return small
-        # opposite translation-phase gauge: a few irreptables entries (P/N/W
-        # quarter-k points of nonsymmorphic centred groups, e.g. W of Fd-3m)
-        # store chi_table = chi_spgrep * exp(+4j*pi*k.v); identify the irrep
-        # through that gauge and use the consistent-gauge exact characters
-        flipped = []
+        # not self-conjugate at this k: the tabulated ISO-IR characters
+        # (exp(+2*pi*i k.t) at the exact translations) correspond to the
+        # spgrep candidate with chi_spgrep(op) = conj(chi_table(op)) *
+        # exp(+2*pi*i k.delta_op), where delta_op is the lattice translation
+        # wrapped away when the primitive operators were reduced mod 1
+        # (e.g. P of I-42d/Ia-3d, N of I4_132, W of Fd-3m)
+        conjugated = []
         for candidate in computed:
             chi = candidate["chi"]
             if set(chi.keys()) != set(small.keys()):
                 continue
             if all(
-                abs(chi[op] * self._gauge_factor(k, op) - small[op]) < 5e-3
+                abs(chi[op] - np.conj(small[op]) * self._wrap_phase(k, op)) < 5e-3
                 for op in small
             ):
-                flipped.append(chi)
-        if len(flipped) == 1:
-            return {op: complex(value) for op, value in flipped[0].items()}
+                conjugated.append(chi)
+        if len(conjugated) == 1:
+            return {op: complex(value) for op, value in conjugated[0].items()}
         return None
 
-    def _gauge_factor(self, k: np.ndarray, op: int) -> complex:
+    def _wrap_phase(self, k: np.ndarray, op: int) -> complex:
+        """exp(+2*pi*i k.delta) for the wrapped-away lattice translation."""
         return complex(
-            np.exp(4j * np.pi * float(k @ self.translations[op]) / (DEN * DEN))
-        )
-
-    def _substitute_broken_small(self, irrep, k: np.ndarray) -> dict:
-        arms, _ = self._star_of_vector(k)
-        canonical = np.array(min(tuple(arm) for arm in arms), dtype=np.int64)
-        entry = LINE_IRREP_NAMES.get((self.sg_type.number, tuple(canonical)))
-        if entry is not None:
-            _, name_map = entry
-            for candidate in self.computed_irreps_at(canonical):
-                fingerprint = _character_fingerprint(candidate["chi"])
-                if name_map.get(fingerprint) == irrep.name:
-                    # transport the small irrep from the canonical arm back to
-                    # the tabulated representative arm is not needed: the
-                    # canonical arm IS in the star of k, and the induced full
-                    # irrep is arm-independent, so induce from canonical
-                    return {"__at__": tuple(canonical), "chi": candidate["chi"]}
-        raise SystemExit(
-            f"ERROR: the irreptables characters of {irrep.name} "
-            f"(space group {self.sg_type.number}) do not correspond to any "
-            "allowed small representation, and no fitted substitute is "
-            "available. Please report this case."
+            np.exp(2j * np.pi * float(k @ self.wrap_delta[op]) / DEN)
         )
 
     # -------------------------------------------- non-tabulated (line) k points
@@ -510,7 +492,7 @@ class SpaceGroupIrrepAlgebra:
 
         Returns (factors, terms, leftovers): factors = resolved irreps;
         terms = list of (kname, irrep-like, multiplicity) where irrep-like has
-        .name/.dim/.kpname (a tabulated irreptables irrep or a computed line
+        .name/.dim/.kpname (a tabulated ISO-IR irrep or a computed line
         irrep); leftovers = k vectors (fractions of DEN) that could not be
         decomposed at all.
         """
@@ -526,7 +508,7 @@ class SpaceGroupIrrepAlgebra:
         terms = []
         covered: set[tuple] = set()
 
-        # 1. tabulated special points (CDML labels from irreptables)
+        # 1. tabulated special points (ISO-IR labels)
         for kname in self.k_by_kname:
             arms, _ = self.star(kname)
             arm_set = {tuple(arm) for arm in arms}
@@ -627,7 +609,7 @@ class SpaceGroupIrrepAlgebra:
 
     @staticmethod
     def _minus_k_name(label: str) -> str:
-        """CDML 'A' suffix of a -k star label (P1 -> PA1, DT -> DTA)."""
+        """'A' suffix of a -k star label (P1 -> PA1, DT -> DTA)."""
         import re
 
         return re.sub(r"^[A-Z]+", lambda match: match.group(0) + "A", label)
@@ -637,7 +619,7 @@ class SpaceGroupIrrepAlgebra:
         at a non-tabulated k point: (k-type label, names) on a full match,
         (k-type label, None) when only the k-vector type is identified, or
         None.  A -k star absent from the ISO-IR tables (polar space groups)
-        is labeled through its +k conjugates with the CDML 'A' suffix."""
+        is labeled through its +k conjugates with the 'A' suffix."""
         key = tuple(np.mod(canonical, DEN))
         if key in self._isoir_line_cache:
             return self._isoir_line_cache[key]
@@ -670,7 +652,7 @@ class SpaceGroupIrrepAlgebra:
         # appear in one product and ISO-IR may match both to the same k-type
         # letter through the free line parameter; the star whose -k partner
         # has the smaller canonical representative deterministically takes
-        # the CDML 'A' suffix (P1 -> PA1) so the two keep distinct names
+        # the 'A' suffix (P1 -> PA1) so the two keep distinct names
         minus_arms, _ = self._star_of_vector(np.mod(-canonical, DEN))
         minus_canonical = min(tuple(arm) for arm in minus_arms)
         prefer_minus = minus_canonical < tuple(np.mod(canonical, DEN))
@@ -727,23 +709,12 @@ class SpaceGroupIrrepAlgebra:
 
     def _line_names(self, canonical: np.ndarray) -> tuple[str, list[str] | None, str | None]:
         """Display name of a non-tabulated star, the names of its small
-        irreps (or None) and the naming source ("cdml", "isoir" or None).
+        irreps (or None) and the naming source ("isoir" or None).
 
-        Priority: the hand-fitted, DIRPRO-validated CDML names of
-        LINE_IRREP_NAMES; then the name of a tabulated star reached through
-        the computed route (paired "physical" irreps); then the ISO-IR
-        (ISOTROPY, Miller-Love) tables; positional names as the last resort.
+        Priority: the name of a tabulated star reached through the computed
+        route (paired "physical" irreps); then the ISO-IR (ISOTROPY,
+        Miller-Love) tables; positional names as the last resort.
         """
-        entry = LINE_IRREP_NAMES.get((self.sg_type.number, tuple(canonical)))
-        smalls = self.computed_irreps_at(canonical)
-        if entry is not None:
-            point_name, name_map = entry
-            names = []
-            for small in smalls:
-                fingerprint = _character_fingerprint(small["chi"])
-                names.append(name_map.get(fingerprint))
-            if all(name is not None for name in names):
-                return point_name, names, "cdml"
         # check whether this star is a tabulated star (paired-irrep fallback):
         for kname in self.k_by_kname:
             arms, _ = self.star(kname)
@@ -753,8 +724,6 @@ class SpaceGroupIrrepAlgebra:
         if isoir is not None:
             point_name, names = isoir
             return point_name, names, "isoir" if names is not None else None
-        if entry is not None:
-            return entry[0], None, None
         coordinates = ",".join(_format_fraction(v) for v in canonical)
         return f"({coordinates})", None, None
 
@@ -839,12 +808,8 @@ def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) ->
     for _, irrep, _ in terms:
         if isinstance(irrep, _ComputedIrrep) and irrep.kpname not in algebra.k_by_kname:
             coordinates = ", ".join(_format_fraction(v) for v in irrep.k_int)
-            tag = (
-                "[non-tabulated; ISO-IR labels]"
-                if irrep.label_source == "isoir"
-                else "[non-tabulated]"
-            )
-            entry = f"{irrep.kpname}: ({coordinates})   star of {irrep.star_size} arm(s)  {tag}"
+            entry = (f"{irrep.kpname}: ({coordinates})   star of "
+                     f"{irrep.star_size} arm(s)  [non-tabulated]")
             if entry not in lines:
                 lines.append(entry)
     lines.append("")
@@ -886,22 +851,6 @@ def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) ->
         )
     elif resolved != product_dimension:
         lines.append("WARNING: dimension mismatch - please report this case.")
-    if any(
-        isinstance(irrep, _ComputedIrrep) and irrep.label_source == "isoir"
-        for _, irrep, _ in terms
-    ):
-        lines.append("")
-        lines.append(
-            "NOTE: k points marked [ISO-IR labels] are absent from the CDML "
-            "tables; their"
-        )
-        lines.append(
-            "irrep labels follow the ISO-IR (ISOTROPY, Miller-Love) convention:"
-        )
-        lines.append(
-            "H. T. Stokes, B. J. Campbell and R. Cordes, Acta Cryst. A69, "
-            "388-395 (2013); iso.byu.edu/irtables.php"
-        )
     lines.append("")
     lines.append(
         "Cross-validated against the Bilbao Crystallographic Server DIRPRO:"
@@ -917,7 +866,7 @@ def main(argv: list[str] | None = None) -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Direct products of space-group irreps (CDML labels)."
+        description="Direct products of space-group irreps (ISO-IR labels)."
     )
     parser.add_argument("--space-group", required=True, help='e.g. "Pm-3m" or "P6_3/mmc".')
     parser.add_argument("--irreps", nargs="+", required=True, help="e.g. R4- R5+")

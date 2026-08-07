@@ -1,7 +1,7 @@
 """Show the special (high-symmetry) k points of a space group.
 
 ``crystod-bz --show-kpoint --space-group Pnma`` prints the special k points of
-the space group in the primitive reciprocal basis (the same CDML convention as
+the space group in the primitive reciprocal basis (the same ISO-IR convention as
 ``--salc``, ``--phonon-irrep``, and ``--basis-function``).  For centred
 lattices (F, I, C, A, B, R), whose conventional and primitive cells differ,
 the coordinates in the conventional reciprocal basis are printed as well.
@@ -20,7 +20,7 @@ from .basis_function import IrrepTable, _resolve_space_group_type
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Show the special k points of a space group (CDML convention)."
+        description="Show the special k points of a space group (ISO-IR convention)."
     )
     parser.add_argument(
         "--space-group",
@@ -42,7 +42,7 @@ def _format_kpoint(kpoint) -> str:
 
 
 def get_special_kpoints(space_group_symbol: str):
-    """Special k points of a space group from irreptables.
+    """Special k points of a space group from the bundled ISO-IR tables (CIR_data).
 
     Returns ``(sg_type, names, primitive_kpoints, conventional_kpoints)``.
     ``conventional_kpoints`` is ``None`` for primitive (P) lattices, where the

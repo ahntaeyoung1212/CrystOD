@@ -45,7 +45,7 @@ class MyHelpFormatter(
 
 
 desc = """
-This program identify the CDML notations for the phonon irreducible representations.
+This program identify the ISO-IR (ISOTROPY, Miller-Love) labels for the phonon irreducible representations.
 POSCAR and FORCE_STES must exist in the directory where this code runs.
 
 # Command Example:
@@ -103,10 +103,10 @@ def format_qpoint(q, decimals: int = 6) -> list[float]:
 
 
 def get_irt_special_points(irt_table, prim_mat) -> tuple[list[str], list[list[float]]]:
-    """Get unique special q-points from irreptables in primitive basis.
+    """Get unique special q-points from the ISO-IR tables in primitive basis.
 
     Coordinates are snapped to exact fractions (1/3 stays 1/3, not 0.333333):
-    decimal-rounded values break the little-group detection and irreptables
+    decimal-rounded values break the little-group detection and ISO-IR table
     lookups downstream.
     """
     q_list = []
@@ -127,7 +127,7 @@ def find_star_representative(
 ) -> tuple[str, list[float]] | None:
     """Map q onto the tabulated arm of its star.
 
-    irreptables lists only one representative arm per special point (e.g. only
+    The ISO-IR tables list only one representative arm per special point (e.g. only
     (1/2, 1/2, 0) for the three M arms of Pm-3m), so a direct coordinate lookup
     fails for the other arms. Returns (label, representative q) when some
     space-group rotation sends q onto a tabulated point (k' = k R, modulo
@@ -147,7 +147,7 @@ def find_star_representative(
 def get_irt_irreps_at_q(
     q: list[float], irt_table, prim_mat, warn: bool = True
 ) -> list[Irrep]:
-    """Get irreps at the q-point from irreptables."""
+    """Get irreps at the q-point from the ISO-IR tables."""
     irreps_at_q = []
     prim_inv = np.linalg.inv(prim_mat)
     conventional_q = np.array(q) @ prim_inv
@@ -155,7 +155,7 @@ def get_irt_irreps_at_q(
         if np.allclose(irrep_at_q.k, conventional_q):
             irreps_at_q.append(irrep_at_q)
     if not irreps_at_q and warn:
-        warnings.warn(f"No irreps at {q} in irreptables!", stacklevel=2)
+        warnings.warn(f"No irreps at {q} in the ISO-IR tables!", stacklevel=2)
     return irreps_at_q
 
 
@@ -164,7 +164,7 @@ def get_mapping_to_irt(
     found_little_r: NDArray[np.int_],
     prim_mat,
 ) -> list[int]:
-    """Get mapping from phonopy little-group rotations to irreptables order."""
+    """Get mapping from phonopy little-group rotations to the ISO-IR table order."""
     conv_little_r = prim_mat @ found_little_r @ np.linalg.inv(prim_mat)
     mapping_to_irt = []
     for irt_r in irt_little_r:
@@ -182,7 +182,7 @@ def _get_isoir_band_labels(
 ) -> list[list[str] | None] | None:
     """ISO-IR (Miller-Love) labels per degenerate band set, or None.
 
-    Fallback for q points absent from the irreptables (BCS) tables; the
+    Fallback for q points absent from the special-point irrep table; the
     phonopy band-set characters are decomposed against the ISO-IR small
     irreps (they can be reducible under accidental degeneracy).
     """
@@ -223,8 +223,9 @@ def get_irrep_labels(
     irt_irreps = get_irt_irreps_at_q(np.array(q), irt_table, prim_mat, warn=False)
 
     if not irt_irreps:
-        # Not in irreptables (e.g. a symmetry line/plane or generic q):
-        # fall back to the ISO-IR (ISOTROPY) tables, which cover every
+        # Not in the special-point table (e.g. a symmetry line/plane or
+        # generic q): decompose against the full ISO-IR (ISOTROPY) tables,
+        # which cover every
         # k-vector type.  Labels then follow the Miller-Love convention.
         isoir_labels = _get_isoir_band_labels(q, phonon, phonon_irreps)
         if isoir_labels is not None:
@@ -234,7 +235,7 @@ def get_irrep_labels(
                 frequencies = getattr(phonon_irreps, "_freqs")
             return isoir_labels, band_indices, frequencies
         # only warn when the ISO-IR fallback could not label the q point
-        warnings.warn(f"No irreps at {q} in irreptables!", stacklevel=2)
+        warnings.warn(f"No irreps at {q} in the ISO-IR tables!", stacklevel=2)
         raise ValueError(f"no irrep labels available at {q}")
 
     irt_little_r = [irt_table.symmetries[i - 1].R for i in irt_irreps[0].characters.keys()]

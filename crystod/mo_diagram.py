@@ -104,12 +104,38 @@ EHT_PARAMETERS = {
            ("4d", 4, 2, [(4.080, 0.6401), (1.640, 0.5516)], -12.1)],
     "Mo": [("5s", 5, 0, 1.960, -8.34), ("5p", 5, 1, 1.900, -5.24),
            ("4d", 4, 2, [(4.540, 0.5899), (1.900, 0.5899)], -10.5)],
+    # Cd: the YAeHMOP table keeps the filled 4d10 inactive (as for Zn);
+    # the 4d enters the full-electron diagram basis as a core shell from
+    # the archived PySCF levels instead
+    "Cd": [("5s", 5, 0, 1.640, -11.80), ("5p", 5, 1, 1.600, -8.20)],
     "Sn": [("5s", 5, 0, 2.120, -16.16), ("5p", 5, 1, 1.820, -8.32)],
     "Sb": [("5s", 5, 0, 2.323, -18.8), ("5p", 5, 1, 1.999, -11.7)],
     "Te": [("5s", 5, 0, 2.510, -20.8), ("5p", 5, 1, 2.160, -14.8)],
     "I":  [("5s", 5, 0, 2.679, -18.0), ("5p", 5, 1, 2.322, -12.7)],
     "Cs": [("6s", 6, 0, 1.060, -3.88), ("6p", 6, 1, 1.060, -2.49)],
     "Ba": [("6s", 6, 0, 1.263, -5.49), ("6p", 6, 1, 1.263, -3.84)],
+    # rare earths with published extended-Hueckel parameters (YAeHMOP
+    # eht_parms.dat; the remaining lanthanides carry no fitted values
+    # there and are left out)
+    "La": [("6s", 6, 0, 2.140, -7.67), ("6p", 6, 1, 2.080, -5.01),
+           ("5d", 5, 2, [(3.780, 0.7765), (1.381, 0.4586)], -8.21)],
+    "Ce": [("6s", 6, 0, 1.799, -4.97), ("6p", 6, 1, 1.799, -4.97),
+           ("5d", 5, 2, 2.747, -6.43),
+           ("4f", 4, 3, 3.907, -11.28)],
+    "Sm": [("6s", 6, 0, 1.400, -4.86), ("6p", 6, 1, 1.400, -4.86),
+           ("5d", 5, 2, [(2.747, 0.7184), (1.267, 0.4447)], -6.06),
+           ("4f", 4, 3, [(6.907, 0.7354), (2.639, 0.4597)], -11.28)],
+    # Gd: the 6p exponent is absent from the YAeHMOP table; the 6s value
+    # is used, as in every other lanthanide entry (6p zeta = 6s zeta)
+    "Gd": [("6s", 6, 0, 1.369, -5.44), ("6p", 6, 1, 1.369, -5.44),
+           ("5d", 5, 2, [(2.747, 0.7184), (1.267, 0.4447)], -6.06),
+           ("4f", 4, 3, [(6.907, 0.7354), (2.639, 0.4597)], -11.28)],
+    "Yb": [("6s", 6, 0, 1.540, -5.35), ("6p", 6, 1, 1.540, -5.35),
+           ("5d", 5, 2, [(2.810, 0.7063), (1.216, 0.4834)], -5.21),
+           ("4f", 4, 3, [(8.629, 0.7460), (3.198, 0.4564)], -13.86)],
+    "Lu": [("6s", 6, 0, 1.666, -6.05), ("6p", 6, 1, 1.666, -6.05),
+           ("5d", 5, 2, [(2.813, 0.7044), (1.210, 0.4880)], -5.12),
+           ("4f", 4, 3, [(9.136, 0.7330), (3.666, 0.4459)], -22.40)],
     "Pb": [("6s", 6, 0, 2.350, -15.7), ("6p", 6, 1, 2.060, -8.0)],
     "Bi": [("6s", 6, 0, 2.560, -15.19), ("6p", 6, 1, 2.072, -7.79)],
 }
@@ -120,7 +146,8 @@ VALENCE_ELECTRONS = {
     "K": 1, "Ca": 2, "Sc": 3, "Ti": 4, "V": 5, "Cr": 6, "Mn": 7,
     "Fe": 8, "Co": 9, "Ni": 10, "Cu": 11, "Zn": 2, "Ga": 3, "Ge": 4,
     "As": 5, "Se": 6, "Br": 7, "Rb": 1, "Sr": 2, "Zr": 4, "Nb": 5,
-    "Mo": 6, "Sn": 4, "Sb": 5, "Te": 6, "I": 7, "Cs": 1, "Ba": 2,
+    "Mo": 6, "Cd": 2, "Sn": 4, "Sb": 5, "Te": 6, "I": 7, "Cs": 1,
+    "Ba": 2, "La": 3, "Ce": 4, "Sm": 8, "Gd": 10, "Yb": 16, "Lu": 17,
     "Pb": 4, "Bi": 5,
 }
 
@@ -136,6 +163,9 @@ SHELL_OCCUPATIONS = {
     "Cu": {"4s": 1, "3d": 10}, "Zn": {"4s": 2},
     "Zr": {"5s": 2, "4d": 2}, "Nb": {"5s": 1, "4d": 4},
     "Mo": {"5s": 1, "4d": 5},
+    "La": {"6s": 2, "5d": 1}, "Ce": {"6s": 2, "5d": 1, "4f": 1},
+    "Sm": {"6s": 2, "4f": 6}, "Gd": {"6s": 2, "5d": 1, "4f": 7},
+    "Yb": {"6s": 2, "4f": 14}, "Lu": {"6s": 2, "5d": 1, "4f": 14},
 }
 
 
@@ -173,14 +203,20 @@ CORE_SHELLS = {
     "Se": _AR_CORE + ["3d"], "Br": _AR_CORE + ["3d"],
     "Rb": _KR_CORE, "Sr": _KR_CORE, "Zr": _KR_CORE, "Nb": _KR_CORE,
     "Mo": _KR_CORE,
+    "Cd": _KR_CORE + ["4d"],
     "Sn": _KR_CORE + ["4d"], "Sb": _KR_CORE + ["4d"], "Te": _KR_CORE + ["4d"],
     "I": _KR_CORE + ["4d"],
     "Cs": _XE_CORE, "Ba": _XE_CORE,
+    "La": _XE_CORE, "Ce": _XE_CORE, "Sm": _XE_CORE, "Gd": _XE_CORE,
+    "Yb": _XE_CORE, "Lu": _XE_CORE,
     "Pb": _XE_CORE + ["4f", "5d"], "Bi": _XE_CORE + ["4f", "5d"],
 }
 
 P_LABELS = ["px", "py", "pz"]  # real-orbital order used by wigner_D_real(1)
 D_LABELS = ["dxy", "dyz", "dz2", "dxz", "dx2-y2"]  # wigner_D_real(2) order
+# wigner_D_real(3) order (complex_to_real_transform_orbital)
+F_LABELS = ["fx(x2-3y2)", "fy(3x2-y2)", "fz(x2-y2)", "fxyz",
+            "fxz2", "fyz2", "fz3"]
 
 ANGSTROM_TO_BOHR = 1.0 / 0.529177210903
 
@@ -222,7 +258,15 @@ def _aligned_angular(l: int, m: int, cos, sin):
         if m == 1:
             return np.sqrt(15.0 / (4.0 * np.pi)) * sin * cos
         return np.sqrt(15.0 / (16.0 * np.pi)) * sin ** 2
-    raise SystemExit(f"ERROR: aligned STO overlaps support l <= 2 (got l={l}).")
+    if l == 3:
+        if m == 0:
+            return np.sqrt(7.0 / (16.0 * np.pi)) * (5.0 * cos ** 3 - 3.0 * cos)
+        if m == 1:
+            return np.sqrt(21.0 / (32.0 * np.pi)) * sin * (5.0 * cos ** 2 - 1.0)
+        if m == 2:
+            return np.sqrt(105.0 / (16.0 * np.pi)) * sin ** 2 * cos
+        return np.sqrt(35.0 / (32.0 * np.pi)) * sin ** 3
+    raise SystemExit(f"ERROR: aligned STO overlaps support l <= 3 (got l={l}).")
 
 
 def sto_overlap_aligned(n1, l1, z1, n2, l2, z2, R, m) -> float:
@@ -297,7 +341,9 @@ class AtomicOrbital:
             return self.shell
         if self.l == 1:
             return self.shell[:-1] + P_LABELS[self.m]
-        return self.shell[:-1] + D_LABELS[self.m]
+        if self.l == 2:
+            return self.shell[:-1] + D_LABELS[self.m]
+        return self.shell[:-1] + F_LABELS[self.m]
 
 
 def build_basis(symbols: list[str], site_indices: list[int]) -> list[AtomicOrbital]:
@@ -324,6 +370,8 @@ _BOND_CHANNELS = {
     1: [(1, 0), (1, 1), (0, 0)],
     # (dxy, dyz, dz2, dxz, dx2-y2)
     2: [(2, 1), (1, 1), (0, 0), (1, 0), (2, 0)],
+    # (fx(x2-3y2), fy(3x2-y2), fz(x2-y2), fxyz, fxz2, fyz2, fz3)
+    3: [(3, 0), (3, 1), (2, 0), (2, 1), (1, 0), (1, 1), (0, 0)],
 }
 
 

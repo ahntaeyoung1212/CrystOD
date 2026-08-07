@@ -13,10 +13,10 @@ symmetry-mode analysis on the Bilbao Crystallographic Server",
 J. Appl. Cryst. 42, 820-833 (2009).
 
 Method: both structures are spglib-standardized; the parent is converted to
-the CDML (irreptables) primitive setting of crystod's space-group irrep
-machinery (an origin-shift fit absorbs any difference between the spglib and
-CDML origin conventions, verified by invariance of the structure under every
-tabulated operation).  The subgroup translation lattice and the origin shift
+the primitive setting of the bundled ISO-IR tables (CIR_data) used by
+crystod's space-group irrep machinery (an origin-shift fit absorbs any
+difference between the spglib and ISO-IR origin conventions, verified by
+invariance of the structure under every tabulated operation).  The subgroup translation lattice and the origin shift
 are found by strain-tolerant lattice matching plus atom pairing (the
 assignment minimizing the total distortion is chosen), the subgroup elements
 are identified as the parent operations that leave the distorted structure
@@ -134,10 +134,10 @@ def _dataset_field(dataset, name):
 
 
 def _fit_origin_shift(algebra, spg_rotations, spg_translations):
-    """delta with x_cdml = x_spg + delta: (I - W) delta = v_cdml - v_spg,
+    """delta with x_isoir = x_spg + delta: (I - W) delta = v_isoir - v_spg,
     modulo the full conventional translation lattice (centring included).
 
-    Matches the CDML conventional operations of the algebra against the
+    Matches the ISO-IR conventional operations of the algebra against the
     spglib conventional operations of the standardized structure.  For
     centred lattices the spglib conventional dataset carries every centring
     copy of each operation, so the translation comparison must be made
@@ -162,7 +162,7 @@ def _fit_origin_shift(algebra, spg_rotations, spg_translations):
         key = np.rint(W).astype(np.int64).tobytes()
         if key not in cdml:
             raise SystemExit(
-                "ERROR: the parent operations do not match the CDML setting "
+                "ERROR: the parent operations do not match the ISO-IR setting "
                 "(different conventional cell); please report this case."
             )
         pairs.append((np.asarray(W, dtype=float), cdml[key] - np.asarray(v) % 1.0))
@@ -177,7 +177,7 @@ def _fit_origin_shift(algebra, spg_rotations, spg_translations):
         candidates = candidates[keep]
         if len(candidates) == 0:
             raise SystemExit(
-                "ERROR: could not fit the CDML origin shift; please report "
+                "ERROR: could not fit the ISO-IR origin shift; please report "
                 "this case."
             )
     return candidates[0]
@@ -205,7 +205,7 @@ def _to_algebra_primitive(algebra, conventional, delta):
         if _invariant_under_algebra(algebra, merged, merged_z):
             return lattice_prim, merged, merged_z, A
     raise SystemExit(
-        "ERROR: could not express the parent structure in the CDML primitive "
+        "ERROR: could not express the parent structure in the ISO-IR primitive "
         "setting; please report this case."
     )
 

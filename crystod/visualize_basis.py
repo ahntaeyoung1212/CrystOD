@@ -83,8 +83,10 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--kpoint",
         nargs="+",
-        required=True,
-        help="Either a high-symmetry label such as GM/X/M/R or three primitive reciprocal coordinates.",
+        default=None,
+        help="Either a high-symmetry label such as GM/X/M/R or three primitive "
+        "reciprocal coordinates. Omit to visualize every special k point of "
+        "the space group (one HTML per point).",
     )
     parser.add_argument(
         "--tolerance",
@@ -1267,6 +1269,21 @@ def write_html_visualization(
         handle.write(html)
 
 
+def _special_kpoints(orbitals) -> tuple[list[str], list[list[float]]]:
+    """Unique special k points of the space group, in the primitive basis."""
+    from phonopy.structure.cells import get_primitive_matrix_by_centring
+
+    from .irreptables_compat import load_irreptables
+    from .phonon_irreps import get_irt_special_points
+
+    irrep_table_cls, _ = load_irreptables()
+    irt_table = irrep_table_cls(orbitals.spglib_dataset["number"], spinor=False)
+    prim_mat = get_primitive_matrix_by_centring(
+        orbitals.spglib_dataset["international"][0]
+    )
+    return get_irt_special_points(irt_table, prim_mat)
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     l = ORBITAL_L[args.orbital]
@@ -1276,8 +1293,32 @@ def main(argv: list[str] | None = None) -> None:
     cell = read_poscar_or_exit(args.poscar)
     orbitals = SymmetryAdaptedOrbitalBasis(cell=cell, symprec=args.tolerance)
 
-    kpoint_label, kpoint = resolve_kpoint_input(orbitals, args.kpoint)
+    if args.kpoint is None:
+        # no --kpoint: visualize the SALCs at every special k point of the
+        # space group (mirrors the --diagram behaviour), one HTML per point
+        if args.output:
+            raise SystemExit(
+                "ERROR: --output requires --kpoint (the all-special-points "
+                "scan writes one file per k point)."
+            )
+        if args.mode_index is not None:
+            raise SystemExit("ERROR: --mode-index requires --kpoint.")
+        import os
 
+        stem = os.path.splitext(os.path.basename(args.poscar))[0]
+        kpoint_names, kpoints = _special_kpoints(orbitals)
+        for kpoint_label, kpoint in zip(kpoint_names, kpoints):
+            output_path = (
+                f"SALC_{stem}_{args.element}_{args.orbital}_{kpoint_label}.html"
+            )
+            _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, output_path)
+        return
+
+    kpoint_label, kpoint = resolve_kpoint_input(orbitals, args.kpoint)
+    _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, None)
+
+
+def _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, forced_output) -> None:
     element_indices = orbitals.get_element_indices(args.element)
     wyckoff_letters = [orbitals.spglib_dataset["wyckoffs"][index] for index in element_indices]
     site_symmetry_symbols = [
@@ -1339,7 +1380,9 @@ def main(argv: list[str] | None = None) -> None:
         mode_index=selected_space_index,
     )
 
-    if args.output:
+    if forced_output is not None:
+        output_path = forced_output
+    elif args.output:
         output_path = args.output
     else:
         if kpoint_label and kpoint_label != "custom":
