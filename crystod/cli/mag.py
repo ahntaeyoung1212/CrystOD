@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from .common import add_cell_argument, banner
+from .common import CRYSTOD_CITATION, add_cell_argument, banner
 
 desc = """\
 Construct symmetry-adapted spin bases (cluster multipoles / SAMM) for the
@@ -39,6 +39,7 @@ def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
         prog="crystod-mag",
         description=f"{banner()}\n\n{desc}",
+        epilog=CRYSTOD_CITATION,
         formatter_class=RawTextHelpFormatter,
     )
     add_cell_argument(parser)

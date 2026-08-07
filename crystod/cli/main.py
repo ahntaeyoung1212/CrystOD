@@ -287,8 +287,12 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--visualize",
         action="store_true",
-        help="Construct and visualize the SALC basis functions as an interactive "
-        "3D HTML file (requires --element/--orbital/--kpoint).",
+        help="Interactive 3D SALC viewer. With --element/--orbital: the SALC\n"
+        "basis functions of that shell at --kpoint (omit --kpoint to write\n"
+        "one HTML per special k point). WITHOUT --element/--orbital: the\n"
+        "eigen-levels of the extended-Hueckel crystal-orbital engine at\n"
+        "every special k point (one page per k; add --pyscf for the\n"
+        "periodic-DFT levels instead).",
     )
     parser.add_argument(
         "--star-of-k",
@@ -367,8 +371,8 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         default=None,
         metavar="FORMULA",
-        help="For --visualize --pyscf: show the PySCF levels of this fragment\n"
-        "sublattice (formal-charge ions + ghost basis + point-charge lattice,\n"
+        help="For the --visualize levels viewer (with or without --pyscf):\n"
+        "show the levels of this fragment sublattice (formal-charge ions + ghost basis + point-charge lattice,\n"
         "as in --diagram --pyscf), e.g. --sublattice Sc or --sublattice F3;\n"
         "omit for the full crystal's levels.",
     )
@@ -378,7 +382,7 @@ def build_parser() -> ArgumentParser:
         type=float,
         default=None,
         metavar=("LO", "HI"),
-        help="For --visualize --pyscf and --band: energy window in eV\n"
+        help="For the --visualize levels viewer and --band: energy window in eV\n"
         "(visualize default: HOMO-15 .. LUMO+10 of the displayed column;\n"
         "band default: the band range clipped to -25 .. 15).",
     )
@@ -392,14 +396,14 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--diagonalize",
         action="store_true",
-        help="For --visualize --pyscf: canonicalize degenerate partners\n"
+        help="For the --visualize levels viewer: canonicalize degenerate partners\n"
         "(RREF) so the drawn s/p/d/f combinations are axis-aligned instead\n"
         "of the SCF's arbitrary unitary mixture; energies are unchanged.",
     )
     parser.add_argument(
         "--valence-only",
         action="store_true",
-        help="For --visualize --pyscf: drop semicore shells (occupied\n"
+        help="For the --visualize levels viewer: drop semicore shells (occupied\n"
         "fragment bands > 12 eV below the crystal VBM, e.g. Sc 3s/3p and\n"
         "F 2s of ScF3) from the drawn wave functions -- their admixture in\n"
         "a valence level is the on-site orthogonality tail whose radial\n"
@@ -616,6 +620,19 @@ def main(argv: list[str] | None = None) -> None:
                 "--onsite is not supported with --visualize: the SALC "
                 "viewer draws the fragment SCF eigenstates; use --onsite "
                 "with --diagram --pyscf or --dos --pyscf.")
+        if args.diagram:
+            parser.error("--visualize and --diagram are separate runs; "
+                         "call them one at a time.")
+        if args.atomic_orbital:
+            parser.error("--visualize does not take --atomic-orbital: the "
+                         "levels viewer draws every shell automatically "
+                         "(the hybridization analysis runs without "
+                         "--visualize).")
+        if args.co_left or args.co_right:
+            parser.error("--co-left/--co-right are only used with "
+                         "--diagram; the levels viewer picks the split "
+                         "automatically (choose a fragment with "
+                         "--sublattice).")
         if args.pyscf:
             # PySCF eigen-levels in the SALC viewer: all special k points
             # automatically, one page per k; --sublattice picks a fragment
@@ -677,14 +694,84 @@ def main(argv: list[str] | None = None) -> None:
             visualize_pyscf_main(dispatch_argv)
             return
 
-        if args.sublattice or args.window is not None:
-            parser.error("--sublattice/--window require --visualize --pyscf.")
-        if not args.element or not args.orbital:
-            parser.error("--visualize requires --element and --orbital.")
-        if args.kpoint is None:
-            parser.error("--visualize requires --kpoint.")
+        for flag, value in (("--basis", args.basis),
+                            ("--pseudo", args.pseudo),
+                            ("--xc", args.xc),
+                            ("--kmesh", args.kmesh),
+                            ("--ke-cutoff", args.ke_cutoff is not None),
+                            ("--no-align", args.no_align),
+                            ("--no-ghost", args.no_ghost),
+                            ("--no-symmetrize", args.no_symmetrize),
+                            ("--max-l", args.max_l is not None),
+                            ("--projection", args.projection),
+                            ("--chk", args.chk)):
+            if value:
+                parser.error(f"{flag} needs --visualize --pyscf (the "
+                             "extended-Hueckel viewer has no SCF and no "
+                             "basis options).")
 
-        kpoint = _normalize_kpoint(parser, args.kpoint, allow_label=True)
+        if not args.element and not args.orbital:
+            # extended-Hueckel eigen-levels in the SALC viewer: the EHT
+            # counterpart of --visualize --pyscf.  No SCF and no basis
+            # options -- everything is tabulated -- so the bare
+            # `crystod --visualize -c POSCAR` works out of the box.
+            if args.mode_index is not None:
+                parser.error("--mode-index is only used with the SALC "
+                             "basis viewer (--element/--orbital).")
+            dispatch_argv = ["--poscar", args.cell]
+            if args.sublattice:
+                dispatch_argv.extend(["--sublattice", *args.sublattice])
+            for el1, el2, max_length in args.bond or []:
+                dispatch_argv.extend(["--bond", el1, el2, max_length])
+            if args.real_coefficient:
+                dispatch_argv.append("--real-coefficient")
+            if args.kpoint is not None:
+                if len(args.kpoint) != 1:
+                    parser.error(
+                        "--visualize --kpoint takes a special-point label "
+                        "such as GM/X/M/R here (pages are written per "
+                        "special k point; omit it for all of them). For "
+                        "the SALC *basis* viewer -- which accepts "
+                        "coordinate k points -- pass --element and "
+                        "--orbital."
+                    )
+                dispatch_argv.extend(["--kpoint", args.kpoint[0]])
+            if args.window is not None:
+                dispatch_argv.extend(["--window", *map(str, args.window)])
+            if args.diagonalize:
+                dispatch_argv.append("--diagonalize")
+            if args.valence_only:
+                dispatch_argv.append("--valence-only")
+            if args.electrons is not None:
+                dispatch_argv.extend(["--electrons", str(args.electrons)])
+            if args.oxidation:
+                dispatch_argv.extend(["--oxidation", *args.oxidation])
+            if args.conventional:
+                dispatch_argv.append("--conventional")
+            if args.output is not None:
+                dispatch_argv.extend(["--output", args.output])
+            if args.tolerance is not None:
+                dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+
+            from ..visualize_eht import main as visualize_eht_main
+
+            visualize_eht_main(dispatch_argv)
+            return
+
+        for flag, value in (("--sublattice", args.sublattice),
+                            ("--window", args.window is not None),
+                            ("--diagonalize", args.diagonalize),
+                            ("--valence-only", args.valence_only),
+                            ("--electrons", args.electrons is not None),
+                            ("--oxidation", args.oxidation)):
+            if value:
+                parser.error(f"{flag} is only used with the levels viewer "
+                             "(--visualize --pyscf, or --visualize without "
+                             "--element/--orbital).")
+        if not args.element or not args.orbital:
+            parser.error("--visualize requires --element and --orbital "
+                         "(omit BOTH for the extended-Hueckel levels "
+                         "viewer).")
         dispatch_argv = [
             "--poscar",
             args.cell,
@@ -692,9 +779,10 @@ def main(argv: list[str] | None = None) -> None:
             args.element,
             "--orbital",
             args.orbital,
-            "--kpoint",
-            *kpoint,
         ]
+        if args.kpoint is not None:
+            kpoint = _normalize_kpoint(parser, args.kpoint, allow_label=True)
+            dispatch_argv.extend(["--kpoint", *kpoint])
         if args.tolerance is not None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
         if args.mode_index is not None:
@@ -801,19 +889,20 @@ def main(argv: list[str] | None = None) -> None:
                         ("--valence-only", args.valence_only)):
         if value:
             parser.error(f"{flag} is only used with --diagram or "
-                         "--visualize --pyscf.")
+                         "--visualize.")
     if args.onsite:
         parser.error("--onsite is only used with --diagram --pyscf, "
                      "--dos --pyscf or --band --pyscf.")
     if args.window is not None:
-        parser.error("--window is only used with --visualize --pyscf "
-                     "or --band.")
+        parser.error("--window is only used with --visualize or --band.")
     if args.electrons is not None:
-        parser.error("--electrons is only used with --diagram.")
+        parser.error("--electrons is only used with --diagram or "
+                     "--visualize.")
     if args.co_left or args.co_right:
         parser.error("--co-left/--co-right are only used with --diagram.")
     if args.oxidation:
-        parser.error("--oxidation is only used with --diagram.")
+        parser.error("--oxidation is only used with --diagram or "
+                     "--visualize.")
 
     if args.atomic_orbital:
         if args.element or args.orbital:

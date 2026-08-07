@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from .common import add_output_argument, banner
+from .common import CRYSTOD_CITATION, add_output_argument, banner
 
 desc = """\
 Analyze an MD trajectory:
@@ -39,6 +39,7 @@ def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
         prog="crystod-md",
         description=f"{banner()}\n\n{desc}",
+        epilog=CRYSTOD_CITATION,
         formatter_class=RawTextHelpFormatter,
     )
     mode = parser.add_mutually_exclusive_group(required=True)

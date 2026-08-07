@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from .common import banner
+from .common import CRYSTOD_CITATION, banner
 
 desc = """\
 Analyze the point-group symmetry of a molecule (XYZ file) and construct its
@@ -73,6 +73,7 @@ def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
         prog="crystod-mol",
         description=f"{banner()}\n\n{desc}",
+        epilog=CRYSTOD_CITATION,
         formatter_class=RawTextHelpFormatter,
     )
     parser.add_argument(

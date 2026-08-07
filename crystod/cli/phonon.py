@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from .common import add_cell_argument, add_output_argument, banner
+from .common import CRYSTOD_CITATION, add_cell_argument, add_output_argument, banner
 
 desc = """\
 Phonon analyses from phonopy force data (FORCE_SETS, or FORCE_CONSTANTS with
@@ -37,6 +37,7 @@ def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
         prog="crystod-phonon",
         description=f"{banner()}\n\n{desc}",
+        epilog=CRYSTOD_CITATION,
         formatter_class=RawTextHelpFormatter,
     )
     mode = parser.add_mutually_exclusive_group(required=True)

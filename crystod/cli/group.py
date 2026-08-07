@@ -24,7 +24,7 @@ from __future__ import annotations
 from argparse import ArgumentParser, RawTextHelpFormatter
 from fractions import Fraction
 
-from .common import banner
+from .common import CRYSTOD_CITATION, banner
 
 desc = """\
 Representation-theory calculator for point and space groups (no structure
@@ -59,6 +59,7 @@ def build_parser() -> ArgumentParser:
     parser = ArgumentParser(
         prog="crystod-group",
         description=f"{banner()}\n\n{desc}",
+        epilog=CRYSTOD_CITATION,
         formatter_class=RawTextHelpFormatter,
     )
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -73,8 +74,8 @@ def build_parser() -> ArgumentParser:
         "--table",
         action="store_true",
         help="Display the character table of the point group, or, with\n"
-        "--space-group and --kpoint, of the little group of k (irreptables\n"
-        "labels at tabulated k points, ISO-IR labels on lines/planes).",
+        "--space-group and --kpoint, of the little group of k (ISO-IR labels\n"
+        "at tabulated k points and on lines/planes).",
     )
     mode.add_argument(
         "--decompose",
@@ -155,7 +156,7 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         default=None,
         metavar="IR",
-        help="CDML irrep label(s) for --supergroup, e.g. GM4- or R4+;\n"
+        help="ISO-IR irrep label(s) for --supergroup, e.g. GM4- or R4+;\n"
         "several labels (e.g. --irrep X3- X2+) enumerate the isotropy\n"
         "subgroups of the coupled order parameters.",
     )
@@ -459,7 +460,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.table:
         if args.space_group:
             # character table of the little group of k for a space group
-            # (irreptables labels at tabulated k, ISO-IR labels otherwise)
+            # (ISO-IR labels at tabulated k points and on lines/planes)
             if args.kpoint is None:
                 parser.error("--table with --space-group requires --kpoint.")
 
