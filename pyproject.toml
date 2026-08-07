@@ -4,21 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CrystOD"
-version = "0.3.4"
+version = "0.3.5"
 authors = [
   {name = "Yasuhide Mochizuki"},
   {email = "mochizuki@rs.tus.ac.jp"},
 ]
 description = "Python-based command line tools calculating irreducible representations (irreps) of Symmetry-Adapted Linear Combination (SALC) for Crystal Orbital Diagram (CrystOD), and phonon irreps."
 readme = "README.md"
-license = {text = "GNU General Public License v3 (GPLv3)"}
+license = {text = "MIT License"}
 requires-python = ">=3.9"
 dependencies = [
   "phonopy",
   "spglib",
   "spgrep",
-  "irrep",
-  "irreptables",
   "ase",
   "numpy",
   "pandas",
@@ -27,6 +25,7 @@ dependencies = [
   "scipy",
   "seekpath",
   "pymatgen",
+  "pyscf",
 ]
 
 [project.optional-dependencies]

@@ -13,7 +13,9 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
    1. wigner_D_real regression (pure numpy)
   -- crystod (main command) --
    2. crystod (SALC)            crystal-orbital irreps
-   3. crystod --atomic-orbital  hybridization analysis
+   3. crystod --atomic-orbital  hybridization analysis, and the crystal-orbital
+                                diagrams of --diagram (extended Hueckel) and
+                                --diagram --pyscf (skipped without pyscf)
    4. crystod --star-of-k       star of k
    5. crystod --visualize       SALC coefficients + 3D HTML viewer
    6. crystod main command      extras (aliases/errors/removed flags)
@@ -68,6 +70,7 @@ import numpy as np
 ROOT = os.path.dirname(os.path.abspath(__file__))
 POSCAR_ScF3 = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_ScF3")
 POSCAR_SrTiO3 = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_SrTiO3")
+POSCAR_NaCl = os.path.join(ROOT, "example", "test_POSCARs", "225_PPOSCAR_NaCl")
 MODULATION_DIR = os.path.join(ROOT, "example", "25_modulation", "ScF3_Pm-3m")
 PHONON_IRREP_DIR = os.path.join(ROOT, "example", "21_phonon_irrep", "SrTiO3_Pm-3m")
 PHONON_VECTOR_DIR = os.path.join(ROOT, "example", "24_phonon_vector", "Si_Fd-3m")
@@ -223,7 +226,8 @@ def test_02_salc() -> None:
     report("T-line irreps labeled T1+T3+T4+T5",
            all(f"[{lbl}(" in out for lbl in ("T1", "T3", "T4", "T5"))
            and "irrep_" not in out, out)
-    report("ISO-IR provenance note printed", "ISO-IR" in out, out)
+    report("no provenance note printed (ISO-IR unified)",
+           "tabulated special point" not in out, out)
 
     poscar_catio3 = os.path.join(ROOT, "example", "test_POSCARs", "62_PPOSCAR_CaTiO3")
     code, out = run_cli(
@@ -276,6 +280,9 @@ def test_03_hybridization() -> None:
         )
         report("--diagram ScF3 --co-left Sc --co-right F3 exit 0",
                code == 0, out)
+        report("CrystOD's own paper cited at the end of the run",
+               "If you use CrystOD in your research, please cite:" in out
+               and "Phys. Rev. B 110, 064104 (2024)" in out, out)
         report("full-electron basis: core + valence shells, 48 electrons",
                "Sc 1s 2s 2p 3s 3p 4s 4p 3d" in out and "F 1s 2s 2p" in out
                and "electrons per cell in the diagram: 48" in out, out)
@@ -408,6 +415,69 @@ def test_03_hybridization() -> None:
                code == 0 and "electrons per cell in the diagram: 18" in out
                and "all electrons of the neutral atoms" not in out, out)
 
+        # --conventional: sketches drawn in the conventional cell (Fm-3m NaCl,
+        # F centring; at X the conventional cell is already commensurate)
+        conv_path = os.path.join(tmp, "nacl_conv.html")
+        code, out = run_cli(
+            ["-c", POSCAR_NaCl,
+             "--diagram", "--co-left", "Na", "--co-right", "Cl",
+             "--kpoint", "X", "--conventional", "--output", conv_path]
+        )
+        conv_html = ""
+        if code == 0 and os.path.isfile(conv_path):
+            with open(conv_path) as handle:
+                conv_html = handle.read()
+        report("--diagram --conventional exit 0, F-centring cell in sketch",
+               code == 0
+               and "conventional cell (F centring), 1 x 1 x 1" in conv_html
+               and "drawn on the conventional cell" in conv_html, out)
+        conv_match = re.search(r"const VARIANTS = (\[.*?\]);\n", conv_html,
+                               re.S)
+        conv_variant = (json.loads(conv_match.group(1))[0] if conv_match
+                        else {"geom": {}, "levels": []})
+        conv_geom = conv_variant["geom"]
+        # the frame must BE the cubic conventional cell: three orthogonal
+        # equal-length vectors (the default 2x1x2 fcc-primitive supercell
+        # is neither, and it also passes any bare atom-count threshold
+        # once the boundary replicas are counted)
+        cell_rows = np.array(conv_geom.get("cell", [[0, 0, 0]])[1:], float)
+        lengths = np.linalg.norm(cell_rows, axis=1) if len(cell_rows) else []
+        report("--conventional frame is the cubic conventional cell",
+               len(cell_rows) == 3
+               and float(np.ptp(lengths)) < 1e-6
+               and abs(cell_rows[0] @ cell_rows[1]) < 1e-6
+               and abs(cell_rows[0] @ cell_rows[2]) < 1e-6
+               and abs(cell_rows[1] @ cell_rows[2]) < 1e-6,
+               str(conv_geom.get("cell")))
+        # Bloch signs on the four Na sites of the F cell: primitive
+        # X = (1/2,0,1/2) is (0,1,0) in conventional reciprocal
+        # coordinates, so the corner and the (1/2,0,1/2) face share the
+        # sign while the (1/2,1/2,0) and (0,1/2,1/2) faces are inverted
+        signs = {}
+        if len(cell_rows) == 3:
+            origin = np.array(conv_geom["cell"][0], float)
+            inverse = np.linalg.inv(cell_rows)
+            conv_atoms = conv_geom.get("atoms", [])
+            for level in conv_variant["levels"]:
+                if (level.get("col") != "left"
+                        or level["label"] != "Na 2s X1+"):
+                    continue
+                for row in level["orb"][0]:
+                    atom = conv_atoms[row[0]]
+                    if atom[0] != "Na":
+                        continue
+                    frac = (np.array(atom[1:4]) - origin) @ inverse
+                    key = tuple(np.round(frac, 3) % 1.0)
+                    signs.setdefault(key, row[1])
+        report("--conventional Na 2s Bloch signs follow exp(2pi i k_conv.r)",
+               len(signs) == 4
+               and signs.get((0.0, 0.0, 0.0), 0)
+               * signs.get((0.5, 0.0, 0.5), 0) > 0
+               and signs.get((0.0, 0.0, 0.0), 0)
+               * signs.get((0.5, 0.5, 0.0), 0) < 0
+               and signs.get((0.0, 0.0, 0.0), 0)
+               * signs.get((0.0, 0.5, 0.5), 0) < 0, str(signs))
+
     # errors
     code, out = run_cli(["-c", POSCAR_SrTiO3, "--diagram"])
     report("--diagram without --co-left/--co-right rejected cleanly",
@@ -432,6 +502,14 @@ def test_03_hybridization() -> None:
     )
     report("unknown k label rejected with the available list",
            code != 0 and "not a special point" in out and "GM" in out, out)
+    code, out = run_cli(["-c", POSCAR_SrTiO3, "--conventional"])
+    report("--conventional without --visualize/--diagram rejected",
+           code != 0 and "--visualize or --diagram" in out, out)
+    code, out = run_cli(["-c", "225_PPOSCAR_ZrO2", "--diagram",
+                         "--co-left", "Zr", "--co-right", "O2"])
+    report("--diagram with missing POSCAR gives clear error (no traceback)",
+           code != 0 and "No POSCAR named 225_PPOSCAR_ZrO2!" in out
+           and "Traceback" not in out, out)
     code, out = run_cli(
         ["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
          "--co-right", "O2"]
@@ -488,6 +566,194 @@ def test_03_hybridization() -> None:
     report("--co-left outside --diagram rejected cleanly",
            code != 0 and "only used with --diagram" in out, out)
 
+    # --------------------------------------------------- --diagram --pyscf
+    # the quantitative crystal engine (crystod/crystal_orbital_pyscf.py),
+    # which nothing above touches -- everything so far is extended Hueckel.
+    # Deliberately small so the block stays around a minute: NaCl has two
+    # atoms per cell, --onsite runs ONE crystal SCF (no fragment SCFs), and
+    # --kmesh 1 1 1 / --ke-cutoff 80 / --kpoint X keep that SCF short; the
+    # --conventional rerun reads the checkpoint and skips the SCF entirely.
+    try:
+        import pyscf  # noqa: F401
+        has_pyscf = True
+    except ImportError:
+        has_pyscf = False
+    if not has_pyscf:
+        print("  [SKIP] pyscf not installed: --diagram --pyscf tests skipped.")
+        return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        chk_path = os.path.join(tmp, "nacl.npz")
+        pyscf_path = os.path.join(tmp, "nacl_pyscf.html")
+        pyscf_argv = ["-c", POSCAR_NaCl, "--diagram", "--pyscf", "--onsite",
+                      "--co-left", "Na", "--co-right", "Cl", "--kpoint", "X",
+                      "--kmesh", "1", "1", "1", "--ke-cutoff", "80",
+                      "--chk", chk_path]
+        code, out = run_cli(pyscf_argv + ["--output", pyscf_path])
+        report("--diagram --pyscf --onsite NaCl at X exit 0", code == 0, out)
+        report("--onsite runs the crystal SCF only, converged",
+               re.search(r"^\s+mo\s+crystal\s+E =\s+-6\d\.\d+ Hartree", out,
+                         re.M) is not None
+               and re.search(r"^\s+(left|right)\s+\S+\s+E =", out, re.M) is None
+               and "16 electrons = 8 + 8" in out
+               and "NOT CONVERGED" not in out, out)
+        report("fragment columns are the on-site multiplets of that Fock",
+               "per-shell on-site multiplets <phi|F(k)|phi>" in out
+               and "no fragment SCF, no point" in out, out)
+        report("AO representation verified against the PySCF overlap at X",
+               re.search(r"AO representation verified against the PySCF "
+                         r"overlap: max \|D\+SD - S\| = \d", out) is not None
+               and "removed by Fock group-averaging" in out, out)
+        report("site-symmetry induced representations of every shell",
+               "Na 2p   = X3- + X5-" in out and "Cl 3d   = X1+ + X5+" in out,
+               out)
+        report("crystal levels: Cl-3p valence band bonds with Na 3p at X",
+               re.search(r"X3- #2\s+0\.\d+ eV\s+x1\s+2e\s+"
+                         r"Cl 3p X3- 6\d\.\d%\s+Na 3p X3- 2\d\.\d%", out)
+               is not None
+               and re.search(r"X5- #2\s+1\.\d+ eV\s+x2\s+4e\s+"
+                             r"Cl 3p X5- 8\d\.\d%", out) is not None, out)
+        report("Loewdin-corrected same-irrep coupling table written",
+               "Loewdin-corrected |H~|" in out
+               and os.path.isfile(os.path.join(tmp,
+                                               "nacl_pyscf_coupling.txt")),
+               out)
+        report("diagram HTML written", os.path.isfile(pyscf_path), out)
+
+        variant = {"geom": {"atoms": []}, "levels": []}
+        pyscf_html = ""
+        if os.path.isfile(pyscf_path):
+            with open(pyscf_path) as handle:
+                pyscf_html = handle.read()
+            match = re.search(r"const VARIANTS = (\[.*?\]);\n", pyscf_html,
+                              re.S)
+            if match:
+                variant = json.loads(match.group(1))[0]
+        report("PySCF levels carry the supercell sketches and Loewdin rows",
+               pyscf_html.count('"orb": [[') > 30
+               and pyscf_html.count('"geom":') == 1
+               and "Loewdin: Cl 3p" in pyscf_html
+               and "left-right overlap population" in pyscf_html, pyscf_path)
+
+        # PySCFCrystalOrbitalDiagram.sketch_partners, which only manual
+        # inspection used to cover.  Two independent invariants of the
+        # drawn lobes, on the Na-Cl bonds of the 2x1x2 display supercell:
+        symbols = [atom[0] for atom in variant["geom"]["atoms"]]
+        positions = np.array([atom[1:4] for atom in variant["geom"]["atoms"]],
+                             float)
+        bonds = []
+        if len(positions):
+            distances = [(i, j, float(np.linalg.norm(positions[j]
+                                                     - positions[i])))
+                         for i, left in enumerate(symbols) if left == "Na"
+                         for j, right in enumerate(symbols) if right == "Cl"]
+            shortest = min(d for _, _, d in distances)
+            bonds = [(i, j, (positions[j] - positions[i]) / shortest)
+                     for i, j, d in distances if abs(d - shortest) < 1e-3]
+
+        def lowdin_p(detail):
+            """{'Na': %, 'Cl': %} of the level's p channel, from its tooltip."""
+            match = re.search(r"Loewdin: ([^\n]+)", detail)
+            weights = {"Na": 0.0, "Cl": 0.0}
+            for token in match.group(1).split(",") if match else []:
+                element, shell, percent = token.split()
+                if shell.endswith("p"):
+                    weights[element] += float(percent.rstrip("%"))
+            return weights
+
+        sigma_ok, calibration_ok, bonding, antibonding = True, True, 0, 0
+        notes = []
+        for level in variant["levels"]:
+            if level.get("col") != "mo":
+                continue
+            weights = lowdin_p(level["detail"])
+            # both sublattices must carry real p weight for the bond to exist
+            if min(weights["Na"], weights["Cl"]) < 10.0:
+                continue
+            partners = level.get("orb") or []
+            if not partners:
+                # sketch_partners drops lobes below 4% of the peak and returns
+                # None once nothing survives -- a level this populated must
+                # still be drawn, so an empty sketch is a failure of both
+                sigma_ok = calibration_ok = False
+                notes.append(f"{level['label']}: no sketch drawn")
+            for partner in partners:
+                lobes = {row[0]: np.array(row[1:], float) for row in partner}
+                # (i) sigma overlap of the drawn p lobes over the Na-Cl bonds:
+                # the two lobes facing each other along the bond have the same
+                # sign on a bonding level and opposite signs on an antibonding
+                # one, so this must reproduce the level's own bonding letter --
+                # which the engine derives independently, from the COOP overlap
+                # population 2 Re c_L+ S c_R of the AO coefficients
+                sigma = sum(
+                    -float(lobes[i][1:4] @ u) * float(lobes[j][1:4] @ u)
+                    for i, j, u in bonds if i in lobes and j in lobes)
+                # (ii) lobe SIZES are the Loewdin populations, not the raw
+                # r0 amplitudes: after the per-(atom, l) calibration a
+                # channel's drawn norm is sqrt(population), so the Na/Cl
+                # ratio must match the tooltip's populations
+                largest = {
+                    element: max([float(np.linalg.norm(lobes[row][1:4]))
+                                  for row in lobes
+                                  if symbols[row] == element] or [0.0])
+                    for element in ("Na", "Cl")}
+                expected = float(np.sqrt(weights["Na"] / weights["Cl"]))
+                # a p-populated sublattice with no drawn lobe at all is the
+                # calibration collapsing, not a passing ratio
+                ratio = (largest["Na"] / largest["Cl"] if largest["Cl"]
+                         else float("inf"))
+                if not abs(ratio - expected) <= 0.02:
+                    calibration_ok = False
+                if (sigma > 0) != (level["bond"] == "b"):
+                    sigma_ok = False
+                notes.append(f"{level['label']} bond={level['bond']} "
+                              f"sigma={sigma:+.3f} ratio={ratio:.3f} "
+                              f"sqrt(pop)={expected:.3f}")
+            bonding += level["bond"] == "b"
+            antibonding += level["bond"] == "a"
+        report("sketch sigma phases follow the COOP bonding classification",
+               bonding >= 1 and antibonding >= 1 and sigma_ok,
+               "\n".join(notes))
+        report("sketch lobe sizes are the per-(atom, l) Loewdin populations",
+               bool(notes) and calibration_ok, "\n".join(notes))
+
+        # every fragment level is drawn on its own sublattice, with one
+        # partner per degenerate component (--onsite builds the columns from
+        # single-shell on-site multiplets, so this is the sublattice
+        # attribution and the partner count -- the ghost-basis filter of the
+        # default three-SCF mode has no ghosts to remove here)
+        stray, partner_counts_ok = set(), True
+        for level in variant["levels"]:
+            column = level.get("col")
+            if column not in ("left", "right"):
+                continue
+            own = "Na" if column == "left" else "Cl"
+            partners = level.get("orb") or []
+            for partner in partners:
+                stray |= {symbols[row[0]] for row in partner} - {own}
+            if len(partners) != level["deg"]:
+                partner_counts_ok = False
+        report("fragment sketches stay on their own sublattice, one drawn "
+               "partner per degenerate component",
+               not stray and partner_counts_ok,
+               f"stray elements: {sorted(stray)}, "
+               f"partner counts match degeneracy: {partner_counts_ok}")
+
+        # --conventional reuses the checkpoint, so the second run is the
+        # display path only (no SCF)
+        conv_path = os.path.join(tmp, "nacl_pyscf_conv.html")
+        code, out = run_cli(pyscf_argv + ["--conventional",
+                                          "--output", conv_path])
+        conv_html = ""
+        if code == 0 and os.path.isfile(conv_path):
+            with open(conv_path) as handle:
+                conv_html = handle.read()
+        report("--diagram --pyscf --conventional exit 0 on the reused --chk",
+               code == 0 and "[read from" in out
+               and "conventional cell (F centring), 1 x 1 x 1" in conv_html
+               and "drawn on the conventional cell" in conv_html
+               and '"orb": [[' in conv_html, out)
+
 
 # ---------------------------------------------------------------- 4. crystod --star-of-k
 def test_04_star_of_k() -> None:
@@ -506,7 +772,8 @@ def test_04_star_of_k() -> None:
 
     code, out = run_cli(["--star-of-k", "-c", "NO_SUCH_POSCAR", "--kpoint", "0", "0", "0"])
     report("missing POSCAR gives clear error (no traceback)",
-           code != 0 and "POSCAR file not found" in out and "Traceback" not in out, out)
+           code != 0 and "No POSCAR named NO_SUCH_POSCAR!" in out
+           and "Traceback" not in out, out)
 
 
 # ---------------------------------------------------------------- 5. crystod --visualize
@@ -578,6 +845,110 @@ def test_05_visualize_basis() -> None:
         )
         report("k = M (supercell + Bloch phase) exit 0", code == 0, out)
         report("k = M HTML created", os.path.isfile(html_m))
+
+        # extended-Hueckel eigen-levels viewer: --visualize WITHOUT
+        # --element/--orbital runs the diagram engine and writes SALC-viewer
+        # pages of the levels (the EHT counterpart of --visualize --pyscf)
+        eht_html = os.path.join(tmp, "eht_levels_GM.html")
+        code, out = run_cli(
+            ["--visualize", "-c", POSCAR_ScF3, "--kpoint", "GM",
+             "--output", eht_html]
+        )
+        report("bare --visualize (EHT levels viewer) exit 0",
+               code == 0 and "Extended-Hueckel levels" in out
+               and "one shared extended-Hueckel Hamiltonian" in out, out)
+        eht_modes = []
+        if os.path.isfile(eht_html):
+            match = re.search(r"var MODES = (\[.*?\]);\n", open(eht_html).read(),
+                              re.S)
+            eht_modes = json.loads(match.group(1)) if match else []
+        by_irrep = {}
+        for mode in eht_modes:
+            by_irrep.setdefault(mode["irrep"], mode)
+        # the level table must be the diagram's crystal column: the empty
+        # Sc-3d t2g GM5+ multiplet just above the pure-F-2p GM5- HOMO band
+        report("EHT viewer levels match the diagram engine at GM",
+               "GM5+ #1" in by_irrep and "GM5- #1" in by_irrep
+               and by_irrep["GM5+ #1"]["el"] == 0
+               and by_irrep["GM5- #1"]["el"] == 6
+               and -10.0 < by_irrep["GM5+ #1"]["energy"] < -7.5
+               and sum(1 for m in eht_modes
+                       if m["irrep"] == "GM5+ #1") == 3,
+               str([(m["irrep"], m["energy"], m["el"]) for m in eht_modes]))
+        code, out = run_cli(
+            ["--visualize", "-c", POSCAR_ScF3, "--sublattice", "Sc",
+             "--kpoint", "GM", "--output", os.path.join(tmp, "eht_sc.html")]
+        )
+        report("EHT levels viewer --sublattice Sc exit 0",
+               code == 0 and "Sc sublattice" in out, out)
+
+        # k = R: the EHT engine's Bloch orbitals carry the site phase
+        # (bloch_overlap gauge), the viewer applies exp(2 pi i k.T) per
+        # image -- the per-AO gauge transform between the two must leave
+        # the drawn field an exact Bloch state: every lattice translation
+        # flips the sign at R (e^{2 pi i k.T} = -1)
+        eht_r = os.path.join(tmp, "eht_levels_R.html")
+        code, out = run_cli(
+            ["--visualize", "-c", POSCAR_ScF3, "--kpoint", "R",
+             "--output", eht_r]
+        )
+        report("EHT levels viewer at R exit 0", code == 0, out)
+        alternation_ok = alternation_checked = 0
+        if os.path.isfile(eht_r):
+            page = open(eht_r).read()
+            r_modes = json.loads(
+                re.search(r"var MODES = (\[.*?\]);\n", page, re.S).group(1))
+            r_lobes = json.loads(
+                re.search(r"var LOBES = (\[.*?\]);\n", page, re.S).group(1))
+            sigma = [m for m in r_modes if m["irrep"] == "R1+ #4"]
+            if sigma:
+                mode = sigma[0]
+                entries = r_lobes[mode["start"]:mode["start"] + mode["count"]]
+                sites = {tuple(np.round(x["c"], 2)): np.array(x["p"])
+                         for x in entries}
+                spacing = 4.07  # ScF3 a in Angstrom
+                for center, poly in sites.items():
+                    for axis in range(3):
+                        neighbor = list(center)
+                        neighbor[axis] = round(neighbor[axis] + spacing, 2)
+                        partner = sites.get(tuple(neighbor))
+                        if partner is None or len(partner) != len(poly):
+                            continue
+                        alternation_checked += 1
+                        cos = float(np.dot(poly, partner) / (
+                            np.linalg.norm(poly) * np.linalg.norm(partner)
+                            + 1e-30))
+                        if cos < -0.99:
+                            alternation_ok += 1
+        report("R-point lobes alternate as exact Bloch states (gauge fix)",
+               alternation_checked >= 50
+               and alternation_ok == alternation_checked,
+               f"{alternation_ok}/{alternation_checked}")
+        # the headline invocation: no --kpoint, one page per special point
+        code, out = run_cli(["--visualize", "-c", POSCAR_ScF3], cwd=tmp)
+        default_pages = [
+            os.path.join(tmp, f"SALC_eht_221_PPOSCAR_ScF3_crystal_{k}.html")
+            for k in ("GM", "R", "M", "X")
+        ]
+        report("bare --visualize writes one page per special k point",
+               code == 0 and all(os.path.isfile(p) for p in default_pages),
+               out)
+        code, out = run_cli(["--visualize", "-c", POSCAR_ScF3,
+                             "--chk", "nope.chk"])
+        report("EHT levels viewer rejects PySCF-only flags",
+               code != 0 and "needs --visualize --pyscf" in out, out)
+        code, out = run_cli(["--visualize", "-c", POSCAR_ScF3,
+                             "--element", "Sc"])
+        report("--element without --orbital still points to the basis viewer",
+               code != 0 and "omit BOTH" in out, out)
+        code, out = run_cli(["--visualize", "--diagram", "-c", POSCAR_ScF3])
+        report("--visualize --diagram rejected as separate runs",
+               code != 0 and "separate runs" in out, out)
+        code, out = run_cli(["--visualize", "-c", POSCAR_ScF3, "--element",
+                             "F", "--orbital", "p", "--kpoint", "0", "0", "0",
+                             "--diagonalize"])
+        report("basis viewer rejects levels-viewer-only flags",
+               code != 0 and "only used with the levels viewer" in out, out)
 
 
 # ---------------------------------------------------------------- 6. crystod main command extras
@@ -729,7 +1100,7 @@ def test_07_direct_product() -> None:
            and "2M5+" in out, out)
 
     code, out = run_group(["--product", "X1-", "W4", "--sg", "Fm-3m"])
-    report("X1- x W4 lands on the DT line with CDML names",
+    report("X1- x W4 lands on the DT line (ISO-IR labels)",
            code == 0 and "DT1" in out and "DT2" in out and "W1" in out
            and "non-tabulated" in out, out)
 
@@ -737,17 +1108,18 @@ def test_07_direct_product() -> None:
     report("P1 x PA1 = GM1 (synthesized -k star of a polar group)",
            code == 0 and "P1 x PA1 = GM1" in out, out)
 
+    # the (1/6,1/6,1/2) line of P6_3/mmc is ISO-IR "Q" (CDML called it "S")
     code, out = run_group(["--product", "K5", "M2+", "H1", "--sg", "P6_3/mmc"])
     report("triple space-group product K5 x M2+ x H1 (dims 48 = 48)",
-           code == 0 and "2L1 + 2L2 + 2S1" in out and "= 48" in out, out)
+           code == 0 and "2L1 + 2L2 + 2Q1" in out and "= 48" in out, out)
 
     code, out = run_group(["--product", "H1", "P1", "--sg", "230"])
-    report("space group by number; broken-table P star substituted (SG230)",
+    report("space group by number; asymmetric P star resolved (SG230)",
            code == 0 and "H1 x P1 = P1 + P2" in out, out)
 
-    # conjugate-gauge P/PA tabulation of I-42d: fitted CDML names (SG122)
+    # conjugate-family P/PA pair of I-42d (non-self-conjugate small irreps)
     code, out = run_group(["--product", "P1", "X1", "--sg", "122"])
-    report("conjugate-gauge P of I-42d substituted (P1 x X1, SG122)",
+    report("conjugate-family P of I-42d resolved (P1 x X1, SG122)",
            code == 0 and all(f"LD{i}" in out for i in (1, 2, 3, 4))
            and "2 x 4 = 8 -> 2 + 2 + 2 + 2 = 8" in out, out)
     code, out = run_group(["--product", "P1", "PA1", "--sg", "122"])
@@ -758,13 +1130,12 @@ def test_07_direct_product() -> None:
            code == 0 and "M1 x P1 = PA2" in out and "1 x 2 = 2 -> 2 = 2" in out,
            out)
 
-    # ---- line terms without a fitted DIRPRO entry: ISO-IR (ISOTROPY) labels
+    # ---- line terms: ISO-IR (ISOTROPY) labels
     code, out = run_group(["--product", "N1", "P1", "--sg", "I4_132"])
     report("N1 x P1 (I4_132) lands on the DT line with ISO-IR labels",
            code == 0 and all(f"DT{i}" in out for i in (1, 2, 3, 4))
-           and "[non-tabulated; ISO-IR labels]" in out
-           and "6 x 4 = 24 -> 6 + 6 + 6 + 6 = 24" in out
-           and "Acta Cryst. A69" in out, out)
+           and "[non-tabulated]" in out
+           and "6 x 4 = 24 -> 6 + 6 + 6 + 6 = 24" in out, out)
 
     code, out = run_group(["--product", "P1", "X1", "--sg", "I4"])
     report("P1 x X1 (I4) +/-k line stars disambiguated (LD vs LDA)",
@@ -2133,6 +2504,9 @@ def test_33_molod() -> None:
         # NH3: fragments, SALCs, overlaps, textbook MO sequence, HTML default
         code, out = run_mol(["--diagram", "--xyz", xyz_nh3], cwd=tmp)
         report("--diagram NH3 exit 0", code == 0, out)
+        report("CrystOD's own paper cited at the end of the run",
+               "If you use CrystOD in your research, please cite:" in out
+               and "Phys. Rev. B 110, 064104 (2024)" in out, out)
         report("central atom and ligands identified",
                "central atom: N; ligands: 3 H" in out, out)
         report("ligand SALCs printed per irrep",
@@ -2183,6 +2557,33 @@ def test_33_molod() -> None:
         report("SF6 48-electron filling ends in the nonbonding F 2p block",
                "48 valence electrons" in out and "(1t1g)^6" in out, out)
 
+        # --ao-left/--ao-right without --pyscf: two-fragment extended-Hueckel
+        # diagram (arbitrary submolecule split, no central atom needed)
+        xyz_c6h6 = os.path.join(molod_dir, "XYZ_C6H6.xyz")
+        code, out = run_mol(["--diagram", "--xyz", xyz_c6h6,
+                             "--ao-left", "H6", "--ao-right", "C6"], cwd=tmp)
+        report("EHT fragment diagram (benzene H6 | C6) exit 0", code == 0, out)
+        report("benzene EHT pi frontier labeled 1e1g / 1e2u",
+               "HOMO = 1e1g" in out and "LUMO = 1e2u" in out, out)
+        report("core-counted numbering starts the sigma stack at 2a1g",
+               "(2a1g)^2" in out, out)
+        report("fragment EHT HTML written with the plain default name",
+               os.path.isfile(os.path.join(tmp, "MolOD_XYZ_C6H6.html")), out)
+        # a diatomic fragment keeps its own higher symmetry: the CO pi pair
+        # of CH3OH is exactly degenerate under Cs (chi(E) = 2 matches no Cs
+        # irrep) and must be split by the irrep projectors, not by energy
+        xyz_ch3oh = os.path.join(molod_dir, "XYZ_CH3OH.xyz")
+        code, out = run_mol(["--diagram", "--xyz", xyz_ch3oh,
+                             "--ao-left", "H4", "--ao-right", "CO"], cwd=tmp)
+        report("EHT fragment diagram (CH3OH H4 | CO) exit 0", code == 0, out)
+        report("exactly degenerate CO pi pair split into a'/a'' labels",
+               "CO 1a''" in out and "CO 2a''" in out, out)
+        code, out = run_mol(["--diagram", "--xyz", xyz_ch3oh,
+                             "--ao-left", "H3", "--ao-right", "CO"], cwd=tmp)
+        report("non-partitioning EHT --ao-left/--ao-right rejected cleanly",
+               code != 0 and "does not partition" in out
+               and "Traceback" not in out, out)
+
         # --pyscf: quantitative diagrams (three SCF runs in one AO space)
         try:
             import pyscf  # noqa: F401
@@ -2223,25 +2624,40 @@ def test_33_molod() -> None:
         # bonding/antibonding phase in the sketches (NH3 1e vs 2e): the
         # radial-weighted compression must keep the true wave-function
         # signs -- a bare contracted-coefficient sum inverts the N-2p lobe
-        # of the bonding 1e and both sketches come out identical
+        # of the bonding 1e and both sketches come out identical.  The
+        # check is the bond-directed product sum_H s_H (p_N . r_NH), which
+        # is positive for bonding and negative for antibonding in EVERY
+        # real gauge of the degenerate pair (a max-|s| pick is not: the
+        # two mirror hydrogens tie with opposite signs in the px-type
+        # partner, and which partner comes first is a canonicalization
+        # gauge that shifts with the BLAS environment)
         nh3_code, nh3_out = run_mol(["--diagram", "--xyz", xyz_nh3,
                                      "--pyscf"], cwd=tmp)
         report("--pyscf NH3 exit 0", nh3_code == 0, nh3_out)
         nh3_html_path = os.path.join(tmp, "MolOD_XYZ_NH3_pyscf.html")
         if os.path.isfile(nh3_html_path):
             with open(nh3_html_path) as handle:
-                match = re.search(r"LEVELS = (\[\{.*?\}\]);", handle.read(),
-                                  re.S)
+                nh3_html = handle.read()
+            match = re.search(r"LEVELS = (\[\{.*?\}\]);", nh3_html, re.S)
+            geom_match = re.search(r"GEOM = (\{.*?\});", nh3_html, re.S)
             levels = json.loads(match.group(1)) if match else []
+            geom_atoms = (json.loads(geom_match.group(1))["atoms"]
+                          if geom_match else [])
             phases = {}
             for level in levels:
                 if level.get("col") == "mo" and level["label"] in ("1e", "2e"):
                     entries = {row[0]: row for row in level["orb"][0]}
-                    # relative sign of the N px lobe vs the +x hydrogen
-                    n_px = entries[0][2]
-                    h_s = max((row[1] for atom, row in entries.items()
-                               if atom != 0), key=abs)
-                    phases[level["label"]] = n_px * h_s
+                    n_pos = geom_atoms[0][1:4]
+                    n_p = entries[0][2:5]
+                    total = 0.0
+                    for atom, row in entries.items():
+                        if atom == 0:
+                            continue
+                        direction = [geom_atoms[atom][k + 1] - n_pos[k]
+                                     for k in range(3)]
+                        total += row[1] * sum(
+                            p * d for p, d in zip(n_p, direction))
+                    phases[level["label"]] = total
             report("NH3 1e bonding / 2e antibonding phases in the sketch",
                    len(phases) == 2 and phases["1e"] > 0 > phases["2e"],
                    str(phases))
@@ -2260,6 +2676,9 @@ def test_33_molod() -> None:
                and "WIREs Comput. Mol. Sci. 8, e1340 (2018)" in out
                and "J. Comput. Chem. 36, 1664 (2015)" in out
                and "MO diagram (PySCF)." not in out, out)
+        report("CrystOD's own paper cited at the end of the run",
+               "If you use CrystOD in your research, please cite:" in out
+               and "Phys. Rev. B 110, 064104 (2024)" in out, out)
 
         # O2: triplet, homonuclear partition, sigma/pi labels
         code, out = run_mol(["--diagram", "--xyz", xyz_o2, "--pyscf",
@@ -2404,8 +2823,9 @@ def test_34_mol_command() -> None:
            and "Traceback" not in out, out)
 
     code, out = run_mol(["--diagram", "--xyz", xyz_nh3, "--ao-left", "H3"])
-    report("--ao-left without --pyscf rejected cleanly",
-           code != 0 and "require" in out and "Traceback" not in out, out)
+    report("--ao-left without --ao-right rejected cleanly",
+           code != 0 and "give both --ao-left and --ao-right" in out
+           and "Traceback" not in out, out)
 
 
 # ------------------------------------------- 13. crystod-group --supergroup
@@ -2500,19 +2920,19 @@ def test_13_isotropy() -> None:
            and re.search(r"82 I-4\s+4\s+8", out) is not None
            and re.search(r"1 P1\s+4\s+32", out) is not None, out)
 
-    # broken irreptables gauge at N of I4_132: fitted-name selection of the
+    # wrapped-translation gauge at N of I4_132: conj+wrap selection of the
     # spgrep candidate (chiral subgroups P4_122 vs P4_322 distinguish N1/N3)
     code, out = run_group(["--supergroup", "214", "--irrep", "N1"])
-    report("I4_132 N1 via fitted names -> C222 + P4_122 + R32",
+    report("I4_132 N1 (wrapped-gauge N star) -> C222 + P4_122 + R32",
            code == 0 and re.search(r"21 C222\s+2\s+12", out) is not None
            and re.search(r"91 P4_122\s+4\s+12", out) is not None
            and re.search(r"155 R32\s+4\s+16", out) is not None, out)
     report("enantiomorphic-partner note printed (91 <-> 95)",
            "91 <-> 95 are enantiomorphic partner types" in out, out)
 
-    # crystod (irreptables/Bilbao) vs ISOTROPY label-convention note
+    # crystod (ISO-IR data files) vs ISOTROPY-software label-convention note
     code, out = run_group(["--supergroup", "Ia-3d", "--irrep", "N1"])
-    report("Bilbao-vs-ISOTROPY label note at N of Ia-3d",
+    report("ISO-IR-vs-ISOTROPY label note at N of Ia-3d",
            code == 0 and "crystod N1 = ISOTROPY N2" in out
            and "SUBGROUP/VALIDATION.md" in out, out)
 
