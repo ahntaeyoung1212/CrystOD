@@ -67,12 +67,15 @@ crystod --star-of-k -c 221_PPOSCAR_ScF3 --kpoint 0.5 0.5 0
 
 epilog = """\
 Sectioned commands (see crystod-<section> --help):
-  crystod-phonon   phonon analyses (--irreps/--fatband/--lt/--vector/--modulation/--vibration)
+  crystod-phonon   phonon analyses (--irreps/--fatband/--lt/--vector/--modulation/
+                   --vibration/--subgroup)
   crystod-group    point/space-group calculator (--product/--table/--decompose/
-                   --ligand-field/--basis/--generate-basis/--coset)
+                   --ligand-field/--basis/--generate-basis/--coset/--supergroup/
+                   --multiplet/--poscar2cif/--cif2poscar/--supergroup-cif)
   crystod-mag      symmetry-adapted spin bases (MAGMOM / QE noncollinear input)
   crystod-md       MD-trajectory analyses (--adp/--summary)
   crystod-bz       Brillouin-zone plots (unit cell, or + supercell via --trans-mat)
+  crystod-mol      molecular point groups, SALCs and MO diagrams (XYZ files)
 
 The pre-v0.3.0 flat modes (--salc, --phonon-irrep, --bz, ...) were removed in
 v0.3.0; invoking one prints the equivalent sectioned command.

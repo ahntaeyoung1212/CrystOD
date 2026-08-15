@@ -8,7 +8,8 @@ Merges the former phonon-related flat modes into one sectioned command:
 - ``--vector``     -- eigenvector VESTA export (old ``--phonon-vector``);
 - ``--modulation`` -- modulated structures (old ``--modulation``);
 - ``--vibration``  -- symmetry-only vibration bases, no force data
-  (old ``--vibration``).
+  (old ``--vibration``);
+- ``--subgroup``   -- isotropy subgroups reachable from the imaginary modes.
 """
 
 from __future__ import annotations
@@ -18,8 +19,8 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from .common import CRYSTOD_CITATION, add_cell_argument, add_output_argument, banner
 
 desc = """\
-Phonon analyses from phonopy force data (FORCE_SETS, or FORCE_CONSTANTS with
---readfc, or phonopy_params.yaml for --modulation) — except --vibration,
+Phonon analyses from phonopy force data: a unit cell with FORCE_SETS (or
+FORCE_CONSTANTS with --readfc), or a phonopy_params.yaml — except --vibration,
 which needs only the crystal structure.
 
 # Command Examples:
@@ -27,9 +28,13 @@ crystod-phonon --irreps --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --readfc
 crystod-phonon --fatband --dim "4 4 4" -c 221_PPOSCAR_ScF3 --nac
 crystod-phonon --lt --dim "4 4 4" -c 221_PPOSCAR_ScF3
 crystod-phonon --vector --dim "4 4 4" -c 227_PPOSCAR_Si --readfc --qpoint GM
-crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5   (list modes and star of q only)
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5   (list modes and star of q only)
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
 crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
 crystod-phonon --vibration -c 221_PPOSCAR_ScF3 --qpoint R
+crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_ScF3   (scan every commensurate q)
+crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --qpoint R --modulate
+crystod-phonon --subgroup --yaml phonopy_params.yaml --qpoint R
 """
 
 
@@ -71,8 +76,16 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="Construct symmetry-allowed vibration bases without phonon force data.",
     )
+    mode.add_argument(
+        "--subgroup",
+        action="store_true",
+        help="List the isotropy subgroups reachable from the imaginary phonon modes.",
+    )
 
-    add_cell_argument(parser)
+    # sentinel default: --modulation has to tell "-c was given" (drive the run
+    # from the structure file + FORCE_SETS) from "-c was left out" (fall back to
+    # phonopy_params.yaml, as before); every other mode substitutes "POSCAR"
+    add_cell_argument(parser, default=None)
     parser.add_argument(
         "--dim",
         nargs="+",
@@ -82,7 +95,8 @@ def build_parser() -> ArgumentParser:
             "Supercell dimension of the force calculation: three diagonal values\n"
             "or a nine-value diagonal matrix, quoted or unquoted, e.g.\n"
             '--dim 4 4 4, --dim="4 4 4", --dim 4 0 0 0 4 0 0 0 4.\n'
-            "Required for --irreps/--fatband/--lt/--vector."
+            "Required for --irreps/--fatband/--lt/--vector, and for --subgroup\n"
+            "unless --yaml is given."
         ),
     )
     parser.add_argument(
@@ -133,8 +147,15 @@ def build_parser() -> ArgumentParser:
         "--qpoint",
         nargs="+",
         default=None,
-        help="q-point for --vector/--modulation/--vibration: three coordinates or a "
-        "high-symmetry label when supported.",
+        help="q-point for --vector/--modulation/--vibration/--subgroup: three coordinates\n"
+        "or a high-symmetry label when supported. In --subgroup mode it is optional;\n"
+        "without it every q point commensurate with the supercell is scanned.",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=-0.1,
+        help="Frequency in THz below which a mode counts as imaginary in --subgroup mode.",
     )
     parser.add_argument(
         "--mode",
@@ -165,8 +186,11 @@ def build_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--yaml",
-        default="phonopy_params.yaml",
-        help="phonopy_params.yaml(.xz) path for --modulation (default: phonopy_params.yaml).",
+        # sentinel default: --subgroup has to tell "given" from "not given",
+        # and --modulation resolves the documented default in its own branch
+        default=None,
+        help="phonopy_params.yaml(.xz) path for --modulation, and for --subgroup\n"
+        "in place of --dim/-c (default: phonopy_params.yaml).",
     )
     parser.add_argument(
         "--conventional",
@@ -190,6 +214,13 @@ def build_parser() -> ArgumentParser:
         "Slower than the default special-points-only survey.",
     )
     parser.add_argument(
+        "--modulate",
+        action="store_true",
+        help="In --subgroup, also generate the distorted structure of every\n"
+        "order-parameter direction (the --modulation step, run automatically;\n"
+        "--amplitude sets the amplitude, default 0.3 Angstrom).",
+    )
+    parser.add_argument(
         "--list-qpoints",
         action="store_true",
         help="List available high-symmetry q-points in --vibration mode.",
@@ -203,6 +234,10 @@ def build_parser() -> ArgumentParser:
     add_output_argument(parser, "Output path (mode-dependent default).")
     parser.add_argument(
         "--tolerance",
+        # --t used to reach --tolerance by abbreviation; --threshold made that
+        # ambiguous, so the old spelling is kept as an explicit option string
+        "--t",
+        "--tol",
         type=float,
         default=None,
         help="Symmetry tolerance forwarded to the selected analysis.",
@@ -248,13 +283,16 @@ def main(argv: list[str] | None = None) -> None:
     if args.band_labels and not args.band:
         parser.error("--band-labels requires --band.")
 
+    # -c carries a sentinel default so --modulation can tell it apart from "not
+    # given"; every other mode wants the documented POSCAR default
+    cell = args.cell if args.cell is not None else "POSCAR"
     dim = _parse_dim(parser, args.dim) if args.dim else None
 
     if args.irreps:
         if not dim:
             parser.error("--irreps requires --dim.")
 
-        dispatch_argv = ["--dim", dim, "--poscar", args.cell]
+        dispatch_argv = ["--dim", dim, "--poscar", cell]
         if args.readfc:
             dispatch_argv.append("--readfc")
         if args.tolerance is not None:
@@ -271,7 +309,7 @@ def main(argv: list[str] | None = None) -> None:
         if not dim:
             parser.error("--fatband requires --dim.")
 
-        dispatch_argv = ["--dim", dim, "--poscar", args.cell]
+        dispatch_argv = ["--dim", dim, "--poscar", cell]
         if args.readfc:
             dispatch_argv.append("--readfc")
         if args.nac:
@@ -300,7 +338,7 @@ def main(argv: list[str] | None = None) -> None:
         if not dim:
             parser.error("--lt requires --dim.")
 
-        dispatch_argv = ["--dim", dim, "--poscar", args.cell]
+        dispatch_argv = ["--dim", dim, "--poscar", cell]
         if args.readfc:
             dispatch_argv.append("--readfc")
         if args.nac:
@@ -327,7 +365,7 @@ def main(argv: list[str] | None = None) -> None:
         if not args.qpoint:
             parser.error("--vector requires --qpoint.")
 
-        dispatch_argv = ["--dim", dim, "--poscar", args.cell]
+        dispatch_argv = ["--dim", dim, "--poscar", cell]
         if args.readfc:
             dispatch_argv.append("--readfc")
         if args.conventional:
@@ -357,7 +395,23 @@ def main(argv: list[str] | None = None) -> None:
         if not args.qpoint and not has_numbered_modulation_args:
             parser.error("--modulation requires --qpoint, or numbered arguments such as --qpoint1.")
 
-        dispatch_argv = ["--yaml", args.yaml]
+        # --yaml, or the structure file with FORCE_SETS/FORCE_CONSTANTS; with
+        # neither, modulation.py falls back to phonopy_params.yaml as documented
+        dispatch_argv: list[str] = []
+        if args.yaml is not None:
+            if args.cell is not None or dim or args.readfc:
+                parser.error(
+                    "--modulation takes either --yaml or -c (with FORCE_SETS/"
+                    "FORCE_CONSTANTS), not both."
+                )
+            dispatch_argv.extend(["--yaml", args.yaml])
+        else:
+            if args.cell is not None:
+                dispatch_argv.extend(["--poscar", args.cell])
+            if dim:
+                dispatch_argv.extend(["--dim", dim])
+            if args.readfc:
+                dispatch_argv.append("--readfc")
         if args.qpoint:
             dispatch_argv.extend(["--qpoint", *[str(value) for value in args.qpoint]])
         if args.mode:
@@ -377,11 +431,48 @@ def main(argv: list[str] | None = None) -> None:
         modulation_main(dispatch_argv)
         return
 
+    if args.subgroup:
+        explicit_yaml = args.yaml is not None
+        if dim and explicit_yaml:
+            parser.error("--subgroup takes either --dim (with -c) or --yaml, not both.")
+        if not dim and not explicit_yaml:
+            parser.error(
+                "--subgroup requires --dim (the supercell of the force calculation) "
+                "or --yaml phonopy_params.yaml."
+            )
+        if args.output:
+            parser.error("--output is not used by --subgroup (it prints a table).")
+        if args.amplitude and not args.modulate:
+            parser.error("--amplitude is only used by --subgroup with --modulate.")
+
+        dispatch_argv = []
+        if dim:
+            dispatch_argv.extend(["--dim", dim, "--poscar", cell])
+            if args.readfc:
+                dispatch_argv.append("--readfc")
+        else:
+            dispatch_argv.extend(["--yaml", args.yaml])
+        if args.qpoint:
+            dispatch_argv.extend(["--qpoint", *[str(value) for value in args.qpoint]])
+        if args.threshold is not None:
+            dispatch_argv.extend(["--threshold", str(args.threshold)])
+        if args.tolerance is not None:
+            dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        if args.modulate:
+            dispatch_argv.append("--modulate")
+            if args.amplitude:
+                dispatch_argv.extend(["--amplitude", str(args.amplitude[0])])
+
+        from ..phonon_subgroups import main as phonon_subgroups_main
+
+        phonon_subgroups_main(dispatch_argv)
+        return
+
     # --vibration
     if not args.qpoint and not args.list_qpoints:
         parser.error("--vibration requires --qpoint unless --list-qpoints is used.")
 
-    dispatch_argv = ["--poscar", args.cell]
+    dispatch_argv = ["--poscar", cell]
     if args.qpoint:
         dispatch_argv.extend(["--qpoint", *[str(value) for value in args.qpoint]])
     if args.list_qpoints:

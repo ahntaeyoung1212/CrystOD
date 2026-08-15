@@ -55,14 +55,22 @@ def print_crystod_citation() -> None:
     print("\n" + CRYSTOD_CITATION)
 
 
-def add_cell_argument(parser: ArgumentParser, help_suffix: str = "") -> None:
-    """Add the phonopy-style structure-file option (-c/--cell, alias --poscar)."""
+def add_cell_argument(
+    parser: ArgumentParser, help_suffix: str = "", default: str | None = "POSCAR"
+) -> None:
+    """Add the phonopy-style structure-file option (-c/--cell, alias --poscar).
+
+    ``default=None`` is the sentinel form: the command can then tell "-c was
+    given" from "-c was left out" (crystod-phonon --modulation needs that to
+    choose between the structure file and phonopy_params.yaml) and has to
+    substitute the documented ``POSCAR`` default itself.
+    """
     parser.add_argument(
         "-c",
         "--cell",
         "--poscar",
         dest="cell",
-        default="POSCAR",
+        default=default,
         metavar="FILE",
         help=f"Crystal structure file in VASP POSCAR format (default: POSCAR).{help_suffix}",
     )

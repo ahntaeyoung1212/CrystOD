@@ -36,6 +36,7 @@ crystod-group --product R4- R5+ --sg Pm-3m
 crystod-group --multiplet T2g2 --pg m-3m [--orbital d]
 crystod-group --poscar2cif -c PPOSCAR [--tolerance 0.01]
 crystod-group --cif2poscar -c FILE.cif [--conventional]
+crystod-group --supergroup Pm-3m --irrep R4+          (--parent Pm-3m is the same)
 crystod-group --supergroup-cif 221.cif --subgroup-cif 140.cif
 crystod-group --table --pg 3m
 crystod-group --decompose --pg 3m --characters 3 0 1
@@ -144,11 +145,17 @@ def build_parser() -> ArgumentParser:
     )
     mode.add_argument(
         "--supergroup",
+        # the flag names the PARENT group but returns its subgroups, which reads
+        # backwards to most users; --parent is the same option under a name that
+        # says what the value is
+        "--parent",
+        dest="supergroup",
         default=None,
         metavar="SG",
         help="Isotropy subgroups: which space group results when a distortion\n"
         "with a given irrep (and order-parameter direction) condenses,\n"
-        "e.g. --supergroup Pm-3m --irrep GM4- [--order-parameter 0 0 a].",
+        "e.g. --supergroup Pm-3m --irrep GM4- [--order-parameter 0 0 a].\n"
+        "--parent SG is an alias (the value is the parent group).",
     )
 
     parser.add_argument(
