@@ -6,11 +6,10 @@ license: MIT
 authors:
   - family-names: Mochizuki
     given-names: Yasuhide
-    email: ahntaeyoung1212@gmail.com
+    email: mochizuki@rs.tus.ac.jp
     affiliation: "Tokyo University of Science"
   - family-names: Koiso
     given-names: Hiroki
-    email: akabane0308koiso@gmail.com
     affiliation: "Institute of Science Tokyo"
 preferred-citation:
   type: article

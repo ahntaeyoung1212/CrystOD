@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,22 +7,43 @@ name = "CrystOD"
 version = "0.3.6"
 authors = [
   {name = "Yasuhide Mochizuki"},
-  {email = "mochizuki@rs.tus.ac.jp"},
+  {name = "Hiroki Koiso"},
 ]
-description = "Python-based command line tools calculating irreducible representations (irreps) of Symmetry-Adapted Linear Combination (SALC) for Crystal Orbital Diagram (CrystOD), and phonon irreps."
+maintainers = [
+  {name = "Yasuhide Mochizuki", email = "mochizuki@rs.tus.ac.jp"},
+]
+description = "Symmetry analysis toolkit for crystal orbital diagrams (SALC), space-group irreps, phonon irreps and modulations."
 readme = "README.md"
-license = {text = "MIT License"}
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.9"
+keywords = [
+  "crystallography",
+  "space group",
+  "irreducible representation",
+  "phonon",
+  "SALC",
+  "crystal orbital",
+  "symmetry",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Chemistry",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Operating System :: OS Independent",
+]
 dependencies = [
   "phonopy",
   "spglib",
   "spgrep",
   "ase",
   "numpy",
-  "pandas",
-  "openpyxl",
-  "sympy",
   "scipy",
+  "sympy",
+  "pandas",
+  "matplotlib",
   "seekpath",
   "pymatgen",
   "pyscf",
@@ -52,4 +73,7 @@ packages = ["crystod", "crystod.cli"]
 crystod = ["CIR_data.txt.gz", "vesta_element_rgb.json"]
 
 [project.urls]
-Homepage = "https://mochizuki-tus.github.io/"
+Homepage = "https://mochizuki-tus.github.io/CrystOD/"
+Documentation = "https://mochizuki-tus.github.io/CrystOD/"
+Repository = "https://github.com/ahntaeyoung1212/CrystOD"
+Issues = "https://github.com/ahntaeyoung1212/CrystOD/issues"
