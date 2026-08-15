@@ -65,6 +65,45 @@ def get_symmetry_dataset(symmetry):
     raise TypeError(f"Unsupported symmetry dataset type: {type(dataset)!r}")
 
 
+class QpointsResultAdapter:
+    """Expose a legacy q-points dict through the new attribute API."""
+
+    _KEYS = ("frequencies", "eigenvectors", "group_velocities", "dynamical_matrices")
+
+    def __init__(self, qpoints_dict):
+        self._dict = qpoints_dict
+
+    def __getattr__(self, name):
+        if name in self._KEYS:
+            try:
+                return self._dict[name]
+            except (KeyError, TypeError) as exc:
+                raise AttributeError(name) from exc
+        raise AttributeError(name)
+
+
+def get_qpoints_result(phonon):
+    """Return the q-points result object of a run_qpoints() call.
+
+    phonopy exposes it as the ``qpoints`` property; older versions only offer
+    the deprecated ``get_qpoints_dict()``, whose dict is wrapped so that
+    callers can always use ``.frequencies`` / ``.eigenvectors`` /
+    ``.group_velocities`` / ``.dynamical_matrices``.
+    """
+    if hasattr(type(phonon), "qpoints"):
+        result = phonon.qpoints
+        if result is None:
+            raise RuntimeError("Phonopy.run_qpoints() has to be done.")
+        if hasattr(result, "frequencies"):
+            return result
+
+    getter = getattr(phonon, "get_qpoints_dict", None)
+    if callable(getter):
+        return QpointsResultAdapter(getter())
+
+    raise AttributeError("Could not obtain q-points results from phonopy Phonopy.")
+
+
 def get_pointgroup_symbol(symmetry):
     """Return the point-group symbol across phonopy versions."""
     getter = getattr(symmetry, "get_pointgroup", None)

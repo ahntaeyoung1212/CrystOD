@@ -43,7 +43,7 @@ from .irreptables_compat import load_irreptables
 from .modulation import _find_intertwiner, _irrep_filename_tag
 from .operations import parse_qpoint_token
 from .phonon_irreps import find_star_representative, get_irrep_labels, get_irt_special_points
-from .runtime_compat import get_symmetry_dataset
+from .runtime_compat import get_qpoints_result, get_symmetry_dataset
 from .vibration_modes import SymmetryOnlyVibrations
 
 IrrepTable, Irrep = load_irreptables()
@@ -831,7 +831,7 @@ def _get_mode_labels(
         return frequencies, mode_labels
     except Exception:
         phonon.run_qpoints([qpoint])
-        frequencies = phonon.get_qpoints_dict()["frequencies"][0]
+        frequencies = get_qpoints_result(phonon).frequencies[0]
         return frequencies, ["-"] * n_modes
 
 
