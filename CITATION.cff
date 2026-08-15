@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use CrystOD in your research, please cite the article below (preferred-citation)."
 title: "CrystOD"
-version: 0.3.5
+version: 0.3.6
 license: MIT
 authors:
   - family-names: Mochizuki

@@ -28,6 +28,9 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 | 7/27 (2) | `--table` の空間群対応 | `crystod-group --table --space-group SG --kpoint ...` で k の little group の指標表を表示(点群 `--table` の空間群版)。`_analyze_space_group` の前半を `_spacegroup_irrep_context` に共通化し、`format_spacegroup_table` を新設。表引き k は BCS ラベル、線・面は ISO-IR ラベル、列見出しは Seitz 記号。Pm-3m GM/T 線・Pnma X(複素型)・番号指定(--sg 221)で検証 |
 | 7/27 (3) | symmetry mode の irrep 別 VESTA 可視化 + `--atomic-orbital` のハイフン対応 | `--supergroup-cif` 実行時に、活性 irrep ごとの変位パターンを `{supergroup_file}_{irrep}.vesta`(親由来参照構造 + 矢印、invariant-core セル、最大矢 1.5 Å)として自動出力(`symmetry_mode._export_mode_vesta_files`、`phonon_vector.write_vesta_with_arrows` を再利用)。CaTiO3 Pnma の 5 モード(X5+/M2+/M3+/R4+/R5+)で元素選択則を検証(R4+/M3+/M2+ = O のみ、X5+/R5+ = Ca 主体、Ti は全モード不動)。example に CaTiO3 の .vesta 一式を同梱。`--atomic-orbital` は `Ti-d`(ハイフン)も受理(出力はバイト同一、エコーは正規形 `Ti_d`)。testsuite 16 は全 run を tempdir 実行に変更(repo 直下への .vesta 混入防止) |
 | 7/27 (4) | symmetry mode VESTA の `--conventional` | `--supergroup-cif --conventional` で mode VESTA を親 conventional 基底で出力(`_conv` サフィックス、`--vector` と同一セマンティクス)。表示セルは「全 mode パターンを周期的に収める conventional 形状の最小対角倍セル」(D 行が invariant-core 格子の元、`_conventional_display_cell`)。La3Ni2O7 I4/mmm→Cmcm で検証: `139_..._X3-_conv.vesta` = 90° conventional metric (c=20.07 Å、面内は X3- の反位相を収めるため 2 倍)、O 主体 + La/Ni 小 = 成分表と一致、GM1+ は中心 La 不動 |
+| 8/14–8/15 | **Python API 化** (v0.3.6) | 外部プログラム(macer 等)から CrystOD の一部機能だけを読み込めるように、コマンド構成と1対1のドメイン API モジュールを新設(`crystod.salc/group/phonon/bz/mag/md/mol`)。**実装モジュールは一切移動していない**(`crystod/*.py` はそのまま。API は curated view)ので旧 import パスは全て不変、CLI も `--subgroup` 追加以外は無変更。PEP 562 の遅延属性(`crystod/_api.py`)で `import crystod` + 7 ドメイン = 0.09 秒・重い依存(phonopy/spgrep/pyscf/matplotlib)はゼロ。新規 `crystod/phonon_subgroups.py`: `isotropy_subgroups()`(= `--supergroup` のデータ版)、`label_phonon_modes()`(phonopy オブジェクトの ISO-IR ラベル付け、star arm 自動写像)、`imaginary_mode_subgroups()`/`scan_imaginary_modes()`(虚数モード → isotropy subgroup 全方向列挙)。CLI 対応版 `crystod-phonon --subgroup` も追加(§1.3 末尾)。testsuite に section 35(API、31 checks)を新設し、27 を 26 → 46 に拡充 → **690 passed / 0 failed**(既存 639 は全て不変)。多エージェントのアドバーサリアル・レビューを 2 巡させ 17 件の実欠陥を検出・修正(§1.5 の教訓)。公開サイトのバージョン表示バグ(常に 0.3.3)、`--t` の後方互換性回帰、大きな supercell の q 点破損も同時に解消|
+| 8/15 (2) | **公開用ドキュメントの全面 Review & Edit** | 方針は「input(コマンド)→ output(実際の出力)→ 2〜3 行の説明」。理論の長文は theory-*.md へ移設(`theory-orbital-diagrams.md` に「composition の Löwdin/Mulliken」「semicore 直交尾による見かけの反結合(`--valence-only`)」「fragment の球対称化と ghost 占有フィルタ」「overlap catastrophe(floor 0.2)」の 4 節を新設)。**ドキュメント未掲載だった実在機能を追加**: `crystod --spinor`(二重群)、`--band`/`--fatband`、`--dos`、`--chk`/`--chk-info`、`--onsite`、`crystod-phonon --all-irreps`/`--keep-q-coords`/`--list-qpoints`、`crystod-mag --amplitude`、`crystod-md --grouping-tolerance`(`crystod.md` では大半が HTML コメントで隠れていた)。**削除済み機能の記述を除去**: `--diagram --atomic-orbital`(quickstart.md と README の実行例)。誤記修正: `--visualize` の出力ファイル名規則、`phonon_irreps.yaml` の抜粋(`special_points:` 欠落)、`--irreps` 例の `--readfc`(FORCE_CONSTANTS 不在)。index.md に「What you can ask CrystOD」表(質問 → コマンド → 節)、各コマンドページ冒頭に「I want to ...」表を追加。`doc/images/band_fatband_ScF3.png` を新規生成。**掲載した出力は全て実行して取得**(捏造ゼロ)、doc 内の全 `--flag` を実 CLI と突き合わせて陳腐化ゼロを確認、myst のアンカー規則(見出し番号を残す)に合わせて内部リンクを修正 → **sphinx build 警告 0**。`crystod --help` の epilog に `crystod-mol` が欠落していたのも修正(CLI regression 183 passed / 0 failed)|
+| 8/16 | **CLI 提案3件の実装**(user 採用) | (1) `crystod-group --parent` = `--supergroup` の別名(値が親群なのに返るのは部分群、という名前の逆転を解消。usage 行は不変、`--pa` が新たに一意に解決するのみで既存の略記に回帰なし)。(2) **`crystod-phonon --modulation` が POSCAR + FORCE_SETS だけで動く**: `crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3` が `--yaml phonopy_params.yaml` 版と **バイト同一** の POSCAR を出す(phonopy yaml の事前生成が不要に)。supercell は `--dim` → `phonopy_disp.yaml`/`phonopy_params.yaml` のヘッダ行スキャン → force file の原子数からの推定、の順に決定し、どの経路を通ったかを必ず print。推定は格子の軸等価性を尊重(|a|=|b| なら n1=n2。これが無いと a=b=3,c=12/N=8 で (2,4,1) という非物理な解を選ぶ)。`--dim` 不一致は phonopy の traceback ではなく 1 行の ERROR に。`SymmetryAdaptedModulation(phonon=...)` で構築済み phonopy オブジェクトも受け取れるようにした(多 q でも load は 1 回)。**同時に発見・修正した既存バグ**: `--tolerance/--symprec` が mode 構築には届くのに生成構造の空間群判定(`analyze_symmetry`)には届かず 0.1 Å 固定で、振幅の絶対スケールに依存してラベルが変わっていた(`--amplitude 0.3 0.15 0.075` = 方向 (a,b,c) が `C2/c` と表示。1e-5 なら正しく `P-1`)。sentinel default で既定の見た目を保ったまま両方に届くよう修正。(3) **`crystod-phonon --subgroup --modulate`**: 虚数モードの各 order-parameter 方向の歪み構造を自動生成し、再現用の `--modulation` コマンドも印字。**どのモード結合がどの方向かは仮定せず測定する**(候補結合を生成 → spglib で空間群・primitive 倍率・index を測定 → 列挙表と突合。再現できない方向は「生成できず」と正直に報告)。多 arm star は `--modulation` の多 q 形式で自動処理(M3+: (0;0;a) 1 arm、(0;a;a) 2 arm、(a;a;a) 3 arm)。testsuite 27/17 に 20 checks 追加(書き出した全構造を独立に再測定する検査を含む)|
 
 ---
 
@@ -39,6 +42,7 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 |---|---|---|
 | `AttributeError: 'dict' object has no attribute 'international'`(複数箇所で再発) | spglib の symmetry dataset がバージョンにより dict / オブジェクトで返る | アクセスをバージョン非依存のアクセサ経由に統一(互換ヘルパーに集約) |
 | `AttributeError: 'IrReps' object has no attribute 'frequencies'` | phonopy ≥ 2.21 で同プロパティが削除 | 新 API に対応 |
+| `DeprecationWarning: get_qpoints_dict() is deprecated`(phonopy 4.3.0 で確認) | `Phonopy.get_qpoints_dict()` が `qpoints` プロパティ(結果オブジェクト)へ移行 | `runtime_compat.get_qpoints_result()` に集約(新 API 優先。旧版の dict は属性アクセス可能に包む `QpointsResultAdapter` で吸収)。呼び出し側は `phonon_vector._get_mode_labels` と testsuite 23 |
 | `AttributeError: module 'pymatgen' has no attribute '__version__'`(xdatcar2adp 移植時) | 移植元 script の pymatgen 依存と環境差 | XDATCAR パーサを自前実装し pymatgen 依存を除去 |
 | reportlab の `TTFError`(ヒラギノは PostScript アウトラインで埋め込み不可) | 日本語フォント埋め込みの制約 | reportlab を使わない PDF 生成に切替(7/11 の資料は docx 生成 → Microsoft Word の AppleScript 変換。Word はサンドボックスのため出力先は `~/Library/Containers/com.microsoft.Word/Data/` 配下を使う) |
 | コマンド・テストが Mac 標準 python3.9 で実行されてしまう | 2 つの editable install が共存 | 「conda `crystod` 環境で作成・検証」を運用ルール化 |
@@ -96,6 +100,13 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 - **教訓**: `spacegroup_product.SpaceGroupIrrepAlgebra` は同じ変換を**実行時に群閉包で自己検証**しており無事だった。規約が交錯する変換は閉包チェックを実装側に持たせるのが安全。
 - **関連する未解決の既存問題**(タスク化済み): `--basis` の可約表現指標は Bloch 並進位相を含まないため、非共形 little group では多重度が厳密整数にならない(内点では丸めで隠れ、非共形群のゾーン境界特殊点 — Pnma X, Fd-3m X, R-3c T — では空/部分的な分解が出る)。
 
+#### 固有ベクトルを1本ずつ凍結すると order parameter 方向を取りこぼす(8/15、API 化で判明)
+
+- **状況**: macer の `phonopy tree`(構造探索)は、虚数モードの対称性低下を「各固有ベクトルを1本ずつ phonopy の modulation で凍結 → spglib で事後的に空間群判定」で行っている(`macer/phonopy/familytree.py` `_get_stable_structure`)。
+- **問題**: 対角化が返す縮退固有ベクトルの基底は**任意**(縮退部分空間内で自由)なので、凍結して得られる部分群は基底の取り方に依存する。SrTiO3 2×2×2 の実データ(`example/02_phonopy/07_tree/.../g/phonon/freqsym`)では R5- 三重項から **C2/m, C2/m, I4/mcm** の3つしか出ておらず、**R-3c(a,a,a) と Imma(0,a,a) を取りこぼしている**(ペロブスカイトの傾斜系として本質的な相)。縮退ペアの重ね合わせも「バンド番号が隣接している」前提のヒューリスティックで、これも基底依存。
+- **正しい方法**: 既約表現の isotropy subgroup(stratum)を**列挙**する。方向は基底の取り方に依らない群論的不変量で、R5- 三重項なら 6 方向(I4/mcm, R-3c, Imma, C2/m, C2/c, P-1)が過不足なく決まる。CrystOD には既に `IsotropyAnalyzer` があったので、phonopy 側のラベリングと接続するだけで済んだ(`crystod/phonon_subgroups.py`)。
+- **教訓**: 縮退した固有ベクトルを「1本ずつ試す」設計を見たら、必ず基底依存性を疑う。物理的に意味があるのは既約表現とその order parameter 方向であって、対角化ルーチンが返した個々のベクトルではない。
+
 #### その他(v0.2.x〜7/11)
 
 | 症状 | 原因 | 対処 |
@@ -118,6 +129,16 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 
 - **testsuite の一過性失敗**: バックグラウンド実行 1 回だけ「274 passed, 30 failed」が出たが、出力を `tail -3` にパイプしていたため失敗内容が失われた(直後 2 回連続全合格で一過性と判断)。**バックグラウンドのテスト実行はパイプせず全出力をファイルに残すこと。**
 - **example/README の陳腐化**: 修正で数値・ファイル名が変わるたびに example 内の参照出力を再生成して差し替える必要がある。
+- **API 化の教訓(8/15、v0.3.6)**: ライブラリ公開時に効いた点を 3 つ。
+  1. **`raise SystemExit` は CLI の作法であってライブラリの作法ではない**。crystod の実装モジュールには約 200 箇所の `raise SystemExit` があり(エラー表示としては正しい)、そのまま公開関数に通すと**呼び出し側のプロセスごと落ちる**(`except Exception` では捕まらない)。特に `label_phonon_modes` は対称線・面のラベル(DT5, LD3 等)を正常に返すので、それを `isotropy_subgroups` に渡す「ドキュメント通りの2段構成」が地雷になっていた。**個別に潰すのではなく境界で一括処理すること**: 最初は `phonon_subgroups.py` の2関数だけ直したが、レビューで `crystod.bz.get_special_kpoints` / `crystod.mol.load_molecule` 等からも同じように漏れていることが判明。`_api.py` の `lazy_namespace` が属性解決時に**全ドメインの関数 64 個**を `_library_errors` で包む方式に変更した(`functools.wraps` で名前・docstring 保持)。**クラス 21 個は包んでいない** — subclass 化すると frozen dataclass の等価判定(`other.__class__ is self.__class__`)が壊れ、`isinstance`/`type` の同一性も変わるため。クラスのコンストラクタは `SystemExit` のまま(doc に明記済み)。
+  2. **「明示指定されたか」を知りたいフラグは sentinel default(`None`)にする — argv を直接読んではいけない**。`--yaml` は既定値 `phonopy_params.yaml` を持つため `args.yaml` は常に真で、`if dim: ... else: yaml` という分岐は `--dim` と `--yaml` の同時指定を無言で握り潰していた。最初は argv を走査して `--yaml` の有無を見る実装にしたが、**argparse は略記(`--y`/`--ya`/`--yam`)を受理する**ので判定が両方向にズレる(略記だと「指定なし」と誤判定して拒否し、逆に `--dim` との衝突検出もすり抜けて yaml 引数が無言で捨てられる)。既定値を `None` にして `--modulation` 分岐側で `args.yaml or "phonopy_params.yaml"` と解決する形に変更(`cli/group.py` の `--supergroup` が元からこの作法)。argv 走査は撤去。
+  3. **モジュールは動かさない**。API はドメイン別の curated view として新規追加し、実装モジュールは 1 つも移動しなかったので、`python -m crystod.cli.X` の 6 経路と出力文字列の完全一致アサーション数百件を含む既存 639 checks が literally 無変更で通った。
+  4. **同じ量を 2 経路で計算しない**。`IsotropySubgroup.n_free` を列挙経路では `_orth_rank(projector)`(不変部分空間の次元)、`--order-parameter` 経路では「数値でないトークンの個数」で求めていたため、**同じ stratum に別の値が付いた**(`a` と `-a` を 2 個と数えていた。`resolve_direction` は符号を剥がして 1 振幅と読む)。方向文字列も同様に、列挙経路は arm 区切り(`;`)、指定経路は `,` 一律で、**マルチアーム星(M3+, X3- 等 = まさにペロブスカイトの傾斜・反極性モード)でだけ食い違っていた**(R4+/R5- は 1 arm なので全ての doc/test 例で偶然一致し、見えなかった)。
+  5. **「解決できない入力」は黙って別の答えを返さないこと**。六方・三方の irrep(P6_3/mmc K3 等)の stratum は `K3(0.282a;a)` のように**係数付きの方向**を持つが、`resolve_direction` は「数 × 記号」を解さず `0.282a` を**新しい独立パラメータ名**として登録するため、より一般的な方向に解決され、**無警告で別の(誤った)部分群 P-3c1 → P3c1 を返していた**。しかも label は呼び出し側のトークンから作るので、レコード自体が自己矛盾していた(六方・三方 5 例 34 方向のうち 22 方向が該当)。列挙結果から読むことはできるが指定はできない、と割り切って `ValueError` で明示的に拒否する方式に変更。
+  6. **新フラグは既存フラグの短縮形を壊しうる**。`--threshold` を足したことで `--t` が `--threshold`/`--tolerance` の両方に一致し、**argparse が `ambiguous option` で拒否するようになった**(既存の `crystod-phonon --irreps ... --t 0.001` が動かなくなる回帰)。testsuite は `--tolerance` を完全形でしか叩いていなかったので全合格でも素通りした。`--tolerance` に `--t`/`--tol` を明示的な option string として追加して回復(明示指定は前方一致より優先される)。**新フラグ追加時は、既存フラグの一意な短縮形が潰れないか確認すること。**
+  7. **バージョンは 3 箇所にある**。pyproject.toml と `crystod/__init__.py` に加えて **CITATION.cff** にもあり、0.3.5 のまま取り残されていた(本文書の §4 が「2 箇所」と書いていたのが誤りで、併せて訂正した)。
+  8. **docs CI はパッケージを入れない**。`doc/conf.py` は `importlib.metadata("CrystOD")` でバージョンを取り、失敗時は定数にフォールバックしていたが、`.github/workflows/docs.yml` は Sphinx 4 点しか入れないので**公開サイトは常にフォールバック値**(0.3.3)を表示していた。定数を上げるのではなく、pyproject.toml を直接読むようにして恒久的に解消。
+- **レビューは実行させる**: 上記を含む 9 件の実欠陥は、コードを読むだけでなく**実際に走らせて反証を試みる**多エージェント・レビューが検出した(指摘のうち 9 件が実在と確定、他は反証)。
 
 ---
 
@@ -194,7 +215,7 @@ AI(Claude)との協働開発の記録・引き継ぎ資料。対象期間: **202
 - **`--conventional`** は crystod --visualize / crystod-phonon --vector / crystod-mag で同一セマンティクス(centring 由来の primitive→conventional 行列、`_conv` サフィックス)。
 - **ビューワーの文言**: トップバー「Symmetry-Adapted Linear Combination (SALC) viewer」、サイドバー見出し「Irreps of SALC」。
 - **検証の作法**: 対称性がらみの修正は、共形群(Pm-3m)と非共形群(Fd-3m)、1 次元と多次元既約表現、代表 arm と非代表 arm、のように**壊れ方が異なる軸で複数ケース**を確認する。可視化系はブラウザで実際にドラッグ・表示確認。
-- **バージョン**: `pyproject.toml` と `crystod/__init__.py` の 2 箇所(`crystod --version` で確認)。
+- **バージョン**: `pyproject.toml`・`crystod/__init__.py`・`CITATION.cff` の **3 箇所**(`crystod --version` で確認。`doc/conf.py` は pyproject.toml から読むので手当て不要)。
 
 ---
 

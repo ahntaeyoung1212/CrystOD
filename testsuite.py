@@ -42,7 +42,8 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
   24. crystod-phonon --vector   phonon eigenvector VESTA export (phonopy data)
   25. crystod-phonon --modulation modulated structures (known space groups)
   26. crystod-phonon --vibration symmetry-only vibration bases
-  27. crystod-phonon            six-mode extras
+  27. crystod-phonon            seven-mode extras, incl. --subgroup (isotropy
+                                subgroups of the imaginary modes)
   -- crystod-mag --
   28. crystod-mag               symmetry-adapted spin bases (cluster multipoles / SAMM)
   29. crystod-mag               --format qe / --conventional extras
@@ -53,6 +54,9 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
   32. crystod-mol               molecular point groups and molecular SALCs
   33. crystod-mol --diagram     MO diagram from symmetry + overlap (extended Hueckel)
   34. crystod-mol               --align / --show-matrix / --visualize / error extras
+  -- Python API --
+  35. crystod.salc/group/phonon/bz/mag/md/mol  library API (import hygiene,
+                                backward compatibility, API-vs-CLI agreement)
 """
 
 from __future__ import annotations
@@ -101,6 +105,21 @@ def run_module(module: str, args: list[str], cwd: str | None = None) -> tuple[in
     try:
         proc = subprocess.run(
             [sys.executable, "-m", module] + args,
+            capture_output=True,
+            text=True,
+            cwd=cwd or ROOT,
+            timeout=TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return -1, f"TIMEOUT after {TIMEOUT_SECONDS} s"
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def run_python(script: str, cwd: str | None = None) -> tuple[int, str]:
+    """Run a Python snippet in a fresh interpreter (for the library API)."""
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", script],
             capture_output=True,
             text=True,
             cwd=cwd or ROOT,
@@ -1348,6 +1367,19 @@ def test_17_group_command() -> None:
     report("--pointgroup with leading-dash label accepted",
            code == 0 and "-43m" in out, out)
 
+    # --parent is --supergroup under the name of the value it takes
+    code, out = run_group(["--parent", "Pm-3m", "--irrep", "GM4-",
+                           "--order-parameter", "0", "0", "a"])
+    code_alias, out_alias = run_group(["--supergroup", "Pm-3m", "--irrep", "GM4-",
+                                       "--order-parameter", "0", "0", "a"])
+    report("--parent alias accepted",
+           code == 0 and "P4mm" in out, out)
+    report("--parent and --supergroup give the same output",
+           code == code_alias and out == out_alias, out)
+    code, out = run_group(["--parent", "Pm-3m"])
+    report("--parent without --irrep rejected cleanly",
+           code != 0 and "requires --irrep" in out and "Traceback" not in out, out)
+
     code, out = run_group(["--product", "T2g", "T2g", "T1u", "--pg", "m-3m",
                            "--show-irrep-table"])
     report("triple product with --show-irrep-table", code == 0 and "(A2u)" in out, out)
@@ -1729,6 +1761,7 @@ def test_23_phonon_lt() -> None:
     # longitudinal-ratio sanity: acoustic branches near Gamma along [100]
     from phonopy import load as phonopy_load
     from crystod.phonon_lt import get_longitudinal_ratio
+    from crystod.runtime_compat import get_qpoints_result
 
     phonon = phonopy_load(
         supercell_matrix=[4.0, 4.0, 4.0],
@@ -1739,10 +1772,11 @@ def test_23_phonon_lt() -> None:
     )
     q = [0.1, 0.0, 0.0]
     phonon.run_qpoints([q], with_eigenvectors=True)
-    eigvecs = phonon.get_qpoints_dict()["eigenvectors"][0][np.newaxis]
+    qpoints_result = get_qpoints_result(phonon)
+    eigvecs = qpoints_result.eigenvectors[0][np.newaxis]
     rec = np.linalg.inv(np.array(phonon.primitive.cell)).T
     ratio = get_longitudinal_ratio(np.array([q]), eigvecs, rec)[0]
-    freqs = phonon.get_qpoints_dict()["frequencies"][0]
+    freqs = qpoints_result.frequencies[0]
     acoustic = np.argsort(freqs)[:3]
     report("acoustic set near GM splits into 2 T + 1 L along [100]",
            sorted(np.round(ratio[acoustic], 2))[:2] == [0.0, 0.0]
@@ -2078,6 +2112,76 @@ def test_27_phonon_command() -> None:
             report("--modulation exit 0", code == 0, out)
             report("R4+(a,a,a) -> R-3c", "R-3c" in out, out)
 
+    # --modulation straight from POSCAR + FORCE_SETS: the same structure as the
+    # phonopy_params.yaml route, byte for byte, with the supercell taken from
+    # phonopy_disp.yaml, inferred from FORCE_SETS, or given as --dim
+    if os.path.isdir(MODULATION_DIR):
+        modulation_argv = ["--qpoint", "0.5", "0.5", "0.5",
+                           "--mode", "1", "2", "3", "--amplitude", "0.3"]
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("221_PPOSCAR_ScF3", "FORCE_SETS", "phonopy_params.yaml",
+                         "phonopy_disp.yaml"):
+                shutil.copy(os.path.join(MODULATION_DIR, name), tmp)
+            code, out = run_phonon(
+                ["--modulation", "--yaml", "phonopy_params.yaml", *modulation_argv,
+                 "--output", "REF"],
+                cwd=tmp,
+            )
+            report("--modulation --yaml reference run exit 0", code == 0, out)
+            reference = open(os.path.join(tmp, "REF")).read() if code == 0 else ""
+
+            code, out = run_phonon(
+                ["--modulation", "-c", "221_PPOSCAR_ScF3", *modulation_argv,
+                 "--output", "FROM_CELL"],
+                cwd=tmp,
+            )
+            report("--modulation -c (no --yaml, no --dim) exit 0", code == 0, out)
+            report("supercell read from phonopy_disp.yaml",
+                   "read from phonopy_disp.yaml" in out, out)
+            report("-c route reproduces the --yaml structure exactly",
+                   code == 0 and open(os.path.join(tmp, "FROM_CELL")).read() == reference,
+                   out)
+
+            code, out = run_phonon(
+                ["--modulation", "-c", "221_PPOSCAR_ScF3", "--dim", "4 4 4",
+                 *modulation_argv, "--output", "FROM_DIM"],
+                cwd=tmp,
+            )
+            report("--modulation -c with explicit --dim identical",
+                   code == 0 and open(os.path.join(tmp, "FROM_DIM")).read() == reference,
+                   out)
+
+            code, out = run_phonon(
+                ["--modulation", "-c", "221_PPOSCAR_ScF3", "--dim", "2 2 2",
+                 *modulation_argv, "--output", "BAD"],
+                cwd=tmp,
+            )
+            report("--modulation with a wrong --dim rejected cleanly",
+                   code != 0 and "does not match" in out and "Traceback" not in out, out)
+
+            code, out = run_phonon(
+                ["--modulation", "--yaml", "phonopy_params.yaml",
+                 "-c", "221_PPOSCAR_ScF3", *modulation_argv],
+                cwd=tmp,
+            )
+            report("--modulation with both --yaml and -c rejected cleanly",
+                   code != 0 and "not both" in out and "Traceback" not in out, out)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # no yaml at all: the supercell has to come out of FORCE_SETS
+            for name in ("221_PPOSCAR_ScF3", "FORCE_SETS"):
+                shutil.copy(os.path.join(MODULATION_DIR, name), tmp)
+            code, out = run_phonon(
+                ["--modulation", "-c", "221_PPOSCAR_ScF3", *modulation_argv,
+                 "--output", "INFERRED"],
+                cwd=tmp,
+            )
+            report("--modulation infers 4x4x4 from FORCE_SETS",
+                   code == 0 and "Supercell 4x4x4 inferred" in out, out)
+            report("inferred-supercell structure identical to the --yaml one",
+                   code == 0 and open(os.path.join(tmp, "INFERRED")).read() == reference,
+                   out)
+
     # error handling
     code, out = run_phonon(["--irreps", "-c", POSCAR_ScF3])
     report("--irreps without --dim rejected cleanly",
@@ -2091,6 +2195,150 @@ def test_27_phonon_command() -> None:
     code, out = run_phonon(["--vibration", "-c", POSCAR_ScF3, "--qpoint1", "0", "0", "0"])
     report("numbered args outside --modulation rejected cleanly",
            code != 0 and "unrecognized" in out and "Traceback" not in out, out)
+
+    # --subgroup: isotropy subgroups of the imaginary modes
+    if os.path.isdir(PHONON_IRREP_DIR):
+        code, out = run_phonon(
+            ["--subgroup", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3"],
+            cwd=PHONON_IRREP_DIR,
+        )
+        report("--subgroup (q scan) exit 0", code == 0, out)
+        report("--subgroup finds the R-point instability",
+               "q = (0.5, 0.5, 0.5) (R)" in out and "-1.086" in out, out)
+        report("--subgroup labels the unstable irrep",
+               "irrep R5-" in out and "degeneracy 3" in out, out)
+        for direction, subgroup in (("R5-(0,0,a)", "140 I4/mcm"),
+                                    ("R5-(a,a,a)", "167 R-3c"),
+                                    ("R5-(0,a,a)", "74 Imma")):
+            report(f"--subgroup lists {direction} -> {subgroup}",
+                   direction in out and subgroup in out, out)
+        code, out = run_phonon(
+            ["--subgroup", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+             "--qpoint", "GM"],
+            cwd=PHONON_IRREP_DIR,
+        )
+        report("--subgroup --qpoint GM reports no instability",
+               code == 0 and "No imaginary mode" in out, out)
+        code, out = run_phonon(
+            ["--subgroup", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+             "--qpoint", "NOSUCHLABEL"],
+            cwd=PHONON_IRREP_DIR,
+        )
+        report("--subgroup unknown q label rejected cleanly",
+               code != 0 and "Unknown q-point label" in out
+               and "Traceback" not in out, out)
+
+        # --modulate: one distorted structure per order-parameter direction,
+        # each verified against the enumerated (number, size, index)
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("221_PPOSCAR_SrTiO3", "FORCE_SETS"):
+                shutil.copy(os.path.join(PHONON_IRREP_DIR, name), tmp)
+            code, out = run_phonon(
+                ["--subgroup", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+                 "--qpoint", "R", "--modulate"],
+                cwd=tmp,
+            )
+            report("--subgroup --modulate exit 0", code == 0, out)
+            report("--modulate reports the distorted structures",
+                   "Distorted structures" in out, out)
+            report("--modulate prints the reproducing --modulation command",
+                   "crystod-phonon --modulation --qpoint 0.5 0.5 0.5 --mode 1 --amplitude 0.3" in out,
+                   out)
+            written = sorted(
+                name for name in os.listdir(tmp) if name.startswith("MPOSCAR_")
+            )
+            report("--modulate writes all six R5- directions",
+                   len(written) == 6, "\n".join(written) or out)
+            expected = {
+                "MPOSCAR_R_R5-_0-0-a_I4mcm": (140, 2, 6),
+                "MPOSCAR_R_R5-_a-a-a_R-3c": (167, 2, 8),
+                "MPOSCAR_R_R5-_0-a-a_Imma": (74, 2, 12),
+                "MPOSCAR_R_R5-_0-a-b_C2m": (12, 2, 24),
+                "MPOSCAR_R_R5-_a-a-b_C2c": (15, 2, 24),
+                "MPOSCAR_R_R5-_a-b-c_P-1": (2, 2, 48),
+            }
+            report("--modulate names every direction after its subgroup",
+                   set(written) == set(expected), "\n".join(written))
+            # re-measure each structure independently of the code that wrote it
+            try:
+                import spglib as _spglib
+                from ase.io import read as _ase_read
+
+                from crystod.modulation import classify_distorted_structure
+
+                parent = _ase_read(os.path.join(tmp, "221_PPOSCAR_SrTiO3"), format="vasp")
+                parent_cell = (parent.cell[:], parent.get_scaled_positions(),
+                               parent.get_atomic_numbers())
+                mismatches = []
+                for name, key in expected.items():
+                    path = os.path.join(tmp, name)
+                    if not os.path.isfile(path):
+                        mismatches.append(f"{name}: not written")
+                        continue
+                    atoms = _ase_read(path, format="vasp")
+                    number, _symbol, size, index = classify_distorted_structure(
+                        atoms, parent_cell, symprec=1e-5
+                    )
+                    if (number, size, index) != key:
+                        mismatches.append(
+                            f"{name}: measured {(number, size, index)}, expected {key}"
+                        )
+                report("every written structure has the space group it claims",
+                       not mismatches, "\n".join(mismatches))
+            except ImportError as exc:  # pragma: no cover - spglib/ase always present
+                report("structure verification imports available", False, str(exc))
+
+        code, out = run_phonon(
+            ["--subgroup", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+             "--qpoint", "R", "--amplitude", "0.3"],
+            cwd=PHONON_IRREP_DIR,
+        )
+        report("--amplitude without --modulate rejected cleanly",
+               code != 0 and "only used by --subgroup with --modulate" in out
+               and "Traceback" not in out, out)
+    else:
+        report("phonon_irrep example data found", False, PHONON_IRREP_DIR)
+
+    if os.path.isdir(MODULATION_DIR):
+        code, out = run_phonon(
+            ["--subgroup", "--yaml", "phonopy_params.yaml"], cwd=MODULATION_DIR
+        )
+        report("--subgroup --yaml on a stable structure exit 0", code == 0, out)
+        report("--subgroup reports no imaginary mode for stable ScF3",
+               "No imaginary mode" in out and "Traceback" not in out, out)
+    code, out = run_phonon(["--subgroup", "-c", POSCAR_ScF3, "--dim", "4 4 4"])
+    report("--subgroup without force data rejected cleanly",
+           code != 0 and "FORCE_SETS not found" in out
+           and "Traceback" not in out, out)
+
+    if os.path.isdir(MODULATION_DIR):
+        # argparse accepts abbreviations, so the --dim/--yaml guard must see
+        # them too: it reads the parsed value, not the raw argv spelling
+        for spelling in ("--y", "--ya", "--yaml"):
+            code, out = run_phonon(
+                ["--subgroup", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3",
+                 spelling, "phonopy_params.yaml"],
+                cwd=MODULATION_DIR,
+            )
+            report(f"--dim with {spelling} rejected as a conflict",
+                   code != 0 and "not both" in out and "Traceback" not in out, out)
+            code, out = run_phonon(
+                ["--subgroup", spelling, "phonopy_params.yaml", "--qpoint", "R"],
+                cwd=MODULATION_DIR,
+            )
+            report(f"{spelling} alone is accepted like --yaml",
+                   code == 0 and "No imaginary mode" in out, out)
+
+    # --threshold must not make the pre-existing --t abbreviation ambiguous
+    if os.path.isdir(PHONON_IRREP_DIR):
+        for spelling in ("--t", "--tol", "--tolerance"):
+            code, out = run_phonon(
+                ["--irreps", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+                 spelling, "0.001"],
+                cwd=PHONON_IRREP_DIR,
+            )
+            report(f"{spelling} still reaches --tolerance",
+                   code == 0 and "ambiguous" not in out, out)
 
     # removed flat flags give replacement guidance
     for flag in ("--vibration", "--phonon-irrep", "--phonon-fatband", "--phonon-lt",
@@ -3581,6 +3829,240 @@ def test_16_symmetry_mode() -> None:
            and "Traceback" not in out, out)
 
 
+# ---------------------------------------------------------------- 35. Python API
+def test_35_python_api() -> None:
+    print("\n[35] Python API (crystod.salc / group / phonon / bz / mag / md / mol)")
+
+    # import hygiene: plain `import crystod` must not drag in the heavy stack
+    probe = (
+        "import sys, crystod\n"
+        "import crystod.salc, crystod.group, crystod.phonon\n"
+        "import crystod.bz, crystod.mag, crystod.md, crystod.mol\n"
+        "heavy = [m for m in ('phonopy', 'spgrep', 'pyscf', 'pymatgen', 'matplotlib')\n"
+        "         if m in sys.modules]\n"
+        "print('HEAVY:' + ','.join(heavy))\n"
+        "print('VERSION:' + crystod.__version__)\n"
+    )
+    code, out = run_python(probe)
+    report("importing crystod and all API domains exit 0", code == 0, out)
+    report("no heavy dependency imported by the API namespaces",
+           "HEAVY:\n" in out or "HEAVY:" in out and out.split("HEAVY:")[1].startswith("\n"),
+           out)
+    report("crystod.__version__ exposed", "VERSION:0.3" in out, out)
+
+    # backward compatibility: the pre-0.3.6 import paths still work
+    probe = (
+        "from crystod import wigner_D_real\n"
+        "from crystod.operations import find_star_arm\n"
+        "from crystod.phonon_irreps import get_irrep_labels\n"
+        "from crystod.isotropy_subgroup import IsotropyAnalyzer\n"
+        "from crystod.cli.md import _parse_dim, build_parser\n"
+        "print('OK')\n"
+    )
+    code, out = run_python(probe)
+    report("pre-0.3.6 module import paths still work", code == 0 and "OK" in out, out)
+
+    # the API and the CLI must enumerate the same isotropy subgroups
+    probe = (
+        "from crystod.group import isotropy_subgroups\n"
+        "for s in isotropy_subgroups('Pm-3m', 'R4+'):\n"
+        "    print(f'{s.label} {s.number} {s.symbol} {s.size} {s.index}')\n"
+    )
+    code, api_out = run_python(probe)
+    report("crystod.group.isotropy_subgroups exit 0", code == 0, api_out)
+    for direction, number, symbol in (("R4+(0,0,a)", "140", "I4/mcm"),
+                                      ("R4+(a,a,a)", "167", "R-3c"),
+                                      ("R4+(0,a,a)", "74", "Imma"),
+                                      ("R4+(a,b,c)", "2", "P-1")):
+        report(f"API subgroup {direction} -> {symbol}",
+               f"{direction} {number} {symbol}" in api_out, api_out)
+    code, cli_out = run_group(["--supergroup", "Pm-3m", "--irrep", "R4+"])
+    api_pairs = {line.split()[0]: line.split()[2]
+                 for line in api_out.splitlines() if line.startswith("R4+(")}
+    cli_pairs = {line.split()[0]: line.split()[2]
+                 for line in cli_out.splitlines() if line.startswith("R4+(")}
+    report("API and crystod-group --supergroup agree on every direction",
+           code == 0 and api_pairs and api_pairs == cli_pairs,
+           f"api={api_pairs}\ncli={cli_pairs}")
+
+    # order-parameter form returns the conventional setting as data
+    probe = (
+        "from crystod.group import isotropy_subgroups\n"
+        "s = isotropy_subgroups(221, 'R4+', order_parameter=['0', '0', 'a'])[0]\n"
+        "print(s.symbol, s.number, s.size, s.index, s.n_free)\n"
+        "print('BASIS', s.basis is not None, 'ORIGIN', s.origin is not None)\n"
+    )
+    code, out = run_python(probe)
+    report("order-parameter direction resolves to I4/mcm",
+           code == 0 and "I4/mcm 140 2 6 1" in out, out)
+    report("conventional basis and origin returned as arrays",
+           "BASIS True ORIGIN True" in out, out)
+
+    # multi-arm star: both branches must print the arm grouping of the tables
+    probe = (
+        "from crystod.group import isotropy_subgroups\n"
+        "for op in (['0', '0', 'a'], ['a', 'a', 'a'], ['a', '-a', '0']):\n"
+        "    s = isotropy_subgroups('Pm-3m', 'M3+', order_parameter=op)[0]\n"
+        "    print('OP', s.label, s.direction, s.n_free, s.symbol)\n"
+        "for s in isotropy_subgroups('Pm-3m', 'M3+'):\n"
+        "    print('EN', s.label, s.direction, s.n_free, s.symbol)\n"
+    )
+    code, api_out = run_python(probe)
+    report("multi-arm order parameter groups components arm by arm",
+           code == 0 and "OP M3+(0;0;a) (0;0;a) 1 P4/mbm" in api_out, api_out)
+    report("a sign-flipped component is one free parameter, not two",
+           "OP M3+(a;-a;0) (a;-a;0) 1 I4/mmm" in api_out, api_out)
+
+    # every direction the API prints must feed back into it unchanged
+    probe = (
+        "import re\n"
+        "from crystod.group import isotropy_subgroups\n"
+        "bad = 0\n"
+        "for s in isotropy_subgroups('Pm-3m', 'X5+', with_settings=False):\n"
+        "    tokens = re.split(r'[,;]', s.direction.strip('()'))\n"
+        "    r = isotropy_subgroups('Pm-3m', 'X5+', order_parameter=tokens,\n"
+        "                           with_settings=False)[0]\n"
+        "    if (r.number, r.index, r.n_free, r.direction) != (\n"
+        "            s.number, s.index, s.n_free, s.direction):\n"
+        "        bad += 1\n"
+        "        print('MISMATCH', s.direction, s.n_free, r.n_free)\n"
+        "print('MISMATCHES', bad)\n"
+    )
+    code, out = run_python(probe)
+    report("every enumerated direction round-trips through order_parameter",
+           code == 0 and "MISMATCHES 0" in out, out)
+
+    # hexagonal/trigonal strata carry composite directions like 0.282a, which
+    # the resolver cannot honour: they must be refused, never silently wrong
+    probe = (
+        "import re\n"
+        "from crystod.group import isotropy_subgroups\n"
+        "wrong = rejected = 0\n"
+        "for sg, ir in (('P6_3/mmc', 'H3'), ('P-3m1', 'K3'), ('P6_3mc', 'K3'),\n"
+        "               ('P6/mmm', 'K3'), ('P6_3/mcm', 'K3')):\n"
+        "    for s in isotropy_subgroups(sg, ir, with_settings=False):\n"
+        "        tokens = re.split(r'[,;]', s.direction.strip('()'))\n"
+        "        try:\n"
+        "            r = isotropy_subgroups(sg, ir, order_parameter=tokens,\n"
+        "                                   with_settings=False)[0]\n"
+        "            if (r.number, r.index, r.n_free) != (s.number, s.index, s.n_free):\n"
+        "                wrong += 1\n"
+        "        except ValueError:\n"
+        "            rejected += 1\n"
+        "print('WRONG', wrong, 'REJECTED', rejected)\n"
+    )
+    code, out = run_python(probe)
+    report("composite directions are refused, never silently mis-resolved",
+           code == 0 and "WRONG 0 " in out and "REJECTED 0" not in out, out)
+    report("both branches format the same direction identically",
+           "EN M3+(0;0;a) (0;0;a) 1 P4/mbm" in api_out, api_out)
+    code, cli_out = run_group(["--supergroup", "Pm-3m", "--irrep", "M3+",
+                               "--order-parameter", "0", "0", "a"])
+    report("API direction string matches crystod-group --supergroup",
+           code == 0 and "M3+(0;0;a) -> P4/mbm" in cli_out, cli_out)
+
+    # bad input must raise a catchable exception, never kill the caller
+    probe = (
+        "from crystod.group import isotropy_subgroups\n"
+        "from crystod.phonon import label_phonon_modes\n"
+        "for args, kwargs in ((('Pm3m', 'R5-'), {}), ((221, 'DT5'), {}),\n"
+        "                     ((999, 'R5-'), {}),\n"
+        "                     ((221, 'R5-'), {'order_parameter': ['0', '0', '0']})):\n"
+        "    try:\n"
+        "        isotropy_subgroups(*args, **kwargs)\n"
+        "        print('NOT RAISED', args)\n"
+        "    except ValueError:\n"
+        "        pass\n"
+        "print('SURVIVED')\n"
+    )
+    code, out = run_python(probe)
+    report("bad API input raises ValueError instead of exiting the process",
+           code == 0 and "SURVIVED" in out and "NOT RAISED" not in out, out)
+
+    # the same contract holds for every function of every domain, not just
+    # the phonon-subgroup entry points
+    probe = (
+        "import crystod\n"
+        "from crystod.group import isotropy_subgroups, IsotropySubgroup\n"
+        "for call in (\"crystod.bz.get_special_kpoints('NOSUCH')\",\n"
+        "             \"crystod.mol.load_molecule('/nonexistent.xyz')\",\n"
+        "             \"crystod.group.isotropy_subgroups(221, [])\"):\n"
+        "    try:\n"
+        "        eval(call)\n"
+        "        print('NOT RAISED', call)\n"
+        "    except ValueError:\n"
+        "        pass\n"
+        "a = isotropy_subgroups('Pm-3m', 'R4+', with_settings=False)[0]\n"
+        "b = isotropy_subgroups(221, 'R4+', with_settings=False)[0]\n"
+        "print('EQ', a == b, type(a).__name__, isinstance(a, IsotropySubgroup))\n"
+        "print('WRAPS', crystod.group.compute_star.__name__)\n"
+        "print('SURVIVED')\n"
+    )
+    code, out = run_python(probe)
+    report("SystemExit is translated in every API domain, not just phonon",
+           code == 0 and "SURVIVED" in out and "NOT RAISED" not in out, out)
+    report("wrapping preserves dataclass equality, type and function names",
+           "EQ True IsotropySubgroup True" in out and "WRAPS compute_star" in out, out)
+
+    # phonon API: labeling and imaginary-mode subgroups on the SrTiO3 example
+    if os.path.isdir(PHONON_IRREP_DIR):
+        probe = (
+            "import phonopy\n"
+            "from crystod.phonon import (label_phonon_modes, imaginary_mode_subgroups,\n"
+            "                            commensurate_qpoints, scan_imaginary_modes)\n"
+            "ph = phonopy.load(supercell_matrix=[4, 4, 4], primitive_matrix='auto',\n"
+            "                  unitcell_filename='221_PPOSCAR_SrTiO3',\n"
+            "                  force_sets_filename='FORCE_SETS')\n"
+            "modes = label_phonon_modes(ph, [0.5, 0.5, 0.5])\n"
+            "m = modes[0]\n"
+            "print('LOWEST', m.band_indices, round(m.frequency, 4), m.labels,\n"
+            "      m.qpoint_label, m.degeneracy, m.is_imaginary)\n"
+            "arm = label_phonon_modes(ph, [-0.5, 0.5, 0.5])[0]\n"
+            "print('ARM', arm.qpoint_label, arm.labels)\n"
+            "qs = commensurate_qpoints(ph)\n"
+            "print('NQ', len(qs))\n"
+            "print('QEXACT', all(abs(round(x * 4) / 4 - x) < 1e-12\n"
+            "                    for q in qs for x in q))\n"
+            "res = imaginary_mode_subgroups(ph, [0.5, 0.5, 0.5])\n"
+            "print('NRES', len(res), 'NSUB', len(res[0].subgroups),\n"
+            "      res[0].space_group, res[0].space_group_number)\n"
+            "print('SUBS', sorted(s.symbol for s in res[0].subgroups))\n"
+            "print('SCAN', [(r.mode.qpoint_label, r.mode.labels) for r in scan_imaginary_modes(ph)])\n"
+        )
+        code, out = run_python(probe, cwd=PHONON_IRREP_DIR)
+        report("phonon API on the SrTiO3 example exit 0", code == 0, out)
+        report("label_phonon_modes labels the R-point soft mode",
+               "LOWEST (1, 2, 3) -1.0867 ('R5-',) R 3 True" in out, out)
+        report("a non-representative star arm gets the same label",
+               "ARM R ('R5-',)" in out, out)
+        report("commensurate q points of a 4x4x4 supercell counted",
+               "NQ 64" in out, out)
+        report("commensurate q points are exact fractions, not snapped decimals",
+               "QEXACT True" in out, out)
+        report("imaginary_mode_subgroups returns one level with six subgroups",
+               "NRES 1 NSUB 6 Pm-3m 221" in out, out)
+        report("subgroups of the R-point rotation mode",
+               "SUBS ['C2/c', 'C2/m', 'I4/mcm', 'Imma', 'P-1', 'R-3c']" in out, out)
+        report("scan_imaginary_modes finds exactly the R-point level",
+               "SCAN [('R', ('R5-',))]" in out, out)
+    else:
+        report("phonon_irrep example data found", False, PHONON_IRREP_DIR)
+
+    # domain namespaces expose their advertised names
+    probe = (
+        "import crystod\n"
+        "for name in ('salc', 'group', 'phonon', 'bz', 'mag', 'md', 'mol'):\n"
+        "    module = getattr(crystod, name)\n"
+        "    missing = [n for n in module.__all__ if not hasattr(module, n)]\n"
+        "    print(name, len(module.__all__), 'MISSING' if missing else 'OK', missing or '')\n"
+    )
+    code, out = run_python(probe)
+    report("every advertised API symbol resolves", code == 0 and "MISSING" not in out, out)
+    report("all seven API domains are populated",
+           code == 0 and all(f"\n{name} " in "\n" + out for name in
+                             ("salc", "group", "phonon", "bz", "mag", "md", "mol")), out)
+
+
 SECTIONS = {
     1: test_01_wigner_d,
     2: test_02_salc,
@@ -3616,6 +4098,7 @@ SECTIONS = {
     32: test_32_mol,
     33: test_33_molod,
     34: test_34_mol_command,
+    35: test_35_python_api,
 }
 
 
