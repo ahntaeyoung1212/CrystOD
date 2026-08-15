@@ -56,8 +56,29 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--yaml",
         dest="yaml_path",
-        default="phonopy_params.yaml",
-        help="Path to phonopy_params.yaml(.xz).",
+        default=None,
+        help="Path to phonopy_params.yaml(.xz) (default: phonopy_params.yaml "
+        "when no structure file is given).",
+    )
+    parser.add_argument(
+        "--poscar",
+        "-c",
+        "--cell",
+        dest="cell",
+        default=None,
+        help="Unit-cell file, used with FORCE_SETS (or FORCE_CONSTANTS with "
+        "--readfc) instead of a phonopy yaml.",
+    )
+    parser.add_argument(
+        "--dim",
+        default=None,
+        help='Supercell of the force calculation, e.g. "4 4 4". Inferred from '
+        "phonopy_disp.yaml or from the force file when omitted.",
+    )
+    parser.add_argument(
+        "--readfc",
+        action="store_true",
+        help="Read FORCE_CONSTANTS instead of FORCE_SETS.",
     )
     parser.add_argument(
         "--qpoint",
@@ -90,8 +111,12 @@ def build_parser() -> ArgumentParser:
         "--symprec",
         dest="symprec",
         type=float,
-        default=1e-5,
-        help="Symmetry tolerance.",
+        # sentinel: the mode construction and the space group of the generated
+        # structure want different defaults (1e-5 / 0.1), but an explicit
+        # --tolerance has to reach BOTH -- it used to reach only the first
+        default=None,
+        help="Symmetry tolerance (default: 1e-5 for the mode construction, "
+        "0.1 for the space group of the generated structure).",
     )
     parser.add_argument(
         "--keep-q-coords",
@@ -125,6 +150,263 @@ def _find_intertwiner(
             u, _, vh = np.linalg.svd(averaged)
             return u @ vh
     return None
+
+
+# ---------------------------------------------------------------------------
+# phonopy input: a phonopy yaml, or a unit cell + FORCE_SETS/FORCE_CONSTANTS
+# ---------------------------------------------------------------------------
+
+DEFAULT_PARAMS_YAML = "phonopy_params.yaml"
+
+# where the supercell shape may be recorded, best source first
+_SUPERCELL_YAML_CANDIDATES = (
+    "phonopy_disp.yaml",
+    "phonopy_disp.yaml.xz",
+    "phonopy_params.yaml",
+    "phonopy_params.yaml.xz",
+)
+
+# "the file states a supercell this workflow cannot use" -- distinct from "the
+# file says nothing about the supercell", because guessing over a stated
+# non-diagonal supercell would produce a wrong answer that nothing downstream
+# can detect: the guess has the right atom count by construction
+_DECLARED_UNUSABLE = object()
+
+
+def _open_text(path: Path):
+    """Open a phonopy file, transparently handling the .xz form."""
+    if str(path).endswith(".xz"):
+        import lzma
+
+        return lzma.open(path, "rt")
+    return open(path, "r")
+
+
+def _diagonal_supercell_from_yaml(path: Path) -> list[int] | None:
+    """Read ``supercell_matrix`` out of a phonopy yaml, header only.
+
+    phonopy_params.yaml carries the whole force-constant matrix (hundreds of
+    kB), so the file is scanned line by line and the scan stops as soon as the
+    three rows have been read. Returns None when the file has no such block or
+    the supercell is not diagonal.
+    """
+    rows: list[list[int]] = []
+    inside = False
+    try:
+        with _open_text(path) as handle:
+            for line in handle:
+                stripped = line.strip()
+                if not inside:
+                    if stripped.startswith("supercell_matrix:"):
+                        inside = True
+                    continue
+                match = re.match(r"^-\s*\[([-\d\s,]+)\]$", stripped)
+                if not match:
+                    break
+                try:
+                    rows.append([int(v) for v in match.group(1).replace(",", " ").split()])
+                except ValueError:
+                    return _DECLARED_UNUSABLE
+                if len(rows) == 3:
+                    break
+    # a candidate file the user never named: any read failure (missing,
+    # unreadable, a .xz that is not one, a stray binary) means "says nothing"
+    except Exception:
+        return None
+    if not rows:
+        return None  # no supercell_matrix block at all
+    if len(rows) != 3 or any(len(row) != 3 for row in rows):
+        return _DECLARED_UNUSABLE
+    if any(rows[i][j] for i in range(3) for j in range(3) if i != j):
+        return _DECLARED_UNUSABLE  # non-diagonal: not supported by this workflow
+    diagonal = [rows[0][0], rows[1][1], rows[2][2]]
+    return diagonal if all(value > 0 for value in diagonal) else _DECLARED_UNUSABLE
+
+
+def _supercell_atom_count(force_path: Path, readfc: bool) -> int | None:
+    """Supercell atom count from the header of FORCE_SETS/FORCE_CONSTANTS."""
+    try:
+        with open(force_path) as handle:
+            for line in handle:
+                tokens = line.split()
+                if not tokens:
+                    continue
+                try:
+                    numbers = [int(token) for token in tokens]
+                except ValueError:
+                    return None
+                # FORCE_SETS opens with the supercell atom count; FORCE_CONSTANTS
+                # opens with "n_satom" (full) or "n_patom n_satom" (compact).
+                return max(numbers) if readfc else numbers[0]
+    except OSError:
+        return None
+    return None
+
+
+def _infer_diagonal_supercell(lattice, multiplicity: int) -> list[int]:
+    """Most isotropic diagonal supercell of the requested volume multiplicity.
+
+    A force file records only how many atoms its supercell holds, never the
+    shape, so the shape has to be guessed when nothing else states it. Two
+    rules pick it: axes of equal length keep equal multipliers (a supercell
+    that breaks the lattice's own axis equivalence is not one anybody builds),
+    and among what is left the most nearly cubic supercell wins. ``--dim``
+    overrides the guess and the choice is always printed.
+    """
+    lengths = np.linalg.norm(np.asarray(lattice, dtype=float), axis=1)
+    equivalent = [
+        [j for j in range(3) if abs(lengths[j] - lengths[i]) <= 1e-4 * lengths[i]]
+        for i in range(3)
+    ]
+
+    def search(respect_equivalence: bool) -> list[int] | None:
+        best: list[int] | None = None
+        best_score: float | None = None
+        for n1 in range(1, multiplicity + 1):
+            if multiplicity % n1:
+                continue
+            rest = multiplicity // n1
+            for n2 in range(1, rest + 1):
+                if rest % n2:
+                    continue
+                n3 = rest // n2
+                counts = [n1, n2, n3]
+                if respect_equivalence and any(
+                    counts[j] != counts[i] for i in range(3) for j in equivalent[i]
+                ):
+                    continue
+                edges = np.array(counts, dtype=float) * lengths
+                score = float(edges.max() / edges.min())
+                if best_score is None or score < best_score - 1e-12:
+                    best, best_score = counts, score
+        return best
+
+    return search(True) or search(False)
+
+
+def load_phonon(
+    yaml_path: str | None = None,
+    cell_path: str | None = None,
+    dim: str | list[int] | None = None,
+    readfc: bool = False,
+) -> tuple[object, str, str]:
+    """Build the phonopy object of a modulation run.
+
+    Either ``yaml_path`` (a phonopy_params.yaml) or ``cell_path`` (a unit cell
+    next to FORCE_SETS/FORCE_CONSTANTS) is used. Returns the object, a short
+    label naming the input files, and a note describing where the supercell
+    came from -- which the caller prints, so that an inferred supercell is
+    never silent.
+    """
+    if yaml_path is not None:
+        path = Path(yaml_path)
+        if not path.exists():
+            raise SystemExit(f"ERROR: '{path}' does not exist.")
+        return phonopy.load(str(path)), str(path), ""
+
+    if cell_path is None:
+        raise SystemExit("ERROR: either a phonopy yaml or a unit-cell file is required.")
+    cell = Path(cell_path)
+    if not cell.exists():
+        raise SystemExit(f"ERROR: '{cell}' does not exist.")
+
+    force_name = "FORCE_CONSTANTS" if readfc else "FORCE_SETS"
+    force_path = Path(force_name)
+    if not force_path.exists() and cell.parent != Path("."):
+        force_path = cell.parent / force_name
+    if not force_path.exists():
+        raise SystemExit(
+            f"ERROR: {force_name} not found next to '{cell}' or in the current "
+            "directory. --modulation needs FORCE_SETS (or FORCE_CONSTANTS with "
+            "--readfc), or a phonopy yaml given with --yaml."
+        )
+
+    if dim:
+        tokens = dim.split() if isinstance(dim, str) else [str(value) for value in dim]
+        try:
+            diagonal = [int(token) for token in tokens]
+        except ValueError:
+            raise SystemExit(f'ERROR: --dim requires integers, got: {" ".join(tokens)}')
+        if len(diagonal) != 3 or any(value <= 0 for value in diagonal):
+            raise SystemExit("ERROR: --dim requires three positive integers.")
+        note = ""  # explicit: nothing to report back
+    else:
+        diagonal = None
+        note = ""
+        for candidate in _SUPERCELL_YAML_CANDIDATES:
+            found = _diagonal_supercell_from_yaml(Path(candidate))
+            if found is _DECLARED_UNUSABLE:
+                raise SystemExit(
+                    f"ERROR: '{candidate}' states a supercell_matrix that is not a "
+                    "positive diagonal matrix; this workflow supports diagonal "
+                    "supercells only. Inferring one instead would silently give the "
+                    "wrong answer, since any guess with the right atom count loads "
+                    "without complaint. Use --yaml phonopy_params.yaml, or give the "
+                    'diagonal supercell with --dim "n n n".'
+                )
+            if found:
+                shape = "x".join(str(value) for value in found)
+                diagonal = found
+                note = f"Supercell {shape} read from {candidate}."
+                break
+        if diagonal is None:
+            from phonopy.interface.vasp import read_vasp
+
+            unitcell = read_vasp(str(cell))
+            n_unit = len(unitcell.scaled_positions)
+            n_super = _supercell_atom_count(force_path, readfc)
+            if not n_super or n_unit <= 0 or n_super % n_unit:
+                raise SystemExit(
+                    f"ERROR: cannot infer the supercell of '{force_path}' from "
+                    f"'{cell}'; give it explicitly, e.g. --dim \"2 2 2\"."
+                )
+            diagonal = _infer_diagonal_supercell(unitcell.cell, n_super // n_unit)
+            shape = "x".join(str(value) for value in diagonal)
+            note = (
+                f"Supercell {shape} inferred from the {n_super} atoms of "
+                f"{force_path.name}; pass --dim if that is not the supercell "
+                "of your force calculation."
+            )
+
+    try:
+        phonon = phonopy.load(
+            supercell_matrix=diagonal,
+            # "auto" as in --irreps/--fatband/--vector/--subgroup: a conventional
+            # centred cell handed to -c means the primitive-cell phonons, and
+            # --subgroup --modulate prints --modulation commands that have to
+            # reproduce its own structures exactly
+            primitive_matrix="auto",
+            unitcell_filename=str(cell),
+            force_sets_filename=None if readfc else str(force_path),
+            force_constants_filename=str(force_path) if readfc else None,
+        )
+    except (ValueError, RuntimeError) as exc:
+        # phonopy reports every one of these as a bare traceback. Do not assert
+        # a single diagnosis: an inconsistent unit cell and a truncated force
+        # file both land here, and blaming the supercell then sends the user
+        # after the one thing that is right.
+        text = " ".join(str(exc).split())
+        if isinstance(exc, RecursionError):
+            detail = (
+                f"phonopy could not parse '{force_path}' ({text}); the file is "
+                "most likely truncated or malformed."
+            )
+        else:
+            shape = "x".join(str(value) for value in diagonal)
+            where = f" ({note.rstrip('.')})" if note else ""
+            detail = (
+                f"phonopy could not build force constants from '{cell}' + "
+                f"'{force_path}' with supercell {shape}{where}: {text}\n"
+                "       Check that the unit cell is the one the forces were "
+                'calculated for, and that the supercell is right (--dim "n n n").'
+            )
+        raise SystemExit(f"ERROR: {detail}") from None
+    primitive_note = (
+        f"Primitive cell: {len(phonon.primitive)} atoms of the "
+        f"{len(phonon.unitcell)}-atom input cell (primitive_matrix auto)."
+    )
+    note = f"{note} {primitive_note}" if note else primitive_note
+    return phonon, f"{cell} + {force_path.name}", note
 
 
 def _irrep_filename_tag(labels: list[str]) -> str:
@@ -259,13 +541,28 @@ class _Vibrations(_CoreRepresentation):
 
 
 class SymmetryAdaptedModulation:
-    def __init__(self, yaml_path: str, qpoint: list[float], symprec: float = 1e-5,
-                 keep_q_coords: bool = False) -> None:
+    def __init__(self, yaml_path: str | None = None, qpoint: list[float] | None = None,
+                 symprec: float = 1e-5, keep_q_coords: bool = False,
+                 phonon=None) -> None:
+        if qpoint is None:
+            raise ValueError("qpoint is required.")
         self.qpoint = np.array(qpoint, dtype=float)
         self.symprec = symprec
         self.keep_q_coords = keep_q_coords
-        self.phonon = phonopy.load(yaml_path)
+        # A prebuilt phonopy object lets the same force data drive several q
+        # points without reloading it, and lets the caller build it from a unit
+        # cell + FORCE_SETS instead of a phonopy yaml.
+        if phonon is None:
+            if yaml_path is None:
+                raise ValueError("either yaml_path or phonon is required.")
+            phonon = phonopy.load(yaml_path)
+        self.phonon = phonon
         dynamical_matrix = self.phonon.dynamical_matrix
+        if dynamical_matrix is None:
+            raise ValueError(
+                "the phonopy object carries no force constants "
+                "(FORCE_SETS/FORCE_CONSTANTS missing?)."
+            )
 
         primitive = self.phonon.primitive
         primitive_atoms = PhonopyAtoms(
@@ -735,16 +1032,340 @@ def _default_output_name(prepared_terms: list[PreparedModulationTerm], spacegrou
     return "_".join(parts)
 
 
+# ---------------------------------------------------------------------------
+# order-parameter directions -> modulated structures (crystod-phonon --subgroup
+# --modulate). Which combination of the degenerate modes realizes a given
+# direction depends on a basis convention that is not fixed anywhere, so the
+# mapping is established the other way round: candidate combinations are
+# generated, the space group of each generated structure is measured with
+# spglib, and the measurement is matched against the enumerated table. Nothing
+# is ever labeled by assumption -- a direction that no candidate reproduces is
+# reported as not generated.
+# ---------------------------------------------------------------------------
+
+# distinct, deliberately non-commensurate amplitudes for the free parameters of
+# a direction: equal ratios could realize a higher-symmetry direction by accident
+_PARAMETER_VALUES = (1.0, 0.5478, 0.2971, 0.1607, 0.0871, 0.0472)
+
+
+@dataclass(frozen=True)
+class GeneratedDirection:
+    """One order-parameter direction and the structure that realizes it."""
+
+    label: str
+    number: int
+    symbol: str
+    size: int
+    index: int
+    qpoints: tuple[tuple[float, ...], ...]
+    modes: tuple[tuple[int, ...], ...]
+    amplitudes: tuple[tuple[float, ...], ...]
+    path: str | None = None
+
+
+def _canonical_labelings(n_nonzero: int) -> list[tuple[int, ...]]:
+    """Set partitions of n slots, as labels numbered by first occurrence.
+
+    (1,1,1) -- all three slots share one free parameter -- comes before
+    (1,1,2) and (1,2,3), so equal-amplitude (higher-symmetry) directions are
+    tried first.
+    """
+    labelings: list[tuple[int, ...]] = []
+
+    def walk(position: int, labels: list[int], used: int) -> None:
+        if position == n_nonzero:
+            labelings.append(tuple(labels))
+            return
+        for label in range(1, min(used + 1, len(_PARAMETER_VALUES)) + 1):
+            walk(position + 1, labels + [label], max(used, label))
+
+    walk(0, [], 0)
+    return labelings
+
+
+def _coefficient_patterns(n_slots: int, max_patterns: int = 2048) -> list[tuple[int, ...]]:
+    """Every way of assigning n slots to "zero" or to a free parameter.
+
+    Parameters are numbered by first occurrence, so this enumerates the set
+    partitions of the slots with one distinguished zero block -- exactly the
+    shapes an ISOTROPY order-parameter direction can take, and every placement
+    of them. Patterns with the most zeros come first, so the high-symmetry
+    directions are reached with the fewest trials; the cap keeps a large star
+    (many arms x a degenerate level) from enumerating combinatorially.
+    """
+    from itertools import combinations
+
+    patterns: list[tuple[int, ...]] = []
+    for n_nonzero in range(1, n_slots + 1):
+        labelings = _canonical_labelings(n_nonzero)
+        for positions in combinations(range(n_slots), n_nonzero):
+            for labels in labelings:
+                assignment = [0] * n_slots
+                for position, label in zip(positions, labels):
+                    assignment[position] = label
+                patterns.append(tuple(assignment))
+                if len(patterns) >= max_patterns:
+                    return patterns
+    return patterns
+
+
+def _primitive_signature(cell, symprec: float) -> tuple[int, int]:
+    """(atoms in the spglib primitive cell, order of the point group)."""
+    primitive = spglib.find_primitive(cell, symprec=symprec)
+    if primitive is None:
+        raise ValueError("spglib could not reduce the cell to a primitive one.")
+    n_atoms = len(primitive[2])
+    symmetry = spglib.get_symmetry(primitive, symprec=symprec)
+    return n_atoms, len(symmetry["rotations"])
+
+
+def classify_distorted_structure(
+    atoms: Atoms, parent_cell, symprec: float = 1e-5
+) -> tuple[int, str, int, int]:
+    """Space group of a distorted structure as the isotropy table states it.
+
+    Returns (number, symbol, size, index), where ``size`` is the primitive-cell
+    multiplication against the parent and ``index`` is [G:H] -- the same two
+    quantities ``crystod-group --supergroup`` prints, computed here from the
+    structure itself so that a generated structure can be matched against an
+    enumerated order-parameter direction.
+    """
+    child_cell = (atoms.cell[:], atoms.get_scaled_positions(), atoms.get_atomic_numbers())
+    dataset = SymmetryDatasetAdapter(spglib.get_symmetry_dataset(child_cell, symprec=symprec))
+    n_parent, ops_parent = _primitive_signature(parent_cell, symprec)
+    n_child, ops_child = _primitive_signature(child_cell, symprec)
+    if n_parent <= 0 or n_child % n_parent:
+        raise ValueError("the distorted cell is not a supercell of the parent.")
+    size = n_child // n_parent
+    index = ops_parent * size // ops_child
+    return int(dataset["number"]), str(dataset["international"]), size, index
+
+
+def _direction_shape(label: str) -> tuple[int, tuple[int, ...]]:
+    """Equality pattern of an order-parameter direction.
+
+    ``R5-(0,a,b)`` -> (1 zero, blocks (1, 1)); ``R5-(a,a,b)`` -> (0 zeros,
+    blocks (2, 1)). Two directions that condense into the same space group with
+    the same cell size and index are told apart by this, which is what decides
+    which of them a generated structure is labeled with.
+    """
+    match = re.match(r"^.*?\(([^)]*)\)\s*$", label.strip())
+    if not match:
+        return (0, ())
+    zeros = 0
+    blocks: dict[str, int] = {}
+    anonymous = 0
+    for token in match.group(1).replace(";", ",").split(","):
+        token = token.strip().lstrip("-")
+        if token in ("", "0", "0.0"):
+            zeros += 1
+            continue
+        letters = "".join(ch for ch in token if ch.isalpha())
+        if letters:
+            blocks[letters] = blocks.get(letters, 0) + 1
+        else:
+            anonymous += 1  # a bare number: its own one-element block
+    sizes = sorted(list(blocks.values()) + [1] * anonymous, reverse=True)
+    return (zeros, tuple(sizes))
+
+
+def _pattern_shape(pattern: tuple[int, ...]) -> tuple[int, tuple[int, ...]]:
+    """The same signature for a candidate coefficient pattern."""
+    zeros = sum(1 for value in pattern if not value)
+    counts: dict[int, int] = {}
+    for value in pattern:
+        if value:
+            counts[value] = counts.get(value, 0) + 1
+    return (zeros, tuple(sorted(counts.values(), reverse=True)))
+
+
+def _conventional_metric(cell, symprec: float) -> tuple[float, ...] | None:
+    """Lengths and angles of the spglib conventional cell, rounded.
+
+    Two structures that are domains of one subgroup share this; two different
+    strata that happen to share (space group, size, index) do not, so it is
+    what keeps a domain of an already-generated direction from being written
+    out under a second direction's name.
+    """
+    standardized = spglib.standardize_cell(cell, symprec=symprec)
+    if standardized is None:
+        return None
+    lattice = np.asarray(standardized[0], dtype=float)
+    lengths = np.linalg.norm(lattice, axis=1)
+    angles = [
+        float(np.degrees(np.arccos(np.clip(
+            np.dot(lattice[i], lattice[j]) / (lengths[i] * lengths[j]), -1.0, 1.0))))
+        for i, j in ((1, 2), (0, 2), (0, 1))
+    ]
+    return tuple(np.round(np.concatenate([np.sort(lengths), np.sort(angles)]), 4))
+
+
+def _direction_file_tag(label: str) -> str:
+    """File-name form of a direction label: R5-(0,0,a) -> R5-_0-0-a."""
+    match = re.match(r"^(.*?)\(([^)]*)\)\s*$", label.strip())
+    if not match:
+        return re.sub(r"[^\w+-]", "", label)
+    irrep, direction = match.groups()
+    direction = direction.replace(";", "_").replace(",", "-").replace(" ", "")
+    return f"{irrep}_{direction}"
+
+
+def generate_direction_structures(
+    phonon,
+    qpoints,
+    mode_indices,
+    targets,
+    *,
+    amplitude: float = 0.3,
+    symprec: float = 1e-5,
+    keep_q_coords: bool = False,
+    prefix: str = "MPOSCAR",
+    max_trials: int = 600,
+    write: bool = True,
+) -> tuple[list[GeneratedDirection], list[dict]]:
+    """Realize each enumerated order-parameter direction as a structure.
+
+    ``qpoints`` are the arms of the star of q (one modulation term each),
+    ``mode_indices`` the 0-based modes of the degenerate level, and ``targets``
+    the enumerated directions as dicts with ``label``/``number``/``symbol``/
+    ``size``/``index``. Returns the directions that were realized and the ones
+    that were not.
+    """
+    import contextlib
+    import io
+
+    arms = [list(map(float, q)) for q in qpoints]
+    # one modulation per arm; their constructors narrate the cell conversion,
+    # which would repeat once per arm in the middle of the subgroup report
+    with contextlib.redirect_stdout(io.StringIO()):
+        modulations = [
+            SymmetryAdaptedModulation(
+                phonon=phonon, qpoint=arm, symprec=symprec, keep_q_coords=keep_q_coords
+            )
+            for arm in arms
+        ]
+    parent = modulations[0].vibrations.primitive_cell
+    parent_cell = (
+        parent.cell,
+        parent.scaled_positions,
+        parent.numbers,
+    )
+
+    # Several enumerated directions can share (space group, cell size, index) --
+    # R5+ of Pm-3m puts (0,a,b) and (a,a,b) both at C2/m, size 2, index 24. Keep
+    # a queue per key instead of one entry, or the later rows would be dropped
+    # without ever being generated or reported.
+    wanted: dict[tuple[int, int, int], list[dict]] = {}
+    for target in targets:
+        key = (int(target["number"]), int(target["size"]), int(target["index"]))
+        wanted.setdefault(key, []).append(
+            {**target, "_shape": _direction_shape(str(target["label"]))}
+        )
+    accepted_metrics: dict[tuple[int, int, int], list[tuple[float, ...]]] = {}
+
+    found: list[GeneratedDirection] = []
+    n_modes = len(mode_indices)
+    trials = 0
+    for pattern in _coefficient_patterns(len(arms) * n_modes):
+        if not wanted or trials >= max_trials:
+            break
+        coefficients = [_PARAMETER_VALUES[value - 1] if value else 0.0 for value in pattern]
+        terms: list[PreparedModulationTerm] = []
+        for arm_index, modulation in enumerate(modulations):
+            chunk = coefficients[arm_index * n_modes : (arm_index + 1) * n_modes]
+            selected = [
+                (mode_indices[position], amplitude * coefficient)
+                for position, coefficient in enumerate(chunk)
+                if coefficient
+            ]
+            if selected:
+                terms.append(
+                    PreparedModulationTerm(
+                        modulation=modulation,
+                        mode_indices=[index for index, _ in selected],
+                        amplitudes=[value for _, value in selected],
+                    )
+                )
+        if not terms:
+            continue
+        trials += 1
+        try:
+            if len(terms) == 1:
+                atoms = terms[0].modulation.get_modulated_structure(
+                    mode_indices=terms[0].mode_indices, amplitudes=terms[0].amplitudes
+                )
+            else:
+                atoms = _build_combined_modulated_structure(terms)
+            key = classify_distorted_structure(atoms, parent_cell, symprec=symprec)
+        except (ValueError, RuntimeError):
+            continue
+        key_triple = (key[0], key[2], key[3])
+        queue = wanted.get(key_triple)
+        if not queue:
+            continue
+        if len(queue) > 1 or accepted_metrics.get(key_triple):
+            # this key holds (or held) more than one direction: make sure the
+            # candidate is a genuinely different structure and not a domain of
+            # one already written under a sibling direction's name
+            try:
+                metric = _conventional_metric(
+                    (atoms.cell[:], atoms.get_scaled_positions(),
+                     atoms.get_atomic_numbers()),
+                    symprec,
+                )
+            except (ValueError, RuntimeError):
+                metric = None
+            if metric is not None:
+                if metric in accepted_metrics.get(key_triple, []):
+                    continue
+                accepted_metrics.setdefault(key_triple, []).append(metric)
+        # among the directions sharing this key, take the one whose pattern of
+        # zeros and equal components matches the candidate's
+        shape = _pattern_shape(pattern)
+        position = next(
+            (i for i, entry in enumerate(queue) if entry["_shape"] == shape), 0
+        )
+        target = queue.pop(position)
+        if not queue:
+            del wanted[key_triple]
+        path = None
+        if write:
+            path = f"{prefix}_{_direction_file_tag(str(target['label']))}_" + str(
+                target["symbol"]
+            ).replace("/", "").replace(" ", "")
+            ase_write(path, atoms, format="vasp", direct=True)
+        found.append(
+            GeneratedDirection(
+                label=str(target["label"]),
+                number=key[0],
+                symbol=key[1],
+                size=key[2],
+                index=key[3],
+                qpoints=tuple(tuple(term.modulation.qpoint.tolist()) for term in terms),
+                modes=tuple(tuple(index + 1 for index in term.mode_indices) for term in terms),
+                amplitudes=tuple(tuple(term.amplitudes) for term in terms),
+                path=path,
+            )
+        )
+    missing = [
+        {name: value for name, value in entry.items() if name != "_shape"}
+        for queue in wanted.values()
+        for entry in queue
+    ]
+    return found, missing
+
+
 def _load_modulation_with_report(
-    yaml_path: Path,
+    phonon,
+    source_label: str,
     qpoint: list[float],
     symprec: float,
     keep_q_coords: bool = False,
 ) -> SymmetryAdaptedModulation:
-    """Load the modulation at q and print the mode table and the star of q."""
-    print(f"Loading '{yaml_path}' at q = {qpoint}...")
+    """Build the modulation at q and print the mode table and the star of q."""
+    print(f"Loading '{source_label}' at q = {qpoint}...")
     modulation = SymmetryAdaptedModulation(
-        yaml_path=str(yaml_path),
+        phonon=phonon,
         qpoint=qpoint,
         symprec=symprec,
         keep_q_coords=keep_q_coords,
@@ -767,9 +1388,35 @@ def _load_modulation_with_report(
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args, extra_argv = parser.parse_known_args(argv)
-    yaml_path = Path(args.yaml_path)
-    if not yaml_path.exists():
-        raise FileNotFoundError(f"File '{yaml_path}' does not exist.")
+
+    # --yaml wins when given; a structure file selects the FORCE_SETS route;
+    # with neither, the documented phonopy_params.yaml default applies (and the
+    # structure route is the fallback when that file is absent).
+    if args.yaml_path is not None:
+        phonon, source_label, source_note = load_phonon(yaml_path=args.yaml_path)
+    elif args.cell is not None:
+        phonon, source_label, source_note = load_phonon(
+            cell_path=args.cell, dim=args.dim, readfc=args.readfc
+        )
+    elif args.dim or args.readfc:
+        # --dim/--readfc only mean anything on the structure route; honouring the
+        # yaml here would silently ignore them
+        phonon, source_label, source_note = load_phonon(
+            cell_path="POSCAR", dim=args.dim, readfc=args.readfc
+        )
+    elif Path(DEFAULT_PARAMS_YAML).exists():
+        phonon, source_label, source_note = load_phonon(yaml_path=DEFAULT_PARAMS_YAML)
+    else:
+        phonon, source_label, source_note = load_phonon(
+            cell_path="POSCAR", dim=args.dim, readfc=args.readfc
+        )
+    if source_note:
+        print(source_note)
+
+    # one explicit --tolerance drives both the symmetry-adapted mode
+    # construction and the space group reported for the generated structure
+    symprec = 1e-5 if args.symprec is None else args.symprec
+    display_symprec = 0.1 if args.symprec is None else args.symprec
 
     try:
         numbered_terms = _parse_numbered_modulation_terms(extra_argv)
@@ -789,7 +1436,9 @@ def main(argv: list[str] | None = None) -> None:
         if args.mode is None:
             # Preview: show the mode table and the star of q so that a mode
             # can be chosen, without generating a modulated structure.
-            _load_modulation_with_report(yaml_path, args.qpoint, args.symprec, args.keep_q_coords)
+            _load_modulation_with_report(
+                phonon, source_label, args.qpoint, symprec, args.keep_q_coords
+            )
             print(
                 "\nNo --mode given. Choose mode number(s) from the table above and rerun with"
                 "\n--mode (and optionally --amplitude) to generate a modulated structure."
@@ -811,7 +1460,9 @@ def main(argv: list[str] | None = None) -> None:
         qpoint_key = tuple(float(value) for value in term.qpoint)
         modulation = modulation_cache.get(qpoint_key)
         if modulation is None:
-            modulation = _load_modulation_with_report(yaml_path, term.qpoint, args.symprec, args.keep_q_coords)
+            modulation = _load_modulation_with_report(
+                phonon, source_label, term.qpoint, symprec, args.keep_q_coords
+            )
             modulation_cache[qpoint_key] = modulation
             if term_index != len(terms):
                 print()
@@ -854,7 +1505,7 @@ def main(argv: list[str] | None = None) -> None:
         atoms = _build_combined_modulated_structure(prepared_terms)
 
     print("\nSymmetry of the generated structure:")
-    symmetry = SymmetryAdaptedModulation.analyze_symmetry(atoms, symprec=0.1)
+    symmetry = SymmetryAdaptedModulation.analyze_symmetry(atoms, symprec=display_symprec)
 
     output_path = args.output or _default_output_name(prepared_terms, str(symmetry["international"]))
     ase_write(output_path, atoms, format="vasp", direct=True)
