@@ -64,6 +64,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -2157,7 +2158,8 @@ def test_27_phonon_command() -> None:
                 cwd=tmp,
             )
             report("--modulation with a wrong --dim rejected cleanly",
-                   code != 0 and "does not match" in out and "Traceback" not in out, out)
+                   code != 0 and "could not build force constants" in out
+                   and "supercell 2x2x2" in out and "Traceback" not in out, out)
 
             code, out = run_phonon(
                 ["--modulation", "--yaml", "phonopy_params.yaml",
@@ -2242,8 +2244,31 @@ def test_27_phonon_command() -> None:
             report("--modulate reports the distorted structures",
                    "Distorted structures" in out, out)
             report("--modulate prints the reproducing --modulation command",
-                   "crystod-phonon --modulation --qpoint 0.5 0.5 0.5 --mode 1 --amplitude 0.3" in out,
-                   out)
+                   "crystod-phonon --modulation -c 221_PPOSCAR_SrTiO3 --dim \"4 4 4\" "
+                   "--qpoint 0.5 0.5 0.5 --mode 1 --amplitude 0.3" in out, out)
+            # the printed command is a promise: run each one and require it to
+            # regenerate byte-identically the file it is printed next to
+            pairs = []
+            lines = out.splitlines()
+            for index, line in enumerate(lines[:-1]):
+                match = re.match(r"^\S+\s+\S+\s+-> (MPOSCAR_\S+)$", line.strip())
+                if match and lines[index + 1].strip().startswith("crystod-phonon"):
+                    pairs.append((match.group(1), lines[index + 1].strip()))
+            report("--modulate prints one command per written structure",
+                   len(pairs) == 6, out)
+            broken = []
+            for name, command in pairs:
+                argv = shlex.split(command)[1:] + ["--output", "REPRO_CHECK"]
+                code, repro_out = run_phonon(argv, cwd=tmp)
+                if code != 0:
+                    broken.append(f"{name}: exit {code}\n{repro_out[-300:]}")
+                elif open(os.path.join(tmp, "REPRO_CHECK")).read() != \
+                        open(os.path.join(tmp, name)).read():
+                    broken.append(f"{name}: reproduce command gives a different structure")
+            report("every printed command regenerates its structure exactly",
+                   not broken, "\n".join(broken))
+            if os.path.isfile(os.path.join(tmp, "REPRO_CHECK")):
+                os.remove(os.path.join(tmp, "REPRO_CHECK"))
             written = sorted(
                 name for name in os.listdir(tmp) if name.startswith("MPOSCAR_")
             )
