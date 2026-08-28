@@ -40,6 +40,7 @@ from itertools import product
 import numpy as np
 
 from .isotropy_subgroup import (
+    ComputedInducedRepresentation,
     InducedRepresentation,
     IsotropyAnalyzer,
     _nullspace,
@@ -481,6 +482,32 @@ class SymmetryModeAnalysis:
         # parent orbits (element + Wyckoff) in the primitive setting
         self.parent_orbits = self._parent_orbits()
 
+        # chemically ordered reduced formula of the parent (file names of the
+        # saved decomposition table); never fatal
+        try:
+            from .poscar2cif import chemical_formula_parts, format_chemical_formula
+
+            self.parent_formula = format_chemical_formula(
+                chemical_formula_parts(
+                    parent_conv[2], _dataset_field(parent_ds, "equivalent_atoms")
+                )
+            )
+        except Exception:
+            from collections import Counter
+
+            from pymatgen.core.periodic_table import Element
+
+            counts = Counter(
+                Element.from_Z(int(z)).symbol for z in parent_conv[2]
+            )
+            divisor = 0
+            for value in counts.values():
+                divisor = int(np.gcd(divisor, value))
+            self.parent_formula = "".join(
+                f"{s}{n // divisor}" if n // divisor != 1 else s
+                for s, n in sorted(counts.items())
+            )
+
         # child primitive structure, fractional in its own basis
         L_child, child_positions, child_numbers = child_prim
         if len(child_numbers) % len(self.parent_numbers) != 0:
@@ -512,11 +539,13 @@ class SymmetryModeAnalysis:
         # primitive cell of the distorted structure at the end
         self.S_core = _invariant_core(self.mapping.S, self.algebra.rotations)
         self.core_size = abs(int(round(np.linalg.det(self.S_core))))
+        self.n_parent = len(self.parent_numbers)
         self._build_core_cell()
 
+        self.op_tables = self._op_tables()
         self.subgroup_members = self._find_subgroup_members()
         self._remove_acoustic_offset()
-        self.k_folding = self._folding_kpoints()
+        self.stars = self._folding_stars()
         self.modes = self._decompose()
 
     def _remove_acoustic_offset(self):
@@ -553,6 +582,9 @@ class SymmetryModeAnalysis:
         mapping = self.mapping
         S_H_inv = np.linalg.inv(mapping.S)
         reps_core = _translation_reps(self.S_core)
+        # atom ordering (parent atom p major, core translation s minor) and
+        # this translation list are what the Fourier star blocks index by
+        self.reps_core = reps_core
         ref_frac, ref_z, ref_orbit, u_frac = [], [], [], []
         for x, z, orbit in zip(self.parent_positions, self.parent_numbers,
                                self.parent_orbits):
@@ -601,6 +633,39 @@ class SymmetryModeAnalysis:
                         break
         return orbit
 
+    # -- parent-cell operation tables (image atom, integer offset, Cartesian R)
+    def _op_tables(self):
+        """Per parent operation i: (img, tau, R) with W x_p + v = x_img[p] +
+        tau[p] (tau integer) and R the Cartesian rotation.  This is the whole
+        geometric content of the displacement representation: the action on
+        any supercell follows by translation bookkeeping."""
+        algebra = self.algebra
+        LT = self.L_parent.T
+        tables = []
+        for i in range(algebra.n_ops):
+            W = algebra.rotations[i]
+            v = np.array(algebra.translations[i], dtype=float) / DEN
+            R = LT @ W @ np.linalg.inv(LT)
+            img = np.zeros(self.n_parent, dtype=np.int64)
+            tau = np.zeros((self.n_parent, 3), dtype=np.int64)
+            for p in range(self.n_parent):
+                image = W @ self.parent_positions[p] + v
+                target = None
+                for m in range(self.n_parent):
+                    d = image - self.parent_positions[m]
+                    if (self.parent_numbers[p] == self.parent_numbers[m]
+                            and np.allclose(d, np.rint(d), atol=1e-4)):
+                        target, offset = m, np.rint(d).astype(np.int64)
+                        break
+                if target is None:
+                    raise SystemExit(
+                        "ERROR: broken parent-operation bookkeeping."
+                    )
+                img[p] = target
+                tau[p] = offset
+            tables.append((img, tau, R))
+        return tables
+
     # -- subgroup elements: parent operations preserving the child structure
     def _find_subgroup_members(self):
         """Parent operations that survive in the child, selected adaptively.
@@ -615,15 +680,18 @@ class SymmetryModeAnalysis:
         is large) or far larger (strong tilts).  A fixed threshold therefore
         cannot work; instead, the child's own space group fixes how many
         members MUST survive, and the threshold is placed at that point of
-        the sorted mismatch spectrum after checking the gap is clean."""
+        the sorted mismatch spectrum after checking the gap is clean.
+
+        The search runs on the child (T_H) cell; translations are the
+        representatives of Z^3 / T_H."""
         import spglib
 
         algebra = self.algebra
-        S = self.S_core
+        S = self.mapping.S
         S_inv = np.linalg.inv(S)
         reps = _translation_reps(S)
-        positions = self.core_child_frac
-        numbers = self.ref_z
+        positions = self.mapping.ref_frac + self.mapping.u_frac
+        numbers = self.mapping.child_z
         candidates = []
         for i in range(algebra.n_ops):
             W = algebra.rotations[i]
@@ -647,13 +715,8 @@ class SymmetryModeAnalysis:
 
         # expected order of the child factor group on the core cell
         child_ops = spglib.get_symmetry(self.child_prim, symprec=1e-5)
-        n_child = len(child_ops["rotations"])
-        if (n_child * self.core_size) % self.size != 0:
-            raise SystemExit(
-                "ERROR: inconsistent child symmetry count; please report "
-                "this case."
-            )
-        expected = n_child * self.core_size // self.size
+        # expected factor-group order of the child on its own (T_H) cell
+        expected = len(child_ops["rotations"])
         if expected >= len(candidates):
             return [entry[0] for entry in candidates]
         low = candidates[expected - 1][1]
@@ -667,128 +730,250 @@ class SymmetryModeAnalysis:
             )
         return [entry[0] for entry in candidates[:expected]]
 
-    # -- k points folding to the analysis-cell Gamma point
-    def _folding_kpoints(self):
+    # -- k stars folding to the child Gamma point
+    def _folding_stars(self):
+        """One record per distinct parent k star folding to the child Gamma.
+
+        The folding points are the reciprocal-lattice points of T_H inside
+        the parent zone (`size` of them).  Points on tabulated special
+        stars keep their table entry; the others (symmetry lines, planes
+        or general points -- e.g. the SM point (1/4,1/4,0) of the Pbam
+        antiferroelectric of PbZrO3) are handled through spgrep small
+        irreps at the exact k, named with the ISO-IR line machinery."""
         algebra = self.algebra
-        S = self.S_core
-        n = self.core_size
-        S_inv_T = np.linalg.inv(S).T
-        points = set()
-        bound = int(np.max(np.abs(S))) + 1
-        for z in product(range(-bound, bound + 1), repeat=3):
-            k = (np.array(z, dtype=float) @ S_inv_T) % 1.0
-            points.add(tuple(np.round(k, 6) % 1.0))
-            if len(points) > 4 * n:
-                break
-        # match every folding point to the star that contains it (any arm)
-        matched: dict[tuple, str] = {}
+        S_H = np.asarray(self.mapping.S, dtype=np.int64)
+        S_inv_T = np.linalg.inv(S_H).T
+        points = []
+        for z in _translation_reps(S_H.T):
+            k = (np.asarray(z, dtype=float) @ S_inv_T) % 1.0
+            k_int = k * DEN
+            if not np.allclose(k_int, np.rint(k_int), atol=1e-6):
+                raise SystemExit(
+                    "ERROR: a k point folding to the child Gamma point "
+                    f"({np.round(k, 6)}) is not on the 1/{DEN} grid of the "
+                    "irrep tables; this cell multiplication is not "
+                    "supported yet."
+                )
+            points.append(np.rint(k_int).astype(np.int64) % DEN)
+        if len(points) != self.size:
+            raise SystemExit("ERROR: broken folding-point enumeration.")
+
+        # tabulated stars, by arm membership
+        tabulated = {}
         for kname in algebra.k_by_kname:
             arms, _ = algebra.star(kname)
             for arm in arms:
-                key = tuple(np.round((np.array(arm, dtype=float) / DEN) % 1.0, 6))
-                if key in points and key not in matched:
-                    matched[key] = kname
-        missing = [p for p in points if p not in matched]
-        if missing:
-            raise SystemExit(
-                "ERROR: some folding k-points are not tabulated special "
-                f"points of {self.parent_symbol}: {sorted(missing)}; this "
-                "group-subgroup index is not supported yet."
-            )
-        # one entry per distinct star
-        stars: dict[str, tuple] = {}
-        for key, kname in sorted(matched.items()):
-            stars.setdefault(kname, key)
-        return {key: kname for kname, key in stars.items()}
+                tabulated[tuple(int(v) % DEN for v in arm)] = kname
 
-    # -- displacement representation of one parent element on the core cell
-    def _displacement_matrix(self, i, t):
-        algebra = self.algebra
-        S_inv = np.linalg.inv(self.S_core)
-        W = algebra.rotations[i]
-        v = np.array(algebra.translations[i], dtype=float) / DEN
-        # Cartesian rotation: r = L^T x (columns) -> R = L^T W (L^T)^-1
-        LT = self.L_parent.T
-        R = LT @ W @ np.linalg.inv(LT)
-        n = self.n_atoms
-        matrix = np.zeros((3 * n, 3 * n))
-        ref = self.ref_frac
-        for j in range(n):
-            image = W @ ref[j] + v + t
-            target = None
-            for m in range(n):
-                d = image - ref[m]
-                d = d - np.rint(d @ S_inv) @ self.S_core
-                if (np.linalg.norm(d @ self.L_parent) < 1e-3
-                        and self.ref_z[j] == self.ref_z[m]):
-                    target = m
-                    break
-            if target is None:
-                raise SystemExit("ERROR: broken displacement-representation "
-                                 "bookkeeping.")
-            matrix[3 * target:3 * target + 3, 3 * j:3 * j + 3] = R
+        stars = []
+        assigned = set()
+        for point in points:
+            key = tuple(int(v) for v in point)
+            if key in assigned:
+                continue
+            kname = tabulated.get(key)
+            if kname is not None:
+                arms, _ = algebra.star(kname)
+                record = {
+                    "kind": "tabulated",
+                    "kname": kname,
+                    "kvec": np.array(algebra.k_by_kname[kname], dtype=float)
+                    / DEN,
+                }
+            else:
+                arms, _ = algebra._star_of_vector(point)
+                canonical = np.array(
+                    min(tuple(int(v) for v in arm) for arm in arms),
+                    dtype=np.int64,
+                )
+                point_name, names, source = algebra._line_names(canonical)
+                record = {
+                    "kind": "computed",
+                    "kname": point_name,
+                    "canonical": canonical,
+                    "names": names,
+                    "kvec": algebra.isoir_display_arm(canonical) / DEN,
+                }
+            arm_keys = {tuple(int(v) % DEN for v in arm) for arm in arms}
+            assigned |= arm_keys
+            record["sort_key"] = min(
+                tuple(np.round((np.array(k, dtype=float) / DEN) % 1.0, 6))
+                for k in arm_keys
+            )
+            stars.append(record)
+        return sorted(stars, key=lambda record: record["sort_key"])
+
+    # -- Fourier star blocks of the displacement representation
+    #
+    # Basis of one star block: (arm a, parent atom p, Cartesian mu) -> the
+    # plane-wave displacement  e^{+2 pi i q_a.t/DEN} u_p / sqrt(n_t)  on the
+    # sublattice copies of atom p over the invariant-core cell.  In this
+    # basis every group element is block-sparse over the arms, the sizes are
+    # set by the star (3 n_parent m), and the core cell never appears as a
+    # matrix dimension -- the old dense route built 3N x 3N displacement
+    # matrices on the core cell, which is unusable already at the
+    # 4x4x4-fold invariant core of the Pbam antiferroelectric (N = 320).
+
+    def _star_dhat(self, arms, arm_index, i):
+        """V^dagger D(i, t=0) V on the star block space."""
+        img, tau, R = self.op_tables[i]
+        m = len(arms)
+        np3 = 3 * self.n_parent
+        matrix = np.zeros((m * np3, m * np3), dtype=np.complex128)
+        W = self.algebra.rotations[i]
+        for a in range(m):
+            q_b = tuple(int(v) % DEN for v in (np.asarray(arms[a]) @ W))
+            b = arm_index[q_b]
+            phases = np.exp(-2j * np.pi * (tau @ np.asarray(arms[a])) / DEN)
+            for p in range(self.n_parent):
+                row = a * np3 + 3 * img[p]
+                col = b * np3 + 3 * p
+                matrix[row : row + 3, col : col + 3] = phases[p] * R
         return matrix
+
+    def _star_translation_phases(self, arms, t):
+        """Diagonal of V^dagger T(t) V (per-arm phases, repeated 3 n_p)."""
+        phases = np.exp(-2j * np.pi * (np.asarray(arms) @ np.asarray(t)) / DEN)
+        return np.repeat(phases, 3 * self.n_parent)
+
+    def _star_uhat(self, arms):
+        """Fourier components of the displacement field over the core cell."""
+        n_t = len(self.reps_core)
+        u = self.u_cart.reshape(self.n_parent, n_t, 3)
+        t_matrix = np.asarray(self.reps_core, dtype=float)  # (n_t, 3)
+        phases = np.exp(
+            -2j * np.pi * (np.asarray(arms) @ t_matrix.T) / DEN
+        ) / np.sqrt(n_t)  # (m, n_t)
+        # uhat[(a, p, mu)] = sum_s conj(f_a(s)) u[p, s, mu]
+        uhat = np.einsum("as,psm->apm", phases, u)
+        return uhat.reshape(-1)
+
+    def _star_to_core(self, arms, block_vector):
+        """Real-space (core cell) displacement field of a star-block vector."""
+        n_t = len(self.reps_core)
+        t_matrix = np.asarray(self.reps_core, dtype=float)
+        phases = np.exp(
+            2j * np.pi * (np.asarray(arms) @ t_matrix.T) / DEN
+        ) / np.sqrt(n_t)  # (m, n_t)
+        blocks = block_vector.reshape(len(arms), self.n_parent, 3)
+        field = np.einsum("as,apm->psm", phases, blocks)
+        if np.max(np.abs(field.imag)) > 1e-6:
+            raise SystemExit(
+                "ERROR: non-real projected displacement field (internal bug)."
+            )
+        result = field.real.reshape(self.n_atoms, 3)
+        result[np.abs(result) < 1e-12] = 0.0  # no signed-zero noise in output
+        return result
+
+    def _star_p_hat_H(self, arms, arm_index, dhats):
+        """Subgroup projector V^dagger P_H V on the star block space.
+
+        H = child operations x T_H translations; the T_H average is the
+        diagonal 0/1 projector onto the arms in the reciprocal lattice of
+        T_H, the rest is the average over the child-cell members."""
+        S_H = np.asarray(self.mapping.S)
+        keep = np.array(
+            [np.all((np.asarray(arm) @ S_H.T) % DEN == 0) for arm in arms],
+            dtype=float,
+        )
+        pi = np.repeat(keep, 3 * self.n_parent)
+        size = len(arms) * 3 * self.n_parent
+        P_H = np.zeros((size, size), dtype=np.complex128)
+        for i, t in self.subgroup_members:
+            phases = self._star_translation_phases(arms, t)
+            P_H += (phases * pi)[:, None] * dhats[i]
+        return P_H / len(self.subgroup_members)
 
     # -- the mode decomposition
     def _decompose(self):
         algebra = self.algebra
-        reps = _translation_reps(self.S_core)
-        n_F = algebra.n_ops * len(reps)
         # amplitudes: AMPLIMODES normalizes within the primitive cell of the
         # distorted structure (T_H); the core cell repeats it core/size times
         rescale = np.sqrt(self.size / self.core_size)
-
-        # displacement matrices of the whole factor group (cached)
-        disp = {}
-        for i in range(algebra.n_ops):
-            for t in reps:
-                disp[(i, tuple(t))] = self._displacement_matrix(i, t)
-
-        # subgroup projector (H-invariant displacements)
-        P_H = np.zeros((3 * self.n_atoms, 3 * self.n_atoms))
-        for i, t in self.subgroup_members:
-            P_H += disp[(i, tuple(t))]
-        P_H /= len(self.subgroup_members)
 
         u = self.u_cart.reshape(-1)
         total = np.linalg.norm(u)
 
         modes = []
-        completeness = np.zeros_like(P_H)
-        for k_tuple, kname in sorted(self.k_folding.items()):
-            for irrep in self.algebra.irreps_by_kname[kname]:
-                try:
-                    representation = InducedRepresentation(algebra, irrep.name)
-                except SystemExit:
-                    raise
-                # character of (i, t): trace of T(t) B_i
+        residual = u.copy()
+        for star in self.stars:
+            representations = self._star_representations(star)
+            if not representations:
+                continue
+            arms = representations[0][1].arms
+            for _, representation in representations[1:]:
+                if not np.array_equal(representation.arms, arms):
+                    raise SystemExit(
+                        "ERROR: inconsistent star-arm ordering (internal bug)."
+                    )
+            arm_index = {
+                tuple(int(v) % DEN for v in arm): a
+                for a, arm in enumerate(arms)
+            }
+            negatives = [
+                arm_index.get(tuple(int(v) % DEN for v in (-np.asarray(arm))))
+                for arm in arms
+            ]
+            self_conjugate = all(n is not None for n in negatives)
+            dhats = [
+                self._star_dhat(arms, arm_index, i)
+                for i in range(algebra.n_ops)
+            ]
+            P_H = self._star_p_hat_H(arms, arm_index, dhats)
+            uhat = self._star_uhat(arms)
+
+            np3 = 3 * self.n_parent
+            completeness = np.zeros_like(P_H)
+            for irrep_name, representation in representations:
+                d_small = representation.dim_small
                 d_tau = representation.dimension
-                P = np.zeros_like(P_H)
+                # complex isotypic projector P_tau = (d/n_ops) sum_i
+                # delta_a(i)* [row-arm-a blocks of D(i)]
+                P_c = np.zeros_like(P_H)
                 for i in range(algebra.n_ops):
                     diag = np.diagonal(representation.blocks[i])
-                    for t in reps:
-                        chi = np.sum(
-                            representation.translation_phases(t) * diag
-                        )
-                        P += np.real(np.conj(chi)) * disp[(i, tuple(t))]
-                P *= d_tau / n_F
-                completeness += P
-                dim = int(round(np.trace(P @ P_H)))
+                    delta = np.conj(
+                        np.add.reduceat(diag, np.arange(0, d_tau, d_small))
+                    )
+                    P_c += np.repeat(delta, np3)[:, None] * dhats[i]
+                P_c *= d_tau / algebra.n_ops
+                completeness += P_c
+                # the real projector of the old dense route: Re chi* over a
+                # real displacement space = (P_tau + conj(P_tau)) / 2, with
+                # conj(P_tau) living on the -k arms
+                if self_conjugate:
+                    swapped = np.zeros_like(P_c)
+                    for a in range(len(arms)):
+                        for b in range(len(arms)):
+                            swapped[
+                                a * np3 : (a + 1) * np3, b * np3 : (b + 1) * np3
+                            ] = np.conj(
+                                P_c[
+                                    negatives[a] * np3 : (negatives[a] + 1) * np3,
+                                    negatives[b] * np3 : (negatives[b] + 1) * np3,
+                                ]
+                            )
+                    P = 0.5 * (P_c + swapped)
+                else:
+                    P = 0.5 * P_c
+                dim = int(round(float(np.trace(P @ P_H).real)))
                 if dim <= 0:
                     continue
-                amplitude = float(np.linalg.norm(P @ u)) * rescale
+                projected_hat = P @ uhat
+                projected = self._star_to_core(arms, projected_hat)
+                residual = residual - projected.reshape(-1)
+                amplitude = float(np.linalg.norm(projected_hat)) * rescale
                 modes.append(
-                    _ModeEntry(self, kname, irrep.name, representation, P, P_H,
-                               dim, amplitude)
+                    _ModeEntry(self, star["kname"], star["kvec"], irrep_name,
+                               representation, dim, amplitude, projected)
                 )
-        if not np.allclose(completeness, np.eye(3 * self.n_atoms), atol=1e-4):
-            raise SystemExit(
-                "ERROR: mode-projector completeness check failed; please "
-                "report this case."
-            )
-        residual = u.copy()
-        for mode in modes:
-            residual = residual - mode.projector @ u
+            if not np.allclose(
+                completeness, np.eye(completeness.shape[0]), atol=1e-6
+            ):
+                raise SystemExit(
+                    f"ERROR: mode-projector completeness check failed at the "
+                    f"{star['kname']} star; please report this case."
+                )
         if np.linalg.norm(residual) > 1e-3 * max(1.0, total):
             raise SystemExit(
                 "ERROR: the distortion is not fully captured by the listed "
@@ -797,34 +982,111 @@ class SymmetryModeAnalysis:
         self.total_distortion = total * rescale
         return modes
 
+    def _star_representations(self, star):
+        """[(irrep name, induced representation)] of one folding star."""
+        algebra = self.algebra
+        if star["kind"] == "tabulated":
+            return [
+                (irrep.name, InducedRepresentation(algebra, irrep.name))
+                for irrep in algebra.irreps_by_kname[star["kname"]]
+            ]
+        canonical = star["canonical"]
+        smalls = algebra.computed_irreps_at(canonical)
+        names = star["names"]
+        if names is None:
+            names = [
+                f"{star['kname']}.{index + 1}" for index in range(len(smalls))
+            ]
+            print(
+                f"NOTE: the small irreps at the non-tabulated point "
+                f"{star['kname']} could not be matched to ISO-IR labels; "
+                "positional names are used."
+            )
+        # conjugate partners (for the paired label of doubled irreps)
+        partners = []
+        for index, small in enumerate(smalls):
+            partner = None
+            for other, candidate in enumerate(smalls):
+                if other == index:
+                    continue
+                if set(candidate["chi"]) == set(small["chi"]) and all(
+                    abs(candidate["chi"][op] - np.conj(small["chi"][op]))
+                    < 1e-6
+                    for op in small["chi"]
+                ):
+                    partner = names[other]
+                    break
+            partners.append(partner)
+        # preferred basis: the bundled ISO-IR matrices (tabulated arm order,
+        # deterministic across spgrep versions).  All-or-nothing per star so
+        # every representation shares one arm ordering.
+        if star["names"] is not None:
+            try:
+                return [
+                    (
+                        names[index],
+                        ComputedInducedRepresentation.from_isoir(
+                            algebra, canonical, small, names[index],
+                            star["kname"], partners[index],
+                        ),
+                    )
+                    for index, small in enumerate(smalls)
+                ]
+            except (LookupError, FileNotFoundError, ValueError):
+                pass
+        return [
+            (
+                names[index],
+                ComputedInducedRepresentation(
+                    algebra, canonical, small, names[index], star["kname"],
+                    partners[index],
+                ),
+            )
+            for index, small in enumerate(smalls)
+        ]
+
 
 class _ModeEntry:
-    def __init__(self, analysis, kname, irrep_name, representation, projector,
-                 P_H, dim, amplitude):
+    def __init__(self, analysis, kname, kvec, irrep_name, representation,
+                 dim, amplitude, projected_u):
         self.analysis = analysis
         self.kname = kname
+        self.kvec = np.asarray(kvec, dtype=float)
         self.irrep_name = irrep_name
         self.representation = representation
-        self.projector = projector
         self.dim = dim
         self.amplitude = amplitude
+        # irrep-projected displacement field on the core cell, (n_atoms, 3)
+        self.projected_u = projected_u
         self._label_info = None
 
     def label_info(self):
         """(direction label, subgroup info, index) via the isotropy machinery."""
         if self._label_info is not None:
             return self._label_info
-        analyzer = IsotropyAnalyzer.__new__(IsotropyAnalyzer)
-        analyzer.algebra = self.analysis.algebra
-        analyzer.representation = self.representation
-        analyzer.elements = self.representation.image_elements()
+        analyzer = IsotropyAnalyzer.from_representation(
+            self.analysis.algebra, self.representation
+        )
 
-        # H members reduced to the representation's translation grid
-        grid = {tuple(t) for _, t, _ in analyzer.elements}
-        N = max(max(t) for t in grid) + 1 if grid else 1
+        # H on the representation's translation grid: the child-cell members
+        # extended by the T_H lattice modulo the grid (T_H translations act
+        # nontrivially on star arms outside the reciprocal lattice of T_H)
+        N = self.representation.grid_n
+        S_H = np.asarray(self.analysis.mapping.S, dtype=np.int64)
+        tau_set = {
+            tuple((np.asarray(z, dtype=np.int64) @ S_H) % N)
+            for z in product(range(N), repeat=3)
+        }
         members = []
+        seen = set()
         for i, t in self.analysis.subgroup_members:
-            members.append((i, np.asarray(t, dtype=np.int64) % N))
+            for tau in tau_set:
+                shifted = tuple(
+                    (np.asarray(t, dtype=np.int64) + np.asarray(tau)) % N
+                )
+                if (i, shifted) not in seen:
+                    seen.add((i, shifted))
+                    members.append((i, np.asarray(shifted, dtype=np.int64)))
         fixed = analyzer.fixed_space(members)
         projector = _projector(fixed)
         label, _ = analyzer.direction_label(projector)
@@ -844,9 +1106,10 @@ def _format_fraction(value: float) -> str:
     return str(fraction)
 
 
-def _kvector_string(algebra, kname) -> str:
-    k = np.array(algebra.k_by_kname[kname], dtype=float) / DEN
-    return "(" + ",".join(_format_fraction(v % 1.0) for v in k) + ")"
+def _kvector_string(kvec) -> str:
+    return "(" + ",".join(
+        _format_fraction(v % 1.0) for v in np.asarray(kvec, dtype=float)
+    ) + ")"
 
 
 def _element_symbol(z: int) -> str:
@@ -894,25 +1157,40 @@ def main(argv: list[str] | None = None) -> None:
     print(f"total distortion amplitude : {analysis.total_distortion:.4f} A")
     print("(normalized within the primitive cell of the distorted structure)")
 
-    print("\n* Symmetry-mode decomposition *")
-    header = (f"{'k-vector':<16} {'irrep':<7} {'direction':<12} "
-              f"{'isotropy subgroup':<19} {'dim':<4} amplitude (A)")
-    print(header)
+    table_lines = ["* Symmetry-mode decomposition *"]
+    table_lines.append(
+        f"{'k-vector':<16} {'irrep':<7} {'direction':<12} "
+        f"{'isotropy subgroup':<19} {'dim':<4} amplitude (A)"
+    )
     for mode in analysis.modes:
         label, info, index = mode.label_info()
         subgroup = f"{info.number} {info.international_short}"
-        print(
-            f"{_kvector_string(analysis.algebra, mode.kname):<16} "
+        table_lines.append(
+            f"{_kvector_string(mode.kvec):<16} "
             f"{mode.irrep_name:<7} {label:<12} {subgroup:<19} "
             f"{mode.dim:<4} {mode.amplitude:.4f}"
         )
+    if any(star["kind"] == "computed" for star in analysis.stars):
+        table_lines.append(
+            "(non-special k points: the order-parameter components are "
+            "expressed in the bundled\n ISO-IR matrix basis, whose phase "
+            "gauge may differ from the ISOTROPY web tables;\n the isotropy "
+            "subgroup, dimension and amplitude are gauge-independent)"
+        )
+    print("\n" + "\n".join(table_lines))
+
+    # the table again as a text file, named by the parent composition
+    table_path = f"sym_mode_{analysis.parent_formula}"
+    with open(table_path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(table_lines) + "\n")
+    print(f"\nDecomposition table saved to {table_path}")
 
     print("\n* Normalized mode components (parent primitive fractional, per 1 A) *")
     for mode in analysis.modes:
         if mode.amplitude < 1e-4:
             print(f"{mode.irrep_name}: amplitude 0 (allowed but not activated)")
             continue
-        direction = (mode.projector @ analysis.u_cart.reshape(-1))
+        direction = mode.projected_u.reshape(-1)
         # normalize to 1 A within the primitive cell of the distorted structure
         direction = direction / np.linalg.norm(direction) * np.sqrt(
             analysis.core_size / analysis.size
@@ -1024,13 +1302,12 @@ def _export_mode_vesta_files(analysis, parent_path: str,
         suffix = ""
         cell_note = "invariant-core cell"
     symbols = [_element_symbol(analysis.ref_z[j]) for j in atom_source]
-    u = analysis.u_cart.reshape(-1)
 
     written = []
     for mode in analysis.modes:
         if mode.amplitude < 1e-4:
             continue
-        arrows_core = (mode.projector @ u).reshape(-1, 3)
+        arrows_core = mode.projected_u
         peak = float(np.max(np.linalg.norm(arrows_core, axis=1)))
         if peak < 1e-10:
             continue

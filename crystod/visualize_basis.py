@@ -982,6 +982,7 @@ def write_html_visualization(
             ("Point group", info.get("point_group", "")),
             ("Orbitals", info.get("element_orbital", "")),
             ("k point", info.get("kpoint", "")),
+            ("k point", info.get("kpoint_conventional", "")),
             ("Display cell", info.get("supercell", "")),
             ("Bonds", bond_summary),
             ("Basis form", "real coefficients" if info.get("real_coefficient") else "complex (Bloch) coefficients"),
@@ -1407,6 +1408,22 @@ def _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, forced_output) -> No
         "decomposition": decomposition,
         "real_coefficient": args.real_coefficient,
     }
+    if args.conventional:
+        # --kpoint is given in the primitive basis throughout CrystOD; with
+        # the conventional display cell, the same k re-expressed in the
+        # conventional reciprocal basis says at a glance why the supercell
+        # has its shape (X of I4/mmm: primitive [0,0,1/2] = conventional
+        # [1/2,1/2,0] -> Bloch phases need 2 x 2 x 1 conventional cells)
+        from .phonon_vector import get_conventional_matrix
+
+        centring = orbitals.spglib_dataset["international"][0]
+        k_conventional = np.asarray(kpoint, dtype=float) @ np.asarray(
+            get_conventional_matrix(centring), dtype=float
+        ).T
+        info["kpoint"] = f"{kpoint_label} {format_kpoint(kpoint)} (primitive)"
+        info["kpoint_conventional"] = (
+            f"{kpoint_label} {format_kpoint(list(k_conventional))} (conventional)"
+        )
 
     bond_specs: list[tuple[str, str, float]] = []
     for el1, el2, max_text in args.bond or []:

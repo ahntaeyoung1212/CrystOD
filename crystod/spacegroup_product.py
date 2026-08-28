@@ -457,7 +457,16 @@ class SpaceGroupIrrepAlgebra:
                 op_index: complex(np.trace(matrices[j]))
                 for j, op_index in enumerate(mapping)
             }
-            result.append({"chi": chi, "dim": int(matrices.shape[1])})
+            result.append({
+                "chi": chi,
+                "dim": int(matrices.shape[1]),
+                # the matrices themselves, for building full induced irreps
+                # at non-tabulated k points (symmetry-mode analysis)
+                "small": {
+                    op_index: np.asarray(matrices[j])
+                    for j, op_index in enumerate(mapping)
+                },
+            })
         self._computed_cache[key] = result
         return result
 
@@ -706,6 +715,46 @@ class SpaceGroupIrrepAlgebra:
             if name is not None:
                 return name + suffix, None
         return None
+
+    def isoir_display_arm(self, canonical: np.ndarray) -> np.ndarray:
+        """The star arm matching the tabulated ISO-IR parametrization of its
+        k-vector type (arm 0, e.g. SM = (a,a,0) rather than (0,a,a)), for
+        display; the canonical arm when no ISO-IR entry matches."""
+        inputs = self._isoir_labeler_inputs()
+        if inputs is None:
+            return np.asarray(canonical, dtype=np.int64)
+        from .isoir import get_cached_labeler
+
+        labeler = get_cached_labeler(self.sg_type.number, inputs[0], 1e-5)
+        if labeler is None:
+            return np.asarray(canonical, dtype=np.int64)
+        arms, _ = self._star_of_vector(np.asarray(canonical, dtype=np.int64))
+        M_inv = np.linalg.inv(self.primitive_matrix)
+        entries = [
+            ir for ir in labeler.irreps if ir.num_free_params > 0
+        ]
+        best = None  # (num_free_params, sum |params|, arm tuple, arm)
+        for arm in arms:
+            k_conv = labeler.conventional_k((np.asarray(arm) / DEN) @ M_inv)
+            for entry in entries:
+                match = entry.match_k(k_conv)
+                if match is None or match[0] != 0:
+                    continue
+                params = match[1]
+                # prefer positive parameters inside the first zone
+                if np.any(params < -1e-9) or np.any(params > 0.5 + 1e-9):
+                    penalty = 1.0
+                else:
+                    penalty = 0.0
+                key = (
+                    entry.num_free_params,
+                    penalty,
+                    float(np.sum(np.abs(params))),
+                    tuple(int(v) for v in arm),
+                )
+                if best is None or key < best[0]:
+                    best = (key, np.asarray(arm, dtype=np.int64))
+        return best[1] if best is not None else np.asarray(canonical, dtype=np.int64)
 
     def _line_names(self, canonical: np.ndarray) -> tuple[str, list[str] | None, str | None]:
         """Display name of a non-tabulated star, the names of its small

@@ -1642,6 +1642,17 @@ function applyVariant(index) {
 if (VARIANTS) {
   document.querySelectorAll('.kbtn').forEach((btn, i) =>
     btn.addEventListener('click', () => applyVariant(i)));
+  // ?k=R (or #R) chooses the k point the page opens on, so that a copy embedded
+  // in another page can start at any point of the star without regenerating it
+  const asked = (new URLSearchParams(location.search).get('k')
+                 || decodeURIComponent(location.hash.slice(1)) || '').trim();
+  if (asked) {
+    const norm = s => String(s).toLowerCase().replace(/[\s()]/g, '');
+    const want = norm(asked);
+    const index = VARIANTS.findIndex(v =>
+      norm(v.key) === want || norm(String(v.key).split(' ')[0]) === want);
+    if (index >= 0) applyVariant(index);
+  }
 }
 
 // Ctrl/Cmd + wheel (or trackpad pinch): zoom the energy axis around the cursor
@@ -1760,7 +1771,11 @@ def render_diagram_page(
  h1 {{ font-size: 19px; margin: 4px 0 6px; font-weight: 600; }}
  .chip {{ display: inline-block; background: #eceff1; border-radius: 4px; padding: 2px 9px;
           margin: 0 6px 6px 0; font-size: 12.5px; color: #37474f; }}
- #flex {{ display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }}
+ /* the diagram carries a viewBox, so it is allowed to shrink into the available
+    width instead of pushing the level panel underneath it -- an embedded copy
+    (iframe) is usually narrower than the natural 960 + 250 px */
+ #flex {{ display: flex; gap: 14px; align-items: flex-start; }}
+ #flex > #diagram {{ flex: 1 1 auto; min-width: 0; max-width: 100%; height: auto; }}
  #controls {{ font-size: 12.5px; color: #37474f; margin: 2px 0 8px; }}
  #controls input {{ width: 62px; font-size: 12.5px; padding: 1px 4px;
                     border: 1px solid #b0bec5; border-radius: 3px; }}
@@ -1775,8 +1790,13 @@ def render_diagram_page(
  #kbar .kbtn.sel {{ background: #1565c0; color: #fff; border-color: #1565c0; }}
  svg {{ background: #fff; border: 1px solid #e0e0e0; border-radius: 6px;
         touch-action: none; cursor: ns-resize; }}
- #panel {{ width: 250px; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px;
-           padding: 12px 14px; font-size: 13px; min-height: 120px; }}
+ #panel {{ width: 250px; flex: 0 0 250px; background: #fff; border: 1px solid #e0e0e0;
+           border-radius: 6px; padding: 12px 14px; font-size: 13px; min-height: 120px; }}
+ /* below this width the diagram would be squeezed past readability: stack instead */
+ @media (max-width: 720px) {{
+   #flex {{ flex-wrap: wrap; }}
+   #panel {{ flex: 1 1 100%; width: auto; }}
+ }}
  #panel h2 {{ font-size: 14px; margin: 0 0 4px; }}
  #panel .sub {{ color: #666; font-size: 12px; margin-bottom: 8px; }}
  #oview {{ background: #fff; border: 1px solid #e0e0e0; border-radius: 5px;

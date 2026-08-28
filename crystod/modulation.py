@@ -380,11 +380,14 @@ def load_phonon(
             force_sets_filename=None if readfc else str(force_path),
             force_constants_filename=str(force_path) if readfc else None,
         )
-    except (ValueError, RuntimeError) as exc:
-        # phonopy reports every one of these as a bare traceback. Do not assert
-        # a single diagnosis: an inconsistent unit cell and a truncated force
-        # file both land here, and blaming the supercell then sends the user
-        # after the one thing that is right.
+    except (ValueError, RuntimeError, IndexError, KeyError) as exc:
+        # phonopy reports every one of these as a bare traceback, and the
+        # exception TYPE depends on the phonopy version (a wrong supercell
+        # raises ValueError in older phonopy, IndexError from the site-symmetry
+        # lookup in phonopy 4). Do not assert a single diagnosis either: an
+        # inconsistent unit cell and a truncated force file land here too, and
+        # blaming the supercell then sends the user after the one thing that
+        # is right.
         text = " ".join(str(exc).split())
         if isinstance(exc, RecursionError):
             detail = (

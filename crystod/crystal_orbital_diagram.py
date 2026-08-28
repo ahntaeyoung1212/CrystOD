@@ -95,16 +95,32 @@ _VIEW_E_MIN = -20.0
 _VIEW_E_MAX = 10.0
 
 # Bloch combinations whose overlap eigenvalue falls below this floor are
-# removed by canonical orthogonalization.  Diffuse cation valence shells
+# excluded from the variational solve.  Diffuse cation valence shells
 # (e.g. Sr 5s/5p, Ti 4s/4p) overlap so strongly in a dense sublattice that
 # some Bloch combinations become nearly expressible by the rest of the
 # basis; for those the extended-Hueckel H is no longer consistent and the
 # energies diverge as (1-K) H_ii / eigenvalue (the well-known EHT overlap
-# catastrophe), polluting even the occupied manifold.  Dropping the
-# near-dependent combinations is the standard remedy and leaves the
-# physical states untouched (measured on ScF3/SrTiO3: catastrophic modes
-# all have eigenvalue <= 0.19, physical ones >= 0.26).
+# catastrophe), polluting even the occupied manifold (measured on
+# ScF3/SrTiO3: catastrophic modes all have eigenvalue <= 0.19, physical
+# ones >= 0.26).  They are still genuine Bloch states, though: in a dense
+# sublattice a SINGLE shell's own Bloch sum can fall below the floor
+# (rocksalt AlN, cation fcc neighbours at 2.86 A: the one Al 3s X1+
+# combination has eigenvalue 0.15), and deleting it removes a whole
+# physical level and breaks the aufbau electron counts.  Such modes are
+# therefore kept as separate levels with a first-order Loewdin energy
+# estimate (see _generalized_eigh); only truly linearly dependent
+# combinations (eigenvalue below _DEPENDENT_TOL, no physical content)
+# are removed outright.
 _OVERLAP_FLOOR = 0.2
+_DEPENDENT_TOL = 1e-6
+
+# tooltip note attached to first-order-estimated levels (the terminal
+# marks their energies with ~; the HTML keeps normal solid lines --
+# user preference -- and carries this note in the tooltip)
+_ESTIMATED_NOTE = (
+    "~ near-dependent Bloch combination (overlap eigenvalue {eps:.2f} < "
+    "floor {floor}): the energy is a first-order Loewdin estimate; the "
+    "variational extended-Hueckel value diverges (overlap catastrophe)")
 
 
 @dataclass
@@ -139,6 +155,9 @@ class DiagramLevel:
     vectors: np.ndarray | None = None    # (n_ao, degeneracy), S-orthonormal
     composition: list = field(default_factory=list)   # [(level_id, weight)]
     detail: str = ""
+    estimated: bool = False   # near-dependent Bloch combination: energy is
+                              # a first-order Loewdin estimate, not the
+                              # (divergent) variational EHT value
 
 
 def parse_fragment_formula(tokens: list[str], flag: str) -> list[tuple[str, int | None]]:
@@ -241,9 +260,16 @@ def assign_bond_characters(levels, overlap, rows_left, rows_right,
                 parts = lv.label.split()
                 if len(parts) < 3 or (parts[0], parts[1]) not in spec_ranges:
                     continue
-                expectation = float(np.trace(
-                    lv.vectors.conj().T @ hamiltonian @ lv.vectors
-                ).real) / lv.degeneracy
+                if getattr(lv, "estimated", False):
+                    # the variational <H> of a near-dependent combination IS
+                    # the divergent overlap-catastrophe value; its displayed
+                    # first-order Loewdin estimate is the meaningful energy
+                    # (EHT engine only, single Hamiltonian -- same reference)
+                    expectation = lv.energy
+                else:
+                    expectation = float(np.trace(
+                        lv.vectors.conj().T @ hamiltonian @ lv.vectors
+                    ).real) / lv.degeneracy
                 key = (parts[0], parts[1])
                 tops[key] = max(tops.get(key, -1e30), expectation)
         semicore_tops = {key: top for key, top in tops.items()
@@ -821,17 +847,39 @@ class CrystalOrbitalDiagram:
     # -------------------------------------------------------------- solving
 
     @staticmethod
-    def _generalized_eigh(H: np.ndarray, S: np.ndarray):
+    def _generalized_eigh(H: np.ndarray, S: np.ndarray, h_bar: np.ndarray):
         """Canonically orthogonalized generalized eigenproblem (complex
         Hermitian).  Near-dependent Bloch combinations (overlap eigenvalue
-        below _OVERLAP_FLOOR, see there) are dropped; the number of dropped
-        combinations is returned."""
+        below _OVERLAP_FLOOR, see there) are excluded from the variational
+        solve -- their EHT energies diverge as (1-K) h / eigenvalue (the
+        overlap catastrophe) -- but they are genuine Bloch states, so they
+        are solved separately with the first-order Loewdin-orthogonalized
+        Hamiltonian H~ = H - (S - I) (h_bar_i + h_bar_j)/2 (the same
+        correction as the coupling tables' |H~|; h_bar keeps the symmetry
+        of H~ exact).  H~ is bounded for any overlap and reduces to the
+        variational result at small overlap; for a single shell's Bloch
+        sum it gives E = h (1 + (K-1) sigma) instead of the divergent
+        h (K + (1-K)/eps).  Returns (energies, vectors,
+        (estimated energies, estimated plain vectors), n_dependent) where
+        n_dependent counts truly linearly dependent combinations
+        (eigenvalue below _DEPENDENT_TOL) that are removed outright."""
         s_values, s_vectors = np.linalg.eigh(S)
         keep = s_values > _OVERLAP_FLOOR
         X = s_vectors[:, keep] / np.sqrt(s_values[keep])
         H_orth = X.conj().T @ H @ X
         energies, coefficients = np.linalg.eigh(H_orth)
-        return energies, X @ coefficients, int(np.sum(~keep))
+        estimate = (~keep) & (s_values > _DEPENDENT_TOL)
+        est_energies = np.empty(0)
+        est_vectors = np.empty((S.shape[0], 0), dtype=complex)
+        if np.any(estimate):
+            V = s_vectors[:, estimate]
+            mean = 0.5 * (h_bar[:, None] + h_bar[None, :])
+            H_first = H - (S - np.eye(S.shape[0])) * mean
+            block = V.conj().T @ H_first @ V
+            est_energies, w = np.linalg.eigh(block)
+            est_vectors = V @ w
+        return (energies, X @ coefficients, (est_energies, est_vectors),
+                int(np.sum(s_values <= _DEPENDENT_TOL)))
 
     def _group_levels(self, energies, vectors):
         """Cluster eigenvalues into degenerate groups."""
@@ -938,23 +986,46 @@ class CrystalOrbitalDiagram:
         def strip(label):
             return label.split("(")[0]
 
+        def merged_groups(energies, vectors, est_energies, est_vectors,
+                          S_block):
+            """Exact and first-order-estimated level groups, energy-sorted.
+
+            The third entry is None for variational levels and the mean
+            overlap eigenvalue of the group for estimated ones (for the
+            annotation)."""
+            groups = [(energy, group, None)
+                      for energy, group in self._group_levels(energies,
+                                                              vectors)]
+            for energy, group in self._group_levels(est_energies,
+                                                    est_vectors):
+                overlap_eigenvalue = float(np.mean(np.real(np.sum(
+                    np.conj(group) * (S_block @ group), axis=0))))
+                groups.append((energy, group, overlap_eigenvalue))
+            groups.sort(key=lambda item: item[0])
+            return groups
+
         levels = {"left": [], "mo": [], "right": []}
-        self.last_dropped = 0
+        self.last_estimated = 0
+        self.last_dependent = 0
         # fragment (sublattice) levels: the full valence problem of one side
         for column in ("left", "right"):
             block = self.side_slice[column]
             indices = np.arange(block.start, block.stop)
-            energies, vectors, dropped = self._generalized_eigh(
-                H[block, block], S[block, block]
-            )
-            self.last_dropped += dropped
-            for energy, group in self._group_levels(energies, vectors):
+            energies, vectors, (est_energies, est_vectors), dependent = \
+                self._generalized_eigh(
+                    H[block, block], S[block, block], self.h_bar[block]
+                )
+            self.last_estimated += est_energies.size
+            self.last_dependent += dependent
+            for energy, group, overlap_eigenvalue in merged_groups(
+                energies, vectors, est_energies, est_vectors, S[block, block]
+            ):
                 for irrep_label, space in self._irrep_split(
                     group, S, representation, irreps, labels, subspace=indices
                 ):
                     name = strip(irrep_label)
                     spec = self._dominant_spec(space, S, column)
-                    levels[column].append(DiagramLevel(
+                    level = DiagramLevel(
                         level_id=f"{column}{len(levels[column])}",
                         column=column,
                         energy=float(energy),
@@ -962,7 +1033,12 @@ class CrystalOrbitalDiagram:
                         irrep=name,
                         label=f"{spec.element} {spec.shell} {name}",
                         vectors=space,
-                    ))
+                    )
+                    if overlap_eigenvalue is not None:
+                        level.estimated = True
+                        level.detail = _ESTIMATED_NOTE.format(
+                            eps=overlap_eigenvalue, floor=_OVERLAP_FLOOR)
+                    levels[column].append(level)
             # two fragment levels can share (element, shell, irrep) -- e.g.
             # the two F 2p GM4- combinations; number them so the crystal
             # compositions stay readable
@@ -977,17 +1053,21 @@ class CrystalOrbitalDiagram:
                     level.label = f"{level.label}#{occurrence[level.label]}"
 
         # crystal levels
-        energies, vectors, dropped = self._generalized_eigh(H, S)
-        self.last_dropped += dropped
+        energies, vectors, (est_energies, est_vectors), dependent = \
+            self._generalized_eigh(H, S, self.h_bar)
+        self.last_estimated += est_energies.size
+        self.last_dependent += dependent
         counts: dict[str, int] = {}
-        for energy, group in self._group_levels(energies, vectors):
+        for energy, group, overlap_eigenvalue in merged_groups(
+            energies, vectors, est_energies, est_vectors, S
+        ):
             for irrep_label, space in self._irrep_split(
                 group, S, representation, irreps, labels
             ):
                 name = strip(irrep_label)
                 counts[name] = counts.get(name, 0) + 1
                 occurrence = counts[name]
-                levels["mo"].append(DiagramLevel(
+                level = DiagramLevel(
                     level_id=f"mo{len(levels['mo'])}",
                     column="mo",
                     energy=float(energy),
@@ -998,7 +1078,12 @@ class CrystalOrbitalDiagram:
                     # read like a degeneracy count
                     label=f"{name} #{occurrence}",
                     vectors=space,
-                ))
+                )
+                if overlap_eigenvalue is not None:
+                    level.estimated = True
+                    level.detail = _ESTIMATED_NOTE.format(
+                        eps=overlap_eigenvalue, floor=_OVERLAP_FLOOR)
+                levels["mo"].append(level)
 
         # compositions: crystal levels in the Loewdin-orthogonalized
         # fragment-level basis (plain |<phi|S|psi>|^2 double-counts the
@@ -1040,11 +1125,78 @@ class CrystalOrbitalDiagram:
                      for spec in self.side_specs[column]}
             for column in ("left", "right")
         }
+
+        # outermost columns (the MolOD "ligand-ao"/"center-ao" analogue):
+        # one level per (element, shell) at the rotation-invariant on-site
+        # energy h_bar (VSIP + spherical part of the point-charge ligand
+        # field), so the sublattice column reads as "how the equivalent
+        # atoms' Bloch combinations split each atomic shell at this k
+        # point" -- with several atoms per cell (wurtzite AlN: 2 Al) the
+        # intra-sublattice overlap splits one shell into several levels
+        # and can even push 3p combinations below 3s; the splitting
+        # connector lines carry the same Loewdin shell populations as the
+        # tooltip.  k-independent by construction.
+        ao_ids: dict[str, dict[tuple[str, str], str]] = {}
+        for column in ("left", "right"):
+            ao_column = f"{column}-ao"
+            levels[ao_column] = []
+            ao_ids[column] = {}
+            for spec in self.side_specs[column]:
+                key = (spec.element, spec.shell)
+                if key in ao_ids[column]:
+                    continue
+                count = len(spec.sites)
+                # h_bar carries a per-SITE ligand-field shift: for an element
+                # on several Wyckoff positions (K2SeO4: two K classes, 1 eV
+                # apart) the single AO level shows the mean, and the spread
+                # is disclosed instead of silently drawing the first site
+                block = self.h_bar[spec.offset:spec.offset + spec.n_ao]
+                onsite = float(np.mean(block))
+                spread = float(np.max(block) - np.min(block))
+                equivalent = self.builder.spglib_dataset["equivalent_atoms"]
+                orbits = len({int(equivalent[site]) for site in spec.sites})
+                prefix = f"{count}" if count > 1 else ""
+                level = DiagramLevel(
+                    level_id=f"{ao_column}{len(levels[ao_column])}",
+                    column=ao_column,
+                    energy=onsite,
+                    degeneracy=2 * spec.l + 1,
+                    irrep="",
+                    label=f"{prefix}{spec.element} {spec.shell}",
+                    vectors=None,
+                )
+                level.electrons = None
+                level.display_composition = [
+                    (f"{spec.element} {spec.shell}", 1.0)]
+                site_note = ""
+                if spread > 0.02:
+                    site_note = (f" (mean over the {count} sites on {orbits} "
+                                 "crystallographically inequivalent "
+                                 f"positions; on-site spread {spread:.2f} eV)")
+                if count > 1:
+                    inequivalent = (
+                        "" if orbits == 1 else
+                        f" ({orbits} inequivalent positions)")
+                    tail = (f"the {self.formula[column]} column shows how "
+                            f"the {count} {spec.element} atoms'{inequivalent}"
+                            " Bloch combinations split this shell at each "
+                            "k point")
+                else:
+                    tail = (f"the {self.formula[column]} column shows this "
+                            "shell's Bloch combination at each k point")
+                level.detail = (
+                    f"isolated {spec.element} {spec.shell} on-site level: "
+                    "VSIP + point-charge ligand field (spherical part) "
+                    f"= {onsite:.2f} eV{site_note}\n{tail}")
+                ao_ids[column][key] = level.level_id
+                levels[ao_column].append(level)
+
         for column in ("mo", "left", "right"):
             for level in levels[column]:
                 gross = (np.abs(sqrt_overlap @ level.vectors) ** 2
                          ).sum(axis=1) / level.degeneracy
                 shares = []
+                linked = []
                 for (element, shell), indices in spec_ranges.items():
                     if column != "mo" and (element, shell) \
                             not in side_keys[column]:
@@ -1052,6 +1204,12 @@ class CrystalOrbitalDiagram:
                     value = float(gross[indices].sum())
                     if value >= 0.001:
                         shares.append((value, f"{element} {shell}"))
+                        if column != "mo":
+                            linked.append(
+                                (ao_ids[column][(element, shell)], value))
+                if column != "mo":
+                    # splitting connector lines into the atomic-shell column
+                    level.composition = linked
                 shares.sort(key=lambda item: -item[0])
                 level.display_composition = [
                     (f"{name} {level.irrep}", value)
@@ -1277,11 +1435,14 @@ def _format_kpoint(kpoint) -> str:
 def _detail_html(level: DiagramLevel, names: dict) -> str:
     # consumed as the SVG <title> textContent (the native hover tooltip),
     # which renders newlines but shows HTML tags literally
-    rows = [
-        f"E = {level.energy:.2f} eV",
-        f"irrep: {level.irrep} (degeneracy {level.degeneracy})",
-        f"electrons: {level.electrons}",
-    ]
+    # atomic-shell (ao) levels carry no irrep and electrons=None
+    rows = [f"E = {level.energy:.2f} eV"]
+    if level.irrep:
+        rows.append(f"irrep: {level.irrep} (degeneracy {level.degeneracy})")
+    else:
+        rows.append(f"degeneracy {level.degeneracy}")
+    if level.electrons is not None:
+        rows.append(f"electrons: {level.electrons}")
     if level.detail:
         rows.append(level.detail)
     return "\n".join(rows)
@@ -1370,15 +1531,45 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                                k_entries: list, output_path: str,
                                structure_label: str) -> None:
     """One interactive page with one energy diagram per k point."""
-    columns = {"left": 200, "mo": 480, "right": 760}
-    half = {"left": 34, "mo": 34, "right": 34}
-    order = ["left", "mo", "right"]
-    side = {"left": -1, "mo": 1, "right": 1}
+    # both engines add the outermost atomic-shell columns (MolOD's
+    # "ligand-ao" analogue): the EHT engine as VSIP + ligand-field on-site
+    # levels, the PySCF engine as isolated formal-charge-ion calculations;
+    # only --onsite pages keep the three-column layout
+    has_ao = bool(k_entries) and "left-ao" in k_entries[0][2]
+    if has_ao:
+        # left-ao at 155 keeps its end-anchored labels ("2Al 3p" ends at
+        # x = 155 - 26 - 9 = 120) clear of the energy axis (line at 66,
+        # tick numbers up to 57), mirroring MolOD's ligand-ao spacing
+        columns = {"left-ao": 155, "left": 325, "mo": 495,
+                   "right": 675, "right-ao": 865}
+        half = {"left-ao": 26, "left": 30, "mo": 34,
+                "right": 30, "right-ao": 26}
+        order = ["left-ao", "left", "mo", "right", "right-ao"]
+        side = {"left-ao": -1, "left": -1, "mo": 1,
+                "right": 1, "right-ao": 1}
+    else:
+        columns = {"left": 200, "mo": 480, "right": 760}
+        half = {"left": 34, "mo": 34, "right": 34}
+        order = ["left", "mo", "right"]
+        side = {"left": -1, "mo": 1, "right": 1}
+
+    def ao_header(column):
+        counts: dict[str, set] = {}
+        for spec in diagram.side_specs[column]:
+            counts.setdefault(spec.element, set()).update(spec.sites)
+        return " + ".join(
+            (f"{len(sites)}{el}" if len(sites) > 1 else el)
+            for el, sites in counts.items()
+        ) + " AOs"
+
     headers = {
         "left": svg_sub_digits(diagram.formula["left"]),
         "mo": "crystal orbitals",
         "right": svg_sub_digits(diagram.formula["right"]),
     }
+    if has_ao:
+        headers["left-ao"] = ao_header("left")
+        headers["right-ao"] = ao_header("right")
 
     variants = []
     for name, kpoint, levels in k_entries:
@@ -1396,12 +1587,16 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         from .mo_diagram import element_color
 
         for column in order:
-            for level in levels[column]:
+            for level in levels.get(column, []):
                 character = getattr(level, "bond_character", None)
                 # sublattice levels carry the VESTA color of their dominant
-                # element ("Sc 3d GM5+" -> the Sc color)
+                # element ("Sc 3d GM5+" -> the Sc color); atomic-shell
+                # levels ("2Al 3s") strip the leading site count
                 elc = None
-                if column != "mo":
+                if column.endswith("-ao"):
+                    elc = element_color(
+                        level.label.split()[0].lstrip("0123456789"))
+                elif column != "mo":
                     parts = level.label.split()
                     if len(parts) >= 3:
                         elc = element_color(parts[0])
@@ -1411,10 +1606,17 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                     "col": level.column,
                     "e": round(level.energy, 4),
                     "deg": level.degeneracy,
+                    # near-dependent Bloch combination: first-order Loewdin
+                    # energy estimate (machine-readable marker; the human-
+                    # facing note lives in the tooltip detail)
+                    **({"est": 1} if getattr(level, "estimated", False)
+                       else {}),
                     **({"bond": bond_letter[character]} if character else {}),
                     "label": level.label,
+                    # atomic-shell levels carry electrons=None (no arrows;
+                    # occupation is a sublattice/crystal-column concept)
                     "el": level.electrons,
-                    "occ": level.electrons > 0,
+                    "occ": bool(level.electrons),
                     "links": [
                         [i, round(w, 4)]
                         for i, w in level.composition if w >= 0.02
@@ -1433,9 +1635,13 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                          if w > 0.005]
                     ),
                     "detail": _detail_html(level, names),
-                    "orb": _with_periodic_images(
-                        diagram.sketch_partners(level, kpoint, sites),
-                        replica_map),
+                    # None (not []) for the atomic-shell levels: an empty
+                    # array is truthy in JS and would open a lobe-less
+                    # sketch pane
+                    "orb": (None if level.vectors is None else
+                            _with_periodic_images(
+                                diagram.sketch_partners(level, kpoint, sites),
+                                replica_map)),
                 })
         occupied = [lv for lv in levels["mo"] if lv.electrons > 0]
         empty = [lv for lv in levels["mo"] if lv.electrons == 0]
@@ -1443,7 +1649,8 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         lumo_level = min(empty, key=lambda lv: lv.energy) if empty else None
         homo = homo_level.level_id if homo_level else None
         lumo = lumo_level.level_id if lumo_level else None
-        energies = [lv.energy for column in order for lv in levels[column]]
+        energies = [lv.energy for column in order
+                    for lv in levels.get(column, [])]
         e_min, e_max = min(energies), max(energies)
         padding = 0.08 * (e_max - e_min) or 1.0
         # the interactive view opens on the frontier states: +-8 eV around the
@@ -1498,6 +1705,31 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         f"on {sketch_cell} (drag to rotate; degenerate "
         "partners switchable)."
     )
+    ao_foot = ""
+    if has_ao:
+        # engines override ao_foot (the PySCF columns are isolated-ion
+        # calculations, not VSIP levels)
+        ao_foot = getattr(diagram, "ao_foot", "") or (
+            " The outermost columns are each element's isolated atomic "
+            "shells at their on-site energies (VSIP + spherical part of "
+            "the point-charge ligand field, k-independent); their "
+            "connector lines into the sublattice columns show how the "
+            "atoms' Bloch combinations split each shell at the "
+            "chosen k point (with several atoms per cell the "
+            "intra-sublattice overlap can reorder shells, e.g. 3p "
+            "combinations below 3s)."
+        )
+    estimated_foot = ""
+    if any(getattr(level, "estimated", False)
+           for _, _, levels in k_entries
+           for column in ("left", "mo", "right") for level in levels[column]):
+        estimated_foot = (
+            " Some levels are near-dependent diffuse Bloch combinations "
+            f"(overlap eigenvalue below {_OVERLAP_FLOOR}) whose variational "
+            "extended-H&uuml;ckel energy diverges (overlap catastrophe): "
+            "their energies are first-order L&ouml;wdin estimates, marked "
+            "~ in the terminal report and noted in the level's tooltip."
+        )
     bond_foot = ""
     if any(getattr(level, "bond_character", None)
            for _, _, levels in k_entries for level in levels["mo"]):
@@ -1542,7 +1774,8 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                 "off-diagonal over exact Bloch STO overlap sums)."))
             + " The energy window opens on the frontier states; use \"Show "
             "all energy levels\" for the deep shells. Switch the k point "
-            "with the buttons above." + bond_foot + sketch_foot
+            "with the buttons above." + ao_foot + estimated_foot + bond_foot
+            + sketch_foot
         ),
         geometry=variants[0]["geom"],
         variants=variants,
@@ -1575,6 +1808,23 @@ def report_and_write(cell, *, left, right, symprec, electrons,
         )
         print(f" {column:<5} {diagram.formula[column]:<6}: {parts}, "
               f"{diagram.side_electrons[column]} electrons")
+        # the outermost diagram columns: isolated atomic shells at the
+        # (k-independent) on-site energies; a +-x marker discloses the
+        # per-Wyckoff-site spread of multi-position elements
+        onsites = []
+        seen: set = set()
+        for spec in diagram.side_specs[column]:
+            key = (spec.element, spec.shell)
+            if key not in seen:
+                seen.add(key)
+                block = diagram.h_bar[spec.offset:spec.offset + spec.n_ao]
+                spread = float(np.max(block) - np.min(block))
+                onsites.append(
+                    f"{spec.element} {spec.shell} "
+                    f"{float(np.mean(block)):.2f}"
+                    + (f"(+-{spread / 2:.2f})" if spread > 0.02 else ""))
+        print("       on-site atomic levels (VSIP + ligand field, eV): "
+              + ", ".join(onsites))
     print(f" electrons per cell in the diagram: {int(diagram.electrons)}"
           + (" (all electrons of the neutral atoms; override with"
              " --electrons)" if electrons is None else ""))
@@ -1619,13 +1869,17 @@ def report_and_write(cell, *, left, right, symprec, electrons,
         levels, _ = diagram.solve_at(kpoint)
         entries.append((name, kpoint, levels))
         print(f" * k point {name} {_format_kpoint(kpoint)} *")
-        if diagram.last_dropped:
-            print(f"   ({diagram.last_dropped} near-dependent diffuse Bloch "
-                  "combination(s) removed by canonical orthogonalization; "
-                  f"overlap floor {_OVERLAP_FLOOR})")
+        if diagram.last_estimated:
+            print(f"   ({diagram.last_estimated} near-dependent diffuse Bloch "
+                  f"combination(s) below overlap floor {_OVERLAP_FLOOR}: "
+                  "energies marked ~ are first-order Loewdin estimates; the "
+                  "variational extended-Hueckel values diverge)")
+        if diagram.last_dependent:
+            print(f"   ({diagram.last_dependent} linearly dependent Bloch "
+                  "combination(s) removed by canonical orthogonalization)")
         for column in ("left", "right"):
             parts = ", ".join(
-                f"{lv.label} ({lv.energy:.2f})"
+                f"{lv.label} ({'~' if lv.estimated else ''}{lv.energy:.2f})"
                 for lv in sorted(levels[column], key=lambda lv: lv.energy)
             )
             print(f"   {diagram.formula[column]:<10}: {parts}")
@@ -1637,7 +1891,8 @@ def report_and_write(cell, *, left, right, symprec, electrons,
                 for label, w in getattr(lv, "display_composition", [])
             )
             occupancy = f"{lv.electrons}e" if lv.electrons else "  "
-            print(f"     {lv.label:<10} {lv.energy:9.2f} eV  x{lv.degeneracy}"
+            energy_str = f"{'~' if lv.estimated else ''}{lv.energy:.2f}"
+            print(f"     {lv.label:<10} {energy_str:>9} eV  x{lv.degeneracy}"
                   f"  {occupancy:<4} {composition}")
         print("")
 

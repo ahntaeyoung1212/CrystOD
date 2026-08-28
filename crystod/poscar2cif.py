@@ -86,6 +86,102 @@ def _operation_string(rotation, translation) -> str:
     return ",".join(parts)
 
 
+def chemical_formula_parts(atomic_numbers, equivalent_atoms):
+    """Reduced chemical formula as ordered (symbol, count) parts.
+
+    Ordering follows the conventional chemical notation:
+
+    - cations first, anions last (MgO, Li2O, MoS2);
+    - among the cations, the element on the most special Wyckoff site
+      first -- smallest orbit multiplicity, i.e. the letter closest to
+      ``a`` (La3Ni2O7: La on 2b before Ni on 4e) -- then increasing
+      valence (SrTiO3, KNbO3, PbZrO3);
+    - anions by increasing valence (LaOF: O before F).
+
+    Valences come from the pymatgen oxidation-state guesser, with
+    electronegativity as the fallback; ``equivalent_atoms`` is the
+    spglib orbit assignment of the same cell as ``atomic_numbers``.
+    """
+    import numpy as np
+    from pymatgen.core.periodic_table import Element
+
+    symbols = [Element.from_Z(int(z)).symbol for z in atomic_numbers]
+    counts: dict[str, int] = {}
+    for symbol in symbols:
+        counts[symbol] = counts.get(symbol, 0) + 1
+
+    # most special site of each element = smallest orbit multiplicity
+    min_multiplicity = {symbol: len(symbols) + 1 for symbol in counts}
+    equivalent = np.asarray(equivalent_atoms)
+    for orbit_id in set(int(v) for v in equivalent):
+        members = np.nonzero(equivalent == orbit_id)[0]
+        symbol = symbols[int(members[0])]
+        min_multiplicity[symbol] = min(min_multiplicity[symbol], len(members))
+
+    divisor = 0
+    for value in counts.values():
+        divisor = int(np.gcd(divisor, value))
+    reduced = {symbol: count // divisor for symbol, count in counts.items()}
+
+    def electronegativity(symbol: str) -> float:
+        try:
+            value = float(Element(symbol).X)
+            return value if value == value else 0.0  # NaN for noble gases
+        except Exception:
+            return 0.0
+
+    valence: dict[str, float] = {}
+    try:
+        from pymatgen.core import Composition
+
+        guesses = Composition(reduced).oxi_state_guesses(max_sites=-1)
+        if guesses:
+            valence = {symbol: float(v) for symbol, v in guesses[0].items()}
+    except Exception:
+        valence = {}
+
+    if valence:
+        anions = {symbol for symbol, v in valence.items() if v < 0}
+    elif len(reduced) >= 2:
+        anions = {max(reduced, key=electronegativity)}
+    else:
+        anions = set()
+
+    cations = sorted(
+        (symbol for symbol in reduced if symbol not in anions),
+        key=lambda symbol: (
+            min_multiplicity[symbol],
+            valence.get(symbol, electronegativity(symbol)),
+            electronegativity(symbol),
+            symbol,
+        ),
+    )
+    anion_list = sorted(
+        anions,
+        key=lambda symbol: (
+            valence.get(symbol, -electronegativity(symbol)),
+            min_multiplicity[symbol],
+            symbol,
+        ),
+    )
+    return [(symbol, reduced[symbol]) for symbol in cations + anion_list]
+
+
+def format_chemical_formula(parts) -> str:
+    """(('K', 2), ('Se', 1), ('O', 4)) -> 'K2SeO4'."""
+    return "".join(
+        f"{symbol}{count}" if count != 1 else symbol for symbol, count in parts
+    )
+
+
+def format_chemical_formula_sum(parts) -> str:
+    """(('K', 2), ('Se', 1), ('O', 4)) -> 'K2 Se O4' (IUCr
+    _chemical_formula_sum style)."""
+    return " ".join(
+        f"{symbol}{count}" if count != 1 else symbol for symbol, count in parts
+    )
+
+
 def _wrap_coordinate(value: float) -> float:
     wrapped = round(value % 1.0, 5) % 1.0
     return abs(wrapped)  # -0.0 -> 0.0
@@ -144,6 +240,9 @@ def bilbao_cif_lines(structure, tolerance: float, title: str):
             seen.add(orbit_id)
             orbit_representatives.append(index)
 
+    formula_sum = format_chemical_formula_sum(
+        chemical_formula_parts(atomic_numbers, equivalent)
+    )
     now = datetime.now()
     lattice = Lattice(lattice_matrix)
 
@@ -157,6 +256,7 @@ def bilbao_cif_lines(structure, tolerance: float, title: str):
         f"data_{title}",
         f"{'_audit_creation_date':<35}{now.strftime('%Y-%m-%d')}",
         f"{'_audit_creation_method':<35}\"CrystOD (Bilbao style)\"",
+        f"{'_chemical_formula_sum':<35}\"{formula_sum}\"",
         f"{'_symmetry_Int_Tables_number':<35}{number}",
         f"{'_symmetry_space_group_name_H-M':<35}\"{symbol}\"",
         f"{'_cell_length_a':<35}{lattice.a:.4f}",

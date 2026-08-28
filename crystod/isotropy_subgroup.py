@@ -456,6 +456,179 @@ class InducedRepresentation:
         return self.elements
 
 
+class _ComputedIrrepInfo:
+    """Shim irrep record for a representation at a non-tabulated k point."""
+
+    def __init__(self, name: str, kpname: str, dim: int):
+        self.name = name
+        self.kpname = kpname
+        self.dim = dim
+
+
+class ComputedInducedRepresentation(InducedRepresentation):
+    """Full induced irrep at a NON-tabulated k point (symmetry line, plane
+    or general point on the 1/24 grid).
+
+    The small-irrep matrices come from spgrep at the exact k (an entry of
+    ``SpaceGroupIrrepAlgebra.computed_irreps_at``), the ISO-IR (Miller-Love)
+    name from the line-labeling machinery.  Everything downstream of the
+    small matrices -- induction over the star, the translation grid, the
+    physically-irreducible realification -- is inherited unchanged.
+    """
+
+    def __init__(self, algebra: SpaceGroupIrrepAlgebra, k_int, small: dict,
+                 name: str, kpname: str, partner_name: str | None = None):
+        self.algebra = algebra
+        self.k = np.mod(np.asarray(k_int, dtype=np.int64), DEN)
+        self.arms, self.representatives = algebra._star_of_vector(self.k)
+        self.n_arms = len(self.arms)
+        self.irrep = _ComputedIrrepInfo(name, kpname, int(small["dim"]))
+        self._partner_name = partner_name
+        self._small_chi = dict(small["chi"])
+        matrices = {op: np.asarray(m) for op, m in small["small"].items()}
+        if np.all((2 * self.k) % DEN == 0):
+            matrices = _realify_matrix_set(matrices) or matrices
+        self.little = sorted(matrices)
+        self.dim_small = matrices[next(iter(matrices))].shape[0]
+        self.dimension = self.n_arms * self.dim_small
+        self.blocks = self._induce(matrices)
+        self._verify()
+        self.elements = [
+            (i, t, self.translation_phases(t)[:, None] * self.blocks[i])
+            for i in range(algebra.n_ops)
+            for t in self._translation_grid()
+        ]
+        self._realify()
+
+    def _verify(self) -> None:
+        """Traces must reproduce the characters induced from the same small
+        irrep through the independent character-only route."""
+        arms, C = self.algebra.induced_characters_at(
+            self.k, {"chi": self._small_chi}
+        )
+        for i in (0, min(3, self.algebra.n_ops - 1), self.algebra.n_ops - 1):
+            if abs(np.sum(C[i]) - np.trace(self.blocks[i])) > 1e-6:
+                raise SystemExit(
+                    "ERROR: induced-matrix construction at a non-tabulated "
+                    "k point disagrees with the induced characters "
+                    "(internal bug)."
+                )
+
+    def conjugate_partner(self) -> str | None:
+        return self._partner_name
+
+    @classmethod
+    def from_isoir(cls, algebra: SpaceGroupIrrepAlgebra, k_int, small: dict,
+                   name: str, kpname: str, partner_name: str | None = None):
+        """Build the representation from the bundled ISO-IR matrices.
+
+        The CIR tables store, for every line irrep, the full-star matrices
+        with parametrized k vectors, so the order-parameter basis is the
+        ISOTROPY one (up to the phase gauge of the realification) and the
+        arm order is the tabulated one -- deterministic across spgrep
+        versions.  Raises LookupError when the entry cannot be used (the
+        caller falls back to the spgrep-basis construction).
+        """
+        import re
+
+        from .isoir import load_isoir_irreps
+
+        minus = False
+        base = name
+        match = re.match(r"^([A-Z]+)A(\d.*)$", name)
+        if match and not any(
+            ir.label == name for ir in load_isoir_irreps(algebra.sg_type.number)
+        ):
+            # 'A'-suffixed name: the tabulated entry sits at the -k star
+            minus = True
+            base = match.group(1) + match.group(2)
+        entries = [
+            ir
+            for ir in load_isoir_irreps(algebra.sg_type.number)
+            if ir.label == base and not ir.special
+        ]
+        if not entries:
+            raise LookupError(f"no ISO-IR entry for {name}")
+        entry = entries[0]
+
+        M = algebra.primitive_matrix
+        M_inv = np.linalg.inv(M)
+        sign = -1 if minus else 1
+        arms_star, _ = algebra._star_of_vector(
+            np.mod(np.asarray(k_int, dtype=np.int64), DEN)
+        )
+        fit = None
+        for arm in arms_star:
+            k_conv = sign * (np.asarray(arm, dtype=float) / DEN) @ M_inv
+            matched = entry.match_k(k_conv)
+            if matched is not None and matched[0] == 0:
+                fit = matched[1]
+                break
+        if fit is None:
+            raise LookupError(f"no ISO-IR parametrization for {name}")
+        karms_conv = np.array(
+            [entry.arm_k(a, fit) for a in range(entry.narms)]
+        )
+        arms_scaled = sign * (karms_conv @ M) * DEN
+        arms = np.rint(arms_scaled).astype(np.int64)
+        if not np.allclose(arms_scaled, arms, atol=1e-6):
+            raise LookupError(f"ISO-IR arms of {name} leave the 1/{DEN} grid")
+        arms = np.mod(arms, DEN)
+        arm_set = {tuple(int(v) for v in a) for a in arms}
+        if arm_set != {tuple(int(v) % DEN for v in a) for a in arms_star}:
+            raise LookupError(f"ISO-IR star of {name} disagrees")
+
+        # conventional operations in the algebra's operation order
+        table_R = [
+            np.rint(np.asarray(sym.R, dtype=float)).astype(np.int64)
+            for sym in algebra.table.symmetries
+        ]
+        if not all(
+            np.array_equal(table_R[i], algebra.rotations[i])
+            for i in range(algebra.n_ops)
+        ):
+            raise LookupError("conventional-table order mismatch")
+        blocks = []
+        for i in range(algebra.n_ops):
+            j = entry.find_operator(table_R[i])
+            if j is None:
+                raise LookupError(f"operator missing from ISO-IR {name}")
+            v_conv = M @ (np.array(algebra.translations[i], dtype=float) / DEN)
+            dt = v_conv - entry.translations[j]
+            phases = np.exp(2j * np.pi * karms_conv @ (dt + entry.irtrans[j]))
+            block = phases[:, None] * entry.matrices[j]
+            # ISO-IR phase convention exp(+2 pi i k.t) is the conjugate of
+            # the spgrep convention this machinery uses throughout
+            blocks.append(np.conj(block) if not minus else block)
+
+        rep = cls.__new__(cls)
+        rep.algebra = algebra
+        rep.k = arms[0].copy()
+        rep.arms = arms
+        rep.n_arms = len(arms)
+        rep.representatives = None
+        rep.irrep = _ComputedIrrepInfo(name, kpname, int(small["dim"]))
+        rep._partner_name = partner_name
+        rep._small_chi = dict(small["chi"])
+        rep.dim_small = entry.small_dim
+        rep.dimension = entry.dim
+        rep.blocks = blocks
+        try:
+            rep._verify()
+        except SystemExit:
+            raise LookupError(
+                f"ISO-IR matrices of {name} disagree with the computed "
+                "characters"
+            )
+        rep.elements = [
+            (i, t, rep.translation_phases(t)[:, None] * rep.blocks[i])
+            for i in range(algebra.n_ops)
+            for t in rep._translation_grid()
+        ]
+        rep._realify()
+        return rep
+
+
 class CoupledRepresentation:
     """Direct sum of several induced irreps: one order-parameter space whose
     components group irrep by irrep (then arm by arm within each irrep).
