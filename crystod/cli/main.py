@@ -3,17 +3,14 @@
 The flagship analysis needs no mode flag: give a structure and an orbital
 selection and the SALC irrep decomposition runs directly.
 
-- ``--element EL --orbital ORB``  -- elemental SALC (old ``--salc``);
-- ``--atomic-orbital A_x B_y``    -- hybridization SALC
-  (old ``--salc --atomic-orbital``);
-- ``--visualize``                 -- SALC coefficients + interactive 3D HTML
-  (old ``--visualize-basis``);
-- ``--star-of-k``                 -- symmetry information: star of a k point
-  (old flat spelling unchanged).
+- ``--element EL --orbital ORB``  -- elemental SALC;
+- ``--atomic-orbital A_x B_y``    -- hybridization SALC;
+- ``--visualize``                 -- SALC coefficients + interactive 3D HTML;
+- ``--star-of-k``                 -- symmetry information: star of a k point.
 
-Old flat modes (``--salc``, ``--phonon-irrep``, ``--bz``, ...) are detected
-and routed to :mod:`crystod.cli.legacy`, which keeps them working through
-v0.3.x with deprecation notices.
+Flag spellings that belong to a sectioned command (``--phonon-irrep``,
+``--bz``, ...) are caught by :data:`MOVED_MODE_FLAGS` and answered with the
+command that does the job.
 """
 
 from __future__ import annotations
@@ -28,10 +25,10 @@ from .common import (
     print_crystod_citation,
 )
 
-# Flat mode flags of the pre-v0.3.0 interface, removed in v0.3.0: each maps
-# to the guidance shown in the error message. --star-of-k is absent on
-# purpose: it kept its spelling and is handled by the new parser directly.
-REMOVED_MODE_FLAGS = {
+# Mode flags that live in a sectioned command (or under another spelling):
+# each maps to the command shown in the error message.  --star-of-k is absent
+# on purpose -- it is a main-command option, handled by the parser directly.
+MOVED_MODE_FLAGS = {
     "--salc": "crystod -c POSCAR --element EL --orbital ORB (or --atomic-orbital EL_ORB ...)",
     "--visualize-basis": "crystod --visualize -c POSCAR --element EL --orbital ORB --kpoint ...",
     "--phonon-irrep": "crystod-phonon --irreps",
@@ -77,9 +74,6 @@ Sectioned commands (see crystod-<section> --help):
   crystod-bz       Brillouin-zone plots (unit cell, or + supercell via --trans-mat)
   crystod-mol      molecular point groups, SALCs and MO diagrams (XYZ files)
 
-The pre-v0.3.0 flat modes (--salc, --phonon-irrep, --bz, ...) were removed in
-v0.3.0; invoking one prints the equivalent sectioned command.
-
 If you use CrystOD in your research, please cite:
   H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024). https://doi.org/10.1103/PhysRevB.110.064104
 """
@@ -113,7 +107,9 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--orbital",
         default=None,
-        help="Target orbital for elemental SALC analysis, e.g. d.",
+        metavar="ORB",
+        help="Target orbital shell for elemental SALC analysis: s, p, d, f, g,\n"
+        "h or i (the --visualize SALC viewer draws s/p/d/f), e.g. d.",
     )
     parser.add_argument(
         "--atomic-orbital",
@@ -129,8 +125,9 @@ def build_parser() -> ArgumentParser:
         default=None,
         help="k-point: three primitive reciprocal coordinates (fractions such as 1/2\n"
         "are allowed), or a high-symmetry label such as GM/X/M/R in\n"
-        "--star-of-k/--visualize mode. When omitted in SALC mode, all special\n"
-        "k points are analyzed.",
+        "--star-of-k/--visualize mode (which labels a space group has:\n"
+        "crystod-bz --show-kpoint --space-group SG). When omitted in SALC\n"
+        "mode, all special k points are analyzed.",
     )
     parser.add_argument(
         "--diagram",
@@ -186,20 +183,56 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--basis",
         default=None,
-        help="PySCF Gaussian basis for --diagram --pyscf\n"
-        "(default: gth-dzvp-molopt-sr).",
+        metavar="NAME",
+        help="PySCF GTH basis for --diagram --pyscf (default\n"
+        "gth-dzvp-molopt-sr). What PySCF ships, by coverage:\n"
+        "  H-Rn except La-Lu: gth-szv-molopt-sr,\n"
+        "    gth-dzvp-molopt-sr (PySCF ships NO GTH basis for\n"
+        "    the lanthanides, so --pyscf cannot run on them)\n"
+        "  H-Ar: gth-tzvp, gth-tzv2p, gth-qzv2p, gth-qzv3p\n"
+        "  H-Ar + Ga/Ge/As: gth-szv, gth-dzvp (also W)\n"
+        "  H-Cl, minus Be and Na: gth-dzv\n"
+        "  H,C,N,O,F,Si,P,S,Cl: gth-szv-molopt,\n"
+        "    gth-dzvp-molopt, gth-tzvp-molopt,\n"
+        "    gth-tzv2p-molopt, gth-aug-dzvp, gth-aug-qzv2p,\n"
+        "    gth-aug-qzv3p; no O in gth-aug-tzvp and\n"
+        "    gth-aug-tzv2p\n"
+        "  H,Li,C,N,O: gth-cc-dzvp, gth-cc-tzvp,\n"
+        "    gth-cc-qzvp\n"
+        "Apart from W in gth-dzvp, only the molopt-sr sets\n"
+        "reach the transition metals; the bigger sets add\n"
+        "diffuse and polarization freedom for light elements.",
     )
     parser.add_argument(
         "--pseudo",
         default=None,
+        metavar="NAME",
         help="PySCF GTH pseudopotential for --diagram --pyscf\n"
-        "(default: gth-pbe).",
+        "(default gth-pbe; match --xc where one exists):\n"
+        "  H-Rn, all of it: gth-pbe, gth-pade (LDA),\n"
+        "    gth-lda, gth-hfrev\n"
+        "  to Bi (gaps): gth-blyp   to Cs (gaps): gth-bp\n"
+        "  a few light elements only: gth-hcth120,\n"
+        "    gth-hcth407, gth-hf, gth-olyp, gth-pbesol (B)",
     )
     parser.add_argument(
         "--xc",
         default=None,
-        help="Exchange-correlation functional for --diagram --pyscf, or 'hf'\n"
-        "(default: pbe).",
+        metavar="FUNCTIONAL",
+        help="Exchange-correlation functional for --diagram\n"
+        "--pyscf, --dos and --band (default pbe). Verified to\n"
+        "run in this code path:\n"
+        "  LDA: lda, svwn\n"
+        "  GGA: pbe, pbesol, revpbe, blyp, bp86, pw91, b97-d\n"
+        "  meta-GGA: scan, r2scan, tpss, revtpss\n"
+        "  hybrid: b3lyp, b3lyp5, pbe0, hse06, m06, m06-2x,\n"
+        "    wb97x\n"
+        "  hf: Hartree-Fock (KRHF instead of KRKS)\n"
+        "Most other libxc names work too (they go straight to\n"
+        "PySCF), but NOT the VV10 ones (wb97m-v, b97m-v,\n"
+        "wb97x-v): PySCF's periodic code has no nonlocal\n"
+        "correlation. Hybrids evaluate exact exchange on the\n"
+        "FFT grid -- give them --ke-cutoff 150 or more.",
     )
     parser.add_argument(
         "--kmesh",
@@ -445,14 +478,15 @@ def main(argv: list[str] | None = None) -> None:
         argv = sys.argv[1:]
     argv = list(argv)
 
-    # Pre-v0.3.0 flat invocation -> clear removal error with the replacement.
+    # a flag that belongs to a sectioned command -> name that command
     for token in argv:
         flag = token.split("=", 1)[0]
-        if flag in REMOVED_MODE_FLAGS:
+        if flag in MOVED_MODE_FLAGS:
             raise SystemExit(
-                f"ERROR: '{flag}' was removed in v0.3.0. Use the sectioned command instead:\n"
-                f"  {REMOVED_MODE_FLAGS[flag]}\n"
-                "See the README (Command Summary) for the full new interface."
+                f"ERROR: '{flag}' is not a crystod option. The equivalent "
+                "command is:\n"
+                f"  {MOVED_MODE_FLAGS[flag]}\n"
+                "Run 'crystod --help' for the full interface."
             )
 
     parser = build_parser()

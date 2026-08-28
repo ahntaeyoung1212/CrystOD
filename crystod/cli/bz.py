@@ -1,7 +1,6 @@
 """crystod-bz: Brillouin-zone plotting (unit cell, optionally with a supercell).
 
-Merges the former ``crystod --bz`` and ``crystod --bz-supercell`` modes into
-one sectioned command. The behaviour is selected by ``--trans-mat``:
+The behaviour is selected by ``--trans-mat``:
 
 - identity matrix (the default) -> unit-cell BZ with an automatic (seekpath)
   or manual (``--band``/``--band-labels``) high-symmetry k-path

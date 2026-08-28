@@ -426,14 +426,36 @@ def _group_action(space, sector, orbital_matrices):
 # ---------------------------------------------------------------------------
 
 
-def _snap(value: float) -> Fraction:
+class SnapError(ValueError):
+    """A floating-point coefficient has no exact small-denominator fraction."""
+
+
+def _snap_exact(value: float) -> Fraction:
     fraction = Fraction(value).limit_denominator(720)
     if abs(float(fraction) - value) > _SNAP_TOL:
+        raise SnapError(value)
+    return fraction
+
+
+def _snap(value: float) -> Fraction:
+    try:
+        return _snap_exact(value)
+    except SnapError:
         raise SystemExit(
             "ERROR: multiplet-energy coefficient failed to snap to an exact "
             f"fraction ({value}); please report this case."
         )
-    return fraction
+
+
+def _split_square(value: int) -> tuple[int, int]:
+    """value = square**2 * radicand with radicand squarefree (value > 0)."""
+    square, rest, factor = 1, value, 2
+    while factor * factor <= rest:
+        while rest % (factor * factor) == 0:
+            rest //= factor * factor
+            square *= factor
+        factor += 1
+    return square, rest
 
 
 def format_linear(coeffs, params) -> str:
@@ -451,6 +473,30 @@ def format_linear(coeffs, params) -> str:
         else:
             parts.append(f"+ {body}" if coeff > 0 else f"- {body}")
     return " ".join(parts) if parts else "0"
+
+
+def format_offdiag(offdiag, params) -> str:
+    """Coupled-parent off-diagonal (coeffs, radicand) as a display string:
+    '(10B)' for a rational form, '(5sqrt(3)B)' for a single sqrt term,
+    '(sqrt(3)(5B + 2C))' in general."""
+    coeffs, radicand = offdiag
+    linear = format_linear(coeffs, params)
+    if radicand == 1:
+        return f"({linear})"
+    nonzero = [(coeff, param) for coeff, param in zip(coeffs, params)
+               if coeff != 0]
+    if len(nonzero) == 1:
+        coeff, param = nonzero[0]
+        magnitude = abs(coeff)
+        sign = "-" if coeff < 0 else ""
+        if magnitude == 1:
+            prefix = ""
+        elif magnitude.denominator == 1:
+            prefix = str(magnitude.numerator)
+        else:
+            prefix = f"({magnitude})"
+        return f"({sign}{prefix}sqrt({radicand}){param})"
+    return f"(sqrt({radicand})({linear}))"
 
 
 def _format_quadratic(matrix, params) -> str:
@@ -490,17 +536,8 @@ def _single_square_root(matrix, params) -> str | None:
     if coeff <= 0:
         return None
 
-    def split_square(value: int) -> tuple[int, int]:
-        square, rest, factor = 1, value, 2
-        while factor * factor <= rest:
-            while rest % (factor * factor) == 0:
-                rest //= factor * factor
-                square *= factor
-            factor += 1
-        return square, rest
-
-    sq_num, rad_num = split_square(coeff.numerator)
-    sq_den, rad_den = split_square(coeff.denominator)
+    sq_num, rad_num = _split_square(coeff.numerator)
+    sq_den, rad_den = _split_square(coeff.denominator)
     rational = Fraction(sq_num, 2 * sq_den * rad_den)
     radicand = rad_num * rad_den
     if radicand == 1:
@@ -838,9 +875,12 @@ def coupled_parent_matrices(
     """CI matrices of the doubly-occurring terms of a two-shell configuration
     in the coupled-parent basis |shell1^n1(S1 Gamma1) shell2^n2(S2 Gamma2)>,
     i.e. the representation used by the Tanabe-Sugano/Griffith strong-field
-    tables. Returns {term index: (parent labels, diag1, diag2, offdiag)} with
-    the entries as per-parameter Fraction tuples (off-diagonal up to a global
-    sign, which is a basis convention)."""
+    tables. Returns {term index: (parent labels, diag1, diag2, offdiag)}.
+    diag1/diag2 are per-parameter Fraction tuples; offdiag is a pair
+    (coeffs, radicand) meaning <1|H|2> = sqrt(radicand) * sum_q coeffs[q] P_q
+    with rational coeffs and squarefree integer radicand (radicand == 1 for a
+    purely rational form). The overall sign is a basis convention. A term
+    whose block has no such closed form maps to None."""
     if len(shells) != 2:
         return {}
     if not any(multiplicity == 2 for _, _, multiplicity in terms):
@@ -991,27 +1031,58 @@ def coupled_parent_matrices(
             continue
 
         (label1, c1), (label2, c2) = parents
-        diag1 = tuple(
-            _snap(float(np.trace(c1.T @ block @ c1)) / dim) for block in blocks
-        )
-        diag2 = tuple(
-            _snap(float(np.trace(c2.T @ block @ c2)) / dim) for block in blocks
-        )
-        # off-diagonal linear form up to a global sign:
-        # tr(M_p M_q^T)/dim = c_p c_q for M_p = c1^T H_p c2
-        cross = [c1.T @ block @ c2 for block in blocks]
-        gram = np.array([
-            [float(np.trace(cross[p] @ cross[q].T)) / dim
-             for q in range(n_params)]
-            for p in range(n_params)
-        ])
-        pivot = int(np.argmax(np.abs(np.diag(gram))))
-        if gram[pivot, pivot] < 1e-12:
-            offdiag = tuple(Fraction(0) for _ in range(n_params))
-        else:
-            lead = float(np.sqrt(gram[pivot, pivot]))
-            offdiag = tuple(
-                _snap(gram[pivot, q] / lead) for q in range(n_params)
+        try:
+            diag1 = tuple(
+                _snap_exact(float(np.trace(c1.T @ block @ c1)) / dim)
+                for block in blocks
             )
+            diag2 = tuple(
+                _snap_exact(float(np.trace(c2.T @ block @ c2)) / dim)
+                for block in blocks
+            )
+            # off-diagonal linear form up to a global sign:
+            # tr(M_p M_q^T)/dim = c_p c_q for M_p = c1^T H_p c2.  The products
+            # c_p c_q are basis-independent and rational even when the
+            # coefficients themselves are irrational (e.g. 5 sqrt(3) B in
+            # (t2g)^3(eg)^1 of m-3m), so snap the Gram matrix and factor the
+            # linear form as sqrt(radicand) * (rational coefficients).
+            cross = [c1.T @ block @ c2 for block in blocks]
+            gram = np.array([
+                [float(np.trace(cross[p] @ cross[q].T)) / dim
+                 for q in range(n_params)]
+                for p in range(n_params)
+            ])
+            pivot = int(np.argmax(np.abs(np.diag(gram))))
+            if gram[pivot, pivot] < 1e-12:
+                offdiag = (tuple(Fraction(0) for _ in range(n_params)), 1)
+            else:
+                lead_sq = _snap_exact(gram[pivot, pivot])  # = c_pivot^2 > 0
+                if lead_sq <= 0:
+                    raise SnapError(gram[pivot, pivot])
+                row = [_snap_exact(gram[pivot, q]) for q in range(n_params)]
+                sq_num, rad_num = _split_square(lead_sq.numerator)
+                sq_den, rad_den = _split_square(lead_sq.denominator)
+                radicand = rad_num * rad_den
+                # c_q = row_q / sqrt(lead_sq)
+                #     = row_q * sq_den * rad_den / (sq_num * radicand)
+                #       * sqrt(radicand)
+                factor = Fraction(sq_den * rad_den, sq_num * radicand)
+                coeffs = tuple(value * factor for value in row)
+                # rank-1 consistency: gram must equal c c^T, so the diagonal
+                # entries have to reproduce as radicand * c_q^2 (this guards
+                # both the snapping and the single-intertwiner assumption)
+                if any(
+                    abs(float(radicand) * float(coeff) ** 2 - gram[q, q])
+                    > _SNAP_TOL * max(1.0, abs(gram[q, q]))
+                    for q, coeff in enumerate(coeffs)
+                ):
+                    raise SnapError(gram[pivot, pivot])
+                offdiag = (coeffs, radicand)
+        except SnapError:
+            # No exact closed form for this block: map the term to None so
+            # the caller can say so, rather than aborting the whole run (the
+            # term energies and the ground state do not depend on it).
+            results[index] = None
+            continue
         results[index] = ((label1, label2), diag1, diag2, offdiag)
     return results

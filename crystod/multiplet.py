@@ -461,7 +461,10 @@ def main(argv: list[str] | None = None) -> None:
         if len(shells) == 2 and any(
             entry.multiplicity == 2 for entry in energies
         ):
-            from .multiplet_energy import coupled_parent_matrices
+            from .multiplet_energy import (
+                coupled_parent_matrices,
+                format_offdiag,
+            )
 
             parent_matrices = coupled_parent_matrices(
                 classes.ct, l, shells, shell_term_lists, ordered_terms
@@ -469,11 +472,14 @@ def main(argv: list[str] | None = None) -> None:
             if parent_matrices:
                 print("* CI matrices in the coupled-parent basis "
                       "(strong-field/Tanabe-Sugano tables) *")
-                for index, (labels, diag1, diag2, offdiag) in sorted(
-                    parent_matrices.items()
-                ):
+                for index, entry in sorted(parent_matrices.items()):
                     spin, name, _ = ordered_terms[index]
                     symbol = _term_symbol(spin, name)
+                    if entry is None:
+                        print(f"{symbol}: (no exact closed form for this "
+                              "block; entry omitted)")
+                        continue
+                    labels, diag1, diag2, offdiag = entry
 
                     def parent_label(parent):
                         s1, g1, s2, g2 = parent
@@ -489,7 +495,7 @@ def main(argv: list[str] | None = None) -> None:
                     print(f"  |2> = {parent_label(labels[1])}")
                     print(f"  <1|H|1> = {format_linear(diag1, params)}")
                     print(f"  <2|H|2> = {format_linear(diag2, params)}")
-                    print(f"  <1|H|2> = +-({format_linear(offdiag, params)})"
+                    print(f"  <1|H|2> = +-{format_offdiag(offdiag, params)}"
                           "  (sign is a basis convention)")
                 print()
 

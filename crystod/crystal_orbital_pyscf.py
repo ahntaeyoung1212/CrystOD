@@ -142,6 +142,31 @@ DEGENERACY_MAX_WINDOW_EV = 0.30
 # How far a multiplicity may sit from an integer and still count as one.
 _MULTIPLICITY_TOL = 0.05
 
+# The GTH basis sets PySCF ships, in the order --basis lists them (the
+# testsuite checks this against pyscf.pbc.gto.basis.ALIAS).  Apart from W in
+# gth-dzvp, only the two molopt-sr sets cover the transition metals (and none
+# of them the lanthanides); the rest stop at Ar or cover light elements only.
+GTH_BASIS_SETS = (
+    "gth-szv-molopt-sr", "gth-dzvp-molopt-sr",
+    "gth-szv", "gth-dzv", "gth-dzvp", "gth-tzvp", "gth-tzv2p",
+    "gth-qzv2p", "gth-qzv3p",
+    "gth-szv-molopt", "gth-dzvp-molopt", "gth-tzvp-molopt",
+    "gth-tzv2p-molopt",
+    "gth-aug-dzvp", "gth-aug-tzvp", "gth-aug-tzv2p", "gth-aug-qzv2p",
+    "gth-aug-qzv3p",
+    "gth-cc-dzvp", "gth-cc-tzvp", "gth-cc-qzvp",
+)
+
+# The GTH pseudopotentials PySCF ships (same check in the testsuite).
+GTH_PSEUDOPOTENTIALS = (
+    "gth-pbe", "gth-pade", "gth-lda", "gth-hfrev", "gth-blyp", "gth-bp",
+    "gth-hcth120", "gth-hcth407", "gth-hf", "gth-olyp", "gth-pbesol",
+)
+
+# The diffuse-richer basis the empty-shell caveats point at (light elements
+# only -- offered only when it covers every element of the structure).
+RICHER_BASIS = "gth-qzv2p"
+
 # A fragment level counts as chemically inert -- usable as an alignment anchor
 # -- when some crystal level consists of it to at least this fraction.
 ALIGNMENT_PURITY = 0.80
@@ -288,6 +313,46 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         self.sketch_specs = None      # sketches always use all AO components
         self.sketch_tokens = None
         self.method_chip = f"PySCF {xc.upper()}/{basis}"
+        self._check_basis_coverage()
+        self._check_xc()
+        # a diffuse-richer set to recommend in the empty-shell caveats -- only
+        # if PySCF ships it for every element here (gth-qzv2p stops at Ar, so
+        # a transition-metal compound has no richer alternative at all)
+        self.richer_basis = (
+            RICHER_BASIS
+            if ("molopt" in self.basis_name.lower()
+                and self._basis_covers(RICHER_BASIS))
+            else "")
+        # footer sentence for the outermost isolated-ion columns (the shared
+        # writer's default describes the EHT VSIP columns instead)
+        self.ao_foot = (
+            " The outermost columns are each element's ISOLATED ion at its "
+            "formal charge -- one PySCF calculation per element with the "
+            "same basis, pseudopotential and functional (RKS/UKS; a cation "
+            "left with no pseudo-valence electrons keeps its bare-ion "
+            "one-electron spectrum) -- rigidly shifted per element so its "
+            "deepest shell with a fragment counterpart sits at that "
+            "shell's sublattice band center (the molecular vacuum and "
+            "periodic G=0 references share no common zero; the shift and "
+            "the raw vacuum levels are in each level's tooltip).  The "
+            "connector lines into the sublattice columns show how the "
+            "ions' Bloch combinations split each shell at the chosen "
+            "k point.  Shells the formal charge leaves EMPTY come with a "
+            "caveat (each affected tooltip says so): for a cation only "
+            "the lowest empty state of each l is trustworthy -- the "
+            "higher ones are finite-basis virtuals whose order and "
+            "energy follow the basis"
+            + (", and the default condensed-phase basis has no diffuse "
+               "functions (a diffuse-richer basis such as --basis "
+               f"{self.richer_basis} removes that basis-side error, at "
+               "the cost of a heavier and possibly ill-conditioned "
+               "periodic SCF)"
+               if self.richer_basis else "")
+            + "; every empty shell of an ANION is instead a discretized "
+            "continuum state that no basis makes physical (one more "
+            "electron on a free anion is vacuum-unbound -- in the "
+            "crystal it is the Madelung potential that binds)."
+        )
         # --onsite: single-Hamiltonian mode.  Only the crystal SCF runs; the
         # fragment columns are the sublattice BLOCKS of its converged Fock,
         # F[rows,rows] c = E S[rows,rows] c -- the pre-bonding sublattice
@@ -342,6 +407,15 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
 
         self._assign_fragments(left_tokens, right_tokens)
         self._resolve_oxidation(oxidation)
+        if not self.onsite and not any(self.oxidation.values()):
+            # neutral sublattices (--oxidation El=0 ...): no point charges
+            self.foot_intro = self.foot_intro.replace(
+                "(formal-charge ions + ghost basis + point-charge lattice "
+                "of the removed sublattice)",
+                "(neutral sublattices + ghost basis; all oxidation states "
+                "are 0, so there is no point-charge lattice)").replace(
+                "point-charge-model-vs-crystal environment difference",
+                "fragment-model-vs-crystal environment difference")
 
         self.kmesh = list(kmesh) if kmesh else default_kmesh(self.lattice)
         if any(n < 1 for n in self.kmesh):
@@ -350,6 +424,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         # the crystal cell first: with --no-ghost the fragment cells span only
         # their own sublattice's AOs and are embedded into the crystal's AO
         # space through the atom slices of the crystal cell
+        self.odd_electron: set[str] = set()
         self.cells = {"mo": self._make_cell(None)}
         self.n_ao = int(self.cells["mo"].nao_nr())
         slices = self.cells["mo"].aoslice_by_atom()
@@ -508,14 +583,31 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         # solves the irreducible wedge of the mesh (2x2x2 of Pm-3m: 4 of 8)
         cell.space_group_symmetry = True
         cell.symmorphic = False
-        cell.build()
+        import warnings
+
+        with warnings.catch_warnings():
+            # neutral-sublattice runs (--oxidation Al=0 N=0) legitimately
+            # build odd-electron cells; the spin-0 inconsistency pyscf warns
+            # about is resolved below by forcing Fermi smearing
+            warnings.filterwarnings(
+                "ignore", message="Electron number .* not consistent")
+            cell.build()
+        # pin the PER-CELL electron count: pyscf's tot_electrons(nkpts) is
+        # atom_charges().sum()*nkpts - charge -- cell.charge is subtracted
+        # once for the whole Born-von-Karman supercell -- so a charged
+        # fragment on a k-mesh would keep charge*(nkpts-1)/nkpts spurious
+        # electrons per cell (Sc^+3 of ScF3 on 2x2x2 converged with 10.5
+        # instead of 8).  With _nelectron set, tot_electrons(nkpts) is
+        # exactly nelectron*nkpts.
+        cell.nelectron = cell.nelectron
         if cell.nelectron % 2:
-            raise SystemExit(
-                f"ERROR: the {'crystal' if column is None else column + ' fragment'} has "
-                f"{cell.nelectron} electrons, which this restricted driver cannot treat.\n"
-                "       Check --oxidation; the formal charges must make every fragment "
-                "closed-shell."
-            )
+            # an odd count per cell needs fractional occupations in this
+            # spin-restricted driver: across the k-mesh pyscf's integer
+            # aufbau drops the unpaired electron when the BvK total is odd
+            # and hunts an unstable metallic degeneracy edge when it is
+            # even -- run() upgrades such a calculation to Fermi smearing,
+            # which conserves the count exactly
+            self.odd_electron.add("mo" if column is None else column)
         return cell
 
     def _check_shared_ao_space(self) -> None:
@@ -614,6 +706,87 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
 
     # --------------------------------------------------- point-charge field
 
+    def _basis_covers(self, name) -> bool:
+        """Does PySCF ship this GTH basis for every element of the cell?"""
+        from pyscf.pbc.gto import basis as pbc_basis
+
+        for element in set(self.symbols):
+            try:
+                pbc_basis.load(name, element)
+            except Exception:
+                return False
+        return True
+
+    def _check_basis_coverage(self) -> None:
+        """Refuse a basis/pseudopotential that has no entry for one of the
+        elements, naming the sets that do -- PySCF's own BasisNotFoundError
+        arrives deep inside cell.build() and says nothing about the
+        alternatives (apart from W in gth-dzvp, only the two molopt-sr sets
+        reach the transition metals, and none of them the lanthanides)."""
+        from pyscf.pbc.gto import basis as pbc_basis
+        from pyscf.pbc.gto import pseudo as pbc_pseudo
+
+        for kind, name, loader, shipped in (
+                ("basis", self.basis_name, pbc_basis.load, GTH_BASIS_SETS),
+                ("pseudopotential", self.pseudo_name, pbc_pseudo.load,
+                 GTH_PSEUDOPOTENTIALS)):
+            missing = []
+            for element in dict.fromkeys(self.symbols):
+                try:
+                    loader(name, element)
+                except Exception:
+                    missing.append(element)
+            if not missing:
+                continue
+            if name not in shipped:
+                raise SystemExit(
+                    f"ERROR: PySCF has no {kind} '{name}' for "
+                    f"{', '.join(missing)}.\n"
+                    f"       The GTH sets it ships: {', '.join(shipped)}")
+            usable = []
+            for candidate in shipped:
+                try:
+                    for element in dict.fromkeys(self.symbols):
+                        loader(candidate, element)
+                except Exception:
+                    continue
+                usable.append(candidate)
+            option = "--basis" if kind == "basis" else "--pseudo"
+            advice = (f"       {option} sets covering every element here: "
+                      f"{', '.join(usable)}" if usable else
+                      f"       No GTH {kind} PySCF ships covers every "
+                      "element of this structure.")
+            raise SystemExit(
+                f"ERROR: the {kind} '{name}' has no entry for "
+                f"{', '.join(missing)}.\n{advice}")
+
+    def _check_xc(self) -> None:
+        """Reject an unusable --xc up front.  libxc raises a bare KeyError
+        for a name it does not know (``pz``, ``vwn`` -- common shorthands
+        that are not libxc names), and PySCF's PERIODIC code has no
+        nonlocal-correlation path, so a VV10 functional (wb97m-v, b97m-v,
+        wb97x-v) dies inside get_veff with 'KNumInt has no attribute
+        nr_nlc_vxc' after the cells are already built."""
+        if self.xc.lower() in {"hf", "hartree-fock"}:
+            return
+        from pyscf.dft import libxc
+
+        try:
+            libxc.parse_xc(self.xc)
+        except KeyError:
+            raise SystemExit(
+                f"ERROR: '{self.xc}' is not a functional libxc knows.\n"
+                "       crystod --help lists the verified names (note that "
+                "the LDA shorthands are 'lda' and 'svwn', not 'pz'/'vwn').")
+        if any(abs(b) > 0 or abs(c) > 0
+               for (b, c), _ in libxc.nlc_coeff(self.xc)):
+            raise SystemExit(
+                f"ERROR: '{self.xc}' carries VV10 nonlocal correlation, "
+                "which PySCF's periodic\n       code does not implement "
+                "(only its molecular code does).\n"
+                "       Use a functional without the -V suffix, e.g. "
+                "wb97x instead of wb97x-v.")
+
     def _point_charge_potential(self, cell, column):
         """Grid values of -sum_i q_i/|r - R_i| for the removed sublattice.
 
@@ -630,6 +803,10 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             return None
         positions = np.array([self.cartesian[i] for i in sites]) / BOHR_TO_ANGSTROM
         charges = np.array([self.oxidation[self.symbols[i]] for i in sites], dtype=float)
+        if not np.any(charges):
+            # all-zero oxidation states (neutral sublattices): no field, and
+            # no reason to pay the grid quadrature for exact zeros
+            return None
 
         mesh = cell.mesh
         Gv = cell.get_Gv(mesh)
@@ -730,7 +907,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
     def _convergence_ladder(self):
         """Fallback (smearing eV, max cycles, level shift Hartree), in order."""
         cycles = 3 * self.max_cycle
-        base = self.sigma if self.sigma > 0 else 0.2
+        base = self.sigma if self.sigma > 0 else self.retry_sigma
         return [
             (base, cycles, 0.0),
             # diffuse cation shells in a highly charged fragment cell make the
@@ -769,7 +946,16 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 reduced = False
             if not reduced and not isinstance(kpts, np.ndarray):
                 kpts = cell.make_kpts(self.kmesh)
-            mean_field = self._make_mean_field(cell, kpts, column, sigma=self.sigma)
+            sigma = self.sigma
+            if column in self.odd_electron and sigma <= 0:
+                # an odd per-cell count needs fractional occupations (see
+                # _make_cell); Fermi smearing conserves it exactly
+                sigma = self.retry_sigma
+                report(f"   {column:<5} has an odd electron count "
+                       f"({cell.nelectron}): occupations use Fermi smearing, "
+                       f"sigma {sigma:g} eV (set --sigma to change)")
+                self.smeared.add(column)
+            mean_field = self._make_mean_field(cell, kpts, column, sigma=sigma)
 
             guess = None
             if column != "mo" and "mo" in self.density_matrix:
@@ -847,6 +1033,10 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
     def _chk_params(self) -> dict:
         return {
             "version": 1,
+            # densities written before the per-cell electron-count pin (see
+            # _make_cell) are wrong for charged fragments on a k-mesh; the
+            # loader waves the mismatch through when the bug could not bite
+            "nelectron_fix": 1,
             "basis": self.basis_name, "pseudo": self.pseudo_name,
             "xc": self.xc, "kmesh": list(self.kmesh),
             "ke_cutoff": float(self.ke_cutoff), "max_l": self.max_l,
@@ -890,6 +1080,26 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         ignored = {"no_ghost"} if self.onsite else set()
         mismatched = [key for key in current
                       if key not in ignored and saved.get(key) != current[key]]
+        if "nelectron_fix" in mismatched:
+            # checkpoint written before the per-cell electron-count pin (see
+            # _make_cell).  Its stored densities are wrong exactly where the
+            # bug bit: a CHARGED fragment cell on a k-mesh larger than
+            # 1x1x1 converged with charge*(nkpts-1)/nkpts extra electrons
+            # per cell.  Crystal-only (--onsite) and neutral-fragment
+            # checkpoints are unaffected and stay valid.
+            harmed = (int(np.prod(self.kmesh)) > 1
+                      and any(int(round(self.side_charge[col])) != 0
+                              for col in self.scf_columns if col != "mo"))
+            if harmed:
+                raise SystemExit(
+                    f"ERROR: {self.chk_path} predates the fragment "
+                    "electron-count fix: its charged fragment densities "
+                    "converged with charge*(nkpts-1)/nkpts spurious "
+                    "electrons per cell (pyscf subtracts cell.charge once "
+                    "per Born-von-Karman supercell, not per cell).\n"
+                    "       Delete the file and rerun to regenerate the "
+                    "densities.")
+            mismatched.remove("nelectron_fix")
         if (not np.allclose(np.asarray(data["positions"]), self.positions,
                             atol=1e-6)
                 or not np.allclose(np.asarray(data["lattice"]), self.lattice,
@@ -1293,6 +1503,385 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 for level in record["levels"][column]:
                     level.energy += shifts[column]
         return shifts, anchors
+
+    # ------------------------------------------- isolated formal-charge ions
+
+    def atomic_ion_levels(self):
+        """One isolated ion per element, at its formal charge -- the atomic
+        stage BEFORE the sublattice forms (the crystal analogue of MolOD's
+        ligand-ao column, computed with PySCF as the user's three-stage
+        story: charged atom -> charged sublattice -> crystal).
+
+        Same basis / pseudopotential / functional as the periodic
+        calculations (GTH pseudopotentials work in PySCF's molecular code).
+        A cation whose formal charge removes every pseudo-valence electron
+        (Al^3+ with GTH-q3) has nothing to converge: its levels are the
+        bare-ion one-electron spectrum (hcore eigenvalues -- for Al^3+ the
+        3s eigenvalue, -27.9 eV, reproduces the third ionization potential
+        of Al, 28.4 eV).  Anions are vacuum-unbound (positive eigenvalues);
+        that raw offset is absorbed by the per-element deep-shell anchoring
+        in attach_atomic_columns, which also bridges the molecular (vacuum)
+        and periodic (G = 0) energy references.
+
+        Fills self.atomic_ions[element] = {"charge", "nelec", "method",
+        "shells": [(shell_name, l, energy_eV), ...]} with one entry per
+        (element, shell) spec of the AO basis.
+        """
+        from pyscf import gto as mol_gto
+        from pyscf import dft as mol_dft
+        from pyscf import scf as mol_scf
+        from pyscf.data.nist import HARTREE2EV
+
+        self.atomic_ions = {}
+        element_shells: dict[str, list] = {}
+        for column in ("left", "right"):
+            for spec in self.side_specs[column]:
+                element_shells.setdefault(spec.element, []).append(
+                    (spec.shell, spec.l))
+        for element, shells in element_shells.items():
+            charge = int(round(self.oxidation[element]))
+            basis_shells = mol_gto.basis.load(self.basis_name, element)
+            if self.max_l is not None:
+                basis_shells = [shell for shell in basis_shells
+                                if shell[0] <= self.max_l]
+            def build_ion(spin):
+                return mol_gto.M(
+                    atom=f"{element} 0.0 0.0 0.0",
+                    basis={element: basis_shells},
+                    pseudo={element: self.pseudo_name},
+                    charge=charge, spin=spin,
+                    verbose=0, max_memory=self.max_memory,
+                )
+
+            try:
+                mol = build_ion(0)
+            except RuntimeError:
+                # odd electron count: parity forces an odd spin
+                mol = build_ion(1)
+            nelec = mol.nelectron
+            if nelec == 0:
+                # no electrons left: the one-electron spectrum of the bare
+                # pseudo-ion (canonically orthogonalized hcore)
+                hcore = mol_scf.RHF(mol).get_hcore()
+                overlap = mol.intor("int1e_ovlp")
+                values, vectors = np.linalg.eigh(overlap)
+                keep = values > 1e-10
+                X = vectors[:, keep] / np.sqrt(values[keep])
+                energies, rotation = np.linalg.eigh(X.conj().T @ hcore @ X)
+                coeff = X @ rotation
+                occupations = np.zeros(len(energies))
+                method = "0 electrons: bare-ion one-electron levels (hcore)"
+            else:
+                # ground spin state by trial, not by assumption: scan the
+                # parity-consistent spins (up to 8 unpaired electrons --
+                # Gd/Cm reach 4f7 5d1 / 5f7 6d1) and keep the lowest
+                # converged energy.  A neutral N atom (--oxidation N=0)
+                # takes spin 3 (Hund's 4S term), not the spin-1 doublet a
+                # bare parity fallback would pick; closed shells still win
+                # at spin 0.  Atomic calculations cost well under a second.
+                def solve_ion(spin):
+                    trial = mol if spin == mol.spin else build_ion(spin)
+                    mean_field = (mol_dft.RKS(trial) if spin == 0
+                                  else mol_dft.UKS(trial))
+                    mean_field.xc = self.xc
+                    mean_field.conv_tol = self.conv_tol
+                    mean_field.max_cycle = self.max_cycle
+                    mean_field.kernel()
+                    if not mean_field.converged:
+                        # DIIS stalls on near-degenerate open d shells
+                        # (neutral Ni, spin 0/2); second-order SCF usually
+                        # lands them.  Without this the scan would settle
+                        # on a converged EXCITED spin state and say nothing.
+                        mean_field = mean_field.newton()
+                        mean_field.kernel()
+                    return mean_field
+
+                solutions = []
+                for trial_spin in range(mol.spin, min(nelec, 8) + 1, 2):
+                    try:
+                        solutions.append(solve_ion(trial_spin))
+                    except Exception as error:
+                        # e.g. more alpha electrons than the (--max-l
+                        # truncated) basis has orbitals: skip the trial,
+                        # do not kill the diagram
+                        print(f"   note: the {element}^{charge:+d} spin-"
+                              f"{trial_spin} trial failed ({error})")
+                        continue
+                if not solutions:
+                    raise SystemExit(
+                        f"ERROR: no spin state of the isolated "
+                        f"{element}^{charge:+d} ion could be solved in "
+                        "this basis (is --max-l too small for its "
+                        "electron count?)")
+                converged = [sol for sol in solutions if sol.converged]
+                pick = min(converged or solutions,
+                           key=lambda sol: float(sol.e_tot))
+                lowest = min(solutions, key=lambda sol: float(sol.e_tot))
+                if float(lowest.e_tot) < float(pick.e_tot) - 1e-6:
+                    print(f"   WARNING: an unconverged spin-"
+                          f"{lowest.mol.spin} state of {element}^"
+                          f"{charge:+d} lies {(float(pick.e_tot) - float(lowest.e_tot)) * HARTREE2EV:.2f} eV "
+                          f"below the chosen spin-{pick.mol.spin} solution "
+                          "-- the atomic column may show an excited spin "
+                          "state")
+                mol = pick.mol
+                spin = mol.spin
+                if spin == 0:
+                    energies, coeff = pick.mo_energy, pick.mo_coeff
+                    occupations = pick.mo_occ
+                    method = f"RKS {self.xc.upper()}, {nelec} electrons"
+                else:
+                    # open-shell ion or neutral atom: alpha channel,
+                    # flagged in the tooltip
+                    energies, coeff = (pick.mo_energy[0],
+                                       pick.mo_coeff[0])
+                    occupations = pick.mo_occ[0]
+                    method = (f"UKS {self.xc.upper()}, {nelec} electrons, "
+                              f"spin {spin} (alpha levels)")
+                if not pick.converged:
+                    method += "; WARNING: SCF not converged"
+            # dominant l of each MO (Loewdin), then per-l pairing of the MO
+            # multiplets (energy order) with the element's shells (2s < 3s)
+            overlap = mol.intor("int1e_ovlp")
+            values, vectors = np.linalg.eigh(overlap)
+            sqrt_overlap = (vectors * np.sqrt(np.clip(values, 0.0, None))
+                            ) @ vectors.conj().T
+            l_of_ao = np.repeat(
+                [mol.bas_angular(shell) for shell in range(mol.nbas)
+                 for _ in range(mol.bas_nctr(shell))],
+                [2 * mol.bas_angular(shell) + 1 for shell in range(mol.nbas)
+                 for _ in range(mol.bas_nctr(shell))])
+            gross = np.abs(sqrt_overlap @ coeff) ** 2
+            mo_l = np.array([
+                int(np.argmax([gross[l_of_ao == l, i].sum()
+                               for l in range(int(l_of_ao.max()) + 1)]))
+                for i in range(coeff.shape[1])
+            ])
+            shell_levels = []
+            # empty-shell caveats: for a CATION the only spectroscopically
+            # trustworthy empty level per l is the lowest EMPTY one --
+            # occupied semicore shells below it do not count (Na+ 3s, the
+            # first empty s above the occupied 2s, is basis-converged to
+            # 0.2 eV; validated on Al^3+ against NIST Al III: 3s/3p/3d
+            # fine, 4s off by +7 eV in gth-dzvp-molopt-sr, which carries
+            # no diffuse functions).  Higher empty multiplets are
+            # finite-basis virtuals; for an anion EVERY empty level is a
+            # discretized continuum state (one more electron is
+            # vacuum-unbound at any basis size), and a formally NEUTRAL
+            # atom has no Coulomb tail to guarantee bound empty states,
+            # so all of its empty shells are flagged too.
+            caveats: dict[str, str] = {}
+            for l in sorted({l for _, l in shells}):
+                names = sorted((name for name, shell_l in shells
+                                if shell_l == l),
+                               key=lambda name: int(name[:-1]))
+                indices = np.where(mo_l == l)[0]
+                ordered = indices[np.argsort(energies[indices])]
+                degeneracy = 2 * l + 1
+                multiplets = [ordered[i:i + degeneracy]
+                              for i in range(0, len(ordered), degeneracy)]
+                if len(multiplets) != len(names):
+                    print(f"   WARNING: {element}^{charge:+d}: "
+                          f"{len(multiplets)} l={l} ion multiplets for "
+                          f"{len(names)} shells; pairing the lowest ones")
+                empty_rank = 0
+                for name, multiplet in zip(names, multiplets):
+                    if float(occupations[multiplet].sum()) < 1e-6:
+                        if charge < 0:
+                            caveats[name] = "continuum"
+                        elif charge == 0 or empty_rank > 0:
+                            caveats[name] = "virtual"
+                        empty_rank += 1
+                    spread = float(energies[multiplet].max()
+                                   - energies[multiplet].min()) * HARTREE2EV
+                    if spread > 0.1:
+                        # a torn multiplet: the energy-ordered chunking
+                        # assumed exact degeneracy (symmetry-broken UKS
+                        # solutions of open-shell ions can violate it)
+                        print(f"   WARNING: the {element}^{charge:+d} "
+                              f"{name} ion multiplet is not degenerate "
+                              f"(spread {spread:.2f} eV; symmetry-broken "
+                              "open-shell solution?) -- its mean is shown")
+                    shell_levels.append((
+                        name, l,
+                        float(np.mean(energies[multiplet])) * HARTREE2EV))
+            self.atomic_ions[element] = {
+                "charge": charge, "nelec": nelec, "method": method,
+                "shells": shell_levels, "caveats": caveats,
+            }
+
+    def attach_atomic_columns(self, records):
+        """Outermost isolated-ion columns + splitting connector links.
+
+        Call AFTER align_fragment_columns: the molecular (vacuum) and
+        periodic (G = 0) references share no common zero, so each element's
+        ion levels are shifted rigidly so that its DEEPEST shell matches
+        the (degeneracy-weighted, all-k) mean energy of the fragment levels
+        that shell dominates -- the band's center of gravity, which in an
+        orthogonal-basis tight-binding picture IS the on-site energy.  The
+        anchor shell's connector fan then shows pure intra-sublattice
+        splitting; the other shells additionally carry the ion's own level
+        spacing against the environment's.  Returns {element: (anchor
+        shell, shift)} for the report.
+        """
+        site_counts: dict[str, set] = {}
+        for column in ("left", "right"):
+            for spec in self.side_specs[column]:
+                site_counts.setdefault(spec.element, set()).update(spec.sites)
+        # per-(element, shell) fragment band centers over all k points
+        sums: dict[tuple[str, str], float] = {}
+        weights: dict[tuple[str, str], float] = {}
+        for record in records:
+            for column in ("left", "right"):
+                for level in record["levels"][column]:
+                    parts = level.label.split()
+                    if len(parts) < 3:
+                        continue
+                    key = (parts[0], parts[1])
+                    sums[key] = sums.get(key, 0.0) \
+                        + level.energy * level.degeneracy
+                    weights[key] = weights.get(key, 0.0) + level.degeneracy
+        anchors: dict[str, tuple[str, float]] = {}
+        shifts: dict[str, float] = {}
+        for element, ion in self.atomic_ions.items():
+            anchor = None
+            for name, _, energy in sorted(ion["shells"],
+                                          key=lambda item: item[2]):
+                if (element, name) in weights:
+                    anchor = (name, energy)
+                    break
+            if anchor is None:
+                shifts[element] = 0.0
+                anchors[element] = ("none", 0.0)
+                continue
+            center = (sums[(element, anchor[0])]
+                      / weights[(element, anchor[0])])
+            shifts[element] = center - anchor[1]
+            anchors[element] = (anchor[0], shifts[element])
+        for record in records:
+            levels = record["levels"]
+            for column in ("left", "right"):
+                ao_column = f"{column}-ao"
+                levels[ao_column] = []
+                ao_ids: dict[tuple[str, str], str] = {}
+                elements = list(dict.fromkeys(
+                    spec.element for spec in self.side_specs[column]))
+                entries = []
+                for element in elements:
+                    ion = self.atomic_ions[element]
+                    count = len(site_counts[element])
+                    for name, l, energy in ion["shells"]:
+                        entries.append((energy + shifts[element], element,
+                                        name, l, count, ion))
+                entries.sort(key=lambda item: item[0])
+                equivalent = self.builder.spglib_dataset["equivalent_atoms"]
+                for energy, element, name, l, count, ion in entries:
+                    prefix = f"{count}" if count > 1 else ""
+                    level = DiagramLevel(
+                        level_id=f"{ao_column}{len(levels[ao_column])}",
+                        column=ao_column,
+                        energy=energy,
+                        degeneracy=2 * l + 1,
+                        irrep="",
+                        label=f"{prefix}{element} {name}",
+                        vectors=None,
+                    )
+                    level.electrons = None
+                    level.display_composition = [(f"{element} {name}", 1.0)]
+                    anchor_name, shift = anchors[element]
+                    if anchor_name == "none":
+                        anchor_line = (
+                            "WARNING: no fragment level is dominated by a "
+                            f"{element} shell -- drawn on the raw molecular "
+                            "vacuum reference (no anchor)")
+                    else:
+                        anchor_line = (
+                            f"vacuum level {energy - shift:+.2f} eV, "
+                            f"shifted {shift:+.2f} eV so the deepest shell "
+                            f"with a fragment counterpart ({element} "
+                            f"{anchor_name}) sits at its "
+                            f"{self.formula[column]}-column band center")
+                    orbits = len({int(equivalent[site])
+                                  for site in site_counts[element]})
+                    if count > 1:
+                        inequivalent = ("" if orbits == 1 else
+                                        f" ({orbits} inequivalent positions)")
+                        tail = (f"the {self.formula[column]} column shows "
+                                f"how the {count} {element} "
+                                f"ions'{inequivalent} Bloch combinations "
+                                "split this shell at each k point")
+                    else:
+                        tail = (f"the {self.formula[column]} column shows "
+                                "this shell's Bloch combination at each "
+                                "k point")
+                    caveat = ion.get("caveats", {}).get(name, "")
+                    if caveat == "virtual":
+                        if ion["charge"] > 0:
+                            opening = (
+                                "empty shell beyond the lowest EMPTY state "
+                                "of its l -- a finite-basis VIRTUAL, not a "
+                                "physical Rydberg level")
+                        else:
+                            opening = (
+                                "empty shell of a formally NEUTRAL atom -- "
+                                "a finite-basis VIRTUAL (no ionic Coulomb "
+                                "tail guarantees a bound counterpart)")
+                        if self.richer_basis:
+                            remedy = (
+                                f" ({self.basis_name} has no diffuse "
+                                "functions, so its energy and even its s/p "
+                                "order follow the contraction; a "
+                                "diffuse-richer basis such as --basis "
+                                f"{self.richer_basis} removes the "
+                                "basis-side error -- bare-ion Al^+3 4s/4p "
+                                "land within 0.1 eV of NIST -- though "
+                                "Kohn-Sham virtuals of ions that keep "
+                                "electrons retain the functional's own "
+                                "eV-scale attachment error)")
+                        elif "molopt" in self.basis_name.lower():
+                            remedy = (
+                                f" ({self.basis_name} has no diffuse "
+                                "functions, so its energy and even its s/p "
+                                "order follow the contraction; PySCF ships "
+                                "no diffuse-richer GTH basis for these "
+                                "elements -- the molopt-sr sets are the "
+                                "only ones reaching beyond Ar)")
+                        else:
+                            remedy = (
+                                " (its position is limited by the basis's "
+                                "diffuse coverage and, for ions that keep "
+                                "electrons, by the functional's Kohn-Sham "
+                                "virtual error)")
+                        caveat = "\nNOTE: " + opening + remedy
+                    elif caveat == "continuum":
+                        caveat = (
+                            "\nNOTE: one more electron on this anion is "
+                            "vacuum-unbound, so this empty level is a "
+                            "discretized CONTINUUM state of the finite "
+                            "basis, with no physical counterpart at any "
+                            "basis size; in the crystal it is the Madelung "
+                            "potential that provides the binding")
+                    species = "atom" if ion["charge"] == 0 else "ion"
+                    level.detail = (
+                        f"isolated {element}^{ion['charge']:+d} {species} "
+                        f"({ion['method']}; PySCF {self.basis_name}, same "
+                        "pseudopotential as the crystal)\n"
+                        f"{anchor_line}\n{tail}{caveat}")
+                    ao_ids[(element, name)] = level.level_id
+                    levels[ao_column].append(level)
+                # splitting connector lines, weighted like the tooltip rows
+                for level in levels[column]:
+                    linked = []
+                    for name_irrep, value in getattr(
+                            level, "display_composition", []):
+                        parts = name_irrep.split()
+                        if len(parts) >= 2 \
+                                and (parts[0], parts[1]) in ao_ids \
+                                and value >= 0.001:
+                            linked.append(
+                                (ao_ids[(parts[0], parts[1])], value))
+                    level.composition = linked
+        return anchors
 
     # ---------------------------------------------------- wave-function sketch
 
@@ -1846,21 +2435,25 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
               " drop against its parents is purely the left-right orbital\n"
               " interaction\n")
     else:
-        print(" * Fragments (formal-charge ions + ghost basis of the removed "
-              "sublattice) *")
+        neutral = not any(diagram.oxidation.values())
+        print(" * Fragments ("
+              + ("neutral sublattices" if neutral else "formal-charge ions")
+              + " + ghost basis of the removed sublattice) *")
         other = {"left": "right", "right": "left"}
         for column in ("left", "right"):
-            felt = " + ".join(
-                f"{element}^{diagram.oxidation[element]:+g}"
-                for element in dict.fromkeys(
-                    diagram.symbols[i]
-                    for i in diagram.side_atoms[other[column]]
-                )
-            )
+            if neutral:
+                felt = " (all oxidation states 0: no point-charge lattice)"
+            else:
+                felt = ", in the " + " + ".join(
+                    f"{element}^{diagram.oxidation[element]:+g}"
+                    for element in dict.fromkeys(
+                        diagram.symbols[i]
+                        for i in diagram.side_atoms[other[column]]
+                    )
+                ) + " point-charge lattice"
             print(f" {column:<5} {diagram.formula[column]:<8} charge "
                   f"{diagram.side_charge[column]:+g}, "
-                  f"{diagram.side_electrons[column]} electrons, in the {felt} "
-                  "point-charge lattice")
+                  f"{diagram.side_electrons[column]} electrons{felt}")
         print(f" crystal {diagram.formula['left'] + diagram.formula['right']:<7} "
               f"{diagram.crystal_electrons} electrons "
               f"= {diagram.side_electrons['left']} + "
@@ -1953,6 +2546,54 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
     else:
         print("\n * Deep-level alignment disabled (--no-align): each column keeps "
               "its own G=0 reference *")
+
+    # ---- stage 0: isolated formal-charge ions (outermost columns) ----------
+    if not diagram.onsite:
+        diagram.atomic_ion_levels()
+        ao_anchors = diagram.attach_atomic_columns(records)
+        print("\n * Isolated formal-charge ions (outermost columns) *")
+        for element, ion in diagram.atomic_ions.items():
+            shells = ", ".join(f"{name} {energy:+.2f}"
+                               for name, _, energy in ion["shells"])
+            print(f"   {element}^{ion['charge']:+d} ({ion['method']}): "
+                  f"{shells} eV (vacuum)")
+            anchor_name, shift = ao_anchors[element]
+            if anchor_name == "none":
+                print(f"      -> WARNING: no fragment level is dominated "
+                      f"by a {element} shell; the ion column keeps the "
+                      "raw molecular vacuum reference (no anchor)")
+            else:
+                print(f"      -> column shifted {shift:+.2f} eV: the "
+                      "deepest shell with a fragment counterpart "
+                      f"({element} {anchor_name}) is anchored to its "
+                      "sublattice band center (molecular vacuum and "
+                      "periodic G=0 references share no common zero)")
+            caveats = ion.get("caveats", {})
+            virtuals = [n for n, kind in caveats.items()
+                        if kind == "virtual"]
+            continuum = [n for n, kind in caveats.items()
+                         if kind == "continuum"]
+            if virtuals:
+                if diagram.richer_basis:
+                    remedy = (f"{diagram.basis_name} has no diffuse "
+                              "functions; a richer basis, e.g. --basis "
+                              f"{diagram.richer_basis}, removes the "
+                              "basis-side error")
+                elif "molopt" in diagram.basis_name.lower():
+                    remedy = (f"{diagram.basis_name} has no diffuse "
+                              "functions, and PySCF ships no richer GTH "
+                              "set for these elements")
+                else:
+                    remedy = ("limited by the basis's diffuse coverage "
+                              "and the Kohn-Sham virtual error")
+                print(f"      note: {', '.join(virtuals)}: finite-basis "
+                      "virtuals, not physical Rydberg levels "
+                      f"({remedy})")
+            if continuum:
+                print(f"      note: {', '.join(continuum)}: discretized "
+                      "continuum -- one more electron on the free anion "
+                      "is unbound; in the crystal the Madelung potential "
+                      "provides the binding")
 
     # ---- per-k-point report -------------------------------------------------
     for record in records:
@@ -2079,7 +2720,10 @@ def main(argv: list[str] | None = None) -> None:
                         metavar=("N1", "N2", "N3"))
     parser.add_argument("--ke-cutoff", type=float, default=200.0)
     parser.add_argument("--sigma", type=float, default=0.0,
-                        help="Fermi smearing width in eV (0 = integer occupations)")
+                        help="Fermi smearing width in eV (0 = integer "
+                             "occupations; a cell with an odd electron "
+                             "count always smears, 0.2 eV unless --sigma "
+                             "is positive)")
     parser.add_argument("--no-symmetrize", action="store_true",
                         help="do not re-diagonalize the group-averaged Fock (debug: shows "
                         "the raw grid-broken degeneracies)")

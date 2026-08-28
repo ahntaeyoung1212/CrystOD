@@ -1,15 +1,11 @@
 """crystod-mag: magnetism analyses.
 
-The default (and currently only) analysis is the former ``crystod
---spin-basis`` mode: symmetry-adapted spin bases (cluster multipoles / SAMM)
-for the sites of a magnetic element (backed by :mod:`crystod.spin_basis`).
-
-Differences from the old flat command:
-
-- per-atom spin directions and the noncollinear magnetization input are
-  printed by default (no ``--show-spin-direction`` needed);
-- ``--format`` selects the input format: ``vasp`` (MAGMOM line, default) or
-  ``qe`` (Quantum ESPRESSO starting_magnetization/angle1/angle2).
+The default (and currently only) analysis is symmetry-adapted spin bases
+(cluster multipoles / SAMM) for the sites of a magnetic element (backed by
+:mod:`crystod.spin_basis`).  Per-atom spin directions and the noncollinear
+magnetization input are printed by default, and ``--format`` selects that
+input's format: ``vasp`` (MAGMOM line, default) or ``qe`` (Quantum ESPRESSO
+starting_magnetization/angle1/angle2).
 """
 
 from __future__ import annotations

@@ -4,8 +4,8 @@ This package hosts the main command and one module per sectioned command
 (phonopy style):
 
 - ``main``    -- ``crystod``: crystal-orbital SALC analysis (the flagship;
-  no mode flag needed), --visualize, --star-of-k. Pre-v0.3.0 flat flags are
-  rejected with an error pointing to the sectioned replacement.
+  no mode flag needed), --visualize, --star-of-k. A flag belonging to a
+  sectioned command is answered with the command that does the job.
 - ``bz``      -- ``crystod-bz``: Brillouin-zone plotting.
 - ``md``      -- ``crystod-md``: MD-trajectory analyses (ADPs as CIF, summary).
 - ``mag``     -- ``crystod-mag``: magnetism analyses (symmetry-adapted spin bases).

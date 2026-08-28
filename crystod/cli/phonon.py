@@ -1,14 +1,13 @@
 """crystod-phonon: phonon analyses.
 
-Merges the former phonon-related flat modes into one sectioned command:
+The phonon modes:
 
-- ``--irreps``     -- phonon irrep labeling (old ``--phonon-irrep``);
-- ``--fatband``    -- element-projected phonon fatbands (old ``--phonon-fatband``);
-- ``--lt``         -- longitudinal/transverse-resolved bands (old ``--phonon-lt``);
-- ``--vector``     -- eigenvector VESTA export (old ``--phonon-vector``);
-- ``--modulation`` -- modulated structures (old ``--modulation``);
-- ``--vibration``  -- symmetry-only vibration bases, no force data
-  (old ``--vibration``);
+- ``--irreps``     -- phonon irrep labeling;
+- ``--fatband``    -- element-projected phonon fatbands;
+- ``--lt``         -- longitudinal/transverse-resolved bands;
+- ``--vector``     -- eigenvector VESTA export;
+- ``--modulation`` -- modulated structures;
+- ``--vibration``  -- symmetry-only vibration bases, no force data;
 - ``--subgroup``   -- isotropy subgroups reachable from the imaginary modes.
 """
 

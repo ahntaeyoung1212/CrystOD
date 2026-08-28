@@ -2,8 +2,8 @@
 
 Modes:
 
-- ``--adp``     -- the former ``crystod --xdatcar2adp``: time-averaged
-  structure and symmetry-constrained atomic displacement parameters (ADPs)
+- ``--adp``     -- time-averaged structure and symmetry-constrained
+  atomic displacement parameters (ADPs)
   from an MD trajectory, written as a CIF file
   (backed by :mod:`crystod.xdatcar_adp`);
 - ``--summary`` -- time-averaged lattice parameters and cell volume of the

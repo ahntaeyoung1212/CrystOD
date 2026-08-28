@@ -1,19 +1,14 @@
 """crystod-group: representation-theory calculator for point and space groups.
 
-Merges the former group-theory flat modes into one sectioned command:
+The representation-theory modes:
 
-- ``--product IRREP...``   -- direct-product decomposition (old ``--direct-product``);
-- ``--table``              -- display the point-group character table
-  (old ``--direct-product --show-irrep-table`` without irreps);
-- ``--decompose``          -- reducible-representation decomposition
-  (old ``--decompose-irrep``);
-- ``--ligand-field ORB``   -- ligand-field splitting of an atomic orbital
-  (old ``--ligand-field-split``);
-- ``--basis FUNC...``      -- classify polynomial basis functions
-  (old ``--basis-function``);
-- ``--generate-basis``     -- auto-generate 1st-3rd order polynomial bases
-  (old ``--generate-basis-function``);
-- ``--coset``              -- coset decompositions (old ``--show-coset``).
+- ``--product IRREP...``   -- direct-product decomposition;
+- ``--table``              -- display the point-group character table;
+- ``--decompose``          -- reducible-representation decomposition;
+- ``--ligand-field ORB``   -- ligand-field splitting of an atomic orbital;
+- ``--basis FUNC...``      -- classify polynomial basis functions;
+- ``--generate-basis``     -- auto-generate 1st-3rd order polynomial bases;
+- ``--coset``              -- coset decompositions.
 
 No structure file is needed: the group is selected with --pg/--point-group or
 --sg/--space-group.
