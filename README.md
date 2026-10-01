@@ -1,7 +1,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/CrystOD)](https://pypi.org/project/CrystOD/)
 [![Python](https://img.shields.io/pypi/pyversions/CrystOD)](https://pypi.org/project/CrystOD/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://github.com/ahntaeyoung1212/CrystOD/actions/workflows/test.yml/badge.svg)](https://github.com/ahntaeyoung1212/CrystOD/actions/workflows/test.yml)
+[![Tests](https://img.shields.io/badge/tests-testsuite.py-blue)](https://mochizuki-tus.github.io/CrystOD/contributing.html#running-the-tests)
 [![Docs](https://img.shields.io/badge/docs-mochizuki--tus.github.io%2FCrystOD-blue)](https://mochizuki-tus.github.io/CrystOD/)
 
 # CrystOD
@@ -22,12 +22,12 @@ fully scriptable, and cross-validated against the reference servers.
 **Documentation: <https://mochizuki-tus.github.io/CrystOD/>**
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ahntaeyoung1212/CrystOD/main/doc/images/hero_crystal_orbital.png" width="45%" alt="Crystal-orbital diagram of ScF3 at the R point: Sc and F3 sublattice levels on the sides, the crystal orbitals with irrep labels in the middle, and the orbital sketch of the selected level" />
-  <img src="https://raw.githubusercontent.com/ahntaeyoung1212/CrystOD/main/doc/images/hero_phonon_irrep.png" width="45%" alt="Phonon dispersion of cubic SrTiO3 with the ISO-IR irrep label of every level at the special k points; the imaginary R5- mode in red" />
+  <img src="https://mochizuki-tus.github.io/CrystOD/_images/hero_crystal_orbital.png" width="45%" alt="Crystal-orbital diagram of ScF3 at the R point: Sc and F3 sublattice levels on the sides, the crystal orbitals with irrep labels in the middle, and the orbital sketch of the selected level" />
+  <img src="https://mochizuki-tus.github.io/CrystOD/_images/hero_phonon_irrep.png" width="45%" alt="Phonon dispersion of cubic SrTiO3 with the ISO-IR irrep label of every level at the special k points; the imaginary R5- mode in red" />
 </p>
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ahntaeyoung1212/CrystOD/main/doc/images/hero_brillouin_zone.png" width="45%" alt="Interactive 3D Brillouin zone of ScF3 with the special k points and the seekpath k path" />
-  <img src="https://raw.githubusercontent.com/ahntaeyoung1212/CrystOD/main/doc/images/hero_mo_diagram.png" width="45%" alt="MO diagram of CH4 from symmetry and overlap, with the 1t2 HOMO selected and its orbital sketch" />
+  <img src="https://mochizuki-tus.github.io/CrystOD/_images/hero_brillouin_zone.png" width="45%" alt="Interactive 3D Brillouin zone of ScF3 with the special k points and the seekpath k path" />
+  <img src="https://mochizuki-tus.github.io/CrystOD/_images/hero_mo_diagram.png" width="45%" alt="MO diagram of CH4 from symmetry and overlap, with the 1t2 HOMO selected and its orbital sketch" />
 </p>
 <p align="center"><em>
 Top row: <code>crystod --diagram -c 221_PPOSCAR_ScF3 --co-left Sc --co-right F3</code> and
