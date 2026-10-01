@@ -203,6 +203,15 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
           + " ".join(f"{element}{diagram.oxidation[element]:+g}"
                      for element in dict.fromkeys(diagram.symbols))
           + f", {int(diagram.electrons)} electrons per cell")
+    # the same Hamiltonian --diagram warns about, so the same caution
+    print("   CAUTION: extended Hueckel is non-self-consistent -- the "
+          "symmetry (irrep labels,\n"
+          "   which states may mix) is rigorous, but the level ORDER can be "
+          "qualitatively\n"
+          "   wrong and takes the compositions with it; cross-check with "
+          "--visualize --pyscf\n"
+          "   wherever PySCF runs (see 'crystod --help' for --basis element "
+          "coverage).")
 
     kpoints = diagram.special_kpoints()
     records = []

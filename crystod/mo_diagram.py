@@ -49,8 +49,13 @@ from .molecular_salc import (
 
 WOLFSBERG_HELMHOLZ_K = 1.75
 
-# Standard extended-Hueckel valence parameters (Hoffmann and successors):
-# element -> list of (shell label, n, l, Slater exponent zeta, H_ii in eV).
+#: Standard extended-Hueckel valence parameters (Hoffmann and successors):
+#: element -> list of ``(shell, n, l, zeta, H_ii)`` tuples, one per valence
+#: shell, with the shell label (``"2s"``, ``"3d"``, ...), the principal and
+#: azimuthal quantum numbers, the Slater exponent ``zeta`` in 1/bohr (a single
+#: value, or a list of ``(zeta, coefficient)`` pairs for the double-zeta d and
+#: f shells) and the diagonal energy ``H_ii`` (valence-state ionization energy)
+#: in eV. The keys are the elements ``build_basis`` accepts.
 EHT_PARAMETERS = {
     "H":  [("1s", 1, 0, 1.300, -13.6)],
     "Li": [("2s", 2, 0, 0.650, -5.4), ("2p", 2, 1, 0.650, -3.5)],
@@ -326,6 +331,29 @@ def sto_overlap_contracted(n1, l1, zeta1, n2, l2, zeta2, R, m) -> float:
 
 @dataclass
 class AtomicOrbital:
+    """One real valence atomic orbital of the extended-Hueckel basis.
+
+    ``build_basis`` creates one instance per (site, shell, m) from
+    ``EHT_PARAMETERS``; the list of instances indexes the rows and columns of
+    the matrices returned by ``overlap_matrix`` and ``hamiltonian_matrix``.
+
+    Attributes:
+        atom: Site index of the orbital's atom in the molecule.
+        element: Element symbol of that atom.
+        shell: Shell label, e.g. ``"1s"``, ``"2p"``, ``"3d"``.
+        n: Principal quantum number of the Slater-type orbital.
+        l: Azimuthal quantum number (0 = s, 1 = p, 2 = d, 3 = f).
+        m: Index of the real orbital component within the shell: 0 for s,
+            the position in ``px, py, pz`` for p, in
+            ``dxy, dyz, dz2, dxz, dx2-y2`` for d and in
+            ``fx(x2-3y2), fy(3x2-y2), fz(x2-y2), fxyz, fxz2, fyz2, fz3`` for f
+            (the ``wigner_D_real`` component order).
+        zeta: Slater exponent in 1/bohr (a single value, or a list of
+            ``(zeta, coefficient)`` pairs for a double-zeta d or f shell).
+        h_ii: Diagonal Hamiltonian element (valence-state ionization energy)
+            in eV.
+    """
+
     atom: int          # site index in the molecule
     element: str
     shell: str         # e.g. "2s", "2p"
@@ -337,6 +365,7 @@ class AtomicOrbital:
 
     @property
     def orbital_label(self) -> str:
+        """Label of the real orbital, e.g. ``"2s"``, ``"2px"``, ``"3dz2"``."""
         if self.l == 0:
             return self.shell
         if self.l == 1:
@@ -347,6 +376,32 @@ class AtomicOrbital:
 
 
 def build_basis(symbols: list[str], site_indices: list[int]) -> list[AtomicOrbital]:
+    """Assemble the extended-Hueckel valence AO basis of a set of atoms.
+
+    For every selected site, every valence shell of its element listed in
+    ``EHT_PARAMETERS`` contributes its ``2 l + 1`` real orbitals, in the order
+    of the table and of the ``wigner_D_real`` components. This is the AO space
+    of ``MODiagram`` and ``EhtFragmentDiagram`` (all atoms of the molecule).
+
+    Args:
+        symbols: Element symbol of every atom of the molecule.
+        site_indices: Indices into ``symbols`` of the atoms to include (a
+            fragment, or ``range(len(symbols))`` for the whole molecule).
+
+    Returns:
+        List of ``AtomicOrbital`` objects; its order is the AO index used by
+        ``overlap_matrix`` and ``hamiltonian_matrix``.
+
+    Raises:
+        SystemExit: An element has no extended-Hueckel parameters; the message
+            lists the supported elements (``ValueError`` when called through
+            ``crystod.mol``).
+
+    Example:
+        >>> from crystod import mol
+        >>> [ao.orbital_label for ao in mol.build_basis(["N", "H"], [0, 1])]
+        ['2s', '2px', '2py', '2pz', '1s']
+    """
     orbitals = []
     for i in site_indices:
         element = symbols[i]
@@ -441,7 +496,31 @@ def pair_overlap(a: AtomicOrbital, b: AtomicOrbital, vector: np.ndarray,
 
 
 def overlap_matrix(orbitals: list[AtomicOrbital], coordinates: np.ndarray) -> np.ndarray:
-    """AO overlap matrix (Slater-Koster assembly of the aligned integrals)."""
+    """AO overlap matrix S of an extended-Hueckel basis.
+
+    Every two-center overlap between Slater-type orbitals (single-zeta, or
+    the contracted double-zeta d and f shells) is evaluated exactly by
+    numerical quadrature in prolate-spheroidal coordinates for the aligned
+    sigma/pi/delta/phi channels and assembled for the actual bond direction
+    by Slater-Koster rotation (``wigner_D_real``), so ligand-ligand overlaps
+    are never neglected. Orbitals on the same atom are orthonormal.
+
+    Args:
+        orbitals: AO basis from ``build_basis``.
+        coordinates: ``(n_atoms, 3)`` Cartesian coordinates in Angstrom,
+            indexed by ``AtomicOrbital.atom``.
+
+    Returns:
+        Symmetric ``(n_ao, n_ao)`` array with unit diagonal.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import mol
+        >>> orbitals = mol.build_basis(["H", "H"], [0, 1])
+        >>> S = mol.overlap_matrix(orbitals, np.array([[0, 0, 0], [0, 0, 0.74]]))
+        >>> print(f"{S[0, 1]:.4f}")
+        0.6364
+    """
     n_ao = len(orbitals)
     S = np.eye(n_ao)
     aligned = make_aligned_cache()
@@ -457,6 +536,31 @@ def overlap_matrix(orbitals: list[AtomicOrbital], coordinates: np.ndarray) -> np
 
 
 def hamiltonian_matrix(orbitals: list[AtomicOrbital], S: np.ndarray) -> np.ndarray:
+    """Extended-Hueckel Hamiltonian from the overlap matrix.
+
+    The Wolfsberg-Helmholz prescription: the diagonal ``H_ii`` is the
+    valence-state ionization energy of the orbital and the off-diagonal
+    ``H_ij = K S_ij (H_ii + H_jj) / 2`` with ``K = 1.75``
+    (``WOLFSBERG_HELMHOLZ_K``), so a large overlap integral produces a large
+    bonding/antibonding splitting. ``H`` and ``S`` define the generalized
+    eigenproblem ``H C = S C E`` solved by the MO diagrams.
+
+    Args:
+        orbitals: AO basis from ``build_basis`` (supplies ``H_ii``).
+        S: Overlap matrix of the same basis from ``overlap_matrix``.
+
+    Returns:
+        Symmetric ``(n_ao, n_ao)`` array in eV.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import mol
+        >>> orbitals = mol.build_basis(["H", "H"], [0, 1])
+        >>> S = mol.overlap_matrix(orbitals, np.array([[0, 0, 0], [0, 0, 0.74]]))
+        >>> H = mol.hamiltonian_matrix(orbitals, S)
+        >>> print(f"{H[0, 0]:.1f} {H[0, 1]:.3f}")
+        -13.6 -15.146
+    """
     h = np.array([orbital.h_ii for orbital in orbitals])
     H = 0.5 * WOLFSBERG_HELMHOLZ_K * (h[:, None] + h[None, :]) * S
     np.fill_diagonal(H, h)
@@ -537,7 +641,94 @@ def lowercase_irrep(name: str) -> str:
 
 
 class MODiagram:
-    """Symmetry + overlap MO diagram of a single-center molecule."""
+    """Symmetry-adapted extended-Hueckel MO diagram of a single-center molecule.
+
+    The engine behind ``crystod-mol --diagram`` (without ``--pyscf`` and
+    without ``--ao-left/--ao-right``). Constructing the object runs the whole
+    analysis: the point group is detected and the molecule rotated into the
+    standard point-group frame; the central atom and the ligand sites are
+    identified; the ligand orbitals of every shell are symmetry-adapted per
+    irrep (``project_salcs``); the extended-Hueckel matrices of the full
+    valence basis are built (``build_basis``, ``overlap_matrix``,
+    ``hamiltonian_matrix``); and the generalized eigenproblem is solved irrep
+    by irrep, first for the ligand cage alone (the SALC levels) and then for
+    the ligand SALCs together with the central-atom orbitals (the molecular
+    orbitals). The electrons are filled in, the MOs are numbered in the
+    photoelectron convention (core shells counted, e.g. ``2a1`` and ``1t2``
+    for CH4) and given a COOP bonding character. ``print_report`` writes the
+    text report and ``write_html`` the interactive four-column diagram
+    (ligand AOs, ligand SALCs, MOs, central-atom AOs).
+
+    Args:
+        xyz_path: Path of the molecule file in XYZ format.
+        tolerance: Distance tolerance in Angstrom for the symmetry detection
+            (``--tolerance``).
+        center_element: Element of the central atom (``--center``); by
+            default the atom closest to the molecular center, which must be
+            unambiguous.
+
+    Attributes:
+        xyz_path: The molecule file as given.
+        formula: Conventional formula, central atom first (``"NH3"``,
+            ``"SF6"``; the group-16 hydrides as ``"H2O"``).
+        schoenflies: Schoenflies symbol of the point group (``"C3v"``).
+        hm: Hermann-Mauguin symbol of the point group (``"3m"``).
+        character_table: Character table of the point group, in the format
+            of ``crystod.group.get_character_table``.
+        operations: Rotation matrices of the group in the standard frame.
+        operation_classes: Class label of every entry of ``operations``.
+        symbols: Element symbol of every atom.
+        coordinates: ``(n_atoms, 3)`` Cartesian coordinates in Angstrom, in
+            the standard point-group frame and symmetrized over the group.
+        center: Site index of the central atom.
+        ligand_sites: Site indices of the ligand atoms, per element.
+        orbitals: The valence AO basis as a list of ``AtomicOrbital``.
+        ao_index: Map from ``(atom, shell, m)`` to the index in ``orbitals``.
+        S: AO overlap matrix.
+        H: Extended-Hueckel Hamiltonian in eV.
+        n_electrons: Number of valence electrons.
+        fragment_shells: ``FragmentShell`` records, one per shell of the
+            central atom and of each ligand element, holding the SALCs of
+            that shell per irrep as AO-space vectors.
+        mo_levels: Molecular-orbital ``Level`` objects, energy ascending.
+            Each has ``energy`` (eV), ``degeneracy``, ``irrep``, ``label``
+            (``"3a1"``), ``electrons``, ``composition`` (pairs of a level id
+            and its weight, over the SALC and central-AO levels),
+            ``vectors`` (AO-space coefficients), ``bond_character``
+            (``"bonding"``, ``"nonbonding"`` or ``"antibonding"``) and
+            ``overlap_population``.
+        salc_levels: Ligand SALC ``Level`` objects (the second column).
+        center_levels: Central-atom AO levels (the fourth column).
+        ligand_ao_levels: Isolated ligand AO levels (the first column).
+        levels: All levels keyed by ``("ligand-ao", element, shell)``,
+            ``("center-ao", shell)`` and ``("mo", level_id)``.
+        irrep_blocks: Per-irrep report data (SALC levels, central shells,
+            SALC to central-AO overlap integrals, MO groups).
+        core_counts: Number of core levels per irrep, counted in the MO
+            numbering.
+        core_summary: Text lines describing those core shells
+            (``"N 1s -> a1"``).
+        homo: Highest occupied ``Level`` (``None`` if none is occupied).
+        lumo: Lowest unoccupied ``Level`` (``None`` if all are occupied).
+
+    Raises:
+        SystemExit: The file is missing, the point group is not one of the 32
+            crystallographic groups (linear molecules), no unique central
+            atom can be identified, or an element has no extended-Hueckel
+            parameters.
+
+    Example:
+        >>> from crystod import mol
+        >>> from crystod.examples import example_path
+        >>> diagram = mol.MODiagram(example_path("XYZ_NH3.xyz"))
+        >>> diagram.formula, diagram.schoenflies, diagram.n_electrons
+        ('NH3', 'C3v', 8)
+        >>> [(level.label, level.electrons) for level in diagram.mo_levels]
+        [('2a1', 2), ('1e', 4), ('3a1', 2), ('2e', 0), ('4a1', 0)]
+        >>> diagram.homo.label, diagram.lumo.label
+        ('3a1', '2e')
+        >>> diagram.write_html("MolOD_NH3.html")
+    """
 
     def __init__(self, xyz_path: str, tolerance: float = 0.3,
                  center_element: str | None = None):
@@ -981,6 +1172,14 @@ class MODiagram:
     # ------------------------------------------------------------- reporting
 
     def print_report(self) -> None:
+        """Print the text report of ``crystod-mol --diagram`` to stdout.
+
+        Sections: molecule and point group, fragments, the extended-Hueckel
+        AO parameters, the ligand SALCs per irrep, the ligand SALC to central
+        AO overlap integrals, the molecular orbitals (energy, occupation,
+        composition), the electron filling with HOMO, LUMO and gap, and the
+        method references.
+        """
         table = self.character_table
         print("\n* Molecule *")
         print(f"{self.xyz_path} ({self.formula}, {len(self.symbols)} atoms)")
@@ -1081,6 +1280,17 @@ class MODiagram:
     # ---------------------------------------------------------- HTML diagram
 
     def write_html(self, output_path: str) -> None:
+        """Write the interactive HTML/SVG diagram.
+
+        Four columns (isolated ligand AOs, ligand SALCs, MOs, central-atom
+        AOs) with dashed correlation lines, electron arrows, HOMO/LUMO marks,
+        an adjustable energy window, per-level details on hover and the
+        orbital sketch viewer; the page is self-contained.
+
+        Args:
+            output_path: Path of the HTML file to write (``crystod-mol`` uses
+                ``MolOD_{molecule}.html`` by default).
+        """
         write_diagram_html(self, output_path)
 
 
@@ -1298,6 +1508,17 @@ function show(id) {
     html += '<div class="cname">' + name + ' — ' + pct + '%</div>';
     html += '<div class="bar" style="width:' + Math.max(3, 2.1 * pct) + 'px"></div>';
   }
+  // the connector weights and the fragment shares / bond reason used to live
+  // only in the SVG <title>, which needs a one-second hover
+  if (d.links && d.links.length) {
+    const parts = d.links
+      .filter(l => byId[l[0]])
+      .slice().sort((a, b) => b[1] - a[1])
+      .map(l => byId[l[0]].label + ' ' + (100 * l[1]).toFixed(1) + '%');
+    if (parts.length) html += '<div class="note"><b>made of</b> ' +
+                              parts.join(' &middot; ') + '</div>';
+  }
+  if (d.note) html += '<div class="note">' + d.note + '</div>';
   if (d.orb && GEOM) {
     if (sketchLevel !== id) sketchPartner = 0;
     html += '<div id="onav"></div>';
@@ -1567,8 +1788,11 @@ function render() {
       const g = el('g', {'class': 'lvl', tabindex: 0});
       g.dataset.id = level.id;
       let css = level.el !== null ? (level.occ ? 'occ' : 'virt') : 'frag';
-      // bonding-character coloring (crystal-orbital diagrams with --pyscf):
-      // blue = bonding, black = nonbonding, red = antibonding
+      // bonding-character coloring (crystal-orbital diagrams with --pyscf /
+      // --vasp): blue = bonding, black = nonbonding, red = antibonding.
+      // 'u' means the engine could not classify the level; it must NOT keep
+      // the occupied column's blue, which is the bonding colour, so the
+      // bond-u rule paints it neutral grey.
       if (level.bond) css += ' bond-' + level.bond;
       segments(level).forEach(([x1, x2], k) => {
         const seg = el('line', {x1: x1, y1: y, x2: x2, y2: y, 'class': 'seg ' + css});
@@ -1594,13 +1818,25 @@ function render() {
       const title = el('title', {});
       title.textContent = level.detail;
       g.appendChild(title);
-      if (level.id === CFG.homo || level.id === CFG.lumo)
-        g.appendChild(el('text', {x: lx + 40, y: ly + 4, 'class': 'hl'},
-                         level.id === CFG.homo ? 'HOMO' : 'LUMO'));
+      let badge = null;
+      if (level.id === CFG.homo || level.id === CFG.lumo) {
+        badge = el('text', {x: lx + side * 44, y: ly + 4, 'class': 'hl',
+                            'text-anchor': side > 0 ? 'start' : 'end'},
+                   level.id === CFG.homo ? 'HOMO' : 'LUMO');
+        g.appendChild(badge);
+      }
       g.addEventListener('mouseenter', () => { highlight(level.id, true); show(level.id); });
       g.addEventListener('mouseleave', () => highlight(level.id, false));
       g.addEventListener('click', () => show(level.id));
       gLvl.appendChild(g);
+      // the badge goes AFTER the label, measured -- a fixed offset printed
+      // "GM5+ #LUMO" across labels of the "GM5+ #1" length.  Measuring only
+      // works once the text is in the rendered tree, hence after the append.
+      if (badge) {
+        let w = 0;
+        try { w = text.getComputedTextLength(); } catch (e) { }
+        if (w > 0) badge.setAttribute('x', lx + side * (w + 8));
+      }
     });
   });
 }
@@ -1716,6 +1952,7 @@ def render_diagram_page(
     foot_html: str,
     geometry: dict | None = None,
     variants: list[dict] | None = None,
+    axis_title: str = "E (eV)",
 ) -> None:
     """Write the standalone interactive MO-diagram page.
 
@@ -1808,6 +2045,8 @@ def render_diagram_page(
  .obtn.sel {{ background: #1565c0; color: #fff; border-color: #1565c0; }}
  .bar {{ height: 8px; background: #90caf9; border-radius: 3px; margin: 1px 0 5px; }}
  .cname {{ font-size: 12.2px; }}
+ .note {{ font-size: 11.5px; color: #455a64; margin-top: 7px;
+          white-space: pre-line; line-height: 1.35; }}
  .axis {{ stroke: #555; stroke-width: 1; }}
  .grid {{ stroke: #000; stroke-opacity: 0.045; }}
  .tick {{ font-size: 11px; fill: #555; }}
@@ -1820,6 +2059,7 @@ def render_diagram_page(
  .seg.bond-b {{ stroke: #1565c0; }}
  .seg.bond-n {{ stroke: #333333; }}
  .seg.bond-a {{ stroke: #d32f2f; }}
+ .seg.bond-u {{ stroke: #9e9e9e; }}
  .con {{ stroke: #888; stroke-width: 1; stroke-dasharray: 5 4; }}
  .con.hi {{ stroke: #e65100; stroke-width: 1.6; opacity: 0.95 !important; }}
  .con.dim {{ opacity: 0.06 !important; }}
@@ -1853,7 +2093,7 @@ def render_diagram_page(
 <line x1="{left - 8}" y1="{top - 14}" x2="{left - 8}" y2="{top + plot_height + 6}" class="axis"/>
 <text x="{left - 44}" y="{top + plot_height / 2:.1f}" class="axistitle"
  transform="rotate(-90 {left - 44} {top + plot_height / 2:.1f})"
- text-anchor="middle">E (eV)</text>
+ text-anchor="middle">{axis_title}</text>
 <g id="gGrid"></g>
 <g id="gCon" clip-path="url(#plotclip)"></g>
 <g id="gLvl" clip-path="url(#plotclip)"></g>

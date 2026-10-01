@@ -73,7 +73,7 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
-def similarity_transformation(rot: NDArray[np.float_], mat: NDArray[np.float_]) -> NDArray[np.float_]:
+def similarity_transformation(rot: NDArray[np.float64], mat: NDArray[np.float64]) -> NDArray[np.float64]:
     """Similarity transformation by R x M x R^-1."""
     return rot @ mat @ np.linalg.inv(rot)
 
@@ -129,8 +129,8 @@ class CrystalOrbital:
     def _sort_symmetry_operations_in_order_of_irt(
         self,
         spglib_R: NDArray[np.int_],
-        spglib_t: NDArray[np.float_],
-    ) -> tuple[NDArray[np.int_], NDArray[np.float_]]:
+        spglib_t: NDArray[np.float64],
+    ) -> tuple[NDArray[np.int_], NDArray[np.float64]]:
         """Sort symmetry operations found by spglib in the ISO-IR table order."""
         irt_conv_R = np.array([sym.R for sym in self.irt_character_table.symmetries], dtype=float)
         irt_prim_R = similarity_transformation(np.linalg.inv(self.transformation_matrix), irt_conv_R)
@@ -429,7 +429,7 @@ class CrystalOrbital:
 
     def get_modified_permutation_rep(self, 
                                      r: NDArray[np.int_], 
-                                     t: NDArray[np.float_], 
+                                     t: NDArray[np.float64], 
                                      k: list[float, float, float]
                                      ) -> NDArray[np.complex128]:
         """Get permutation matrix at the k point"""
@@ -451,7 +451,7 @@ class CrystalOrbital:
                                   little_rotations,
                                   little_translations,
                                   k: list[float]
-                                  ) -> tuple[NDArray[np.int_], NDArray[np.float_], NDArray[np.complex128]]:
+                                  ) -> tuple[NDArray[np.int_], NDArray[np.float64], NDArray[np.complex128]]:
         """Get permutation matrices at given k point.
         
         Parameter
@@ -464,7 +464,7 @@ class CrystalOrbital:
         -------
         little_rotations: NDArray[np.int_]
             Rotations in primitive basis at k.
-        little_translations: NDArray[np.float_]
+        little_translations: NDArray[np.float64]
             Translations in primitive basis at k.
         permutation_matrices: NDArray[np.complex128]
             Permutation matrices of symmetry operations at k.

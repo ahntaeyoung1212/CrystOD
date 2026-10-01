@@ -103,11 +103,40 @@ def format_qpoint(q, decimals: int = 6) -> list[float]:
 
 
 def get_irt_special_points(irt_table, prim_mat) -> tuple[list[str], list[list[float]]]:
-    """Get unique special q-points from the ISO-IR tables in primitive basis.
+    """Unique special q points of the ISO-IR tables, in the primitive basis.
 
+    The ISO-IR tables list their irreps per special k point in the
+    conventional reciprocal basis; this collects the distinct points, converts
+    them to the primitive basis of the phonopy object, and returns them in
+    table order. ``crystod-phonon --irreps`` surveys exactly these points.
     Coordinates are snapped to exact fractions (1/3 stays 1/3, not 0.333333):
-    decimal-rounded values break the little-group detection and ISO-IR table
-    lookups downstream.
+    decimal-rounded values break the little-group detection and the ISO-IR
+    table lookups downstream.
+
+    Args:
+        irt_table: ISO-IR irrep table of the space group, i.e.
+            ``IrrepTable(number, spinor=False)`` with ``IrrepTable`` from
+            ``crystod.irreptables_compat.load_irreptables()``.
+        prim_mat: Conventional-to-primitive matrix of the centring, e.g.
+            ``phonopy.structure.cells.get_primitive_matrix_by_centring("P")``.
+
+    Returns:
+        ``(q_names, q_list)``: the k-point labels (``"GM"``, ``"R"``, ...) and
+        their fractional coordinates in the primitive reciprocal basis, in the
+        order of the tables (Gamma first).
+
+    Example:
+        >>> from phonopy.structure.cells import get_primitive_matrix_by_centring
+        >>> from crystod import phonon
+        >>> from crystod.irreptables_compat import load_irreptables
+        >>> IrrepTable, _ = load_irreptables()
+        >>> table = IrrepTable(221, spinor=False)          # Pm-3m
+        >>> prim_mat = get_primitive_matrix_by_centring("P")
+        >>> names, points = phonon.get_irt_special_points(table, prim_mat)
+        >>> names
+        ['GM', 'R', 'X', 'M']
+        >>> points[1]
+        [0.5, 0.5, 0.5]
     """
     q_list = []
     q_names = []
@@ -125,14 +154,39 @@ def find_star_representative(
     q_names: list[str],
     q_list: list[list[float]],
 ) -> tuple[str, list[float]] | None:
-    """Map q onto the tabulated arm of its star.
+    """Map a q point onto the tabulated arm of its star.
 
-    The ISO-IR tables list only one representative arm per special point (e.g. only
-    (1/2, 1/2, 0) for the three M arms of Pm-3m), so a direct coordinate lookup
-    fails for the other arms. Returns (label, representative q) when some
-    space-group rotation sends q onto a tabulated point (k' = k R, modulo
-    reciprocal-lattice translations); None otherwise. ``rotations`` must be in
-    the same (primitive) basis as q and the tabulated points.
+    The ISO-IR tables list only one representative arm per special point
+    (e.g. only (1/2, 1/2, 0) for the three M arms of Pm-3m), so a direct
+    coordinate lookup fails for the other arms. Some space-group rotation R
+    sends q onto a tabulated point when ``q @ R`` equals it modulo
+    reciprocal-lattice translations; the spectra of star arms coincide band by
+    band, so the labels read at the representative apply to the modes at q.
+    This is how ``crystod-phonon --irreps``/``--vector`` and
+    :func:`label_phonon_modes` label a non-representative arm.
+
+    Args:
+        qpoint: Fractional coordinates of q in the primitive reciprocal basis.
+        rotations: Rotation parts of the space-group operations, shape
+            ``(n_ops, 3, 3)``, in the same (primitive) basis as ``qpoint`` and
+            the tabulated points.
+        q_names: Labels of the tabulated special points.
+        q_list: Their coordinates, as returned by
+            :func:`get_irt_special_points`.
+
+    Returns:
+        ``(label, representative_q)`` for the first tabulated point some
+        rotation maps q onto, or ``None`` when q lies in no tabulated star.
+
+    Example:
+        >>> from crystod import phonon
+        >>> from crystod.runtime_compat import get_symmetry_dataset
+        >>> names = ["GM", "R", "X", "M"]
+        >>> points = [[0, 0, 0], [0.5, 0.5, 0.5], [0, 0.5, 0], [0.5, 0.5, 0]]
+        >>> # ph: a phonopy.Phonopy object of cubic SrTiO3 (Pm-3m)
+        >>> rotations = get_symmetry_dataset(ph.primitive_symmetry)["rotations"]
+        >>> phonon.find_star_representative([0.5, 0, 0], rotations, names, points)
+        ('X', [0, 0.5, 0])
     """
     qpoint = np.asarray(qpoint, dtype=float)
     for name, q_special in zip(q_names, q_list):
@@ -217,7 +271,53 @@ def get_irrep_labels(
     prim_mat,
     degeneracy_tolerance: float,
 ) -> tuple[list[list[str] | None], list[list[int]], NDArray[np.float64]]:
-    """Get irrep labels, band indices, and frequencies at q."""
+    """Irrep labels, band indices, and frequencies of the phonon modes at q.
+
+    The labeling step of ``crystod-phonon --irreps``: phonopy's character
+    analysis (``Phonopy.set_irreps``) groups the bands at q into degenerate
+    sets and computes their characters, and each set is matched against the
+    ISO-IR small irreps of q by character overlap (a set is labeled when the
+    overlap exceeds 0.9). A q point outside the special-point table (a
+    symmetry line or plane, a generic q) is decomposed against the full ISO-IR
+    (ISOTROPY) tables instead, with Miller-Love labels. For a
+    non-representative arm of a star, map q onto the tabulated arm with
+    :func:`find_star_representative` first; :func:`label_phonon_modes` does
+    both steps in one call.
+
+    Args:
+        q: Fractional coordinates of q in the primitive reciprocal basis, as
+            tabulated (the representative arm of its star).
+        phonon: A ``phonopy.Phonopy`` object with force constants, built with
+            ``primitive_matrix="auto"``.
+        irt_table: ISO-IR irrep table of the space group (see
+            :func:`get_irt_special_points`).
+        prim_mat: Conventional-to-primitive matrix of the centring.
+        degeneracy_tolerance: Frequency tolerance (THz) within which bands
+            count as degenerate; ``--tolerance`` of ``crystod-phonon --irreps``
+            (default 1e-3).
+
+    Returns:
+        ``(labels, band_indices, frequencies)``: one entry of ``labels`` per
+        degenerate set, each a list of ``"R4+(3)"``-style labels (the irrep
+        name with its dimension) or ``None`` when no tabulated irrep matched;
+        ``band_indices`` the 0-based band indices of each set; and
+        ``frequencies`` the THz frequencies of all bands at q.
+
+    Raises:
+        ValueError: If the q point can be labeled from neither table.
+
+    Example:
+        >>> from phonopy.structure.cells import get_primitive_matrix_by_centring
+        >>> from crystod import phonon
+        >>> from crystod.irreptables_compat import load_irreptables
+        >>> IrrepTable, _ = load_irreptables()
+        >>> table = IrrepTable(221, spinor=False)          # ph: cubic SrTiO3
+        >>> prim_mat = get_primitive_matrix_by_centring("P")
+        >>> labels, bands, freqs = phonon.get_irrep_labels(
+        ...     [0.5, 0.5, 0.5], ph, table, prim_mat, 1e-3)
+        >>> labels[0], bands[0], round(float(freqs[0]), 4)
+        (['R5-(3)'], [0, 1, 2], -1.0867)
+    """
     phonon.set_irreps(q=np.array(q), degeneracy_tolerance=degeneracy_tolerance)
     phonon_irreps = phonon.irreps
     irt_irreps = get_irt_irreps_at_q(np.array(q), irt_table, prim_mat, warn=False)

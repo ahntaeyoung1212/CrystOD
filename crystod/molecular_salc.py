@@ -29,7 +29,12 @@ from .decompose_irrep import decompose, get_character_table
 from .ligand_field import ORBITAL_AZIMUTHAL_NUMBER, get_orbital_characters
 from .operations import wigner_D_real
 
-# Schoenflies -> Hermann-Mauguin for the 32 crystallographic point groups.
+#: Schoenflies -> Hermann-Mauguin symbol for the 32 crystallographic point
+#: groups (``"C3v" -> "3m"``, ``"Td" -> "-43m"``; ``"S6"`` and ``"C3i"`` both
+#: give ``"-3"``). The Hermann-Mauguin symbol is the key of the point-group
+#: character tables shared with ``crystod-group``. A Schoenflies symbol that
+#: is not a key (``D*h`` of a linear molecule, ``C5v``, ``Ih``, ...) has no
+#: SALC or MO-diagram support.
 SCHOENFLIES_TO_HM = {
     "C1": "1", "Ci": "-1", "C2": "2", "Cs": "m", "C2h": "2/m",
     "D2": "222", "C2v": "mm2", "D2h": "mmm",
@@ -95,6 +100,31 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def load_molecule(path: str):
+    """Read a molecule from an XYZ file and center it at its center of mass.
+
+    First step of every ``crystod-mol`` run (the ``--xyz FILE`` argument).
+    The molecule is returned as a pymatgen ``Molecule`` translated so that its
+    center of mass is at the origin, the frame in which the point-group
+    detection and the SALC projection work.
+
+    Args:
+        path: Path of the molecule file in XYZ format (a string or any
+            path-like object).
+
+    Returns:
+        pymatgen ``Molecule`` centered at its center of mass.
+
+    Raises:
+        SystemExit: The file does not exist, or pymatgen is not installed
+            (``ValueError`` when called through ``crystod.mol``).
+
+    Example:
+        >>> from crystod import mol
+        >>> from crystod.examples import example_path
+        >>> molecule = mol.load_molecule(example_path("XYZ_NH3.xyz"))
+        >>> molecule.composition.reduced_formula, len(molecule)
+        ('H3N', 4)
+    """
     if not os.path.isfile(path):
         raise SystemExit(f"ERROR: molecule file not found: {path}")
     try:
@@ -107,7 +137,33 @@ def load_molecule(path: str):
 
 
 def get_symmetry(molecule, tolerance: float):
-    """Return (schoenflies_symbol, unique symmetry operations)."""
+    """Detect the point group of a molecule and collect its symmetry operations.
+
+    The ``crystod-mol --symmetry`` analysis: pymatgen's ``PointGroupAnalyzer``
+    finds the point group (the molecular analogue of ``phonopy --symmetry``
+    for crystals), and the rotation matrices of the operations it reports are
+    deduplicated so that every group element appears once. The matrices act
+    on Cartesian coordinates in the frame of ``molecule``, not yet in the
+    standard orientation of the character tables.
+
+    Args:
+        molecule: pymatgen ``Molecule``, e.g. from ``load_molecule``.
+        tolerance: Distance tolerance in Angstrom for the symmetry detection
+            (``--tolerance``; 0.3 is pymatgen's default).
+
+    Returns:
+        Tuple ``(schoenflies, operations)`` of the Schoenflies symbol as a
+        string (``"C3v"``, ``"Td"``, ``"D*h"`` for a linear molecule, ...)
+        and the list of unique 3x3 rotation matrices (``numpy.ndarray``).
+
+    Example:
+        >>> from crystod import mol
+        >>> from crystod.examples import example_path
+        >>> molecule = mol.load_molecule(example_path("XYZ_NH3.xyz"))
+        >>> schoenflies, operations = mol.get_symmetry(molecule, 0.3)
+        >>> schoenflies, len(operations), mol.SCHOENFLIES_TO_HM[schoenflies]
+        ('C3v', 6, '3m')
+    """
     from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 
     analyzer = PointGroupAnalyzer(molecule, tolerance=tolerance)
@@ -256,8 +312,43 @@ def _match_operations(mol_ops, table_ops, class_labels):
 
 
 def get_permutation_matrices(operations, coordinates, tolerance: float):
-    """Permutation matrix P(g) of every operation on the given sites
-    (P[i, j] = 1 when g maps site j onto site i)."""
+    """Site-permutation matrix of every symmetry operation on a set of sites.
+
+    Builds the permutation representation of the selected sites (the
+    ``--element`` sites of ``crystod-mol``; ``--show-matrix`` prints it):
+    ``P[i, j] = 1`` when the operation maps site ``j`` onto site ``i``. The
+    traces are the characters ``chi(perm)`` of the reducible representation,
+    and the matrices are the site factor of the permutation x orbital
+    representation reduced by ``project_salcs``.
+
+    Args:
+        operations: Rotation matrices (3x3 arrays) acting on the Cartesian
+            coordinates, e.g. from ``get_symmetry``.
+        coordinates: ``(n_sites, 3)`` Cartesian coordinates of the sites, in
+            the same frame as ``operations``.
+        tolerance: Largest distance in Angstrom between a mapped site and the
+            site it is identified with.
+
+    Returns:
+        List of ``(n_sites, n_sites)`` permutation matrices, one per operation
+        and in the same order.
+
+    Raises:
+        SystemExit: An operation does not map the sites onto themselves within
+            ``tolerance``, or the mapping is not one-to-one (``ValueError``
+            when called through ``crystod.mol``).
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import mol
+        >>> c4 = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])
+        >>> square = np.array([[1, 0, 0], [0, 1, 0], [-1, 0, 0], [0, -1, 0]], float)
+        >>> mol.get_permutation_matrices([c4], square, 0.1)[0].astype(int)
+        array([[0, 0, 0, 1],
+               [1, 0, 0, 0],
+               [0, 1, 0, 0],
+               [0, 0, 1, 0]])
+    """
     matrices = []
     for rotation in operations:
         mapped = coordinates @ rotation.T
@@ -324,7 +415,70 @@ def _rref_orthogonal(rows, tol=1e-8):
 
 
 def project_salcs(operations, operation_classes, permutations, azimuthal, character_table):
-    """Explicit SALCs of the permutation x orbital representation per irrep."""
+    """Project the explicit SALCs of one orbital shell out of the site basis.
+
+    The core of the ``crystod-mol --element/--orbital`` analysis (and of the
+    ligand SALCs of ``MODiagram``). The representation
+    ``Gamma(g) = P(g) (x) D(g)`` of the site permutations times the real
+    orbital Wigner-D matrices of angular momentum l is reduced with the
+    projection operator of every irrep of the character table,
+    ``(d/h) sum_g chi(g) Gamma(g)`` with real characters ``chi``; the
+    eigenvectors of eigenvalue one of each projector are returned in a
+    canonical orthonormal form (reduced row echelon form followed by
+    Gram-Schmidt), so the coefficients are the small integers of the
+    textbooks whenever such a form exists.
+
+    The operations must be given in the frame of the character table (the
+    standard point-group orientation) so that ``operation_classes`` can name
+    the class of every one of them; ``crystod-mol`` matches the detected
+    operations onto the table and rotates the molecule (``--align``) or the
+    operations before calling this function.
+
+    Args:
+        operations: Rotation matrices (3x3 arrays), one per group element.
+        operation_classes: Class label of every operation (``"E"``, ``"C3"``,
+            ``"sgv"``, ...), keys of the character table, parallel to
+            ``operations``.
+        permutations: Site-permutation matrices from
+            ``get_permutation_matrices``, parallel to ``operations``.
+        azimuthal: Azimuthal quantum number l of the orbital shell (0 = s,
+            1 = p, 2 = d, 3 = f).
+        character_table: Point-group character table as returned by
+            ``crystod.group.get_character_table`` (Hermann-Mauguin key).
+
+    Returns:
+        Dict mapping each irrep label (``"A1"``, ``"E"``, ``"T2"``, ...) to the
+        list of its SALC vectors; an irrep that does not occur is absent. Each
+        vector has ``n_sites * (2 l + 1)`` components in site-major order
+        (all orbital components of site 1, then of site 2, ...), the orbital
+        components ordered ``px, py, pz`` for p,
+        ``dxy, dyz, dz2, dxz, dx2-y2`` for d and
+        ``fx(x2-3y2), fy(3x2-y2), fz(x2-y2), fxyz, fxz2, fyz2, fz3`` for f.
+
+    Example:
+        Four s orbitals on a square (D4h, table key ``4/mmm``); the table
+        operations of the tetragonal, orthorhombic, monoclinic and cubic
+        groups are already Cartesian::
+
+            import numpy as np
+            from crystod import group, mol
+
+            table = group.get_character_table("4/mmm")
+            operations, classes = [], []
+            for name in table["rotation_list"]:
+                for matrix in table["mapping_table"][name]:
+                    operations.append(np.asarray(matrix, dtype=float))
+                    classes.append(name)
+            square = np.array([[1, 0, 0], [0, 1, 0], [-1, 0, 0], [0, -1, 0]], float)
+            permutations = mol.get_permutation_matrices(operations, square, 0.1)
+            salcs = mol.project_salcs(operations, classes, permutations, 0, table)
+            labels = [f"s(H{i + 1})" for i in range(4)]
+            for irrep, vectors in salcs.items():
+                print(irrep, [mol.format_salc(v, labels) for v in vectors])
+            # A1g ['s(H1) + s(H2) + s(H3) + s(H4)']
+            # B1g ['s(H1) - s(H2) + s(H3) - s(H4)']
+            # Eu ['s(H1) - s(H3)', 's(H2) - s(H4)']
+    """
     rotation_list = list(character_table["rotation_list"])
     order = len(operations)
     dimension = permutations[0].shape[0] * (2 * azimuthal + 1)
@@ -365,6 +519,31 @@ def _pretty_coefficients(vector):
 
 
 def format_salc(vector, term_labels) -> str:
+    """Write one SALC vector as a readable linear combination of its terms.
+
+    Produces the ``A1: [s(H1) + s(H2) + s(H3)]`` lines of the ``crystod-mol``
+    report. The vector is scaled to the smallest integer coefficients that
+    reproduce it (to the precision of a typical XYZ geometry); when no integer
+    form exists the coefficients are printed with three decimals. Zero
+    components are dropped and the first nonzero coefficient is made positive.
+
+    Args:
+        vector: SALC coefficients, one per term (any sequence of numbers).
+        term_labels: Names of the terms, parallel to ``vector``, e.g.
+            ``["s(H1)", "s(H2)", "s(H3)"]`` or ``["px(N1)", "py(N1)", "pz(N1)"]``.
+
+    Returns:
+        The combination as one string, e.g. ``"2 s(H1) - s(H2) - s(H3)"``.
+
+    Example:
+        >>> from crystod import mol
+        >>> mol.format_salc([1, 1, 1], ["s(H1)", "s(H2)", "s(H3)"])
+        's(H1) + s(H2) + s(H3)'
+        >>> mol.format_salc([2, -1, -1], ["s(H1)", "s(H2)", "s(H3)"])
+        '2 s(H1) - s(H2) - s(H3)'
+        >>> mol.format_salc([0.7071, -0.7071, 0.0], ["s(H1)", "s(H2)", "s(H3)"])
+        's(H1) - s(H2)'
+    """
     coefficients, is_integer = _pretty_coefficients(vector)
     parts = []
     for coefficient, label in zip(coefficients, term_labels):

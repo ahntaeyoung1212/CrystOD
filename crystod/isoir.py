@@ -312,8 +312,41 @@ def load_isoir_irreps(sgnum: int, kind: str = "cir",
                       data_dir: Optional[Path] = None) -> list[IsoIrrep]:
     """Parse all irreps of one space group from an ISO-IR data file.
 
-    kind: 'cir' (complex irreps) or 'pir' (physically irreducible irreps).
-    Results are cached per (file, space group).
+    Direct access to the tables behind every ISO-IR label that CrystOD
+    prints: for each irrep the full space-group matrices over the coset
+    representatives of the ISOTROPY standard setting, the (parametrized) k
+    vectors of every star arm, and the operator translations.  Results are
+    cached per (file, space group).
+
+    Args:
+        sgnum: Space-group number (1-230).
+        kind: ``"cir"`` for the complex irreps (``CIR_data``, bundled with
+            the package) or ``"pir"`` for the physically irreducible ones
+            (``PIR_data``, not bundled).
+        data_dir: Directory holding the data file; by default the lookup
+            order of ``find_isoir_data_dir`` (``CRYSTOD_ISOIR_PATH``, the
+            package directory, ``<repository root>/ISOTROPY``).
+
+    Returns:
+        One ``IsoIrrep`` record per irrep, in table order, with ``label``
+        (``"GM4-"``, ``"DT5"``, ...), ``dim`` (full dimension), ``narms``,
+        ``small_dim``, ``ktype``, ``num_free_params``, the arrays
+        ``kvecs``, ``rotations``, ``translations``, ``irtrans`` and
+        ``matrices``, and the methods ``arm_k``, ``match_k``,
+        ``small_character`` and ``in_little_group``.
+
+    Raises:
+        ValueError: ``kind`` is neither ``"cir"`` nor ``"pir"``, or the file
+            is malformed.
+        FileNotFoundError: No data directory or data file found.
+
+    Example:
+        >>> from crystod import group
+        >>> irreps = group.load_isoir_irreps(221)
+        >>> len(irreps)
+        72
+        >>> [ir.label for ir in irreps if ir.ktype == "R"]
+        ['R1+', 'R2+', 'R3+', 'R4+', 'R5+', 'R1-', 'R2-', 'R3-', 'R4-', 'R5-']
     """
     if kind not in ("cir", "pir"):
         raise ValueError(f"kind must be 'cir' or 'pir', got {kind!r}")
@@ -440,18 +473,49 @@ def iso_hall_number(sgnum: int) -> int:
 class IsoIRLabeler:
     """Label spgrep small representations with ISO-IR (Miller-Love) labels.
 
-    Parameters
-    ----------
-    sgnum:
-        Space group number (1-230).
-    cell:
-        Primitive cell (lattice, scaled_positions, numbers) whose symmetry
-        operations are used by spgrep.  The transformation into the ISO-IR
-        standard setting (origin choice 2 etc.) is computed with spglib
-        using the Hall number of that setting.
-    transformation_matrix, origin_shift:
-        Alternatively, an explicit spglib-style transformation into the
-        ISO-IR setting (x_conventional = P x_primitive + origin_shift).
+    The labeling engine shared by every CrystOD command (crystal orbitals,
+    phonons, spin bases, ``crystod-group --table --sg``): spgrep computes
+    the small irreps of the little group of k in the primitive basis of the
+    user's cell, and this class matches their characters against the
+    ISO-IR tables in the ISOTROPY standard setting (origin choice 2,
+    orthorhombic axes abc, monoclinic axes a(b)c cell choice 1, hexagonal
+    axes), at tabulated k points as well as on symmetry lines, planes and
+    the general point.  Because ISO-IR uses the phase convention
+    ``exp(+2 pi i k.t)`` and spgrep ``exp(-2 pi i k.t)``, spgrep characters
+    are compared with the complex conjugate of the ISO-IR characters.
+
+    Args:
+        sgnum: Space-group number (1-230).
+        transformation_matrix: spglib-style transformation ``P`` into the
+            ISO-IR setting (``x_conventional = P x_primitive +
+            origin_shift``); give it together with ``origin_shift`` when
+            ``cell`` is omitted.
+        origin_shift: The origin shift of that transformation.
+        cell: Alternatively, the primitive cell ``(lattice,
+            scaled_positions, numbers)`` whose operations feed spgrep; the
+            transformation is then computed with spglib for the Hall number
+            of the ISO-IR setting.
+        symprec: Symmetry tolerance for spglib when ``cell`` is given.
+
+    Attributes:
+        sgnum: The space-group number.
+        P: The transformation matrix into the ISO-IR setting; ``Pinv`` its
+            inverse and ``origin_shift`` the accompanying shift.
+        irreps: The ``IsoIrrep`` records of the space group, from
+            ``load_isoir_irreps``.
+
+    Raises:
+        ValueError: spglib could not standardize ``cell`` to the ISO-IR
+            setting.
+        FileNotFoundError: The ISO-IR data file is not available.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import group
+        >>> labeler = group.IsoIRLabeler(221, transformation_matrix=np.eye(3),
+        ...                              origin_shift=np.zeros(3))
+        >>> labeler.kpoint_name([0.5, 0.5, 0.4]), labeler.kpoint_name([0, 0, 0])
+        ('T', 'GM')
     """
 
     def __init__(self, sgnum: int, transformation_matrix=None,
@@ -460,14 +524,23 @@ class IsoIRLabeler:
         if cell is not None:
             import spglib
 
-            dataset = spglib.get_symmetry_dataset(
-                cell, symprec=symprec, hall_number=iso_hall_number(sgnum)
-            )
+            try:
+                dataset = spglib.get_symmetry_dataset(
+                    cell, symprec=symprec, hall_number=iso_hall_number(sgnum)
+                )
+            except Exception as exc:  # spglib raises its own SpglibError family
+                raise ValueError(
+                    "spglib standardization to the ISO-IR setting failed"
+                ) from exc
+            if dataset is None:
+                raise ValueError(
+                    "spglib standardization to the ISO-IR setting failed"
+                )
             number = (
                 dataset['number'] if isinstance(dataset, dict)
                 else dataset.number
             )
-            if dataset is None or number != sgnum:
+            if number != sgnum:
                 raise ValueError(
                     "spglib standardization to the ISO-IR setting failed"
                 )
@@ -486,10 +559,27 @@ class IsoIRLabeler:
 
     # -- setting conversion --------------------------------------------------
     def conventional_k(self, k_primitive) -> np.ndarray:
+        """k vector in the ISO-IR conventional reciprocal basis.
+
+        Args:
+            k_primitive: k vector in the primitive reciprocal basis.
+
+        Returns:
+            ``k_primitive @ P^-1`` as a float array.
+        """
         return np.asarray(k_primitive, dtype=float) @ self.Pinv
 
     def conventional_operations(self, rotations, translations):
-        """Map primitive-basis operations into the conventional setting."""
+        """Map primitive-basis operations into the ISO-IR conventional setting.
+
+        Args:
+            rotations: Integer rotation matrices in the primitive basis.
+            translations: Their fractional translations.
+
+        Returns:
+            ``[(R_c, t_c), ...]`` with ``R_c = P R P^-1`` and
+            ``t_c = P t + (1 - R_c) origin_shift``.
+        """
         conv = []
         for R_p, t_p in zip(rotations, translations):
             R_c = np.rint(self.P @ R_p @ self.Pinv).astype(int)
@@ -500,8 +590,15 @@ class IsoIRLabeler:
         return conv
 
     def kpoint_name(self, k_primitive) -> Optional[str]:
-        """Most specific ISO-IR k-vector type label containing this k
-        (fewest free parameters), e.g. 'T' for (1/2, 1/2, 0.4) in Pm-3m.
+        """Most specific ISO-IR k-vector type label containing a k point.
+
+        Args:
+            k_primitive: k vector in the primitive reciprocal basis.
+
+        Returns:
+            The type label with the fewest free parameters, e.g. ``"T"``
+            for ``(1/2, 1/2, 0.4)`` in Pm-3m; ``None`` when no entry
+            matches.
         """
         k_conv = self.conventional_k(k_primitive)
         best = None
@@ -520,14 +617,22 @@ class IsoIRLabeler:
         spgrep_characters,
         atol: float = 1e-5,
     ) -> Optional[tuple[dict[int, str], str]]:
-        """Match spgrep small-irrep characters against ISO-IR.
+        """Match spgrep small-irrep characters against the ISO-IR tables.
 
-        spgrep_characters: list over spgrep irreps of character vectors
-        aligned with (little_rotations, little_translations), computed with
-        the spgrep phase convention exp(-2*pi*i k.t).  They are compared
-        with the complex conjugate of the ISO-IR characters.
+        Args:
+            k_primitive: k vector in the primitive reciprocal basis.
+            little_rotations: Rotations of the little group of k in the
+                primitive basis.
+            little_translations: Their fractional translations.
+            spgrep_characters: One character vector per spgrep irrep,
+                aligned with the little-group operations and computed with
+                the spgrep phase convention ``exp(-2 pi i k.t)``.
+            atol: Tolerance of the character comparison.
 
-        Returns ({spgrep irrep index: ISO-IR label}, k-type label) or None.
+        Returns:
+            ``({spgrep irrep index: ISO-IR label}, k-type label)``, e.g.
+            ``({0: "R1+", ...}, "R")``, or ``None`` when no consistent
+            assignment exists.
         """
         k_conv = self.conventional_k(k_primitive)
         conv_ops = self.conventional_operations(
@@ -549,13 +654,22 @@ class IsoIRLabeler:
     ) -> Optional[tuple[list[tuple[str, int, int]], str]]:
         """Decompose a reducible character vector into ISO-IR irreps.
 
-        The character vector follows the spgrep/phonopy phase convention
-        exp(-2*pi*i k.t) and is aligned with (little_rotations,
-        little_translations).  Used for phonopy band sets, whose characters
-        can be reducible under accidental degeneracy.
+        Used for phonopy band sets, whose characters can be reducible under
+        accidental degeneracy.
 
-        Returns ([(label, multiplicity, small_dim), ...], k-type label)
-        or None when no consistent decomposition exists.
+        Args:
+            k_primitive: k vector in the primitive reciprocal basis.
+            little_rotations: Rotations of the little group of k in the
+                primitive basis.
+            little_translations: Their fractional translations.
+            reducible_characters: The character vector, aligned with the
+                little-group operations, in the spgrep/phonopy phase
+                convention ``exp(-2 pi i k.t)``.
+            atol: Tolerance of the multiplicity check.
+
+        Returns:
+            ``([(label, multiplicity, small_dim), ...], k-type label)``, or
+            ``None`` when no consistent decomposition exists.
         """
         results = self.decompose_characters_many(
             k_primitive, little_rotations, little_translations,
@@ -573,10 +687,24 @@ class IsoIRLabeler:
     ) -> list[Optional[tuple[list[tuple[str, int, int]], str]]]:
         """Decompose several reducible character vectors at one k point.
 
-        Same as decompose_characters, but the candidate-family search (the
-        expensive part) is done once and shared by all vectors — use this for
-        phonopy band sets, which all live at the same q.  Returns one entry
-        per input vector.
+        Same as ``decompose_characters``, but the candidate-family search
+        (the expensive part) is done once and shared by all vectors; use
+        this for phonopy band sets, which all live at the same q.
+
+        Args:
+            k_primitive: k vector in the primitive reciprocal basis.
+            little_rotations: Rotations of the little group of k in the
+                primitive basis.
+            little_translations: Their fractional translations.
+            character_vectors: The reducible character vectors, each
+                aligned with the little-group operations (phase convention
+                ``exp(-2 pi i k.t)``).
+            atol: Tolerance of the multiplicity check.
+
+        Returns:
+            One entry per input vector, each
+            ``([(label, multiplicity, small_dim), ...], k-type label)`` or
+            ``None`` when no consistent decomposition exists.
         """
         n_vectors = len(character_vectors)
         k_conv = self.conventional_k(k_primitive)
@@ -739,15 +867,29 @@ def get_isoir_label_map(
 ) -> Optional[tuple[dict[int, str], str]]:
     """Label spgrep small irreps at a k point with ISO-IR labels.
 
-    One-stop fallback shared by every labeling path (crystal orbitals,
-    orbital hybridization, spin bases, phonons).  Inputs are the primitive
-    cell (spglib tuple), the little-group operations in the primitive basis
-    and the spgrep character vectors aligned with them (spgrep phase
-    convention exp(-2*pi*i k.t)).
+    One-stop entry point shared by every labeling path of CrystOD (crystal
+    orbitals, orbital hybridization, spin bases, phonons): builds (and
+    caches) the ``IsoIRLabeler`` of the cell and calls its
+    ``label_characters``.  Never raises: any failure yields ``None`` so
+    that callers can fall back to generic labels.
 
-    Returns ({spgrep irrep index: label}, k-type label) such as
-    ({0: 'Q1'}, 'Q'), or None when the ISO-IR data are unavailable or no
-    consistent assignment exists.  Never raises.
+    Args:
+        sgnum: Space-group number (1-230).
+        cell: Primitive cell as an spglib tuple ``(lattice,
+            scaled_positions, numbers)`` whose operations feed spgrep.
+        symprec: Symmetry tolerance for spglib.
+        kpoint: k vector in the primitive reciprocal basis.
+        little_rotations: Rotations of the little group of k in the
+            primitive basis.
+        little_translations: Their fractional translations.
+        spgrep_characters: One character vector per spgrep irrep, aligned
+            with the little-group operations (phase convention
+            ``exp(-2 pi i k.t)``).
+
+    Returns:
+        ``({spgrep irrep index: label}, k-type label)`` such as
+        ``({0: "Q1"}, "Q")``, or ``None`` when the ISO-IR data are
+        unavailable or no consistent assignment exists.
     """
     labeler = get_cached_labeler(sgnum, cell, symprec)
     if labeler is None:

@@ -37,14 +37,14 @@ ensure_spglib_compat()
 from phonopy import load
 from phonopy.structure.atoms import PhonopyAtoms
 from phonopy.structure.cells import get_primitive_matrix_by_centring, get_supercell
-from spgrep.representation import project_to_irrep
 
 from .irreptables_compat import load_irreptables
-from .modulation import _find_intertwiner, _irrep_filename_tag
+# _find_intertwiner is not used here; crystod.spin_basis imports it from this module
+from .modulation import _find_intertwiner, _irrep_filename_tag  # noqa: F401
 from .operations import parse_qpoint_token
 from .phonon_irreps import find_star_representative, get_irrep_labels, get_irt_special_points
 from .runtime_compat import get_qpoints_result, get_symmetry_dataset
-from .vibration_modes import SymmetryOnlyVibrations
+from .symmetry_adapted_modes import solve_symmetry_adapted_modes
 
 IrrepTable, Irrep = load_irreptables()
 
@@ -258,13 +258,48 @@ def resolve_qpoint(
     rotations: NDArray[np.int_] | None = None,
     isoir_context: tuple | None = None,
 ) -> tuple[str, list[float]]:
-    """Resolve --qpoint tokens into (label, primitive-basis coordinates).
+    """Resolve ``--qpoint`` tokens into a label and primitive-basis coordinates.
 
-    With ``rotations`` (space-group rotations in the primitive basis), any arm
-    of a tabulated star is labeled with the star's name, not only the
-    tabulated arm.  With ``isoir_context`` = (space group number, primitive
-    cell tuple, symprec), a q point outside every tabulated star is labeled
-    with its ISO-IR k-vector type (e.g. U, B, DT) instead of ``q_<coords>``.
+    This is how ``crystod-phonon --vector`` and ``--subgroup`` read their
+    ``--qpoint`` argument: a single token is the label of a tabulated special
+    point (``GM``, ``G``, ``GAMMA`` and the Greek capital gamma all mean
+    Gamma); three tokens are coordinates in the primitive reciprocal basis,
+    fractions such as ``1/3`` allowed. Coordinates are labeled with the name
+    of the special point they coincide with. With ``rotations``, any arm of a
+    tabulated star is labeled with the star's name, not only the tabulated
+    arm; with ``isoir_context``, a q point outside every tabulated star is
+    labeled with its ISO-IR k-vector type (e.g. ``U``, ``B``, ``DT``) instead
+    of ``q_<coords>``.
+
+    Args:
+        raw_qpoint: The tokens, one label or three coordinate strings.
+        q_names: Labels of the tabulated special points.
+        q_list: Their coordinates, as returned by
+            :func:`crystod.phonon.get_irt_special_points`.
+        rotations: Space-group rotations in the primitive basis, shape
+            ``(n_ops, 3, 3)``, or ``None`` to label exact matches only.
+        isoir_context: ``(space-group number, primitive cell tuple, symprec)``
+            for the ISO-IR fallback label, or ``None`` for ``q_<coords>``.
+
+    Returns:
+        ``(label, qpoint)`` with ``qpoint`` a list of three floats. The
+        coordinates are the ones that were given (not the tabulated arm), so
+        the label names the star while the modes are computed at the
+        requested q.
+
+    Raises:
+        ValueError: For an unknown label, or a token count other than one or
+            three.
+
+    Example:
+        >>> from crystod import phonon
+        >>> names = ["GM", "R", "X", "M"]
+        >>> points = [[0, 0, 0], [0.5, 0.5, 0.5], [0, 0.5, 0], [0.5, 0.5, 0]]
+        >>> phonon.resolve_qpoint(["R"], names, points)
+        ('R', [0.5, 0.5, 0.5])
+        >>> # rotations: the primitive-cell rotations of the space group
+        >>> phonon.resolve_qpoint(["1/2", "0", "0"], names, points, rotations)
+        ('X', [0.5, 0.0, 0.0])
     """
     if len(raw_qpoint) == 1:
         requested = raw_qpoint[0].strip().upper()
@@ -344,12 +379,33 @@ def get_commensurate_supercell_matrix(
     qpoint: list[float],
     base_matrix: NDArray[np.int_],
 ) -> NDArray[np.int_]:
-    """Smallest diagonal multiple of base_matrix commensurate with q.
+    """Smallest diagonal multiple of ``base_matrix`` commensurate with q.
 
-    base_matrix rows are the base-cell (primitive or conventional) lattice
-    vectors in the primitive basis; the returned matrix S satisfies
-    q . S_row in Z for every row, so the Bloch phase is periodic over the
-    supercell L_super = S @ L_primitive.
+    ``crystod-phonon --vector`` draws a mode on the smallest supercell over
+    which its Bloch phase is periodic: each base-cell axis is multiplied by
+    the denominator of the corresponding component of q in the base
+    reciprocal basis (denominators up to 12).
+
+    Args:
+        qpoint: Fractional coordinates of q in the primitive reciprocal basis.
+        base_matrix: Rows are the base-cell (primitive or conventional)
+            lattice vectors in the primitive basis: the identity for the
+            primitive cell, or the matrix of ``get_conventional_matrix`` for
+            the conventional cell.
+
+    Returns:
+        Integer matrix ``S`` whose rows are the supercell lattice vectors in
+        the primitive basis (``L_super = S @ L_primitive``), satisfying
+        ``q . S_row in Z`` for every row.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import phonon
+        >>> base = np.eye(3, dtype=int)
+        >>> phonon.get_commensurate_supercell_matrix([0.0, 0.5, 0.0], base)
+        array([[1, 0, 0],
+               [0, 2, 0],
+               [0, 0, 1]])
     """
     q_base = np.array(base_matrix, dtype=float) @ np.array(qpoint, dtype=float)
     sizes = []
@@ -522,9 +578,49 @@ def write_vesta_with_arrows(
 ) -> None:
     """Write a complete VESTA file with per-atom displacement arrows.
 
-    Arrow components are written in the VESTA vector convention: values along
-    the a/b/c axis directions with the modulus in Angstroms (equal to Cartesian
-    components for cubic cells).
+    The output of ``crystod-phonon --vector``: the structure is written as a
+    P1 cell with one VECTR/VECTT arrow per atom, following the Phonopy_VESTA
+    approach (A. P. Roy et al., Phys. Rev. Lett. 132, 026701 (2024)): a
+    complete file including VESTA's style sections, since VESTA ignores
+    vectors in files that lack them. Arrow components are written in the
+    VESTA vector convention: values along the a/b/c axis directions with the
+    modulus in Angstroms (equal to Cartesian components for cubic cells).
+
+    Args:
+        filepath: Output path (``.vesta``).
+        lattice: Lattice vectors as rows, in Angstroms, shape ``(3, 3)``.
+        scaled_positions: Fractional atomic coordinates, shape
+            ``(n_atoms, 3)``.
+        symbols: Chemical symbols of the atoms (radius and color are taken
+            from VESTA's element defaults).
+        arrows_cartesian: Cartesian arrow vectors in Angstroms, shape
+            ``(n_atoms, 3)``.
+        title: The VESTA title line.
+        arrow_rgb: Arrow color as an RGB triple (default red).
+        arrow_radius: Arrow radius in VESTA units.
+
+    Returns:
+        None. The file is written to ``filepath``.
+
+    Example:
+        Draw the first R-point mode of SrTiO3 on its 2x2x2 supercell (``ph``
+        as in :func:`crystod.phonon.label_phonon_modes`)::
+
+            import numpy as np
+            from crystod import phonon
+            from crystod.phonon_vector import get_supercell_displacement_field
+
+            q = [0.5, 0.5, 0.5]
+            modes = phonon.build_symmetry_adapted_modes(ph, q)
+            supercell_matrix = phonon.get_commensurate_supercell_matrix(
+                q, np.eye(3, dtype=int))
+            supercell, field = get_supercell_displacement_field(
+                ph, q, supercell_matrix, modes[0][1])
+            arrows = field.real * (1.5 / np.linalg.norm(field.real, axis=1).max())
+            phonon.write_vesta_with_arrows(
+                "SrTiO3_R_mode1.vesta", np.array(supercell.cell),
+                np.array(supercell.scaled_positions), list(supercell.symbols),
+                arrows, title="SrTiO3 R mode 1")
     """
     a, b, c, alpha, beta, gamma = _lattice_parameters(lattice)
     axis_lengths = np.array([a, b, c], dtype=float)
@@ -639,123 +735,56 @@ def build_symmetry_adapted_modes(
     qpoint: list[float],
     symprec: float = 1e-5,
 ) -> list[tuple[float, NDArray[np.complex128]]]:
-    """Eigenvectors of the dynamical matrix at q, symmetry-adapted within degenerate subspaces.
+    """Symmetry-adapted eigenvectors of the dynamical matrix at q.
 
     The dynamical matrix is block-diagonalized in the spgrep irrep-projected
-    basis (the same construction as crystod-phonon --modulation), so that degenerate
-    modes come out along symmetry-dictated directions instead of the arbitrary
-    linear combinations returned by a plain eigensolver. Returns a list of
-    (frequency_THz, mode_vector) sorted by frequency; the vectors are exact
-    eigenvectors of the phonopy dynamical matrix at q. Raises RuntimeError when
-    the construction cannot reproduce the phonopy spectrum.
+    basis of the primitive cell, so that the partners of a degenerate level
+    transform with the irrep matrices instead of coming out as the arbitrary
+    linear combinations a plain eigensolver returns -- the solver shared with
+    ``crystod-phonon --modulation``
+    (:func:`crystod.symmetry_adapted_modes.solve_symmetry_adapted_modes`).
+    ``crystod-phonon --vector`` exports these vectors as VESTA arrows. The
+    result is verified against the plain phonopy solution: the frequencies
+    must match, every vector must be an eigenvector of the dynamical matrix,
+    and the vectors must be orthonormal. At a time-reversal-invariant q
+    (``2q`` a reciprocal lattice vector) the partners of a degenerate level
+    are real displacement patterns (``e_j exp(2 pi i q.x_j)`` real).
+
+    Args:
+        phonon: A ``phonopy.Phonopy`` object with force constants, built with
+            ``primitive_matrix="auto"``; its primitive cell is used as-is (no
+            standardization), so that the projected basis and the dynamical
+            matrix share one phase convention.
+        qpoint: Fractional coordinates of q in the primitive reciprocal basis.
+        symprec: Symmetry tolerance of the spglib/spgrep analysis.
+
+    Returns:
+        List of ``(frequency_THz, mode_vector)`` sorted by frequency (negative
+        for imaginary modes); ``mode_vector`` has ``3 * n_atoms`` complex
+        components in the mass-weighted phonopy convention (atom-position
+        phase), as phonopy's own eigenvectors.
+
+    Raises:
+        ValueError: If the primitive cell of ``phonon`` is not primitive
+            (:class:`crystod.symmetry_adapted_modes.NonPrimitiveCellError`).
+        RuntimeError: If the construction cannot reproduce the phonopy
+            spectrum (the projection does not span the vibration space, or
+            the symmetry analysis does not match the dynamical matrix).
+
+    Example:
+        >>> from crystod import phonon
+        >>> # ph: the SrTiO3 object of the label_phonon_modes example
+        >>> modes = phonon.build_symmetry_adapted_modes(ph, [0.5, 0.5, 0.5])
+        >>> [round(frequency, 4) for frequency, _ in modes[:4]]
+        [-1.0867, -1.0867, -1.0867, 3.9891]
+        >>> modes[0][1].shape
+        (15,)
     """
-    primitive = phonon.primitive
-    cell = PhonopyAtoms(
-        numbers=primitive.numbers,
-        scaled_positions=primitive.scaled_positions,
-        cell=primitive.cell,
-    )
-    # standardize=False keeps phonopy's atom positions so that the projected
-    # basis and the dynamical matrix share one phase convention.
-    vibrations = SymmetryOnlyVibrations(cell=cell, symprec=symprec, standardize=False)
-    irreps, vibration_rep, _ = vibrations.get_vibration_rep(qpoint)
-
-    spaces: list[NDArray[np.complex128]] = []
-    for irrep in irreps:
-        spaces.extend(project_to_irrep(vibration_rep, irrep))
-
-    dynamical_matrix = phonon.dynamical_matrix
-    dynamical_matrix.run(qpoint)
-    matrix = dynamical_matrix.dynamical_matrix.copy()
-
-    dims = [space.shape[0] for space in spaces]
-    if sum(dims) != matrix.shape[0]:
-        raise RuntimeError("Irrep projection does not span the full vibration space.")
-
-    offsets = np.cumsum([0] + dims)
-    n_spaces = len(spaces)
-    stacked = np.vstack(spaces)
-    block_matrix = stacked @ matrix @ stacked.conj().T
-
-    # Spaces carrying equivalent irreps may couple; group them into clusters.
-    coupled = np.zeros((n_spaces, n_spaces), dtype=bool)
-    for s in range(n_spaces):
-        for t in range(n_spaces):
-            sub = block_matrix[offsets[s] : offsets[s + 1], offsets[t] : offsets[t + 1]]
-            coupled[s, t] = bool(np.abs(sub).max() > 1e-6)
-    clusters: list[list[int]] = []
-    seen: set[int] = set()
-    for s in range(n_spaces):
-        if s in seen:
-            continue
-        stack, cluster = [s], []
-        while stack:
-            u = stack.pop()
-            if u in seen:
-                continue
-            seen.add(u)
-            cluster.append(u)
-            stack.extend(v for v in range(n_spaces) if coupled[u, v] and v not in seen)
-        clusters.append(sorted(cluster))
-
-    modes: list[tuple[float, NDArray[np.complex128]]] = []
-    for cluster in clusters:
-        dim = dims[cluster[0]]
-        if any(dims[index] != dim for index in cluster):
-            raise RuntimeError("Coupled irrep spaces with different dimensions.")
-        multiplicity = len(cluster)
-
-        aligned = [spaces[cluster[0]]]
-        for index in cluster[1:]:
-            intertwiner = _find_intertwiner(vibration_rep, spaces[index], spaces[cluster[0]])
-            if intertwiner is None:
-                raise RuntimeError("Coupled irrep spaces are not equivalent.")
-            aligned.append(intertwiner.conj().T @ spaces[index])
-
-        # After alignment every coupling block is a scalar multiple of the
-        # identity (Schur), so the cluster reduces to one multiplicity-sized
-        # Hermitian matrix shared by all irrep components.
-        coupling = np.zeros((multiplicity, multiplicity), dtype=complex)
-        for a in range(multiplicity):
-            for b in range(multiplicity):
-                sub = aligned[a] @ matrix @ aligned[b].conj().T
-                if np.abs(sub - np.eye(dim) * np.trace(sub) / dim).max() > 1e-6:
-                    raise RuntimeError("Coupling between irrep spaces is not scalar.")
-                coupling[a, b] = np.trace(sub) / dim
-        eigenvalues, eigenvectors = np.linalg.eigh(coupling)
-        eigenvalues = eigenvalues.real
-
-        # Preserve the symmetry-adapted basis when the cluster is numerically
-        # degenerate, exactly as crystod-phonon --modulation does.
-        if multiplicity > 1 and np.allclose(eigenvalues, eigenvalues.mean(), atol=1e-10, rtol=1e-8):
-            eigenvalues = np.full(multiplicity, eigenvalues.mean())
-            eigenvectors = np.eye(multiplicity, dtype=complex)
-
-        for w in range(multiplicity):
-            frequency = float(
-                np.sign(eigenvalues[w]) * np.sqrt(abs(eigenvalues[w])) * FREQUENCY_CONVERSION_THZ
-            )
-            for component in range(dim):
-                # Rows of the projected basis are bras; eigenvectors of the
-                # dynamical matrix are their complex conjugates.
-                vector = np.zeros(matrix.shape[0], dtype=complex)
-                for a in range(multiplicity):
-                    vector += eigenvectors[a, w] * np.conj(aligned[a][component])
-                modes.append((frequency, vector))
-
-    order = np.argsort([mode[0] for mode in modes], kind="stable")
-    modes = [modes[index] for index in order]
-
-    # Verify against the plain phonopy solution before trusting the result.
-    reference = np.sort(np.linalg.eigvalsh(matrix).real)
-    reference = np.sign(reference) * np.sqrt(np.abs(reference)) * FREQUENCY_CONVERSION_THZ
-    if not np.allclose([m[0] for m in modes], reference, atol=1e-3):
-        raise RuntimeError("Symmetry-adapted frequencies do not match the phonopy spectrum.")
-    for frequency, vector in modes:
-        eigenvalue = np.sign(frequency) * (frequency / FREQUENCY_CONVERSION_THZ) ** 2
-        if np.linalg.norm(matrix @ vector - eigenvalue * vector) > 1e-6:
-            raise RuntimeError("A symmetry-adapted mode is not an eigenvector of the dynamical matrix.")
-    return modes
+    modes = solve_symmetry_adapted_modes(phonon, qpoint, symprec=symprec)
+    return [
+        (float(frequency), vector)
+        for frequency, vector in zip(modes.frequencies, modes.eigenvectors)
+    ]
 
 
 def get_supercell_displacement_field(
@@ -899,9 +928,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     echo(f"\nSelected q-point: {q_label} = {qpoint}")
 
-    # Symmetry-adapted eigenvectors: degenerate modes are aligned along
-    # symmetry-dictated directions (same construction as crystod-phonon --modulation)
-    # instead of the arbitrary combinations a plain eigensolver returns.
+    # Symmetry-adapted eigenvectors: the partners of degenerate modes transform
+    # with the irrep matrices (same construction as crystod-phonon --modulation)
+    # instead of being the arbitrary combinations a plain eigensolver returns.
     try:
         symmetry_adapted_modes = build_symmetry_adapted_modes(phonon, qpoint)
         frequencies = np.array([frequency for frequency, _ in symmetry_adapted_modes])

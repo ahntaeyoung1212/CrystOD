@@ -48,8 +48,11 @@ crystod --visualize-basis --poscar 221_PPOSCAR_ScF3 --element F --orbital p --kp
 crystod --visualize-basis --poscar 221_PPOSCAR_ScF3 --element F --orbital p --kpoint GM --output salc_F_p.html
 """
 
+#: Azimuthal quantum number of every shell letter the SALC viewer draws.
 ORBITAL_L = {"s": 0, "p": 1, "d": 2, "f": 3}
 
+#: Real-orbital component names of shell ``l``, in the coefficient order of
+#: :meth:`SymmetryAdaptedOrbitalBasis.get_orbital_basis`.
 ORBITAL_COMPONENT_NAMES = {
     0: ["s"],
     1: ["p_x", "p_y", "p_z"],
@@ -172,9 +175,74 @@ def orbital_angular_values(l: int, unit_vectors: NDArray[np.float64]) -> NDArray
 
 
 class SymmetryAdaptedOrbitalBasis(SymmetryOnlyVibrations):
-    """SALC basis construction for one element/orbital at a k point."""
+    """SALC bases of one element's shell at a k point (``crystod --visualize``).
+
+    Where :class:`CrystalOrbital` counts irreps from characters, this class
+    builds the representation matrices themselves -- for every little-group
+    operation the Kronecker product of the Bloch-phased site permutation
+    with the real-orbital Wigner matrix of the shell -- and projects them
+    onto the irreps with spgrep, which gives the symmetry-adapted linear
+    combinations (SALCs) as explicit coefficient vectors over the
+    ``(atom, m)`` orbital components.  The command
+    ``crystod --visualize -c POSCAR --element EL --orbital ORB --kpoint K``
+    prints those coefficients and writes the interactive 3D HTML viewer
+    from them (``s``, ``p``, ``d`` and ``f`` shells; without ``--kpoint``
+    one page per special k point of the space group).
+
+    The symmetry machinery is inherited from ``SymmetryOnlyVibrations``
+    (the ``crystod-phonon`` engine): the cell is reduced to the spglib
+    primitive cell, :meth:`get_irrep_labels` supplies the ISO-IR labels of
+    the spgrep irreps, and ``resolve_qpoint`` the seekpath k-point labels
+    that :func:`resolve_kpoint_input` relies on.
+
+    Args:
+        cell: The crystal structure as ``phonopy.structure.atoms.PhonopyAtoms``.
+        symprec: Symmetry tolerance handed to spglib.
+        standardize: Convert ``cell`` to the spglib primitive cell (the
+            default); ``False`` keeps it as given, which must then already
+            be a primitive cell.
+
+    Attributes:
+        primitive_cell: The ``PhonopyAtoms`` cell all atom indices refer to.
+        spglib_dataset: The spglib symmetry dataset of that cell
+            (``"international"``, ``"number"``, ``"wyckoffs"``, ...).
+        rotations: Integer rotation matrices in the primitive basis, shape
+            ``(n_ops, 3, 3)``, in spglib order.
+        translations: The matching fractional translations, ``(n_ops, 3)``.
+        rotations_cartesian: The same rotations as Cartesian matrices, the
+            input of the Wigner matrices.
+        symprec: The symmetry tolerance in use.
+
+    Example:
+        >>> from phonopy.interface.calculator import read_crystal_structure
+        >>> from crystod import salc
+        >>> from crystod.examples import example_path
+        >>> cell, _ = read_crystal_structure(
+        ...     str(example_path("221_PPOSCAR_ScF3")), interface_mode="vasp")
+        >>> basis = salc.SymmetryAdaptedOrbitalBasis(cell=cell)
+        >>> k = [0, 0, 0]
+        >>> irreps, rep, mapping, atoms = basis.get_orbital_rep(k, "F", l=1)
+        >>> labels = basis.get_irrep_labels(k, irreps, mapping)
+        >>> counts = basis.decompose_orbital_rep(irreps, rep, labels)
+        >>> {label: n for label, n in counts.items() if n > 0}
+        {'GM4-(3)': 2.0, 'GM5-(3)': 1.0}
+        >>> spaces, space_labels = basis.get_orbital_basis(irreps, rep, labels)
+        >>> [space.shape for space in spaces], space_labels
+        ([(3, 9), (3, 9), (3, 9)], ['GM4-(3)', 'GM4-(3)', 'GM5-(3)'])
+    """
 
     def get_element_indices(self, element: str) -> list[int]:
+        """Indices of the atoms whose orbitals enter the basis.
+
+        Args:
+            element: Chemical symbol, or ``"all"`` for every atom of the cell.
+
+        Returns:
+            The atom indices in primitive-cell order.
+
+        Raises:
+            ValueError: The element is not in the cell.
+        """
         symbols = get_chemical_symbols(self.primitive_cell)
         if element.lower() == "all":
             return list(range(len(symbols)))
@@ -184,6 +252,23 @@ class SymmetryAdaptedOrbitalBasis(SymmetryOnlyVibrations):
         return indices
 
     def get_orbital_rep(self, kpoint: list[float], element: str, l: int):
+        """Representation of the little group on the shell's Bloch orbitals.
+
+        Args:
+            kpoint: Three primitive reciprocal coordinates.
+            element: Chemical symbol, or ``"all"``.
+            l: Azimuthal quantum number of the shell (0 to 3).
+
+        Returns:
+            ``(irreps, orbital_rep, mapping_little_group, element_indices)``:
+            the spgrep irreps at ``kpoint``; the representation matrices, a
+            complex array of shape ``(order, n_atoms (2l+1), n_atoms (2l+1))``
+            whose rows and columns run atom-major over the ``(atom, m)``
+            components, ``m`` in the real-orbital order of
+            ``ORBITAL_COMPONENT_NAMES``; the indices into :attr:`rotations`
+            of the little-group operations; and the atom indices of the
+            element.
+        """
         irreps, mapping_little_group = get_spacegroup_irreps_from_primitive_symmetry(
             rotations=self.rotations,
             translations=self.translations,
@@ -212,6 +297,19 @@ class SymmetryAdaptedOrbitalBasis(SymmetryOnlyVibrations):
         return irreps, orbital_rep, mapping_little_group, element_indices
 
     def decompose_orbital_rep(self, irreps, orbital_rep, irrep_labels: list[str]) -> dict[str, float]:
+        """Multiplicity of every irrep in the orbital representation.
+
+        Args:
+            irreps: The spgrep irreps from :meth:`get_orbital_rep`.
+            orbital_rep: The representation matrices from the same call.
+            irrep_labels: One label per irrep (:meth:`get_irrep_labels`).
+
+        Returns:
+            ``{label: multiplicity}`` for every irrep, the multiplicities
+            rounded to two decimals (zero entries included).  The printed
+            ``* Irreducible Decomposition *`` of the CLI lists the non-zero
+            ones.
+        """
         rep_characters = np.array([np.trace(matrix) for matrix in orbital_rep])
         multiplicities: dict[str, float] = {}
         for irrep, label in zip(irreps, irrep_labels):
@@ -221,6 +319,22 @@ class SymmetryAdaptedOrbitalBasis(SymmetryOnlyVibrations):
         return multiplicities
 
     def get_orbital_basis(self, irreps, orbital_rep, irrep_labels: list[str]):
+        """Project the orbital representation onto its irreps: the SALCs.
+
+        Args:
+            irreps: The spgrep irreps from :meth:`get_orbital_rep`.
+            orbital_rep: The representation matrices from the same call.
+            irrep_labels: One label per irrep (:meth:`get_irrep_labels`).
+
+        Returns:
+            ``(basis_spaces, basis_labels)``: one complex array of shape
+            ``(dim, n_atoms (2l+1))`` per occurrence of an irrep -- its
+            ``dim`` rows are the partner SALCs, the columns the ``(atom, m)``
+            coefficients in the order of :meth:`get_orbital_rep` -- and the
+            irrep label of every space (repeated when an irrep occurs more
+            than once).  ``--mode-index N`` of the CLI selects the N-th
+            space, 1-based.
+        """
         basis_spaces: list[NDArray[np.complex128]] = []
         basis_labels: list[str] = []
         for irrep, irrep_label in zip(irreps, irrep_labels):

@@ -62,7 +62,46 @@ def build_parser() -> ArgumentParser:
 
 
 def resolve_kpoint_input(structure: SymmetryOnlyVibrations, raw_kpoint: list[str]) -> tuple[str, list[float]]:
-    """Resolve a k-point label or coordinates, tolerating a missing seekpath."""
+    """Resolve a ``--kpoint`` argument into a label and primitive coordinates.
+
+    The two command-line spellings of a k point -- one high-symmetry label
+    such as ``GM``/``X``/``M``/``R``, or three primitive reciprocal
+    coordinates (fractions such as ``1/2`` allowed) -- become ``(label,
+    coordinates)`` with the seekpath labels of the structure: coordinates
+    that hit a special point (or an arm of its star) receive that point's
+    name, any other point the ISO-IR k-vector type letters (``GP`` for a
+    general point).  This is what ``crystod --star-of-k`` and
+    ``crystod --visualize`` do with ``--kpoint``.  When the label lookup
+    itself fails (seekpath unavailable), three coordinates are still
+    accepted and labelled ``custom``.
+
+    Args:
+        structure: A ``SymmetryOnlyVibrations`` of the cell, or a subclass
+            such as :class:`SymmetryAdaptedOrbitalBasis`; its
+            ``resolve_qpoint`` does the work.
+        raw_kpoint: The tokens as typed: ``["M"]`` or ``["1/2", "1/2", "0"]``.
+
+    Returns:
+        ``(label, kpoint)``: the k-point name and its three primitive
+        reciprocal coordinates as floats.
+
+    Raises:
+        ValueError: An unknown label, or a token count that is neither one
+            nor three (a ``ValueError`` from the implementation module as
+            well as through ``crystod.salc``).
+
+    Example:
+        >>> from phonopy.interface.calculator import read_crystal_structure
+        >>> from crystod import salc
+        >>> from crystod.examples import example_path
+        >>> cell, _ = read_crystal_structure(
+        ...     str(example_path("221_PPOSCAR_ScF3")), interface_mode="vasp")
+        >>> basis = salc.SymmetryAdaptedOrbitalBasis(cell=cell)
+        >>> salc.resolve_kpoint_input(basis, ["M"])
+        ('M', [0.5, 0.5, 0.0])
+        >>> salc.resolve_kpoint_input(basis, ["1/2", "1/2", "0"])
+        ('M', [0.5, 0.5, 0.0])
+    """
     try:
         return structure.resolve_qpoint(raw_kpoint)
     except Exception:
@@ -88,12 +127,46 @@ def compute_star(
     translations: NDArray[np.float64],
     kpoint: list[float],
 ) -> list[dict]:
-    """Compute the star of k.
+    """Compute the star of k: the orbit of a k point under the rotations.
 
-    Returns one entry per arm:
-      {"kpoint": wrapped arm coordinates,
-       "representative_index": index of the coset-representative rotation,
-       "operation_indices": all rotation indices sending k to this arm}
+    Every rotation ``R`` of the space group sends ``k`` to ``k' = k R``;
+    the distinct images modulo reciprocal-lattice vectors are the arms of
+    the star, and the rotations sending ``k`` to one arm form a coset of
+    the little group of ``k``.  This is the computation behind
+    ``crystod --star-of-k``; ``crystod-phonon --modulation`` uses it to
+    combine the arms of a multi-q modulation.
+
+    Args:
+        rotations: Integer rotation matrices of the space group in the
+            primitive basis, shape ``(n_ops, 3, 3)`` -- for example
+            ``SymmetryAdaptedOrbitalBasis.rotations``.
+        translations: The matching fractional translations, shape
+            ``(n_ops, 3)``.  Accepted for a uniform call signature; the star
+            depends on the rotations only.
+        kpoint: Three primitive reciprocal coordinates of ``k``.
+
+    Returns:
+        One dict per arm, in order of first appearance along ``rotations``:
+        ``"kpoint"`` (the arm wrapped into ``[-0.5, 0.5)``),
+        ``"representative_index"`` (index of the first rotation reaching
+        the arm, the coset representative) and ``"operation_indices"``
+        (indices of every rotation reaching the arm).  With the identity
+        listed first, as spglib does, the first arm is ``k`` itself and its
+        ``"operation_indices"`` are the little group of ``k``.
+
+    Example:
+        >>> from phonopy.interface.calculator import read_crystal_structure
+        >>> from crystod import salc
+        >>> from crystod.examples import example_path
+        >>> cell, _ = read_crystal_structure(
+        ...     str(example_path("221_PPOSCAR_ScF3")), interface_mode="vasp")
+        >>> basis = salc.SymmetryAdaptedOrbitalBasis(cell=cell)
+        >>> arms = salc.compute_star(basis.rotations, basis.translations,
+        ...                          [0.5, 0.5, 0])
+        >>> [arm["kpoint"].tolist() for arm in arms]
+        [[0.5, 0.5, 0.0], [0.5, 0.0, 0.5], [0.0, 0.5, 0.5]]
+        >>> len(arms[0]["operation_indices"])
+        16
     """
     kpoint = np.asarray(kpoint, dtype=float)
     arms: list[dict] = []
@@ -122,6 +195,26 @@ def format_star_lines(
     seitz_symbols: list[str] | None = None,
     indent: str = " ",
 ) -> list[str]:
+    """Format the arms of a star as the report lines of ``crystod --star-of-k``.
+
+    Args:
+        arms: The list returned by :func:`compute_star`.
+        seitz_symbols: Seitz symbols of all rotations, indexed like the
+            ``rotations`` given to :func:`compute_star`; when present, each
+            line names the coset-representative operation.
+        indent: Text put in front of every line.
+
+    Returns:
+        One string per arm, ``"arm 1: k = [+0.5, +0.5, +0]"`` and so on,
+        with ``"(representative: 2_001)"`` appended when symbols are given.
+
+    Example:
+        >>> for line in salc.format_star_lines(arms):   # arms of compute_star
+        ...     print(line)
+         arm 1: k = [+0.5, +0.5, +0]
+         arm 2: k = [+0.5, +0, +0.5]
+         arm 3: k = [+0, +0.5, +0.5]
+    """
     lines = []
     for arm_index, arm in enumerate(arms):
         coords = np.round(arm["kpoint"], 6)

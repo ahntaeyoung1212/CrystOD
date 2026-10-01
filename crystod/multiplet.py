@@ -224,7 +224,43 @@ def _schur_functor_characters(
 def shell_terms(
     classes: _GroupClasses, irrep: str, n_electrons: int
 ) -> list[tuple[Fraction, str, int]]:
-    """Pauli-allowed terms (S, spatial irrep, count) of (irrep)^n_electrons."""
+    """Pauli-allowed terms of n equivalent electrons in one irrep shell.
+
+    The single-shell step of ``crystod-group --multiplet IRREP^N --pg PG``:
+    for every total spin ``S = n/2, n/2 - 1, ...`` the orbital part
+    transforms as the Schur functor of the two-column partition, whose
+    characters follow from the Frobenius formula with Murnaghan-Nakayama
+    symmetric-group characters; each is reduced into point-group irreps.
+
+    Args:
+        classes: Conjugacy classes of the point group, built as
+            ``crystod.multiplet._GroupClasses(character_table)`` from the
+            table of ``crystod.group.get_character_table`` (the same object
+            that ``parse_config`` takes).
+        irrep: Label of the shell irrep, e.g. ``"T2g"``.
+        n_electrons: Number of electrons in the shell, ``1`` to twice the
+            irrep dimension.
+
+    Returns:
+        Terms as ``(S, irrep, count)`` with the total spin ``S`` a
+        ``Fraction`` (``2S+1`` is the multiplicity of the term symbol) and
+        ``count`` the number of times the term occurs.
+
+    Raises:
+        SystemExit: ``n_electrons`` outside ``1 .. 2 * dim`` (``ValueError``
+            when called through ``crystod.group``).
+
+    Example:
+        >>> from crystod import group
+        >>> from crystod.multiplet import _GroupClasses
+        >>> classes = _GroupClasses(group.get_character_table("m-3m"))
+        >>> for spin, irrep, count in group.shell_terms(classes, "T2g", 2):
+        ...     print(f"^{int(2 * spin + 1)}{irrep}", count)
+        ^3T1g 1
+        ^1A1g 1
+        ^1Eg 1
+        ^1T2g 1
+    """
     dim = classes.irrep_dimension(irrep)
     capacity = 2 * dim
     if not 1 <= n_electrons <= capacity:
@@ -254,7 +290,22 @@ def couple_shells(
     terms_a: list[tuple[Fraction, str, int]],
     terms_b: list[tuple[Fraction, str, int]],
 ) -> list[tuple[Fraction, str, int]]:
-    """Couple the term sets of two inequivalent shells (products + spin sums)."""
+    """Couple the term sets of two inequivalent shells.
+
+    The multi-shell step of ``crystod-group --multiplet T2g2 Eg1 --pg PG``:
+    electrons in different shells carry no mutual Pauli restriction, so the
+    spatial parts couple by the direct product and the spins by
+    angular-momentum addition ``S = |S1 - S2|, ..., S1 + S2``.
+
+    Args:
+        classes: Conjugacy classes of the point group (see ``shell_terms``).
+        terms_a: Terms of the first shell, as returned by ``shell_terms``.
+        terms_b: Terms of the second shell.
+
+    Returns:
+        Terms ``(S, irrep, count)`` of the coupled configuration; couple a
+        third shell by calling again with this result.
+    """
     multiplicities = classes.sizes
     combined: dict[tuple[Fraction, str], int] = {}
     for spin_a, irrep_a, count_a in terms_a:
@@ -315,7 +366,32 @@ def _split_shell_token(token: str, available: list[str]) -> tuple[str, int]:
 
 
 def parse_config(tokens: list[str], classes: _GroupClasses) -> list[tuple[str, int]]:
-    """Parse shell tokens IRREP^N / (IRREP)^N / IRREPN / bare IRREP."""
+    """Parse shell tokens into ``(irrep, n_electrons)`` pairs.
+
+    The argument parser of ``crystod-group --multiplet``: accepts
+    ``IRREP^N``, ``(IRREP)^N``, the quoting-free ``IRREPN`` (``T2g2``; an
+    unquoted ``^`` is a glob character in zsh) and a bare ``IRREP`` for one
+    electron.
+
+    Args:
+        tokens: Shell tokens, e.g. ``["T2g2", "Eg1"]``.
+        classes: Conjugacy classes of the point group (see ``shell_terms``);
+            its table supplies the valid irrep labels.
+
+    Returns:
+        ``[(irrep, n_electrons), ...]`` in input order.
+
+    Raises:
+        SystemExit: A token names no irrep of the point group, or is
+            ambiguous (``ValueError`` when called through ``crystod.group``).
+
+    Example:
+        >>> from crystod import group
+        >>> from crystod.multiplet import _GroupClasses
+        >>> classes = _GroupClasses(group.get_character_table("m-3m"))
+        >>> group.parse_config(["T2g2", "Eg"], classes)
+        [('T2g', 2), ('Eg', 1)]
+    """
     available = list(classes.ct["character_table"].keys())
     return [_split_shell_token(token, available) for token in tokens]
 
@@ -343,8 +419,22 @@ def _config_label(shells: list[tuple[str, int]]) -> str:
 def hund_candidates(
     classes: _GroupClasses, terms: list[tuple[Fraction, str, int]]
 ) -> list[tuple[Fraction, str, int]]:
-    """Hund's-rule ground-state candidates: maximal 2S+1, then maximal
-    orbital dimension."""
+    """Hund's-rule ground-state candidates among the terms.
+
+    The ``Ground-state Term Symbol (Hund's rules)`` block of ``crystod-group
+    --multiplet`` without ``--orbital``: maximal ``2S+1`` first, then
+    maximal orbital dimension.
+
+    Args:
+        classes: Conjugacy classes of the point group (see ``shell_terms``).
+        terms: Terms ``(S, irrep, count)`` from ``shell_terms`` or
+            ``couple_shells``.
+
+    Returns:
+        The candidate terms (more than one when the rules tie); the exact
+        ordering needs the Coulomb energies of
+        ``crystod.group.compute_term_energies``.
+    """
     max_spin = max(term[0] for term in terms)
     candidates = [term for term in terms if term[0] == max_spin]
     max_dim = max(classes.irrep_dimension(term[1]) for term in candidates)

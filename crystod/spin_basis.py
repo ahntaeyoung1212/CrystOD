@@ -57,6 +57,8 @@ crystod-mag -c 221_PPOSCAR_AlNi3 --element Ni --qpoint 0 0 0
 crystod-mag -c 221_PPOSCAR_AlNi3 --element Ni --qpoint GM --format qe
 """
 
+#: Names of the magnetic multipole ranks used in the ``crystod-mag`` output
+#: (rank ``p`` -> ``2**p``-pole): ``{1: "dipole", 3: "octupole", ...}``.
 MULTIPOLE_NAMES = {
     0: "monopole",
     1: "dipole",
@@ -135,11 +137,52 @@ def get_spin_representation(
     site_indices: list[int],
     qpoint: list[float],
 ):
-    """Irreps and the axial-vector representation on the selected sites at q.
+    """Irreps and the axial-vector (spin) representation on selected sites at q.
 
-    Same construction as the vibration representation, with the Cartesian part
-    replaced by det(R) * R (spins are axial vectors) and the permutation
-    restricted to the selected sites.
+    This is the first step of ``crystod-mag`` (at the ``--qpoint`` given, or at
+    every special k point in survey mode): the spins of the ``site_indices``
+    atoms of the primitive cell are treated as axial vectors, and the little
+    group of ``qpoint`` acts on the 3N-dimensional spin space by the same
+    construction as the vibration (polar-vector) representation of
+    ``crystod-phonon``, with the Cartesian rotation ``R`` replaced by
+    ``det(R) * R`` and the site permutation restricted to the selected sites.
+    The Bloch-phase convention is that of spgrep, so the returned matrices can
+    be projected onto the returned irreps directly with
+    ``spgrep.representation.project_to_irrep``.
+
+    Args:
+        vibrations: Symmetry container of the primitive cell
+            (``crystod.phonon.SymmetryOnlyVibrations``); its ``rotations``,
+            ``translations`` and ``primitive_cell`` define the space group.
+        site_indices: Indices (into ``vibrations.primitive_cell``) of the N
+            atoms that carry a spin, e.g. every atom of the magnetic element.
+        qpoint: The q point in primitive reciprocal coordinates, e.g.
+            ``[0, 0, 0]`` or ``[0.5, 0.5, 0.5]``.
+
+    Returns:
+        tuple: ``(irreps, spin_rep, mapping)``. ``irreps`` is the list of spgrep
+        irreps of the little group at ``qpoint`` (each an array of shape
+        ``(order, dim, dim)``); ``spin_rep`` is the complex array of shape
+        ``(order, 3N, 3N)`` holding the spin-representation matrix of every
+        little-group operation, in the order of the irrep matrices; ``mapping``
+        is the integer array that indexes those operations in
+        ``vibrations.rotations`` (what ``get_irrep_labels`` and
+        ``get_multipole_rank_lists`` expect).
+
+    Example:
+        >>> from phonopy.interface.vasp import read_vasp
+        >>> from crystod import mag, phonon
+        >>> from crystod.examples import example_path
+        >>> cell = read_vasp(example_path("221_PPOSCAR_SrTiO3"))
+        >>> vib = phonon.SymmetryOnlyVibrations(cell, standardize=False)
+        >>> symbols = vib.primitive_cell.symbols
+        >>> sites = [i for i, s in enumerate(symbols) if s == "O"]   # 3 sites
+        >>> q = [0, 0, 0]
+        >>> irreps, spin_rep, mapping = mag.get_spin_representation(vib, sites, q)
+        >>> spin_rep.shape
+        (48, 9, 9)
+        >>> vib.get_irrep_labels(q, irreps, mapping)[6]
+        'GM4+(3)'
     """
     positions = vibrations.primitive_cell.scaled_positions
     irreps, mapping = get_spacegroup_irreps_from_primitive_symmetry(
@@ -188,14 +231,48 @@ def get_multipole_rank_lists(
     irreps,
     max_rank: int = 9,
 ) -> list[list[int]]:
-    """For each irrep, the ranks p at which it appears in the magnetic
-    (time-odd, axial) rank-p multipole representation, in increasing order
-    with multiplicity.
+    """Ranks at which each irrep occurs in the magnetic multipole representations.
 
-    The rank-p magnetic multipole transforms as the angular-momentum-p
-    representation with parity (-1)^(p+1) under inversion: dipole (p=1) and
-    octupole (p=3) are parity-even, the magnetic quadrupole (p=2) is
-    parity-odd, etc.
+    ``crystod-mag`` uses these lists at q = 0 to name the symmetry-adapted spin
+    bases: the spaces of an irrep are named in the order of the ranks in its
+    list, so the ferromagnetic combination (cluster dipole, rank 1) comes
+    first and the antiferromagnetic ones follow as octupole, ... (the logic of
+    Table III of M.-T. Suzuki et al., Phys. Rev. B 95, 094406). The rank-``p``
+    magnetic (time-odd, axial) multipole transforms as the angular-momentum-
+    ``p`` representation with parity ``(-1)**(p + 1)`` under inversion: the
+    dipole (``p = 1``) and octupole (``p = 3``) are parity-even, the magnetic
+    quadrupole (``p = 2``) is parity-odd, and so on. The multiplicity of every
+    irrep is obtained by character orthogonality against the rotation
+    characters ``sin((p + 1/2) theta) / sin(theta / 2)`` of the proper part
+    of every little-group operation.
+
+    Args:
+        vibrations: Symmetry container of the primitive cell
+            (``crystod.phonon.SymmetryOnlyVibrations``); its lattice converts
+            the integer rotations to Cartesian form.
+        little_rotations: Integer rotation matrices of the little-group
+            operations, in the order of the irrep matrices: normally
+            ``vibrations.rotations[mapping]`` with the ``mapping`` returned by
+            ``get_spin_representation``.
+        irreps: The spgrep irreps of the little group, as returned by
+            ``get_spin_representation``.
+        max_rank: Highest rank ``p`` included in the search.
+
+    Returns:
+        One list per irrep (same order as ``irreps``), holding the ranks
+        ``1 <= p <= max_rank`` at which the irrep appears in the rank-``p``
+        magnetic multipole representation, in increasing order and repeated
+        according to the multiplicity. ``MULTIPOLE_NAMES`` translates ranks
+        to names.
+
+    Example:
+        >>> # vib, sites, q: see get_spin_representation (O sites of SrTiO3)
+        >>> irreps, spin_rep, mapping = mag.get_spin_representation(vib, sites, q)
+        >>> labels = vib.get_irrep_labels(q, irreps, mapping)
+        >>> rotations = vib.rotations[mapping]
+        >>> ranks = mag.get_multipole_rank_lists(vib, rotations, irreps)
+        >>> dict(zip(labels, ranks))["GM4+(3)"]
+        [1, 3, 5, 5, 7, 7, 9, 9, 9]
     """
     from .runtime_compat import get_character
 
@@ -287,9 +364,49 @@ def separate_ferro_combination(
     representation: NDArray[np.complex128],
     n_sites: int,
 ) -> tuple[NDArray[np.float64] | None, list[NDArray[np.float64]]]:
-    """Within a set of aligned spaces carrying the same irrep, split off the
-    unique combination with a net moment (cluster dipole); the rest are
-    net-zero (AFM). Returns (ferro_space_or_None, afm_spaces)."""
+    """Split the ferromagnetic combination off the spaces of one irrep.
+
+    At q = 0 an irrep can occur several times in the spin representation
+    (``2 x GM4+`` for the three Ni sites of AlNi3); ``crystod-mag`` calls this
+    function once per irrep label with all of its projected spaces. The spaces
+    are first aligned to a common partner basis (an intertwiner with
+    ``representation`` is found for every space, and complex circular bases
+    are recombined into real ones), then the net moments ``sum_i S_i`` of the
+    aligned spaces are combined into one unit vector: its unitary completion
+    gives the unique combination that carries a net moment (the cluster
+    dipole, printed as ``FM``) and the orthogonal combinations with
+    ``sum_i S_i = 0`` (``AFM``: octupoles and higher). When no space carries a
+    net moment, or the completion does not separate cleanly, the aligned
+    spaces are returned unchanged as antiferromagnetic.
+
+    Args:
+        spaces: Real basis arrays of shape ``(dim, 3N)`` (one row per partner
+            of the irrep; ``3N`` = three Cartesian components of N spins) that
+            all carry the same irrep, e.g. the output of
+            ``spgrep.representation.project_to_irrep`` for one irrep.
+        representation: The spin-representation matrices of shape
+            ``(order, 3N, 3N)`` returned by ``get_spin_representation``; used
+            to align the spaces to a common basis.
+        n_sites: The number N of spin-carrying sites.
+
+    Returns:
+        tuple: ``(ferro, afm)``. ``ferro`` is the basis array of shape
+        ``(dim, 3N)`` with a net moment (``None`` when no combination has one)
+        and ``afm`` is the list of the remaining net-zero basis arrays;
+        together they span the same space as the input.
+
+    Example:
+        >>> # spin_rep, irreps, sites: see get_spin_representation (SrTiO3, O)
+        >>> import numpy as np
+        >>> from spgrep.representation import project_to_irrep
+        >>> gm4p = irreps[6]                                     # GM4+, twice
+        >>> spaces = [np.real(s) for s in project_to_irrep(spin_rep, gm4p)]
+        >>> ferro, afm = mag.separate_ferro_combination(spaces, spin_rep, 3)
+        >>> ferro.shape, len(afm)
+        ((3, 9), 1)
+        >>> bool(np.abs(afm[0].reshape(3, 3, 3).sum(axis=1)).max() < 1e-8)
+        True
+    """
     if len(spaces) == 1:
         nets = _net_moments(spaces[0], n_sites)
         if np.abs(nets).max() < 1e-8:

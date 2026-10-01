@@ -184,12 +184,18 @@ _CRYSTOD_M_ORDER = {
 
 
 def _import_pyscf():
-    try:
-        from pyscf.pbc import dft, gto, scf, tools  # noqa: F401
-    except ImportError as exc:
-        raise SystemExit(
-            "ERROR: --pyscf requires the pyscf package (pip install pyscf)."
-        ) from exc
+    """Import PySCF, or raise ``ImportError`` naming the ``[quantum]`` extra.
+
+    PySCF is an optional dependency (``pip install "CrystOD[quantum]"``);
+    the command-line front end reports the same condition as a one-line
+    ``ERROR:`` before dispatching here, and the library API lets the
+    ``ImportError`` propagate.
+    """
+    from ._optional import require_pyscf
+
+    require_pyscf("crystod --diagram/--band/--dos/--visualize --pyscf "
+                  "(PySCFCrystalOrbitalDiagram)")
+    from pyscf.pbc import dft, gto, scf, tools  # noqa: F401
     # some conda builds of pyscf default to a SINGLE OpenMP thread unless
     # OMP_NUM_THREADS is exported; that turns a minutes-long diagram into an
     # hours-long one.  Use every core unless the user chose otherwise.
@@ -230,7 +236,21 @@ def default_kmesh(lattice: np.ndarray) -> list[int]:
 
 @dataclass
 class AOBlock:
-    """One (element, shell) block of the PySCF AO space, for level labels."""
+    """One (element, shell) block of the PySCF AO space, for level labels.
+
+    Attributes:
+        element: Chemical symbol.
+        shell: Shell name such as ``"3d"``.
+        l: Azimuthal quantum number.
+        offset: First AO index of the block.
+        n_ao: Number of AOs in the block (``2l+1`` per site).
+        sites: Indices of the atoms carrying the shell.
+        column: ``"left"`` or ``"right"``.
+        radial: Radial amplitude of the contracted function at the sketch
+            radius ``r0``.
+        radial_profile: The same at every sketch radius, for the
+            multi-radius sign of the viewer.
+    """
 
     element: str
     shell: str
@@ -250,9 +270,113 @@ class AOBlock:
 class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
     """Crystal-orbital diagram from three periodic PySCF calculations.
 
-    Subclasses the extended-Hueckel engine only to reuse its k-point list,
-    degenerate-group clustering, irrep projection, level filling and supercell
-    helper; the Hamiltonian, the overlap and the orbitals all come from PySCF.
+    The engine behind ``crystod --diagram --pyscf``.  It subclasses the
+    extended-Hueckel engine only to reuse its k-point list, degenerate-group
+    clustering, irrep projection, level filling and supercell helper; the
+    Hamiltonian, the overlap and the orbitals all come from PySCF (the
+    module docstring describes the construction).  The CLI sequence,
+    :func:`report_and_write`, is :meth:`run` (the SCFs, or a ``chk``
+    restart), :meth:`prepare_bands` for all :meth:`special_kpoints`,
+    :meth:`solve_at` and :meth:`site_symmetry_irreps` per k point,
+    :meth:`align_fragment_columns`, :meth:`atomic_ion_levels` with
+    :meth:`attach_atomic_columns`, then the shared HTML writer.  PySCF is
+    an optional dependency (``pip install "CrystOD[quantum]"``).
+
+    Args:
+        cell: The crystal structure as ``phonopy.structure.atoms.PhonopyAtoms``
+            (converted to the spglib primitive cell).
+        left_tokens: ``--co-left`` formula tokens, e.g. ``["Sc"]``.
+        right_tokens: ``--co-right`` formula tokens, e.g. ``["F3"]``.
+        symprec: Symmetry tolerance handed to spglib.
+        basis: GTH basis set name (``--basis``); ``GTH_BASIS_SETS`` lists
+            what PySCF ships, and the coverage of every element is checked.
+        pseudo: GTH pseudopotential family (``--pseudo``).
+        xc: Exchange-correlation functional (``--xc``; ``"hf"`` for
+            Hartree-Fock).
+        kmesh: SCF k mesh ``[n1, n2, n3]`` (``--kmesh``); default
+            :func:`default_kmesh`, ``round(8 Angstrom / |a_i|)`` per axis.
+        ke_cutoff: FFT density-grid cutoff in Hartree (``--ke-cutoff``);
+            below about 80 the GTH Gaussians are not resolved.
+        oxidation: ``{element: formal charge}`` (``--oxidation``); default
+            pymatgen's guess.  Sets both the fragment ion charges and the
+            point charges of the removed sublattice.
+        electrons: Electrons per cell filled into the crystal column
+            (default: the crystal cell's own count).
+        sigma: Fermi smearing width in eV (``--sigma``; 0 = integer
+            occupations; an odd-electron cell always smears).
+        degeneracy_tol: Seed window in eV for clustering degenerate levels
+            (``--degeneracy-tol``; default ``DEGENERACY_SEED_EV``).
+        no_ghost: Exclude the removed sublattice's basis functions from the
+            fragment calculations (``--no-ghost``).
+        symmetrize: Re-diagonalize the group-averaged Fock so grid-broken
+            degeneracies come out exact (``--no-symmetrize`` turns it off).
+        max_l: Drop basis shells with ``l`` above this from every element
+            (``--max-l``); ``None`` keeps all.
+        projection: ``"lowdin"`` or ``"mulliken"``, the population measure
+            of the compositions and sketch lobe sizes (``--projection``).
+        chk: Restart file path (``--chk``): written after the SCFs when
+            missing, read (skipping them) when present.
+            :func:`report_and_write` defaults to ``CHK_{formula}.chk``.
+        onsite: Single-Hamiltonian mode (``--onsite``): only the crystal SCF
+            runs, and the fragment columns are the per-shell on-site
+            multiplets of the crystal Fock operator.
+        conventional: Draw the hover sketches in the conventional cell
+            (display only).
+        conv_tol: SCF convergence threshold in Hartree.
+        max_cycle: SCF iteration limit.
+        max_memory: PySCF memory limit in MB.
+        verbose: PySCF verbosity level (``--verbose``).
+
+    Attributes:
+        builder: The :class:`SymmetryAdaptedOrbitalBasis` of the cell.
+        symbols: Chemical symbols of the primitive-cell atoms; ``positions``
+            their fractional and ``cartesian`` their Cartesian coordinates,
+            ``lattice`` the lattice vectors as rows (Angstrom).
+        cells: ``{"mo": crystal, "left": ..., "right": ...}`` PySCF
+            ``pbc.gto.Cell`` objects that share one AO space of ``n_ao``
+            functions.
+        formula: ``{"left": ..., "right": ...}``, the fragment formulas.
+        side_atoms: Atom indices of each fragment; ``side_charge`` their
+            formal charges, ``side_electrons`` their electron counts, and
+            ``crystal_electrons`` that of the crystal.
+        oxidation: The formal charges in use.
+        specs: One ``AOBlock`` per (element, shell) of the AO space;
+            ``side_specs[column]`` those of one fragment, ``ao_blocks`` the
+            unmerged per-atom blocks.
+        kmesh: The SCF mesh in use.
+        mean_field: After :meth:`run`: ``{column: converged KRKS/KRHF}``;
+            ``density_matrix`` and ``scf_energy`` (Hartree) likewise.
+        smeared: The columns whose occupations ended up Fermi-smeared.
+        last_coupling: Set by :meth:`solve_at`: ``(left level, right level,
+            |H~|, gap, minority weight, |S|, |H|)`` tuples of the same-irrep
+            fragment pairs, strongest mixing first; ``last_gauge_residual``
+            the ``D+ S D - S`` residual of the representation check.
+        atomic_ions: After :meth:`atomic_ion_levels`: ``{element:
+            {"charge", "nelec", "method", "shells", "caveats"}}``.
+        chk_path: The restart file in use, if any.
+
+    Raises:
+        ImportError: PySCF is not installed.
+        SystemExit: A fragment formula that does not match the cell, a basis
+            or functional PySCF does not ship for these elements, a
+            ``projection`` other than ``lowdin``/``mulliken``, a ``kmesh``
+            entry below 1, or oxidation states that are not charge-neutral.
+
+    Example:
+        The diagram of ScF3, three SCFs on a 2x2x2 mesh (minutes, not
+        seconds)::
+
+            from phonopy.interface.calculator import read_crystal_structure
+            from crystod import salc
+            from crystod.examples import example_path
+
+            cell, _ = read_crystal_structure(
+                str(example_path("221_PPOSCAR_ScF3")), interface_mode="vasp")
+            diagram = salc.PySCFCrystalOrbitalDiagram(cell, ["Sc"], ["F3"])
+            diagram.run()
+            kpoints = diagram.special_kpoints()
+            diagram.prepare_bands([k for _, k in kpoints])
+            levels, labels = diagram.solve_at(kpoints[0][1])   # GM
     """
 
     def __init__(self, cell, left_tokens, right_tokens, *, symprec=1e-5,
@@ -301,6 +425,10 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         self.projection_label = ("Loewdin" if projection == "lowdin"
                                  else "Mulliken")
         self.chk_path = chk
+        # True when report_and_write derived CHK_{formula}.chk itself:
+        # an automatic checkpoint is a cache, so a stale or mismatched
+        # one is recomputed and overwritten instead of being an error
+        self.chk_auto = False
         self.degeneracy_tol = (DEGENERACY_SEED_EV if degeneracy_tol is None
                                else float(degeneracy_tol))
         self.degeneracy_window = DEGENERACY_MAX_WINDOW_EV
@@ -706,6 +834,42 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
 
     # --------------------------------------------------- point-charge field
 
+    def compound_formula(self) -> str:
+        """Reduced formula in conventional chemical order (rutile: ``TiO2``).
+
+        The same helper the symmetry-mode tables are named after: cations
+        before anions, the cation on the most special Wyckoff site first.
+        Falls back to a plain alphabetical composition if pymatgen's
+        oxidation-state guesser has nothing to say about the elements.
+        :func:`report_and_write` names the default restart file
+        ``CHK_{formula}.chk`` after it.
+
+        Returns:
+            The formula string.
+        """
+        from .poscar2cif import (chemical_formula_parts,
+                                 format_chemical_formula)
+
+        try:
+            from pymatgen.core.periodic_table import Element
+
+            numbers = [Element(symbol).Z for symbol in self.symbols]
+            return format_chemical_formula(chemical_formula_parts(
+                numbers, self.builder.spglib_dataset["equivalent_atoms"]))
+        except Exception:
+            from collections import Counter
+            from math import gcd
+
+            counts = Counter(self.symbols)
+            divisor = 0
+            for value in counts.values():
+                divisor = gcd(divisor, value)
+            divisor = divisor or 1
+            return "".join(
+                f"{symbol}{count // divisor}" if count // divisor != 1
+                else symbol
+                for symbol, count in sorted(counts.items()))
+
     def _basis_covers(self, name) -> bool:
         """Does PySCF ship this GTH basis for every element of the cell?"""
         from pyscf.pbc.gto import basis as pbc_basis
@@ -917,12 +1081,33 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         ]
 
     def run(self, report=print) -> None:
-        """The three self-consistent calculations on the regular mesh."""
+        """Run the periodic SCF calculations, or restore them from ``chk``.
+
+        The crystal is solved first; its converged density restricted to one
+        sublattice's AO block is the initial guess of that fragment.  A
+        calculation that does not converge is retried up a ladder of Fermi
+        smearing widths, cycle counts and virtual-level shifts, each rung
+        reported.  The converged results land in :attr:`mean_field`,
+        :attr:`density_matrix` and :attr:`scf_energy`, and are written to
+        :attr:`chk_path` when it is set.  With ``onsite`` only the crystal
+        calculation runs.
+
+        Args:
+            report: Callable that receives the progress lines (default
+                ``print``).
+
+        Returns:
+            ``None``.
+
+        Raises:
+            SystemExit: An SCF that does not converge even with smearing, or
+                an explicit ``chk`` file whose parameters do not match.
+        """
         import os
 
         if self.chk_path and os.path.exists(self.chk_path):
-            self._load_chk(report)
-            return
+            if self._load_chk(report):
+                return
 
         # The crystal is solved first: its converged density restricted to one
         # sublattice's AO block (ghost rows/columns zeroed) is the best
@@ -1041,16 +1226,51 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             "xc": self.xc, "kmesh": list(self.kmesh),
             "ke_cutoff": float(self.ke_cutoff), "max_l": self.max_l,
             "no_ghost": self.no_ghost, "sigma": self.sigma,
-            "electrons": float(self.electrons),
+            # NOT compared: self.electrons only fills the diagram's arrows
+            # (_fill), so a different --electrons must not invalidate a
+            # perfectly good density.  conv_tol/max_cycle DO shape it.
+            "conv_tol": float(self.conv_tol),
+            "max_cycle": int(self.max_cycle),
             "oxidation": {el: float(q) for el, q in self.oxidation.items()},
             "left": self.formula["left"], "right": self.formula["right"],
             "symbols": list(self.symbols),
         }
 
     def _save_chk(self, report) -> None:
-        import json
+        """Write the checkpoint.  Never fatal for an automatic file: the
+        cache is an optimization, and the three SCFs are already done --
+        losing the page because the working directory is read-only or full
+        would be absurd.  Written to a temporary file and renamed, so an
+        interrupted write cannot leave a truncated checkpoint behind."""
+        import os
 
-        with open(self.chk_path, "wb") as handle:
+        try:
+            self._write_chk()
+        except Exception as error:
+            if not self.chk_auto:
+                raise
+            report(f"   WARNING: could not save {self.chk_path} ({error}); "
+                   "continuing without the checkpoint")
+            for leftover in (self.chk_path + ".tmp",):
+                try:
+                    os.remove(leftover)
+                except OSError:
+                    pass
+            return
+        report(f"   SCF saved to {self.chk_path} "
+               + ("(reused automatically by the next --pyscf run on this "
+                  "structure; delete the file to force a fresh SCF, or pass "
+                  "--no-chk to skip it)"
+                  if self.chk_auto else
+                  "(reuse with --chk; delete the file to force a fresh "
+                  "SCF)"))
+
+    def _write_chk(self) -> None:
+        import json
+        import os
+
+        temporary = self.chk_path + ".tmp"
+        with open(temporary, "wb") as handle:
             # a file handle keeps the exact name (np.savez would append .npz)
             # --onsite runs (and therefore saves) only the crystal SCF; the
             # energy_columns array records which densities the file holds
@@ -1065,14 +1285,36 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 **{f"dm_{column}": np.asarray(self.density_matrix[column])
                    for column in self.scf_columns},
             )
-        report(f"   SCF saved to {self.chk_path} (reuse with --chk; delete "
-               "the file to force a fresh SCF)")
+        os.replace(temporary, self.chk_path)
 
-    def _load_chk(self, report) -> None:
+    def _chk_reject(self, reason, remedy, report) -> bool:
+        """A checkpoint that cannot be reused.
+
+        A file the user named with --chk is an error -- they asked for that
+        density.  The automatic CHK_{formula}.chk is a cache: say what
+        happened and recompute (the fresh SCF overwrites it)."""
+        if not self.chk_auto:
+            raise SystemExit(f"ERROR: {self.chk_path} {reason}\n"
+                             f"       {remedy}")
+        report(f"   the automatic checkpoint {self.chk_path} {reason};")
+        report("   running the SCFs again and overwriting it")
+        return False
+
+    def _load_chk(self, report) -> bool:
+        """True when the stored densities were adopted, False when an
+        automatic checkpoint was rejected (run() then recomputes)."""
         import json
 
-        data = np.load(self.chk_path, allow_pickle=False)
-        saved = json.loads(str(data["params"]))
+        try:
+            data = np.load(self.chk_path, allow_pickle=False)
+            saved = json.loads(str(data["params"]))
+        except Exception as error:
+            # a truncated write, a foreign file that happens to match the
+            # automatic name, anything unreadable -- never a dead end
+            return self._chk_reject(
+                f"is not a readable CrystOD checkpoint ({error})",
+                "Delete the file (or point --chk somewhere else) and rerun.",
+                report)
         current = self._chk_params()
         # --onsite reads only the crystal density, which no_ghost never
         # touches (it shapes the fragment SCFs) -- a full-run chk written
@@ -1091,27 +1333,34 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                       and any(int(round(self.side_charge[col])) != 0
                               for col in self.scf_columns if col != "mo"))
             if harmed:
-                raise SystemExit(
-                    f"ERROR: {self.chk_path} predates the fragment "
-                    "electron-count fix: its charged fragment densities "
-                    "converged with charge*(nkpts-1)/nkpts spurious "
-                    "electrons per cell (pyscf subtracts cell.charge once "
-                    "per Born-von-Karman supercell, not per cell).\n"
-                    "       Delete the file and rerun to regenerate the "
-                    "densities.")
+                return self._chk_reject(
+                    "predates the fragment electron-count fix: its charged "
+                    "fragment densities converged with "
+                    "charge*(nkpts-1)/nkpts spurious electrons per cell "
+                    "(pyscf subtracts cell.charge once per "
+                    "Born-von-Karman supercell, not per cell)",
+                    "Delete the file and rerun to regenerate the densities.",
+                    report)
             mismatched.remove("nelectron_fix")
-        if (not np.allclose(np.asarray(data["positions"]), self.positions,
-                            atol=1e-6)
-                or not np.allclose(np.asarray(data["lattice"]), self.lattice,
-                                   atol=1e-6)):
+        # shapes first: np.allclose RAISES on differently shaped arrays, and
+        # two polymorphs share one automatic file name (rocksalt and wurtzite
+        # AlN are both CHK_AlN.chk with 2 and 4 atoms per cell)
+        stored_positions = np.asarray(data["positions"])
+        stored_lattice = np.asarray(data["lattice"])
+        if (stored_positions.shape != self.positions.shape
+                or stored_lattice.shape != self.lattice.shape
+                or not np.allclose(stored_positions, self.positions,
+                                   atol=1e-6)
+                or not np.allclose(stored_lattice, self.lattice, atol=1e-6)):
             mismatched.append("structure")
         if mismatched:
-            raise SystemExit(
-                f"ERROR: {self.chk_path} was written with different "
-                f"parameters ({', '.join(sorted(mismatched))}); delete the "
-                "file or rerun with the matching options.\n"
-                f"       (crystod --chk-info {self.chk_path} shows the "
-                "stored conditions and a ready-to-paste option string)")
+            return self._chk_reject(
+                "was written with different parameters "
+                f"({', '.join(sorted(mismatched))})",
+                "Delete the file or rerun with the matching options "
+                f"(crystod --chk-info {self.chk_path} shows the stored "
+                "conditions and a ready-to-paste option string).",
+                report)
         self.smeared = set(str(s) for s in data["smeared"])
         energies = np.asarray(data["energies"], dtype=float)
         # pre-onsite checkpoints carry no energy_columns record; they always
@@ -1121,11 +1370,12 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                   else ["mo", "left", "right"])
         for column in self.scf_columns:
             if f"dm_{column}" not in data.files:
-                raise SystemExit(
-                    f"ERROR: {self.chk_path} was written with --onsite and "
-                    "holds only the crystal density; rerun without --chk (or "
-                    "with a checkpoint from a full three-SCF run) to build "
-                    f"the {column} fragment column.")
+                return self._chk_reject(
+                    "was written with --onsite and holds only the crystal "
+                    f"density, not the {column} fragment column",
+                    "Rerun without --chk (or with a checkpoint from a full "
+                    "three-SCF run) to build the fragment columns.",
+                    report)
             cell = self.cells[column]
             # a mean-field object is still needed for get_bands, but with the
             # density matrix passed explicitly it is never iterated
@@ -1145,13 +1395,22 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         if relevant:
             report(f"   ({', '.join(sorted(relevant))} carried Fermi "
                    "smearing when the file was written)")
+        return True
 
     def prepare_bands(self, kpoints) -> None:
-        """Diagonalise every calculation at every diagram k point in one call.
+        """Diagonalize every calculation at every diagram k point in one call.
 
         ``get_bands`` rebuilds the density on the FFT grid each time it is
-        called, so asking for all the special points at once instead of one per
-        k point removes that cost from all but the first.
+        called, so asking for all the special points at once instead of one
+        per k point removes that cost from all but the first.  Call after
+        :meth:`run`; :meth:`solve_at` then reads the cache.
+
+        Args:
+            kpoints: List of three-component primitive reciprocal
+                coordinates.
+
+        Returns:
+            ``None``.
         """
         self._band_cache = {}
         keys = [self._kpoint_key(kpoint) for kpoint in kpoints]
@@ -1245,6 +1504,14 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         return energies[order], coefficients[:, order], dropped
 
     def overlap_at(self, kpoint) -> np.ndarray:
+        """PySCF AO overlap matrix ``S(k)`` of the crystal cell.
+
+        Args:
+            kpoint: Three primitive reciprocal coordinates.
+
+        Returns:
+            Hermitian complex array of shape ``(n_ao, n_ao)``.
+        """
         cell = self.cells["mo"]
         kpts_band = cell.get_abs_kpts(np.array([kpoint], dtype=float))
         return np.asarray(cell.pbc_intor("int1e_ovlp", hermi=1, kpts=kpts_band))[0]
@@ -1260,11 +1527,18 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
     # -------------------------------------------------------------- symmetry
 
     def little_group_data(self, kpoint):
-        """spgrep irreps, physical labels, and the AO representation at k.
+        """Irreps, labels and the AO representation of the little group at ``k``.
 
-        Same construction as the extended-Hueckel engine, but written directly
-        in PySCF's AO ordering: D[(a', shell, m'), (a, shell, m)] =
-        P[a', a] W^l[m', m].
+        Same construction as the extended-Hueckel engine, but written
+        directly in PySCF's AO ordering:
+        ``D[(a', shell, m'), (a, shell, m)] = P[a', a] W^l[m', m]``.
+
+        Args:
+            kpoint: Three primitive reciprocal coordinates.
+
+        Returns:
+            ``(irreps, mapping, labels, representation)`` as in
+            :meth:`CrystalOrbitalDiagram.little_group_data`.
         """
         from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
 
@@ -1318,9 +1592,24 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         return irreps, mapping, labels, representation
 
     def site_symmetry_irreps(self, kpoint, representation, irreps, labels):
-        """Irrep content of every (element, shell) block at k -- the
-        site-symmetry induced representation of ``crystod --element/--orbital``,
-        recomputed here from the very representation used for the labelling."""
+        """Irrep content of every (element, shell) block at ``k``.
+
+        The site-symmetry induced representation that
+        ``crystod --element EL --orbital ORB`` reports, recomputed here from
+        the very representation used for the labelling.
+
+        Args:
+            kpoint: Three primitive reciprocal coordinates (not used by the
+                computation; kept for symmetry with :meth:`little_group_data`).
+            representation: The AO representation matrices from
+                :meth:`little_group_data`.
+            irreps: The spgrep irreps from the same call.
+            labels: Their ISO-IR labels.
+
+        Returns:
+            ``{(element, shell): ["GM1+", "2GM4-", ...]}``: the irreps the
+            shell's Bloch orbitals span, multiplicities as prefixes.
+        """
         from .runtime_compat import get_character
 
         order = len(representation)
@@ -1429,8 +1718,20 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         column moves by -delta_ref, the other fragment column by
         delta_other - delta_ref.
 
-        ``records`` is the per-k-point list built by report_and_write; the
-        level energies are shifted in place.  Returns (shifts, anchors).
+        Args:
+            records: The per-k-point list built by :func:`report_and_write`:
+                dicts with ``"name"``, ``"kpoint"`` and ``"levels"`` (the
+                :meth:`solve_at` result), one per diagram k point.  The
+                level energies are shifted in place.
+
+        Returns:
+            ``(shifts, anchors)``: ``shifts`` maps ``"left"``, ``"mo"`` and
+            ``"right"`` to the applied energy shifts in eV and
+            ``"reference"`` to the anchoring column; ``anchors[column]``
+            describes each fragment's anchor level (``"label"``,
+            ``"fragment_energy"``, ``"purity"``, ``"spread"``, ``"n_k"``,
+            ``"fallback"``) or is ``None``.  ``(None, anchors)`` when no
+            chemically inert fragment level exists; nothing is shifted then.
         """
         anchors = {}
         for column in ("left", "right"):
@@ -1460,6 +1761,22 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             if not pool:
                 anchors[column] = None
                 continue
+            # optional override (``--vasp-anchor EL nl``): pin the column on a
+            # chosen (element, shell) instead of its deepest inert level.  No
+            # other engine sets ``anchor_override``, so the default path below
+            # is unchanged.
+            forced = getattr(self, "anchor_override", {}).get(column)
+            if forced:
+                chosen = [pair for pair in pool
+                          if tuple(pair[2].split()[:2]) == tuple(forced)]
+                if not chosen:
+                    offered = sorted({" ".join(pair[2].split()[:2])
+                                      for pair in pool})
+                    raise SystemExit(
+                        f"ERROR: no {forced[0]} {forced[1]} level of the "
+                        f"{column} fragment has a crystal counterpart to "
+                        f"anchor on (available: {', '.join(offered)}).")
+                pool = chosen
             deepest = min(pool, key=lambda pair: pair[0])
             key = tuple(deepest[2].split()[:2])  # (element, shell), any k
             # the same shell across the k points -- but only levels of the same
@@ -1481,6 +1798,11 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 "delta": float(np.mean(values)),
                 "spread": float(np.max(values) - np.min(values)) if len(values) > 1 else 0.0,
                 "n_k": len(trusted),
+                # "n_k" counts (k point, level) PAIRS -- one shell can supply
+                # two levels at the same k -- so the number of distinct k
+                # points is reported separately for engines that print it
+                "n_levels": len(trusted),
+                "n_kpoints": len({pair[3] for pair in trusted}),
                 "purity": best_purity,
                 "fallback": not inert,
             }
@@ -1507,10 +1829,11 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
     # ------------------------------------------- isolated formal-charge ions
 
     def atomic_ion_levels(self):
-        """One isolated ion per element, at its formal charge -- the atomic
-        stage BEFORE the sublattice forms (the crystal analogue of MolOD's
-        ligand-ao column, computed with PySCF as the user's three-stage
-        story: charged atom -> charged sublattice -> crystal).
+        """Levels of one isolated ion per element, at its formal charge.
+
+        The atomic stage before the sublattice forms (the crystal analogue
+        of MolOD's ligand-ao column), computed with PySCF as the three-stage
+        story charged atom -> charged sublattice -> crystal.
 
         Same basis / pseudopotential / functional as the periodic
         calculations (GTH pseudopotentials work in PySCF's molecular code).
@@ -1523,9 +1846,11 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         in attach_atomic_columns, which also bridges the molecular (vacuum)
         and periodic (G = 0) energy references.
 
-        Fills self.atomic_ions[element] = {"charge", "nelec", "method",
-        "shells": [(shell_name, l, energy_eV), ...]} with one entry per
-        (element, shell) spec of the AO basis.
+        Returns:
+            ``None``.  Fills :attr:`atomic_ions` with one entry per element:
+            ``{"charge", "nelec", "method", "shells": [(shell_name, l,
+            energy_eV), ...], "caveats"}``, one shell per (element, shell)
+            spec of the AO basis.
         """
         from pyscf import gto as mol_gto
         from pyscf import dft as mol_dft
@@ -1721,8 +2046,17 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         orthogonal-basis tight-binding picture IS the on-site energy.  The
         anchor shell's connector fan then shows pure intra-sublattice
         splitting; the other shells additionally carry the ion's own level
-        spacing against the environment's.  Returns {element: (anchor
-        shell, shift)} for the report.
+        spacing against the environment's.
+
+        Args:
+            records: The per-k-point list of :meth:`align_fragment_columns`;
+                the ``"left-ao"`` and ``"right-ao"`` columns are added to
+                every record's ``"levels"`` in place.
+
+        Returns:
+            ``{element: (anchor shell, shift)}`` for the report, the shift
+            in eV; ``("none", 0.0)`` for an element none of whose shells
+            dominates a fragment level.
         """
         site_counts: dict[str, set] = {}
         for column in ("left", "right"):
@@ -1886,10 +2220,11 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
     # ---------------------------------------------------- wave-function sketch
 
     def sketch_partners(self, level, kpoint, sites):
-        """Per-partner lobes on the supercell atoms, from the PySCF AO
-        coefficients -- same entry format as the extended-Hueckel sketch:
-        [atom, s, px, py, pz, dxy, dyz, dz2, dxz, dx2-y2]; ``sites`` is the
-        (atom index, translation) list of supercell_for.
+        """Real wave-function amplitudes of a level on the supercell atoms.
+
+        The hover sketch of one level from the PySCF AO coefficients, in the
+        entry format of the extended-Hueckel sketch
+        (:meth:`CrystalOrbitalDiagram.sketch_partners`).
 
         The PySCF eigenvectors are in the atomic Bloch gauge, so the
         cell-to-cell phase is exp(2 pi i k . T) without the site offset.
@@ -1900,6 +2235,18 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         misstate the sizes: a diffuse gth-dzvp Sc 4p is ~5x an F 2p at r0, so
         a 7%-population Sc admixture used to draw at 83% of the largest F
         lobe.  f shells and higher are omitted from the drawing.
+
+        Args:
+            level: A ``DiagramLevel`` from :meth:`solve_at`.
+            kpoint: The k point the level was solved at.
+            sites: The ``(atom index, translation)`` list of
+                :meth:`supercell_for` at that k point.
+
+        Returns:
+            One list per partner; each holds one sketch entry
+            ``[atom, s, px, py, pz, dxy, dyz, dz2, dxz, dx2-y2]`` per
+            supercell atom (index into ``sites``, then the real amplitudes
+            of the nine ``s``/``p``/``d`` components).
         """
         from .visualize_basis import realify_basis_space
 
@@ -2090,7 +2437,29 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         return best
 
     def solve_at(self, kpoint):
-        """All fragment and crystal levels at one k point."""
+        """Solve the fragment and crystal levels at one k point from the SCFs.
+
+        Reads the band energies and coefficients cached by
+        :meth:`prepare_bands` (or computes them), clusters degenerate levels
+        until their irrep multiplicities are integral, labels them, drops
+        ghost-dominated fragment states, fills them by aufbau, attaches the
+        population rows and the COOP bond characters, and records the
+        same-irrep fragment couplings in :attr:`last_coupling`.
+
+        Args:
+            kpoint: Three primitive reciprocal coordinates.
+
+        Returns:
+            ``(levels, labels)`` with the columns ``"left"``, ``"mo"`` and
+            ``"right"`` as in :meth:`CrystalOrbitalDiagram.solve_at` (the
+            ``-ao`` columns are added later by :meth:`attach_atomic_columns`);
+            energies in eV on the raw per-calculation references until
+            :meth:`align_fragment_columns` shifts them.
+
+        Raises:
+            SystemExit: The AO representation does not leave the PySCF
+                overlap invariant (please report the case).
+        """
         S = self.overlap_at(kpoint)
         S_half = self._sqrt_overlap(S)
         irreps, mapping, labels, representation = self.little_group_data(kpoint)
@@ -2388,7 +2757,8 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
                      pseudo=None, xc="pbe", kmesh=None, ke_cutoff=200.0,
                      sigma=0.0, degeneracy_tol=None, align=True, no_ghost=False,
                      symmetrize=True, max_l=None, projection="lowdin",
-                     chk=None, onsite=False, conventional=False, verbose=0):
+                     chk=None, no_chk=False, onsite=False,
+                     conventional=False, verbose=0):
     """Terminal report + HTML for the PySCF crystal-orbital diagram."""
     diagram = PySCFCrystalOrbitalDiagram(
         cell, left, right, symprec=symprec, electrons=electrons,
@@ -2398,6 +2768,13 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
         max_l=max_l, projection=projection, chk=chk, onsite=onsite,
         conventional=conventional, verbose=verbose,
     )
+    if chk is None and not no_chk:
+        # --pyscf runs are expensive, so the three converged densities are
+        # cached by default under the compound's name; a run whose options
+        # do not match the stored ones simply recomputes and overwrites
+        # (an explicit --chk file stays strict -- see _chk_reject)
+        diagram.chk_path = f"CHK_{diagram.compound_formula()}.chk"
+        diagram.chk_auto = True
     dataset = diagram.builder.spglib_dataset
     print("\n * Space group *")
     print(f" {dataset['international']} ({dataset['number']})\n")
@@ -2606,6 +2983,17 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
                               for col, dev in record["symbreak"].items())
             print("   raw-SCF point-group breaking, removed by Fock "
                   f"group-averaging: {parts}")
+        for col_name, column in (("crystal", "mo"),
+                                 (diagram.formula["left"], "left"),
+                                 (diagram.formula["right"], "right")):
+            for lv in levels.get(column, []):
+                if getattr(lv, "partial", False):
+                    print(f"   WARNING: aufbau leaves the {col_name} "
+                          f"column's {lv.irrep} level at {lv.energy:.2f} eV "
+                          f"partially filled ({lv.electrons} of "
+                          f"{2 * lv.degeneracy} electrons) -- a genuinely "
+                          "metallic k point, or a level-ordering artifact "
+                          "of the model")
 
         # ---- stage 2: site-symmetry induced irreps -----------------------
         print("   site-symmetry induced representations:")
@@ -2748,6 +3136,8 @@ def main(argv: list[str] | None = None) -> None:
                         "the per-(element, shell) rows: Loewdin |S^(1/2)c|^2 "
                         "(default; non-negative, sums to 100%%) or Mulliken "
                         "gross populations Re[c*(Sc)]")
+    parser.add_argument("--no-chk", action="store_true",
+                        help="do not cache the SCFs in CHK_{formula}.chk")
     parser.add_argument("--chk", default=None, metavar="FILE",
                         help="WAVECAR-style restart file: written after the "
                         "SCFs if missing, read (skipping all three SCFs) if "
@@ -2801,7 +3191,7 @@ def main(argv: list[str] | None = None) -> None:
         symmetrize=not args.no_symmetrize,
         max_l=args.max_l,
         projection=args.projection,
-        chk=args.chk,
+        chk=args.chk, no_chk=args.no_chk,
         verbose=args.verbose,
     )
 

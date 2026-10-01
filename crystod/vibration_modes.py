@@ -4,6 +4,7 @@ Symmetry-only vibration basis workflow for crystod.
 
 from __future__ import annotations
 
+import re
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, RawDescriptionHelpFormatter, RawTextHelpFormatter
 from fractions import Fraction
 from pathlib import Path
@@ -174,6 +175,7 @@ class _CoreRepresentation:
         translation: NDArray[np.float64],
         kpoint: list[float],
     ) -> NDArray[np.complex128]:
+        """Atom-permutation matrix of one operation at q, with Bloch phases."""
         positions = get_scaled_positions(self.primitive_cell)
         num_atom = len(positions)
         matrix = np.zeros((num_atom, num_atom), dtype=complex)
@@ -195,6 +197,7 @@ class _CoreRepresentation:
         little_translations: NDArray[np.float64],
         kpoint: list[float],
     ) -> NDArray[np.complex128]:
+        """Permutation matrices of the little-group operations at q."""
         return np.array(
             [
                 self.get_modified_permutation_rep(rotation, translation, kpoint)
@@ -204,6 +207,7 @@ class _CoreRepresentation:
         )
 
     def get_little_group(self, kpoint: list[float]):
+        """Little-group operations of q (see ``runtime_compat.get_little_group``)."""
         return get_little_group(
             rotations=self.rotations,
             translations=self.translations,
@@ -212,6 +216,66 @@ class _CoreRepresentation:
 
 
 class SymmetryOnlyVibrations(_CoreRepresentation):
+    """Symmetry-allowed vibration bases of a crystal, without force data.
+
+    The engine of ``crystod-phonon --vibration``: at a q point, the
+    displacement representation of the little group of q (the permutation
+    representation of the atoms times the Cartesian rotation, with Bloch
+    phases) is projected onto the spgrep irreps, giving one basis of
+    symmetry-adapted displacement patterns per irrep occurrence. The spaces
+    are labeled with ISO-IR irrep names, and any component can be written out
+    as a displaced structure on the commensurate supercell: the partner of
+    :meth:`get_symmetry_adapted_spaces` -- fixed by the conventions of
+    ``--modulation``, real with the Bloch phase of every atom at a
+    time-reversal-invariant q, so that it freezes into an isotropy subgroup
+    of its irrep -- a unit-norm symmetry-adapted displacement pattern, not a
+    normal mode. :func:`crystod.symmetry_adapted_modes.solve_symmetry_adapted_modes`
+    (behind ``crystod-phonon --modulation`` and ``--vector``) uses the same
+    basis, on phonopy's primitive cell as it is (``standardize=False``), to
+    block-diagonalize a dynamical matrix.
+
+    Args:
+        cell: The crystal structure as a ``phonopy.structure.atoms.PhonopyAtoms``
+            object, e.g. from ``phonopy.interface.calculator.read_crystal_structure``.
+        symprec: Symmetry tolerance of the spglib analysis.
+        standardize: Reduce ``cell`` to the spglib primitive cell first (the
+            default; a note is printed). ``False`` keeps the input cell as
+            it is, which must then already be primitive; this preserves the
+            caller's atom positions so that phase conventions stay consistent
+            with an externally built dynamical matrix. Either way the
+            analysis, the Bloch phases and the written supercells all use
+            ``primitive_cell``.
+
+    Attributes:
+        primitive_cell: The primitive cell the analysis runs on.
+        spglib_dataset: Its spglib symmetry dataset (``["number"]``,
+            ``["international"]``, ...).
+        rotations: Rotation parts of the space-group operations in the
+            primitive basis, shape ``(n_ops, 3, 3)``.
+        translations: The corresponding translation parts, shape
+            ``(n_ops, 3)``.
+        rotations_cartesian: The rotations in Cartesian coordinates.
+        symprec: The symmetry tolerance.
+        labels_from_isoir: ``True`` when the last :meth:`get_irrep_labels`
+            call took its labels from the general ISO-IR k-vector lookup
+            rather than from the special-point table.
+
+    Example:
+        List the vibration spaces of cubic ScF3 at the R point::
+
+            from phonopy.interface.calculator import read_crystal_structure
+            from crystod import phonon
+            from crystod.examples import example_path
+
+            cell, _ = read_crystal_structure(
+                example_path("221_PPOSCAR_ScF3"), interface_mode="vasp")
+            vibrations = phonon.SymmetryOnlyVibrations(cell)
+            label, qpoint = vibrations.resolve_qpoint(["R"])
+            irreps, spaces, labels = vibrations.describe_mode_spaces(qpoint)
+            labels                      # ['R1+(1)', 'R3+(2)', 'R4+(3)', ...]
+            [space.shape for space in spaces]   # [(1, 12), (2, 12), (3, 12), ...]
+    """
+
     def __init__(self, cell: PhonopyAtoms, symprec: float = 1e-5, standardize: bool = True):
         super().__init__(cell=cell, symprec=symprec, standardize=standardize)
         lattice_t = np.transpose(self.primitive_cell.cell)
@@ -222,6 +286,21 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         )
 
     def get_high_symmetry_qpoints(self) -> dict[str, list[float]]:
+        """High-symmetry q points of the primitive cell, from seekpath.
+
+        ``crystod-phonon --vibration --list-qpoints`` prints this map. The
+        coordinates are expressed in the reciprocal basis of *this* object's
+        (spglib) primitive cell: seekpath's own primitive cell can differ
+        from it by an integer change of basis (base-centred monoclinic cells,
+        for instance), and the tabulated coordinates are transformed
+        accordingly. A warning is issued only when the two cells are not
+        related by such a change of basis, in which case the coordinates are
+        returned as seekpath gives them.
+
+        Returns:
+            Dict mapping seekpath labels (``"GAMMA"``, ``"R"``, ``"X"``, ...)
+            to fractional coordinates in the primitive reciprocal basis.
+        """
         import seekpath
         import warnings
 
@@ -231,15 +310,51 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             self.primitive_cell.numbers,
         )
         path_data = seekpath.get_path(structure, symprec=1e-5)
-        if not np.allclose(self.primitive_cell.cell, path_data["primitive_lattice"], atol=1e-4):
-            warnings.warn(
-                "The primitive cell from seekpath does not match the spglib primitive cell. "
-                "The q-point coordinates might need a basis transformation.",
-                stacklevel=2,
-            )
-        return path_data["point_coords"]
+        point_coords = path_data["point_coords"]
+        own_lattice = np.asarray(self.primitive_cell.cell, dtype=float)
+        seekpath_lattice = np.asarray(path_data["primitive_lattice"], dtype=float)
+        if not np.allclose(own_lattice, seekpath_lattice, atol=1e-4):
+            # rows of the seekpath cell as integer combinations of our rows:
+            # P_seek = M P_own; a k point with fractional coordinates k_seek
+            # in seekpath's reciprocal basis is k_own = k_seek inv(M)^T here
+            change = seekpath_lattice @ np.linalg.inv(own_lattice)
+            rounded = np.rint(change)
+            if (np.allclose(change, rounded, atol=1e-6)
+                    and abs(round(np.linalg.det(rounded))) == 1):
+                to_own = np.linalg.inv(rounded).T
+                point_coords = {
+                    label: (np.asarray(coords, dtype=float) @ to_own).tolist()
+                    for label, coords in point_coords.items()
+                }
+            else:
+                warnings.warn(
+                    "The primitive cell from seekpath does not match the spglib "
+                    "primitive cell. The q-point coordinates might need a basis "
+                    "transformation.",
+                    stacklevel=2,
+                )
+        return point_coords
 
     def resolve_qpoint(self, raw_qpoint: list[str]) -> tuple[str, list[float]]:
+        """Resolve ``--qpoint`` tokens into a label and coordinates.
+
+        One token is a seekpath label (``GM``, ``G`` and the Greek capital
+        gamma are accepted for ``GAMMA``); three tokens are coordinates in
+        the primitive reciprocal basis, fractions such as ``1/3`` allowed.
+        Coordinates are labeled with the special point they coincide with,
+        else with the name of the star arm the space-group rotations map them
+        onto, else with the ISO-IR k-vector type of q, else ``"custom"``.
+
+        Args:
+            raw_qpoint: The tokens, one label or three coordinate strings.
+
+        Returns:
+            ``(label, qpoint)`` with ``qpoint`` a list of three floats.
+
+        Raises:
+            ValueError: For an unknown label, or a token count other than one
+                or three.
+        """
         qpoint_map = self.get_high_symmetry_qpoints()
         alias_map = {
             "GM": "GAMMA",
@@ -249,7 +364,11 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
 
         if len(raw_qpoint) == 1:
             requested = raw_qpoint[0].strip().upper()
-            requested = alias_map.get(requested, requested)
+            # the aliases stand in for GAMMA only where the cell has no
+            # special point of that name (body-centred tetragonal cells have
+            # a genuine G)
+            if requested not in qpoint_map:
+                requested = alias_map.get(requested, requested)
             if requested in qpoint_map:
                 return requested, list(qpoint_map[requested])
             available = ", ".join(sorted(qpoint_map))
@@ -286,6 +405,19 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         return matched_label or "custom", qpoint
 
     def get_vibration_rep(self, kpoint: list[float]):
+        """Displacement representation of the little group of q.
+
+        Args:
+            kpoint: Fractional coordinates of q in the primitive reciprocal
+                basis.
+
+        Returns:
+            ``(irreps, vibration_rep, mapping_little_group)``: the spgrep
+            irreps of the little group of q; the representation matrices of
+            the little-group operations on the ``3 * n_atoms`` displacement
+            space, shape ``(n_little, 3 * n_atoms, 3 * n_atoms)``; and the
+            indices of the little-group operations within ``rotations``.
+        """
         irreps, mapping_little_group = get_spacegroup_irreps_from_primitive_symmetry(
             rotations=self.rotations,
             translations=self.translations,
@@ -314,6 +446,27 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         vibration_rep,
         irrep_labels: list[str] | None = None,
     ) -> tuple[list[NDArray[np.complex128]], list[str]]:
+        """Project the displacement representation onto each irrep.
+
+        Args:
+            irreps: The spgrep irreps from :meth:`get_vibration_rep`.
+            vibration_rep: The representation matrices from
+                :meth:`get_vibration_rep`.
+            irrep_labels: One label per irrep, e.g. from
+                :meth:`get_irrep_labels`; generic ``irrep_N(dim)`` labels are
+                used when omitted.
+
+        Returns:
+            ``(basis_vectors, basis_labels)``: one ``(dim, 3 * n_atoms)`` array
+            per occurrence of an irrep in the displacement representation, and
+            the label of each space. The rows are the symmetry-adapted
+            displacement patterns as kets: for one array ``B`` and the irrep
+            matrices ``d``, ``vibration_rep[g] @ B.T == B.T @ d[g]``. They are
+            in the atom-position phase convention of phonopy's eigenvectors
+            (Bloch factor ``exp(2 pi i q . x_j)`` of each atom not included).
+            Repeated occurrences of one irrep transform with the same
+            matrices but are not orthogonal to each other.
+        """
         basis_vectors: list[NDArray[np.complex128]] = []
         basis_labels: list[str] = []
         fallback_labels = irrep_labels or [f"irrep_{index + 1}({irrep.shape[1]})" for index, irrep in enumerate(irreps)]
@@ -353,6 +506,26 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         irreps,
         mapping_little_group: NDArray[np.int_],
     ) -> list[str]:
+        """ISO-IR labels of the spgrep irreps at q.
+
+        The characters of each spgrep irrep are matched against the ISO-IR
+        table of the space group: directly at a tabulated special point, by
+        conjugation onto the tabulated arm for another arm of its star, and
+        through the general ISO-IR k-vector lookup (Miller-Love labels) for a
+        symmetry line, plane or generic q. An irrep no table matches keeps its
+        generic ``irrep_N(dim)`` label.
+
+        Args:
+            qpoint: Fractional coordinates of q in the primitive reciprocal
+                basis.
+            irreps: The spgrep irreps from :meth:`get_vibration_rep`.
+            mapping_little_group: The little-group indices from
+                :meth:`get_vibration_rep`.
+
+        Returns:
+            One label per irrep, e.g. ``"R4+(3)"`` (the irrep name with its
+            dimension).
+        """
         generic_labels = [f"irrep_{index + 1}({irrep.shape[1]})" for index, irrep in enumerate(irreps)]
         self.labels_from_isoir = False
         try:
@@ -456,12 +629,102 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         self,
         qpoint: list[float],
     ) -> tuple[object, list[NDArray[np.complex128]], list[str]]:
+        """Irreps, projected vibration spaces and their labels at q.
+
+        The one-call form of :meth:`get_vibration_rep`,
+        :meth:`get_irrep_labels` and :meth:`get_vibration_basis`, as
+        ``crystod-phonon --vibration`` prints them (one "Mode Space" line per
+        irrep occurrence, with its label and dimension).
+
+        Args:
+            qpoint: Fractional coordinates of q in the primitive reciprocal
+                basis.
+
+        Returns:
+            ``(irreps, basis_spaces, basis_space_labels)``: the spgrep irreps,
+            one ``(dim, 3 * n_atoms)`` array per irrep occurrence, and the
+            ISO-IR label of each space. The mode-space numbers of the command
+            are 1-based positions in ``basis_spaces``. These are spgrep's raw
+            projected spaces; the partners the command writes out are those
+            of :meth:`get_symmetry_adapted_spaces`.
+        """
         irreps, vibration_rep, mapping_little_group = self.get_vibration_rep(qpoint)
         irrep_labels = self.get_irrep_labels(qpoint, irreps, mapping_little_group)
         basis_spaces, basis_space_labels = self.get_vibration_basis(irreps, vibration_rep, irrep_labels)
         return irreps, basis_spaces, basis_space_labels
 
+    def get_symmetry_adapted_spaces(self, qpoint: list[float]) -> list[NDArray[np.complex128]]:
+        """Symmetry-adapted partners of every mode space, as ``--vibration`` freezes them.
+
+        The spaces of :meth:`describe_mode_spaces` (same order, same
+        dimensions) with their partners fixed by the conventions of
+        ``crystod-phonon --modulation``
+        (:func:`crystod.symmetry_adapted_modes.solve_symmetry_adapted_spaces`,
+        the mode solver with no dynamical matrix): the spaces of a repeated
+        irrep are an orthonormal basis of its isotypic space fixed by the
+        displacements (the atom orbit each lives on, then how the atoms move
+        along the crystal axes, then the products of the displacements of
+        neighbouring atoms), not the copies spgrep's projection happens to
+        return; at a time-reversal-invariant q (``2q`` a reciprocal lattice
+        vector) every partner is, with the Bloch factor
+        ``exp(2 pi i q . x_j)`` of each atom, a real displacement pattern
+        along a direction symmetry operations fix up to sign -- a single
+        partner freezes into an isotropy subgroup of its irrep, whatever the
+        origin; at any other q each space is a complex Bloch wave whose
+        global phase is a convention. A complex irrep and its conjugate,
+        which time reversal joins into one real space at such a q, share its
+        real partners: the first half belongs to the irrep whose label sorts
+        first. At a time-reversal-invariant q the k-th space of a given label
+        thus holds the same partners however q is written (q, q + G or -q);
+        the position of a label in the list follows spgrep's irrep order at
+        the q given and can differ between those spellings. (At any other q
+        the relative phases of the partners of a larger irrep follow the
+        irrep matrices spgrep builds at the q given.) The rows are unit-norm
+        symmetry-adapted displacement patterns, not normal modes: there are
+        no force constants to select a combination of the spaces of a
+        repeated irrep, and no masses.
+
+        Args:
+            qpoint: Fractional coordinates of q in the primitive reciprocal
+                basis.
+
+        Returns:
+            One ``(dim, 3 * n_atoms)`` array per mode space, rows in the
+            atom-position phase convention of :meth:`get_vibration_basis`
+            (the Bloch factor of each atom not included), ready for
+            :meth:`get_supercell_displacements`.
+        """
+        from .symmetry_adapted_modes import solve_symmetry_adapted_spaces
+
+        irreps, _, mapping_little_group = self.get_vibration_rep(qpoint)
+        labels = self.get_irrep_labels(qpoint, irreps, mapping_little_group)
+        # natural order of the labels (T2 before T10), independent of spgrep's
+        # irrep order at the q given
+        keys = [
+            tuple(int(part) if part.isdigit() else part for part in re.split(r"(\d+)", label))
+            for label in labels
+        ]
+        phase = np.repeat(
+            np.exp(2j * np.pi * (np.asarray(self.primitive_cell.scaled_positions, dtype=float)
+                                 @ np.asarray(qpoint, dtype=float))),
+            3,
+        )
+        return [
+            rows * phase.conj()[None, :]
+            for rows in solve_symmetry_adapted_spaces(self, qpoint, irrep_keys=keys)
+        ]
+
     def get_supercell_size(self, qpoint: list[float]) -> tuple[int, int, int]:
+        """Supercell multiplicities along a, b, c commensurate with q.
+
+        Args:
+            qpoint: Fractional coordinates of q in the primitive reciprocal
+                basis.
+
+        Returns:
+            ``(n1, n2, n3)``: 1 for a zero component, else the denominator of
+            the component (limited to 6).
+        """
         sizes = []
         for component in qpoint:
             if abs(component) < 1e-10:
@@ -476,6 +739,33 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         mode_vector: NDArray[np.complex128],
         supercell_size: tuple[int, int, int],
     ):
+        """Displacement pattern of one basis vector on a supercell.
+
+        Atom j of the primitive cell at lattice translation R is displaced by
+        ``Re(mode_j * exp(2 pi i q . (R + x_j)))`` (unit amplitude), with
+        ``x_j`` the scaled position of atom j in ``primitive_cell``, the cell
+        the supercell is built from: the Bloch wave the ket ``mode``
+        describes in the atom-position phase convention. For a row of
+        :meth:`get_symmetry_adapted_spaces` at a time-reversal-invariant q
+        the displacement of every primitive cell has unit norm.
+
+        Args:
+            qpoint: Fractional coordinates of q in the primitive reciprocal
+                basis.
+            mode_vector: One row of :meth:`get_symmetry_adapted_spaces` (what
+                ``--vibration`` writes) or of a projected space of
+                :meth:`describe_mode_spaces` (whose global phase, and at a
+                time-reversal-invariant q its partner basis, spgrep leaves
+                arbitrary), ``3 * n_atoms`` complex components.
+            supercell_size: ``(n1, n2, n3)`` multiplicities, e.g. from
+                :meth:`get_supercell_size`.
+
+        Returns:
+            ``(positions, displacements, symbols, supercell_lattice)``:
+            Cartesian positions and displacements of the supercell atoms,
+            shape ``(n1 * n2 * n3 * n_atoms, 3)``, their chemical symbols, and
+            the supercell lattice vectors as rows.
+        """
         primitive = self.primitive_cell
         n_atoms = len(primitive.scaled_positions)
         lattice = primitive.cell
@@ -492,11 +782,13 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             for i2 in range(n2):
                 for i3 in range(n3):
                     translation_frac = np.array([i1, i2, i3])
-                    phase = np.exp(2j * np.pi * np.dot(qpoint, translation_frac))
                     for atom_index in range(n_atoms):
                         pos_frac = frac_pos[atom_index] + translation_frac
                         pos_cart = pos_frac @ lattice
                         all_positions.append(pos_cart)
+                        # the Bloch factor of the atom's own position, not
+                        # only of its cell
+                        phase = np.exp(2j * np.pi * np.dot(qpoint, pos_frac))
                         displacement = np.real(mode[atom_index] * phase)
                         all_displacements.append(displacement)
                         all_symbols.append(symbols_prim[atom_index])
@@ -521,6 +813,18 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         amplitude: float,
         output_path: str,
     ) -> None:
+        """Write ``positions + amplitude * displacements`` as a POSCAR.
+
+        Args:
+            positions: Cartesian positions from
+                :meth:`get_supercell_displacements`.
+            displacements: The unit-amplitude displacements from the same
+                call.
+            symbols: Chemical symbols of the atoms.
+            supercell_lattice: Supercell lattice vectors as rows.
+            amplitude: Displacement amplitude in Angstroms.
+            output_path: Output file path (VASP format, direct coordinates).
+        """
         atoms = Atoms(
             symbols=symbols,
             positions=positions + amplitude * displacements,
@@ -587,7 +891,13 @@ def main(argv: list[str] | None = None) -> None:
             f"[1, {selected_space.shape[0]}] (numbering is 1-based)."
         )
 
-    mode_vector = selected_space[args.component_index - 1]
+    # the symmetry-adapted partner, not the raw projected row: its Bloch phase
+    # and, at a time-reversal-invariant q, its partner basis are fixed so that
+    # the component freezes into an isotropy subgroup of its irrep
+    adapted_spaces = vibrations.get_symmetry_adapted_spaces(qpoint)
+    if [space.shape for space in adapted_spaces] != [space.shape for space in basis_spaces]:
+        raise RuntimeError("The symmetry-adapted spaces do not match the projected spaces.")
+    mode_vector = adapted_spaces[args.mode_index - 1][args.component_index - 1]
     supercell_size = vibrations.get_supercell_size(qpoint)
     print(f"\nSelected mode space: {args.mode_index}")
     print(f"Selected irrep     : {irrep_labels[args.mode_index - 1]}")

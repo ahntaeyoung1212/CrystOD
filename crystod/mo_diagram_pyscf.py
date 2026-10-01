@@ -76,13 +76,19 @@ GHOST_FRACTION_THRESHOLD = 0.35
 
 
 def _import_pyscf():
-    try:
-        from pyscf import dft, gto, scf  # noqa: F401
-        import pyscf
-    except ImportError as exc:
-        raise SystemExit(
-            "ERROR: --pyscf requires the pyscf package (pip install pyscf)."
-        ) from exc
+    """Import PySCF, or raise ``ImportError`` naming the ``[quantum]`` extra.
+
+    PySCF is an optional dependency (``pip install "CrystOD[quantum]"``);
+    ``crystod-mol`` reports the same condition as a one-line ``ERROR:``
+    before dispatching here, and the library API lets the ``ImportError``
+    propagate.
+    """
+    from ._optional import require_pyscf
+
+    require_pyscf("crystod-mol --diagram --pyscf (PyscfDiagram)")
+    from pyscf import dft, gto, scf  # noqa: F401
+    import pyscf
+
     return pyscf
 
 
@@ -202,7 +208,109 @@ class PyscfLevel:
 
 
 class PyscfDiagram:
-    """MO diagram from three PySCF SCF calculations in one AO space."""
+    """Quantitative MO diagram from three PySCF SCF calculations in one AO space.
+
+    The engine behind ``crystod-mol --diagram --pyscf``. Constructing the
+    object runs the analysis: the point group is detected and the molecule
+    aligned to the standard frame (a linear molecule is put along z); the
+    atoms are split into a left and a right fragment, by default the ligand
+    cage and the central atom, or by the two formulas; three SCF calculations
+    are run at the same geometry in the same basis, for the molecule and for
+    each fragment with the removed atoms kept as ghost atoms
+    (counterpoise-consistent), the fragments with fractional occupation of
+    degenerate frontier shells so that they keep the point-group symmetry;
+    the molecular MOs are projected exactly onto the fragment MOs for the
+    correlation lines and compositions; the levels are labeled by the
+    characters of the MOs under the character-table operations (the same
+    labels as ``MODiagram`` and ``crystod-group``; sigma/pi/delta from
+    PySCF's Dooh/Coov symmetry for linear molecules) and given a COOP
+    bonding character. Fragment levels that live mostly on the ghost basis
+    (BSSE artifacts) are dropped from the diagram.
+
+    PySCF is an optional dependency (``pip install "CrystOD[quantum]"``);
+    constructing the object without it raises ``ImportError``.
+
+    Args:
+        xyz_path (str): Path of the molecule file in XYZ format.
+        tolerance (float): Distance tolerance in Angstrom for the symmetry
+            detection (``--tolerance``).
+        center_element (str): Element of the central atom (``--center``)
+            for the default ligand-cage and central-atom split; by default
+            the atom closest to the molecular center.
+        left_spec (str): Formula of the left fragment (``--ao-left``), e.g.
+            ``"H4"``; given together with ``right_spec`` it replaces the
+            default split.
+        right_spec (str): Formula of the right fragment (``--ao-right``),
+            e.g. ``"CO"``.
+        basis (str): PySCF basis set (``--basis``), e.g. ``"def2-svp"`` or
+            ``"sto-3g"``.
+        theory (str): ``"scf"`` for Hartree-Fock (RHF/ROHF) or ``"dft"`` for
+            Kohn-Sham DFT (RKS/ROKS) (``--theory``).
+        xc (str): Exchange-correlation functional for ``theory="dft"``
+            (``--xc``).
+        charge (int): Total charge of the molecule (``--charge``).
+        spin (int): Molecular spin 2S (``--spin``); by default 0 or 1 by
+            electron parity (``spin=2`` for triplet O2).
+
+    Attributes:
+        xyz_path: The molecule file as given.
+        formula: Conventional formula (central atom first, or the Hill
+            formula for an explicit split).
+        schoenflies: Schoenflies symbol of the point group.
+        hm: Its Hermann-Mauguin symbol, or ``None`` for a
+            non-crystallographic group.
+        linear: Whether the molecule is linear.
+        character_table: Character table of the point group, or ``None``.
+        operations: Rotation matrices of the group in the standard frame
+            (empty when ``hm`` is ``None``).
+        operation_classes: Class label of every entry of ``operations``.
+        symbols: Element symbol of every atom.
+        coordinates: ``(n_atoms, 3)`` Cartesian coordinates in Angstrom.
+        center: Site index of the central atom, or ``None`` for an explicit
+            split.
+        left: Site indices of the left fragment.
+        right: Site indices of the right fragment.
+        left_name: Formula of the left fragment (``"H3"``).
+        right_name: Formula of the right fragment (``"N"``).
+        basis: The PySCF basis set; ``theory``, ``xc``, ``charge`` and
+            ``spin`` hold the other settings as used.
+        n_electrons: Number of electrons of the molecule (all electrons).
+        calculations: One dict per column (``"left"``, ``"mo"``, ``"right"``)
+            with the PySCF ``mol`` and mean-field object ``mf``, ``spin``,
+            ``charge``, ``converged``, the total ``energy`` in Hartree,
+            ``mo_energy`` in eV, ``mo_occ``, ``mo_coeff`` and the
+            ``real_sites`` (the non-ghost atoms).
+        levels: ``PyscfLevel`` lists per column, energy ascending. Each level
+            has ``energy`` (eV), ``degeneracy``, ``irrep``, ``label``,
+            ``electrons``, ``orbital_indices`` (columns of ``mo_coeff``),
+            ``composition`` (pairs of a level id and its weight; for the
+            molecular column the projection onto the fragment levels) and
+            ``real_fraction`` (Mulliken population on the real atoms); the
+            molecular levels also carry ``bond_character`` and
+            ``overlap_population``, the fragment levels ``dominant_spec``.
+        homo: Highest occupied molecular level (``None`` if none).
+        lumo: Lowest unoccupied molecular level (``None`` if none).
+
+    Raises:
+        ImportError: PySCF is not installed.
+        SystemExit: The file is missing, the fragment formulas cannot be
+            parsed or do not partition the molecule, no unique central atom
+            can be identified, or ``spin`` is inconsistent with the electron
+            count.
+
+    Example:
+        Ammonia in a minimal basis (three Hartree-Fock calculations, a few
+        seconds)::
+
+            from crystod import mol
+            from crystod.examples import example_path
+
+            diagram = mol.PyscfDiagram(example_path("XYZ_NH3.xyz"), basis="sto-3g")
+            diagram.print_report()
+            print(diagram.left_name, diagram.right_name)   # H3 N
+            print(diagram.homo.label, diagram.lumo.label)  # 3a1 4a1
+            diagram.write_html("MolOD_NH3_pyscf.html")
+    """
 
     def __init__(self, xyz_path, tolerance=0.3, center_element=None,
                  left_spec=None, right_spec=None, basis="def2-svp",
@@ -844,6 +952,15 @@ class PyscfDiagram:
     # ------------------------------------------------------------- report
 
     def print_report(self):
+        """Print the text report of ``crystod-mol --diagram --pyscf`` to stdout.
+
+        Sections: molecule and point group, the two fragments with their
+        spins, the three SCF calculations (method, basis, total energies,
+        convergence) and the counterpoise-consistent interaction energy, the
+        molecular orbitals up to 12 eV above the LUMO (energy, occupation,
+        composition in fragment levels), the electron filling with HOMO,
+        LUMO and gap, and the PySCF references.
+        """
         print("\n* Molecule *")
         print(f"{self.xyz_path} ({self.formula}, {len(self.symbols)} atoms)")
         print("\n* Point group *")
@@ -938,6 +1055,17 @@ class PyscfDiagram:
     # --------------------------------------------------------------- HTML
 
     def write_html(self, output_path):
+        """Write the interactive three-column HTML diagram.
+
+        Columns: left-fragment MOs, molecule MOs, right-fragment MOs, with
+        correlation lines weighted by the projections, electron arrows,
+        HOMO/LUMO marks, an adjustable energy window (core levels reachable
+        by panning), per-level details and the orbital sketch viewer.
+
+        Args:
+            output_path (str): Path of the HTML file to write (``crystod-mol``
+                uses ``MolOD_{molecule}_pyscf.html`` by default).
+        """
         columns = {"left": 200, "mo": 480, "right": 760}
         half = {"left": 34, "mo": 34, "right": 34}
         order = ["left", "mo", "right"]

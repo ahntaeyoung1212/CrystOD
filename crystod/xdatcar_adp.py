@@ -104,10 +104,39 @@ def _read_header(lines: list[str], start: int) -> tuple[NDArray[np.float64], lis
 
 
 def read_xdatcar(path: str) -> tuple[list[str], list[NDArray[np.float64]], NDArray[np.float64]]:
-    """Read an XDATCAR trajectory.
+    """Read a VASP ``XDATCAR`` trajectory into arrays.
 
-    Returns (chem_formula, per-frame lattices, fractional coordinates with
-    shape (n_frames, n_atoms, 3)).
+    This is the input step of ``crystod-md --adp``. Both layouts written by
+    VASP are handled: the fixed-cell one, a single header followed by
+    ``Direct configuration=`` blocks, and the variable-cell (NpT) one, in
+    which every configuration repeats the header. The scaling factor of the
+    header is folded into the lattice. A truncated trailing frame (a run
+    that is still writing) is dropped silently.
+
+    Args:
+        path: Path of the ``XDATCAR`` file.
+
+    Returns:
+        A tuple ``(symbols, lattices, frames)``:
+
+        - ``symbols``: the element symbol of every atom, in file order (one
+          entry per atom, so ``len(symbols) == n_atoms``);
+        - ``lattices``: one ``(3, 3)`` lattice matrix per frame, rows being
+          the lattice vectors in Angstrom; all identical for a fixed-cell run;
+        - ``frames``: the fractional coordinates as written by VASP (wrapped
+          into the cell, not unwrapped), shape ``(n_frames, n_atoms, 3)``.
+
+    Raises:
+        FileNotFoundError: ``path`` does not exist.
+        ValueError: The file holds no complete configuration.
+
+    Example:
+        >>> from crystod import md
+        >>> symbols, lattices, frames = md.read_xdatcar("XDATCAR")
+        >>> frames.shape          # example/30_xdatcar2adp: ScF3, 4x4x4 cell, NpT
+        (4001, 256, 3)
+        >>> symbols[0], symbols[-1], lattices[0].shape
+        ('Sc', 'F', (3, 3))
     """
     with open(path) as fp:
         lines = fp.read().splitlines()
@@ -146,10 +175,36 @@ def read_xdatcar(path: str) -> tuple[list[str], list[NDArray[np.float64]], NDArr
 # =============================================================================
 
 def build_symmetry_projector(rotations) -> NDArray[np.float64]:
-    """6x6 projector onto U tensors invariant under the site-symmetry rotations.
+    """Build the 6x6 projector onto ``U`` tensors with a given site symmetry.
 
-    Acts on the component vector [U11, U22, U33, U12, U13, U23] (fractional
-    axes); applying it yields the symmetry-constrained U matrix.
+    ``crystod-md --adp`` calls this once per Wyckoff position with the
+    rotations found by ``get_site_symmetry_operations``. A symmetric tensor
+    is handled as the component vector ``[U11, U22, U33, U12, U13, U23]`` on
+    the fractional axes; every rotation ``R`` maps it through
+    ``R @ U @ R.T``, and the projector is the average of those 6x6 maps over
+    the group. Multiplying a component vector by it leaves the closest tensor
+    that has the full site symmetry, which is what
+    ``apply_symmetry_constraints`` does.
+
+    Args:
+        rotations (Sequence[numpy.ndarray]): The rotation matrices of the
+            site-symmetry group, each of shape ``(3, 3)`` and acting on
+            fractional coordinates (the spglib convention). The sequence
+            must be a complete group; ``[identity]`` gives the identity
+            projector.
+
+    Returns:
+        The ``(6, 6)`` projector ``P`` (idempotent, ``P @ P == P``).
+
+    Example:
+        A two-fold axis along ``c`` forbids ``U13`` and ``U23``:
+
+        >>> import numpy as np
+        >>> from crystod import md
+        >>> projector = md.build_symmetry_projector(
+        ...     [np.eye(3, dtype=int), np.diag([-1, -1, 1])])
+        >>> md.get_constraint_description(projector)
+        'U13=0, U23=0'
     """
     averaged = np.zeros((6, 6))
     for rotation in rotations:
@@ -166,6 +221,36 @@ def build_symmetry_projector(rotations) -> NDArray[np.float64]:
 
 
 def apply_symmetry_constraints(u_cryst: NDArray[np.float64], projector: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Symmetrize a ``U`` tensor with a site-symmetry projector.
+
+    This is the step of ``crystod-md --adp`` that turns the raw displacement
+    covariance of a Wyckoff position into the ``U_ij`` written to the CIF
+    file: the six independent components of ``u_cryst`` (upper triangle,
+    order ``[U11, U22, U33, U12, U13, U23]``) are multiplied by ``projector``
+    and reassembled into a symmetric matrix.
+
+    Args:
+        u_cryst: Symmetric ``(3, 3)`` tensor on the fractional axes, in the
+            basis the projector's rotations act on. Only the upper triangle
+            is read.
+        projector: The ``(6, 6)`` matrix from ``build_symmetry_projector``.
+
+    Returns:
+        The constrained ``(3, 3)`` tensor, symmetric by construction.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import md
+        >>> projector = md.build_symmetry_projector(          # two-fold along c
+        ...     [np.eye(3, dtype=int), np.diag([-1, -1, 1])])
+        >>> u = np.array([[0.010, 0.001, 0.002],
+        ...               [0.001, 0.012, 0.003],
+        ...               [0.002, 0.003, 0.015]])
+        >>> md.apply_symmetry_constraints(u, projector)
+        array([[0.01 , 0.001, 0.   ],
+               [0.001, 0.012, 0.   ],
+               [0.   , 0.   , 0.015]])
+    """
     u_vector = np.array([u_cryst[i, j] for i, j in U_INDICES])
     p = projector @ u_vector
     return np.array(
@@ -178,6 +263,35 @@ def apply_symmetry_constraints(u_cryst: NDArray[np.float64], projector: NDArray[
 
 
 def get_constraint_description(projector: NDArray[np.float64], tol: float = 1e-6) -> str:
+    """Spell out the relations a site-symmetry projector imposes on ``U``.
+
+    ``crystod-md --adp`` prints the result next to every Wyckoff position
+    and in its ``Site / Ueq / Constraint`` table, for example
+    ``U11=U33, U12=0, U13=0, U23=0`` for the F site of cubic ScF3. Each unit
+    component is sent through the projector: a component that projects to
+    zero is reported as ``Uij=0``, and one that projects onto a later
+    component with the same (opposite) coefficient as ``Uij=Ukl``
+    (``Uij=-Ukl``). Other linear relations, such as ``U12 = U11/2`` on a
+    three-fold axis of a hexagonal cell, are enforced by the projector but
+    not spelled out.
+
+    Args:
+        projector: The ``(6, 6)`` matrix from ``build_symmetry_projector``.
+        tol: Absolute tolerance below which a coefficient counts as zero
+            and within which two coefficients count as equal.
+
+    Returns:
+        The relations joined by ``", "``, or ``"no constraint"`` for a site
+        of symmetry 1.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import md
+        >>> three_fold = np.array([[0, -1, 0], [1, -1, 0], [0, 0, 1]])
+        >>> group = [np.eye(3, dtype=int), three_fold, three_fold @ three_fold]
+        >>> md.get_constraint_description(md.build_symmetry_projector(group))
+        'U11=U22, U13=0, U23=0'
+    """
     constraints = []
     for i in range(6):
         unit = np.zeros(6)
@@ -196,6 +310,43 @@ def get_constraint_description(projector: NDArray[np.float64], tol: float = 1e-6
 
 
 def get_site_symmetry_operations(coords, rotations, translations, symprec: float = 0.1):
+    """Select the space-group operations that leave a site fixed.
+
+    This is where the ADP constraints of ``crystod-md --adp`` start: the
+    site-symmetry group of a Wyckoff position is the subset of the
+    space-group operations ``(R, t)`` for which ``R @ x + t`` equals ``x``
+    up to a lattice translation. Only the rotation parts are returned,
+    which is all ``build_symmetry_projector`` needs.
+
+    Args:
+        coords (array-like): Fractional coordinates ``(x, y, z)`` of the site.
+        rotations (array-like): Rotation parts of the space-group operations,
+            shape ``(n_ops, 3, 3)``, as in ``spglib.get_symmetry(cell)``.
+        translations (array-like): The matching translation parts, shape
+            ``(n_ops, 3)``.
+        symprec: Tolerance on the Euclidean norm of the wrapped fractional
+            difference ``R @ x + t - x``.
+
+    Returns:
+        The rotation matrices of the site-symmetry group, a list of ``(3, 3)``
+        arrays in the order of ``rotations``.
+
+    Example:
+        The F site of cubic ScF3 (Pm-3m) has site symmetry 4/mmm, order 16:
+
+        >>> import numpy as np, spglib
+        >>> from crystod import md
+        >>> cell = (4.0 * np.eye(3),
+        ...         [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0], [0, 0, 0.5]],
+        ...         [21, 9, 9, 9])
+        >>> symmetry = spglib.get_symmetry(cell)
+        >>> site_ops = md.get_site_symmetry_operations(
+        ...     [0.5, 0, 0], symmetry["rotations"], symmetry["translations"])
+        >>> len(site_ops)
+        16
+        >>> md.get_constraint_description(md.build_symmetry_projector(site_ops))
+        'U22=U33, U12=0, U13=0, U23=0'
+    """
     site_operations = []
     for rotation, translation in zip(rotations, translations):
         transformed = (rotation @ coords + translation) % 1.0

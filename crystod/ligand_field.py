@@ -40,6 +40,8 @@ crystod-group --ligand-field d --point-group 4/mmm
 crystod-group --ligand-field f --point-group m-3m
 """
 
+#: Azimuthal quantum number ``l`` of every orbital letter accepted by
+#: ``--ligand-field`` and ``--multiplet --orbital``.
 ORBITAL_AZIMUTHAL_NUMBER = {"s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5, "i": 6}
 
 
@@ -72,11 +74,37 @@ def _rotation_order(label: str) -> float:
 
 
 def get_orbital_characters(orbital: str, character_table: dict) -> dict[str, int]:
-    """Characters of the (2l+1)-dimensional orbital representation per class.
+    """Characters of the (2l+1)-dimensional representation of an atomic orbital.
 
-    Uses the standard angular-momentum character formulas:
-    chi(C(a)) = sin((l+1/2)a)/sin(a/2), chi(S(a)) = cos((l+1/2)a)/cos(a/2),
-    chi(E) = 2l+1, chi(i) = (-1)^l (2l+1), chi(sigma) = chi(S(0)) = 1.
+    The reducible representation that ``crystod-group --ligand-field ORB
+    --pg PG`` decomposes into irreps (the crystal-field / ligand-field
+    splitting of the orbital).  Uses the angular-momentum character
+    formulas ``chi(C(a)) = sin((l+1/2)a)/sin(a/2)``,
+    ``chi(S(a)) = cos((l+1/2)a)/cos(a/2)``, ``chi(E) = 2l+1``,
+    ``chi(i) = (-1)^l (2l+1)`` and ``chi(sigma) = 1``.
+
+    Args:
+        orbital: Orbital letter, one of ``s``, ``p``, ``d``, ``f``, ``g``,
+            ``h``, ``i`` (``ORBITAL_AZIMUTHAL_NUMBER`` maps it to ``l``).
+        character_table: Table from ``crystod.group.get_character_table``.
+
+    Returns:
+        ``{class label: character}`` in the order of
+        ``character_table["rotation_list"]``; pass ``list(result.values())``
+        to ``crystod.group.decompose`` for the splitting.
+
+    Raises:
+        KeyError: Unknown orbital letter.
+        ValueError: A class label the formulas do not recognize.
+
+    Example:
+        >>> from crystod import group
+        >>> ct = group.get_character_table("m-3m")
+        >>> chi = group.get_orbital_characters("d", ct)
+        >>> sizes = [len(ops) for ops in ct["mapping_table"].values()]
+        >>> counts = group.decompose(list(chi.values()), ct, sizes)
+        >>> {name: n for name, n in counts.items() if n}
+        {'Eg': 1, 'T2g': 1}
     """
     l = ORBITAL_AZIMUTHAL_NUMBER[orbital]
     characters: dict[str, int] = {}

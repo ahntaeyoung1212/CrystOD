@@ -188,11 +188,45 @@ def _wrap_coordinate(value: float) -> float:
 
 
 def bilbao_cif_lines(structure, tolerance: float, title: str):
-    """(lines, info) of the Bilbao-style CIF for a pymatgen Structure.
+    """Bilbao-style CIF of a structure, as lines.
 
-    The structure is brought to the spglib-standardized (idealized)
-    conventional cell, which follows the International Tables (ITA) setting
-    and origin -- the same convention as the Bilbao server."""
+    The conversion behind ``crystod-group --poscar2cif -c POSCAR``: the
+    structure is brought to the spglib-standardized (idealized)
+    conventional cell, which follows the International Tables (ITA)
+    setting and origin -- the convention of the Bilbao Crystallographic
+    Server -- and written with 4-decimal lattice parameters, the
+    space-group number and symbol, the full list of conventional-cell
+    operations as compact ``x,y,z`` strings, and one representative site
+    per Wyckoff orbit.
+
+    Args:
+        structure: A pymatgen ``Structure`` (e.g. ``Structure.from_file``).
+        tolerance: Symmetry-detection tolerance (symprec, Angstrom); the
+            command's default is ``0.01``.  A distortion below it is
+            symmetrized away.
+        title: The ``data_`` block name (the command uses the POSCAR file
+            name).
+
+    Returns:
+        ``(lines, info)``: the CIF lines without line terminators, and a
+        dict with ``number``, ``symbol``, ``n_operations`` and ``n_sites``.
+
+    Raises:
+        SystemExit: spglib could not determine the symmetry at this
+            tolerance (``ValueError`` when called through
+            ``crystod.group``).
+
+    Example:
+        >>> from pymatgen.core import Structure
+        >>> from crystod import group
+        >>> from crystod.examples import example_path
+        >>> structure = Structure.from_file(example_path("221_PPOSCAR_ScF3"))
+        >>> lines, info = group.bilbao_cif_lines(structure, 0.01, "ScF3")
+        >>> info
+        {'number': 221, 'symbol': 'Pm-3m', 'n_operations': 48, 'n_sites': 2}
+        >>> lines[10]
+        '_symmetry_Int_Tables_number        221'
+    """
     import numpy as np
     import spglib
     from pymatgen.core import Lattice
@@ -347,8 +381,31 @@ def build_cif2poscar_parser() -> argparse.ArgumentParser:
 
 
 def poscar_lines(lattice_matrix, positions, atomic_numbers) -> list[str]:
-    """POSCAR content in the crystod test-file style (6 decimals, 'direct',
-    element tag per coordinate line; species grouped by first appearance)."""
+    """POSCAR content of a cell, as lines.
+
+    The writer behind ``crystod-group --cif2poscar``: the crystod test-file
+    style (six decimals, ``direct`` coordinates, element tag on every
+    coordinate line, species grouped by first appearance).
+
+    Args:
+        lattice_matrix: Lattice vectors as rows, Angstrom, shape
+            ``(3, 3)``.
+        positions: Fractional coordinates, shape ``(n_atoms, 3)``.
+        atomic_numbers: Atomic number of every atom.
+
+    Returns:
+        The POSCAR lines without line terminators, the last one empty (so
+        that joining with newlines ends the file with a newline).
+
+    Example:
+        >>> from crystod import group
+        >>> lines = group.poscar_lines([[4, 0, 0], [0, 4, 0], [0, 0, 4]],
+        ...                            [[0, 0, 0], [0.5, 0.5, 0.5]], [55, 17])
+        >>> lines[:2] + lines[5:8]
+        ['Cs1 Cl1', '1.0', 'Cs Cl', '1 1', 'direct']
+        >>> lines[8:]
+        ['0.000000 0.000000 0.000000 Cs', '0.500000 0.500000 0.500000 Cl', '']
+    """
     from pymatgen.core.periodic_table import Element
 
     symbols = [Element.from_Z(int(z)).symbol for z in atomic_numbers]
@@ -482,6 +539,47 @@ def main(argv: list[str] | None = None) -> None:
     print(
         f"{info['n_operations']} symmetry operations, "
         f"{info['n_sites']} independent sites\n"
+    )
+    _warn_if_symmetrized(structure, args.tolerance, info)
+
+
+def _warn_if_symmetrized(structure, tolerance: float, info: dict) -> None:
+    """Warn when the CIF came out MORE symmetric than the input POSCAR.
+
+    The CIF carries the spglib-standardized structure, so a displacement
+    smaller than the tolerance is averaged away -- silently turning a
+    distorted structure into its own parent.  A symmetry-mode analysis then
+    reports no distortion at all, with nothing in the output to explain why
+    (GaN F-43m -> I-42d, whose whole distortion is 0.0002 A against the
+    0.01 A default)."""
+    import numpy as np
+    import spglib
+
+    cell = (
+        np.asarray(structure.lattice.matrix),
+        np.asarray(structure.frac_coords),
+        [site.specie.Z for site in structure],
+    )
+    try:
+        tight = spglib.get_symmetry_dataset(cell, symprec=1e-6)
+    except Exception:
+        return
+    if tight is None:
+        return
+    number = tight["number"] if isinstance(tight, dict) else tight.number
+    if int(number) >= int(info["number"]):
+        return
+    symbol = (
+        tight["international"] if isinstance(tight, dict) else tight.international
+    )
+    print(
+        f"WARNING: at tolerance {tolerance} this structure is "
+        f"{info['symbol']} (No. {info['number']}), but its\n"
+        f"         own coordinates carry only "
+        f"{str(symbol).replace('_', '')} (No. {int(number)}). The CIF holds "
+        "the SYMMETRIZED\n         structure, so any distortion below "
+        f"{tolerance} A has been averaged away. Pass a\n"
+        "         smaller --tolerance to keep it.\n"
     )
 
 

@@ -125,7 +125,21 @@ _ESTIMATED_NOTE = (
 
 @dataclass
 class SublatticeSpec:
-    """One (element, shell) block of a fragment sublattice."""
+    """One (element, shell) block of a fragment sublattice.
+
+    Attributes:
+        element: Chemical symbol.
+        letter: Shell letter ``s``, ``p``, ``d`` or ``f``.
+        shell: Shell name such as ``"3d"``.
+        n: Principal quantum number.
+        l: Azimuthal quantum number.
+        zeta: STO exponent, a scalar or ``[(zeta, coefficient), ...]`` for a
+            double-zeta shell.
+        h_ii: On-site energy in eV.
+        sites: Indices of the atoms carrying the shell.
+        column: ``"left"`` or ``"right"``.
+        offset: First AO index of the block in the full basis.
+    """
 
     element: str
     letter: str            # s / p / d
@@ -145,6 +159,26 @@ class SublatticeSpec:
 
 @dataclass
 class DiagramLevel:
+    """One energy level of a diagram column, as returned by ``solve_at``.
+
+    Attributes:
+        level_id: Unique id within the k point, e.g. ``"mo3"``.
+        column: ``"left"``, ``"mo"`` (the crystal) or ``"right"``.
+        energy: Energy in eV.
+        degeneracy: Number of partners (the irrep dimension, or a multiple).
+        irrep: Bare irrep name, e.g. ``"GM4-"``.
+        label: Display label, e.g. ``"Sc 3d GM5+"`` or ``"GM5+ #1"``.
+        electrons: Electrons in the level after the aufbau filling.
+        vectors: AO coefficients, shape ``(n_ao, degeneracy)``,
+            S-orthonormal.
+        composition: ``[(level_id, weight)]`` of the fragment levels a
+            crystal level is made of (Loewdin-orthogonalized weights).
+        detail: Tooltip text: populations, bond character, notes.
+        estimated: The energy is a first-order Loewdin estimate of a
+            near-dependent Bloch combination, not the (divergent)
+            variational extended-Hueckel value.
+    """
+
     level_id: str
     column: str            # "left" / "mo" / "right"
     energy: float
@@ -217,36 +251,57 @@ SEMICORE_DEPTH_EV = 10.0
 def assign_bond_characters(levels, overlap, rows_left, rows_right,
                            spec_ranges, sqrt_overlap=None,
                            hamiltonian=None) -> None:
-    """COOP bonding character for every crystal/molecular-orbital level.
+    """COOP bonding character of every crystal (or molecular) orbital level.
 
-    P = 2 Re[c_L+ S_LR c_R] / degeneracy is the electron weight accumulated
-    between the two fragments: P > 0 in-phase (bonding, blue), P < 0
-    out-of-phase with an internuclear node (antibonding, red), P ~ 0
-    nonbonding (black; exactly 0 when the irrep has no partner on the other
-    fragment).  Sets level.bond_character / level.overlap_population and
-    appends the value to level.detail; requires the occupations to be
-    filled already.  An (F - E S) energy partition was rejected:
-    Mulliken-like cross terms of the diffuse shells give nonsense signs in
-    a non-orthogonal basis.
+    ``P = 2 Re[c_L+ S_LR c_R] / degeneracy`` is the electron weight
+    accumulated between the two fragments: ``P > 0`` in-phase (bonding,
+    drawn blue), ``P < 0`` out-of-phase with an internuclear node
+    (antibonding, red), ``P ~ 0`` nonbonding (black; exactly 0 when the
+    irrep has no partner on the other fragment).  This is the
+    classification that colors the level connectors of ``crystod --diagram``
+    and ``crystod-mol --diagram``; the diagram engines call it from their
+    ``solve_at`` after the aufbau filling.  An ``(F - E S)`` energy
+    partition was rejected: Mulliken-like cross terms of the diffuse shells
+    give nonsense signs in a non-orthogonal basis.
 
-    Semicore handling.  A filled semicore shell contributes to P in two
-    distinct ways: RESONANT filled-filled pairing (Sc 3p x F 2s of ScF3,
+    Semicore handling.  A filled semicore shell contributes to ``P`` in two
+    distinct ways: resonant filled-filled pairing (Sc 3p with F 2s of ScF3,
     6 eV apart -- the He2-like closed-shell repulsion whose occupied upper
-    partner is genuinely antibonding) and far OFF-RESONANT orthogonality
+    partner is genuinely antibonding) and far off-resonant orthogonality
     tails (the same Sc 3p inside the F 2p band 23 eV above, or Sc 3s
     against everything), which are not bonding physics and would flip the
     sign of an otherwise donation-bonding state.  With ``hamiltonian``
     given (the crystal Fock/EHT operator), semicore shells are flagged
-    against the CRYSTAL valence-band maximum -- occupied fragment levels
-    whose hamiltonian expectation <phi|H|phi> (reference-consistent with
-    the mo energies) tops out SEMICORE_DEPTH_EV below the VBM -- and a
-    flagged shell is excluded from a level's P only when the level is more
-    than SEMICORE_DEPTH_EV away from that shell's band top (the semicore
-    band and its resonant partners keep it).  Without ``hamiltonian`` the
-    legacy rule applies: flag against each fragment column's own HOMO and
-    keep the shell where it holds >= 40% of the level's weight -- fine for
-    molecules, but blind to a semicore that IS the fragment HOMO (Sc 3p
-    of Sc^3+).
+    against the crystal valence-band maximum -- occupied fragment levels
+    whose expectation ``<phi|H|phi>`` (reference-consistent with the
+    crystal energies) tops out ``SEMICORE_DEPTH_EV`` below the VBM -- and a
+    flagged shell is excluded from a level's ``P`` only when the level is
+    more than ``SEMICORE_DEPTH_EV`` away from that shell's band top (the
+    semicore band and its resonant partners keep it).  Without
+    ``hamiltonian`` the legacy rule applies: flag against each fragment
+    column's own HOMO and keep the shell where it holds at least 40% of the
+    level's weight -- fine for molecules, but blind to a semicore that is
+    the fragment HOMO (Sc 3p of Sc3+).
+
+    Args:
+        levels: ``{"left": [...], "mo": [...], "right": [...]}`` level
+            records (``DiagramLevel`` or the molecular equivalent) with
+            ``vectors``, ``energy``, ``degeneracy``, ``electrons`` and
+            ``label`` (``"El shell irrep"``) filled in.
+        overlap: The overlap matrix ``S`` of the full basis at this k point.
+        rows_left: AO indices of the left fragment's basis functions.
+        rows_right: AO indices of the right fragment's basis functions.
+        spec_ranges: ``{(element, shell): AO indices}`` of every shell block.
+        sqrt_overlap: ``S^(1/2)`` for Loewdin weights in the legacy semicore
+            rule; ``None`` uses Mulliken gross populations there.
+        hamiltonian: The crystal one-electron operator (Fock or EHT ``H``)
+            at this k point; enables the VBM-referenced semicore rule.
+
+    Returns:
+        ``None``.  Every ``levels["mo"]`` record receives ``bond_character``
+        (``"bonding"``, ``"antibonding"`` or ``"nonbonding"``, threshold
+        ``BOND_CHARACTER_TOL``) and ``overlap_population`` (``P``), and a
+        line stating them is appended to its ``detail``.
     """
     semicore_tops: dict[tuple[str, str], float] = {}
     if hamiltonian is not None:
@@ -399,7 +454,89 @@ def _composition_string(symbols: list[str]) -> str:
 
 
 class CrystalOrbitalDiagram:
-    """Symmetry + extended-Hueckel crystal-orbital diagram engine."""
+    """Crystal-orbital diagram engine: symmetry + extended-Hueckel overlaps.
+
+    The engine behind ``crystod --diagram -c POSCAR --co-left A --co-right B``.
+    The two fragment sublattices are given as element formulas (every atom
+    of the primitive cell must belong to exactly one of them), each atom
+    carries its full core + valence shell basis, and at every high-symmetry
+    k point the fragment Bloch orbitals are symmetry-adapted, the Bloch
+    overlap lattice sums are evaluated, and the Wolfsberg-Helmholz
+    eigenproblem is solved for the two fragment columns and the crystal
+    column of the diagram (the module docstring describes the physics and
+    the caveats).  The CLI sequence, :func:`report_and_write`, is
+    :meth:`special_kpoints`, then :meth:`solve_at` per k point, then the
+    HTML writer, which draws the hover wave-function sketches with
+    :meth:`supercell_for` and :meth:`sketch_partners`.
+
+    Args:
+        cell: The crystal structure as ``phonopy.structure.atoms.PhonopyAtoms``
+            (converted to the spglib primitive cell).
+        left_tokens: ``--co-left`` formula tokens, e.g. ``["SrTi"]`` or
+            ``["Sr", "Ti"]``; a count such as ``O3`` is optional and, when
+            given, checked against the primitive cell.
+        right_tokens: ``--co-right`` formula tokens, e.g. ``["O3"]``.
+        symprec: Symmetry tolerance handed to spglib.
+        electrons: Electrons per primitive cell for the aufbau filling of
+            the crystal column (default: all electrons of the neutral atoms).
+        sketch_tokens: ``El-shell`` tokens (``"Ti-3d"``, ``"O_2p"``) that
+            restrict the drawn sketch components; ``None`` draws every
+            component (what the CLI does).
+        oxidation: ``{element: formal charge}`` for the point-charge lattice
+            of the removed sublattice; must be charge-neutral over the cell.
+            Default: pymatgen's oxidation-state guess.
+        conventional: Draw the hover sketches in the conventional cell
+            instead of the k-commensurate primitive supercell (display only).
+
+    Attributes:
+        builder: The :class:`SymmetryAdaptedOrbitalBasis` of the cell
+            (symmetry operations, irrep labels, ``spglib_dataset``).
+        symbols: Chemical symbols of the primitive-cell atoms.
+        positions: Their fractional coordinates, shape ``(n_atoms, 3)``.
+        lattice: Primitive lattice vectors as rows, in Angstrom.
+        formula: ``{"left": ..., "right": ...}``, the fragment formulas.
+        oxidation: The formal charges in use.
+        specs: One ``SublatticeSpec`` per (element, shell) block of the AO
+            basis, fragment-major; ``side_specs[column]`` lists those of
+            one fragment.
+        n_ao: Size of the AO basis; ``side_slice[column]`` is the slice of
+            a fragment's contiguous block.
+        orbitals: One ``AtomicOrbital`` per basis function, in the
+            representation order (spec-major, site-major, then ``m``).
+        electrons: Electrons per cell in the crystal column;
+            ``side_electrons[column]`` those of the fragment columns.
+        h_raw: Bare atomic on-site energies (eV) of every basis function;
+            ``h_bar`` the same after the shell-averaged point-charge shift,
+            ``v_onsite`` the full on-site ligand-field matrix, and
+            ``site_potential`` the Ewald monopole potential at every atom.
+        sketch_specs: Indices into ``specs`` of the drawn shells, or
+            ``None`` for all.
+        last_estimated: Set by :meth:`solve_at`: the number of
+            near-dependent Bloch combinations whose energies are first-order
+            Loewdin estimates (marked ``~`` in the report), and
+            ``last_dependent`` the number of linearly dependent
+            combinations removed.
+
+    Raises:
+        SystemExit: A fragment formula that does not match the cell, an
+            element without extended-Hueckel parameters or archived atomic
+            levels, or oxidation states that are not charge-neutral.
+
+    Example:
+        >>> from phonopy.interface.calculator import read_crystal_structure
+        >>> from crystod import salc
+        >>> from crystod.examples import example_path
+        >>> cell, _ = read_crystal_structure(
+        ...     str(example_path("221_PPOSCAR_ScF3")), interface_mode="vasp")
+        >>> diagram = salc.CrystalOrbitalDiagram(cell, ["Sc"], ["F3"])
+        >>> diagram.formula, diagram.oxidation
+        ({'left': 'Sc', 'right': 'F3'}, {'Sc': 3.0, 'F': -1.0})
+        >>> levels, labels = diagram.solve_at([0, 0, 0])
+        >>> occupied = [lv for lv in levels["mo"] if lv.electrons]
+        >>> homo = max(occupied, key=lambda lv: lv.energy)
+        >>> homo.label, round(homo.energy, 2), homo.bond_character
+        ('GM5- #1', -17.4, 'nonbonding')
+    """
 
     def __init__(self, cell, left_tokens: list[str], right_tokens: list[str],
                  symprec: float = 1e-5, electrons: float | None = None,
@@ -752,8 +889,19 @@ class CrystalOrbitalDiagram:
         ])
 
     def bloch_overlap(self, kpoint) -> np.ndarray:
-        """Bloch overlap matrix in the atom gauge:
-        S_k(i, j) = sum_n exp(2 pi i k.(n + x_j - x_i)) s(i at 0, j at n)."""
+        """Bloch overlap matrix ``S(k)`` of the full AO basis, atom gauge.
+
+        ``S_k(i, j) = sum_n exp(2 pi i k . (n + x_j - x_i)) s(i at 0, j at
+        n)`` over the lattice translations ``n`` within the pair cutoffs;
+        the on-site term of an orbital with itself is 1, and the compact
+        ``f`` cores carry no inter-site overlap.
+
+        Args:
+            kpoint: Three primitive reciprocal coordinates.
+
+        Returns:
+            Hermitian complex array of shape ``(n_ao, n_ao)``.
+        """
         k = np.asarray(kpoint, dtype=float)
         S = np.zeros((self.n_ao, self.n_ao), dtype=complex)
         lattice_bohr = self.lattice * ANGSTROM_TO_BOHR
@@ -788,13 +936,21 @@ class CrystalOrbitalDiagram:
     def hamiltonian(self, S: np.ndarray) -> np.ndarray:
         """Wolfsberg-Helmholz Hamiltonian over the Bloch overlaps.
 
-        The W-H prefactor uses the shell-averaged shifted energies h_bar
-        (rotation-invariant, so the symmetry of H stays exact); the on-site
-        blocks carry the bare atomic energies plus the full anisotropic
-        point-charge ligand-field matrices (v_onsite).  The diagonal of S_k
-        is 1 + the same-orbital neighbour-cell Bloch sum, so only the
-        on-site R = 0 term is the bare atomic energy: the diagonal
-        correction (1 - K) restores h + K h_bar (S_kk - 1) + V_ii."""
+        ``H_ij = K S_ij (h_i + h_j) / 2`` with the shell-averaged shifted
+        energies ``h_bar`` (rotation-invariant, so the symmetry of ``H``
+        stays exact); the on-site blocks carry the bare atomic energies plus
+        the full anisotropic point-charge ligand-field matrices
+        (``v_onsite``).  The diagonal of ``S_k`` is 1 plus the same-orbital
+        neighbour-cell Bloch sum, so only the on-site ``R = 0`` term is the
+        bare atomic energy: the diagonal correction ``(1 - K)`` restores
+        ``h + K h_bar (S_kk - 1) + V_ii``.
+
+        Args:
+            S: The Bloch overlap matrix from :meth:`bloch_overlap`.
+
+        Returns:
+            Hermitian complex array of shape ``(n_ao, n_ao)``, in eV.
+        """
         H = 0.5 * WOLFSBERG_HELMHOLZ_K * (
             self.h_bar[:, None] + self.h_bar[None, :]
         ) * S
@@ -807,7 +963,20 @@ class CrystalOrbitalDiagram:
     # -------------------------------------------------------- representation
 
     def little_group_data(self, kpoint):
-        """spgrep irreps, physical labels, and the combined orbital rep."""
+        """Irreps, labels and the AO representation of the little group at ``k``.
+
+        Args:
+            kpoint: Three primitive reciprocal coordinates.
+
+        Returns:
+            ``(irreps, mapping, labels, representation)``: the spgrep irreps,
+            the indices of the little-group operations into
+            ``builder.rotations``, their ISO-IR labels, and one complex
+            ``(n_ao, n_ao)`` matrix per operation -- block-diagonal over the
+            (element, shell) specs, each block the Kronecker product of the
+            Bloch-phased site permutation with the real-orbital Wigner
+            matrix of the shell.
+        """
         irreps, mapping = get_spacegroup_irreps_from_primitive_symmetry(
             rotations=self.builder.rotations,
             translations=self.builder.translations,
@@ -954,7 +1123,36 @@ class CrystalOrbitalDiagram:
         return self.side_specs[column][int(np.argmax(weights))]
 
     def solve_at(self, kpoint):
-        """All fragment and crystal levels at one k point."""
+        """Solve the fragment and crystal eigenproblems at one k point.
+
+        The fragment columns are the generalized eigenproblems of the two
+        sublattice blocks, the crystal column that of the full basis.  Every
+        level is labelled by projecting its degenerate space onto the irreps,
+        filled by aufbau, and given its Loewdin fragment composition and
+        its COOP bond character (:func:`assign_bond_characters`); the
+        outermost columns list the isolated on-site shell levels.  Sets
+        :attr:`last_estimated` and :attr:`last_dependent`.
+
+        Args:
+            kpoint: Three primitive reciprocal coordinates, for the diagram
+                one of :meth:`special_kpoints`.
+
+        Returns:
+            ``(levels, labels)``: ``levels`` maps the columns ``"left"``,
+            ``"mo"`` (the crystal), ``"right"``, ``"left-ao"`` and
+            ``"right-ao"`` (the outermost isolated-shell columns) to lists
+            of ``DiagramLevel`` records -- ``label``, ``irrep``, ``energy``
+            (eV), ``degeneracy``, ``electrons``, ``vectors`` (shape
+            ``(n_ao, degeneracy)``, S-orthonormal), ``composition``,
+            ``bond_character``, ``overlap_population``, ``estimated`` and
+            ``detail`` -- and ``labels`` are the ISO-IR irrep labels at
+            ``kpoint``.
+
+        Raises:
+            SystemExit: The representation does not leave ``S`` or ``H``
+                invariant (a gauge or real-harmonics inconsistency; please
+                report the case).
+        """
         S = self.bloch_overlap(kpoint)
         H = self.hamiltonian(S)
         irreps, mapping, labels, representation = self.little_group_data(kpoint)
@@ -1152,6 +1350,9 @@ class CrystalOrbitalDiagram:
                 # is disclosed instead of silently drawing the first site
                 block = self.h_bar[spec.offset:spec.offset + spec.n_ao]
                 onsite = float(np.mean(block))
+                raw_vsip = float(np.mean(
+                    self.h_raw[spec.offset:spec.offset + spec.n_ao]))
+                field_shift = onsite - raw_vsip
                 spread = float(np.max(block) - np.min(block))
                 equivalent = self.builder.spglib_dataset["equivalent_atoms"]
                 orbits = len({int(equivalent[site]) for site in spec.sites})
@@ -1184,17 +1385,46 @@ class CrystalOrbitalDiagram:
                 else:
                     tail = (f"the {self.formula[column]} column shows this "
                             "shell's Bloch combination at each k point")
+                cage_note = ""
+                if abs(field_shift) > 8.0:
+                    cage_note = (
+                        "\nWARNING: a point-charge shift this large is no "
+                        "small correction: the shell's STO is diffuse "
+                        "enough to engulf the surrounding charge cage, so "
+                        "this on-site energy -- and every level the shell "
+                        "dominates -- is an artifact of the point-charge "
+                        "model, not chemistry")
                 level.detail = (
                     f"isolated {spec.element} {spec.shell} on-site level: "
-                    "VSIP + point-charge ligand field (spherical part) "
-                    f"= {onsite:.2f} eV{site_note}\n{tail}")
+                    f"VSIP {raw_vsip:.2f} + point-charge ligand field "
+                    f"(spherical part) {field_shift:+.2f} "
+                    f"= {onsite:.2f} eV{site_note}\n{tail}{cage_note}")
                 ao_ids[column][key] = level.level_id
                 levels[ao_column].append(level)
 
+        channel_of_ao = np.empty(self.n_ao, dtype=object)
+        for spec in self.specs:
+            w = 2 * spec.l + 1
+            for site_pos, site in enumerate(spec.sites):
+                start = spec.offset + site_pos * w
+                for index in range(start, start + w):
+                    channel_of_ao[index] = (site, spec.l)
         for column in ("mo", "left", "right"):
             for level in levels[column]:
                 gross = (np.abs(sqrt_overlap @ level.vectors) ** 2
                          ).sum(axis=1) / level.degeneracy
+                # per-(atom, l) Loewdin channel populations: the hover
+                # sketch calibrates its lobe sizes to these -- raw
+                # coefficient x STO-amplitude lobes misstate the mix (a
+                # 90%-Ti-4s level used to be DRAWN as d lobes: the compact
+                # 3d weighs ~4x the diffuse 4s at the probe radius, and
+                # the semicore 3s tail cancels most of the s channel)
+                pops: dict = {}
+                for index, value in enumerate(gross):
+                    key = channel_of_ao[index]
+                    if key is not None:
+                        pops[key] = pops.get(key, 0.0) + float(value)
+                level.channel_pop = pops
                 shares = []
                 linked = []
                 for (element, shell), indices in spec_ranges.items():
@@ -1240,30 +1470,78 @@ class CrystalOrbitalDiagram:
 
     @staticmethod
     def _fill(column_levels, electrons):
+        """Aufbau filling (2 electrons per orbital).
+
+        Returns the level left PARTIALLY filled, if any: an insulator's
+        count exhausts exactly at a level boundary, so a partial level is
+        either a genuinely metallic k point or a level-ordering artifact
+        worth flagging (rutile TiO2 in the extended-Hueckel engine: the
+        near-dependent Ti 4p Bloch sums inherit a point-charge-shifted
+        on-site energy, land inside the O 2p band, swallow 4 electrons
+        and leave the true O 2p top half-filled)."""
         remaining = float(electrons)
+        integer_total = abs(remaining - round(remaining)) < 1e-9
+        odd_total = integer_total and int(round(remaining)) % 2 == 1
+        partial = None
         for level in sorted(column_levels, key=lambda lv: lv.energy):
             capacity = 2 * level.degeneracy
-            take = int(round(min(remaining, capacity)))
+            want = min(remaining, capacity)
+            take = int(round(want))
             level.electrons = max(take, 0)
+            fractional = want > 0 and abs(want - take) > 1e-6
+            if 0 < level.electrons < capacity or fractional:
+                partial = level
+                if odd_total:
+                    # parity-forced: an odd electron count half-fills one
+                    # level at EVERY k point -- not a warning, a property
+                    level.partial_parity = True
+                    note = ("NOTE: this column's electron count "
+                            f"({int(round(electrons))}) is odd, so one "
+                            "level is necessarily half-filled at every "
+                            "k point (spin-restricted display)")
+                elif fractional:
+                    level.partial_parity = True
+                    note = ("NOTE: aufbau ends with a fractional "
+                            f"occupation (requested {electrons:g} "
+                            "electrons; this level is drawn with "
+                            f"{level.electrons})")
+                else:
+                    level.partial = True
+                    note = ("NOTE: aufbau leaves this level PARTIALLY "
+                            f"filled ({level.electrons} of {capacity} "
+                            "electrons) at this k point -- a genuinely "
+                            "metallic k point, or a level-ordering "
+                            "artifact of the model")
+                level.detail = (note if not level.detail
+                                else f"{level.detail}\n{note}")
             remaining -= take
             if remaining <= 0:
                 break
+        return partial
 
     # ---------------------------------------------------- wave-function sketch
 
     def supercell_for(self, kpoint):
-        """Display supercell for the sketch:
-        (sites, symbols, cartesian positions, display lattice, description).
+        """Display supercell of the hover sketch at ``k``.
 
-        ``sites`` holds one (primitive atom index, integer lattice
-        translation) pair per drawn atom.  Default: the k-commensurate
-        diagonal supercell of the primitive cell.  With --conventional the
-        display cell is the conventional cell of the detected centring
-        (times the diagonal multiples that make exp(2 pi i k . T) = 1 for
-        its edge vectors, as in the SALC viewer), and each atom is wrapped
-        into it with its own primitive-lattice translation -- the Bloch
-        phases stay exact because every conventional-cell position is a
-        primitive-lattice translate of a basis atom.
+        Default: the k-commensurate diagonal supercell of the primitive
+        cell.  With ``conventional`` the display cell is the conventional
+        cell of the detected centring (times the diagonal multiples that
+        make ``exp(2 pi i k . T) = 1`` for its edge vectors, as in the SALC
+        viewer), and each atom is wrapped into it with its own
+        primitive-lattice translation -- the Bloch phases stay exact because
+        every conventional-cell position is a primitive-lattice translate
+        of a basis atom.
+
+        Args:
+            kpoint: Three primitive reciprocal coordinates.
+
+        Returns:
+            ``(sites, symbols, cartesian, display_lattice, description)``:
+            one ``(primitive atom index, integer lattice translation)`` pair
+            per drawn atom, the chemical symbols, the Cartesian positions in
+            Angstrom (shape ``(n, 3)``), the display lattice vectors as
+            rows, and a text such as ``"primitive cell, 2 x 2 x 2"``.
         """
         from fractions import Fraction
         from itertools import product
@@ -1315,11 +1593,11 @@ class CrystalOrbitalDiagram:
                 description)
 
     def sketch_partners(self, level: DiagramLevel, kpoint, sites):
-        """Per-partner real wave-function amplitudes on the supercell atoms,
-        as sketch entries [atom, s, px, py, pz, dxy, dyz, dz2, dxz, dx2-y2];
-        ``sites`` is the (atom index, translation) list of supercell_for.
+        """Real wave-function amplitudes of a level on the supercell atoms.
 
-        Only the --atomic-orbital components (self.sketch_specs) are drawn.
+        The hover sketch of one level, one entry per degenerate partner.
+        Only the ``sketch_specs`` components are drawn (all shells unless
+        ``sketch_tokens`` restricted them).
         The amplitudes are Re[psi] (or Im[psi] when Re vanishes) of the
         Bloch crystal orbital, so the sign alternation between the cells of
         the k-commensurate supercell is displayed faithfully; degenerate
@@ -1327,13 +1605,41 @@ class CrystalOrbitalDiagram:
         sketch.
 
         Same-l shells of one atom (e.g. Sc 2p/3p/4p) share their slots and
-        accumulate, each weighted by its STO radial amplitude at a
-        representative bonding-region radius (r0 = 2 bohr), so the drawn
-        lobe signs are the signs of the real wave function there.  (A bare
-        coefficient of one shell is wrong: a semicore level like Sc 3p
-        would be drawn from the tiny orthogonalization tail of the 4p
-        shell, whose sign is inverted -- the crystal analogue of the
-        contracted-GTO compression in the molecular PySCF sketch.)"""
+        accumulate, each weighted by its STO radial amplitude at a probe
+        radius, so the drawn lobe signs are the signs of the real wave
+        function there.  (A bare coefficient of one shell is wrong: a
+        semicore level like Sc 3p would be drawn from the tiny
+        orthogonalization tail of the 4p shell, whose sign is inverted --
+        the crystal analogue of the contracted-GTO compression in the
+        molecular PySCF sketch.)
+
+        In the full-basis --diagram mode the lobe SIZE of each (atom, l)
+        channel is additionally calibrated to its Loewdin population
+        (level.channel_pop, attached by solve_at), and the probe radius is
+        chosen per channel as the one (1.5/2.0/2.5/3.0 bohr) where the
+        accumulated amplitude is largest -- the visualize_eht/PySCF-viewer
+        recipe.  Raw amplitude x coefficient lobes misstate the mix badly:
+        the 89.9%-Ti-4s GM1+ level of rutile TiO2 was DRAWN as d lobes
+        (drawn d:s = 2.7:1), because the compact 3d weighs ~4x the diffuse
+        4s at a fixed 2-bohr radius while the semicore 3s orthogonality
+        tail cancels most of the s channel.  A level without channel_pop
+        (or a sketch_specs-filtered sketch, an API-only mode -- the CLI
+        rejects --atomic-orbital with --diagram) keeps the legacy
+        fixed-radius raw amplitudes.
+
+        Args:
+            level: A ``DiagramLevel`` from :meth:`solve_at` (its ``vectors``
+                are used).
+            kpoint: The k point the level was solved at.
+            sites: The ``(atom index, translation)`` list of
+                :meth:`supercell_for` at that k point.
+
+        Returns:
+            One list per partner; each holds one sketch entry
+            ``[atom, s, px, py, pz, dxy, dyz, dz2, dxz, dx2-y2]`` per
+            supercell atom (index into ``sites``, then the real amplitudes
+            of the nine ``s``/``p``/``d`` components).
+        """
         from .point_charge_field import _primitives
         from .visualize_basis import realify_basis_space
 
@@ -1341,40 +1647,93 @@ class CrystalOrbitalDiagram:
         rows = np.asarray(rows)
         width = 9
         slot_of = {0: 0, 1: 1, 2: 4}
-        r0 = 2.0  # bohr
+        radii = (1.5, 2.0, 2.5, 3.0)
         angular = {0: 0.28209479, 1: 0.48860251, 2: 0.63078313}
-        radial_weight = [
-            angular[spec.l] * sum(
-                c * r0 ** (n - 1) * np.exp(-z * r0)
-                for c, n, z in _primitives(spec.n, spec.zeta)
-            ) if spec.l in slot_of else 0.0
-            for spec in self.specs
-        ]
-        partner_rows = []
+        profiles = {}
+        for spec_index, spec in enumerate(self.specs):
+            if spec.l in slot_of:
+                profiles[spec_index] = tuple(
+                    angular[spec.l] * sum(
+                        c * radius ** (n - 1) * np.exp(-z * radius)
+                        for c, n, z in _primitives(spec.n, spec.zeta)
+                    )
+                    for radius in radii
+                )
+        pops = (getattr(level, "channel_pop", None)
+                if self.sketch_specs is None else None)
+        # no populations available (a level built outside solve_at, or the
+        # filtered sketch): keep the legacy fixed-radius raw amplitudes
+        # entirely -- a best-radius pick without the Loewdin sizes would be
+        # an inconsistent hybrid
+        calibrate = pops is not None
+        fixed_radius = radii.index(2.0)
+        # pass 1: per-partner per-(site, l) channel amplitudes at each
+        # probe radius, in the primitive cell (no supercell phases yet)
+        prim = []
+        amp2: dict = {}
         for vector in rows:
-            amp_re = np.zeros((len(sites), width))
-            amp_im = np.zeros_like(amp_re)
+            channels: dict = {}
             for spec_index, spec in enumerate(self.specs):
                 if (self.sketch_specs is not None
                         and spec_index not in self.sketch_specs):
                     continue
                 if spec.l not in slot_of:
                     continue
-                slot = slot_of[spec.l]
                 w = 2 * spec.l + 1
                 for site_pos, site in enumerate(spec.sites):
                     start = spec.offset + site_pos * w
-                    block = vector[start:start + w]
-                    for row_index, (atom, translation) in enumerate(sites):
-                        if atom != site:
-                            continue
-                        phase = np.exp(2j * np.pi * float(np.dot(
-                            kpoint, translation + self.positions[site]
-                        )))
-                        values = (np.asarray(block) * phase
-                                  * radial_weight[spec_index])
-                        amp_re[row_index, slot:slot + w] += values.real
-                        amp_im[row_index, slot:slot + w] += values.imag
+                    block = np.asarray(vector[start:start + w])
+                    key = (site, spec.l)
+                    entry = channels.setdefault(
+                        key, [np.zeros(w, dtype=complex)
+                              for _ in radii])
+                    for radius_index in range(len(radii)):
+                        entry[radius_index] = (
+                            entry[radius_index]
+                            + block * profiles[spec_index][radius_index])
+            for key, per_radius in channels.items():
+                norms = np.array([float(np.linalg.norm(c)) ** 2
+                                  for c in per_radius])
+                amp2[key] = amp2.get(key, 0.0) + norms
+            prim.append(channels)
+        # per (atom, l): the probe radius with the largest multiplet
+        # amplitude (away from any semicore orthogonalization node), and
+        # the Loewdin size calibration
+        best = {key: (int(np.argmax(values)) if calibrate
+                      else fixed_radius)
+                for key, values in amp2.items()}
+        scale = {}
+        for key, values in amp2.items():
+            reference = float(values[best[key]])
+            if reference < 1e-24:
+                continue
+            if pops is not None:
+                scale[key] = np.sqrt(max(pops.get(key, 0.0), 0.0)
+                                     / reference)
+            else:
+                scale[key] = 1.0
+        # pass 2: place the calibrated channels on the supercell sites
+        # with their Bloch phases
+        partner_rows = []
+        for channels in prim:
+            amp_re = np.zeros((len(sites), width))
+            amp_im = np.zeros_like(amp_re)
+            for (site, l_channel), per_radius in channels.items():
+                key = (site, l_channel)
+                if key not in scale:
+                    continue
+                base = per_radius[best[key]] * scale[key]
+                slot = slot_of[l_channel]
+                w = 2 * l_channel + 1
+                for row_index, (atom, translation) in enumerate(sites):
+                    if atom != site:
+                        continue
+                    phase = np.exp(2j * np.pi * float(np.dot(
+                        kpoint, translation + self.positions[site]
+                    )))
+                    values = base * phase
+                    amp_re[row_index, slot:slot + w] += values.real
+                    amp_im[row_index, slot:slot + w] += values.imag
             choice = (amp_re if np.linalg.norm(amp_re) >= np.linalg.norm(amp_im)
                       else amp_im)
             partner_rows.append(choice.reshape(-1))
@@ -1405,7 +1764,14 @@ class CrystalOrbitalDiagram:
     # ------------------------------------------------------------- k points
 
     def special_kpoints(self):
-        """(name, kpoint) list of the tabulated special points."""
+        """Tabulated special k points of the space group.
+
+        Returns:
+            ``[(name, kpoint), ...]`` with the ISO-IR names (``GM``, ``R``,
+            ``X``, ``M`` for Pm-3m) and primitive reciprocal coordinates, in
+            table order: the k points ``crystod --diagram`` draws
+            (``--kpoint NAME`` restricts the run to one of them).
+        """
         table = IrrepTable(self.builder.spglib_dataset["number"], spinor=False)
         primitive_matrix = get_primitive_matrix_by_centring(
             self.builder.spglib_dataset["international"][0]
@@ -1446,6 +1812,22 @@ def _detail_html(level: DiagramLevel, names: dict) -> str:
     if level.detail:
         rows.append(level.detail)
     return "\n".join(rows)
+
+
+def _panel_note(level: DiagramLevel) -> str:
+    """The engine's own per-level text, as HTML for the click panel.
+
+    ``level.detail`` is plain text with newlines (it is also the SVG
+    ``<title>``); the panel renders it with ``white-space: pre-line``, so only
+    the HTML-special characters have to be escaped.  The leading "made of"
+    line is dropped: the panel lists the connectors itself, from the link
+    weights, with the current labels.
+    """
+    from html import escape
+
+    rows = [row for row in level.detail.splitlines()
+            if not row.startswith("made of:")]
+    return escape("\n".join(rows))
 
 
 def _periodic_sketch_geometry(display_lattice, symbols, positions,
@@ -1611,7 +1993,15 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                     # facing note lives in the tooltip detail)
                     **({"est": 1} if getattr(level, "estimated", False)
                        else {}),
-                    **({"bond": bond_letter[character]} if character else {}),
+                    # a crystal level the engine could not classify is marked
+                    # "u" so the renderer gives it the NEUTRAL stroke: without
+                    # it an occupied level would keep the .occ blue, which is
+                    # also the bonding colour, and an unclassified band would
+                    # read as bonding.  The extended-Hueckel and PySCF engines
+                    # classify every crystal level, so their pages never see
+                    # this branch.
+                    **({"bond": bond_letter[character]} if character
+                       else ({"bond": "u"} if column == "mo" else {})),
                     "label": level.label,
                     # atomic-shell levels carry electrons=None (no arrows;
                     # occupation is a sublattice/crystal-column concept)
@@ -1635,6 +2025,10 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                          if w > 0.005]
                     ),
                     "detail": _detail_html(level, names),
+                    # the same text in the CLICK panel: the SVG <title> needs
+                    # a one-second hover, while the footer promises these
+                    # numbers to anyone who clicks a level
+                    **({"note": _panel_note(level)} if level.detail else {}),
                     # None (not []) for the atomic-shell levels: an empty
                     # array is truthy in JS and would open a lobe-less
                     # sketch pane
@@ -1693,6 +2087,9 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
             )
         ),
         getattr(diagram, "method_chip", "extended H&uuml;ckel + SALC"),
+        # engines may add their own chips (the VASP engine states how the
+        # columns were put on one scale and where the energy zero is)
+        *getattr(diagram, "extra_chips", []),
     ]
     sketch_cell = (
         "the conventional cell (&times; the multiples that make the Bloch "
@@ -1731,9 +2128,21 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
             "~ in the terminal report and noted in the level's tooltip."
         )
     bond_foot = ""
-    if any(getattr(level, "bond_character", None)
-           for _, _, levels in k_entries for level in levels["mo"]):
+    engine_bond_foot = getattr(diagram, "bond_foot", "")
+    if (engine_bond_foot and not any(
+            getattr(level, "bond_character", None)
+            for _, _, levels in k_entries for level in levels["mo"])):
+        # nothing could be classified (e.g. --no-align): say so, because every
+        # crystal level then carries the neutral grey stroke
         bond_foot = (
+            " NO crystal level on this page could be given a bonding "
+            "character, so they all carry the neutral grey stroke."
+            + engine_bond_foot)
+    elif any(getattr(level, "bond_character", None)
+             for _, _, levels in k_entries for level in levels["mo"]):
+        # engines override bond_foot: a plane-wave engine has no overlap
+        # matrix and therefore no COOP population to quote
+        bond_foot = engine_bond_foot or (
             " Crystal-orbital line colors: "
             "<span style=\"color:#1565c0\">bonding</span> / "
             "<span style=\"color:#333\">nonbonding</span> / "
@@ -1771,7 +2180,22 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                 "(center), states without a partner remain nonbonding. "
                 "Energies: symmetry-adapted extended H&uuml;ckel "
                 "(VSIP/core-level diagonal + Wolfsberg-Helmholz "
-                "off-diagonal over exact Bloch STO overlap sums)."))
+                "off-diagonal over exact Bloch STO overlap sums). "
+                "<b>CAUTION</b>: this is a non-self-consistent one-electron "
+                "model with fixed atomic parameters. What is rigorous is the "
+                "SYMMETRY &mdash; the irrep labels, which states may mix and "
+                "which stay nonbonding. The level ORDER can be qualitatively "
+                "wrong (no charge-transfer response; a diffuse cation shell "
+                "in the point-charge field can drop a whole band into the "
+                "wrong place, as the Ti 4p band does inside the O 2p band of "
+                "rutile TiO2, breaking its insulating filling), and a wrong "
+                "order inverts the compositions it feeds (in that same TiO2 "
+                "the bonding GM3+ comes out Ti-dominated and its antibonding "
+                "partner O-dominated &mdash; the reverse of the heteropolar "
+                "rule and of PySCF). Cross-check with the same command plus "
+                "--pyscf wherever it runs; it cannot run for the lanthanides "
+                "(no GTH basis covers them), where this engine is the only "
+                "one and the diagram should be read as a symmetry analysis."))
             + " The energy window opens on the frontier states; use \"Show "
             "all energy levels\" for the deep shells. Switch the k point "
             "with the buttons above." + ao_foot + estimated_foot + bond_foot
@@ -1779,6 +2203,9 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         ),
         geometry=variants[0]["geom"],
         variants=variants,
+        # engines may rename the energy axis (the VASP engine reports
+        # E - E_VBM by default, not the raw eigenvalue)
+        axis_title=getattr(diagram, "axis_title", "E (eV)"),
     )
 
 
@@ -1813,18 +2240,34 @@ def report_and_write(cell, *, left, right, symprec, electrons,
         # per-Wyckoff-site spread of multi-position elements
         onsites = []
         seen: set = set()
+        cage_shells = []
         for spec in diagram.side_specs[column]:
             key = (spec.element, spec.shell)
             if key not in seen:
                 seen.add(key)
                 block = diagram.h_bar[spec.offset:spec.offset + spec.n_ao]
                 spread = float(np.max(block) - np.min(block))
+                onsite = float(np.mean(block))
+                raw_vsip = float(np.mean(
+                    diagram.h_raw[spec.offset:spec.offset + spec.n_ao]))
+                field_shift = onsite - raw_vsip
                 onsites.append(
-                    f"{spec.element} {spec.shell} "
-                    f"{float(np.mean(block)):.2f}"
-                    + (f"(+-{spread / 2:.2f})" if spread > 0.02 else ""))
+                    f"{spec.element} {spec.shell} {onsite:.2f}"
+                    + (f"(+-{spread / 2:.2f})" if spread > 0.02 else "")
+                    + (f" [VSIP {raw_vsip:.2f}, field {field_shift:+.2f}]"
+                       if abs(field_shift) >= 2.0 else ""))
+                if abs(field_shift) > 8.0:
+                    cage_shells.append(
+                        (spec.element, spec.shell, field_shift))
         print("       on-site atomic levels (VSIP + ligand field, eV): "
               + ", ".join(onsites))
+        for element, shell, field_shift in cage_shells:
+            print(f"       WARNING: the {element} {shell} point-charge "
+                  f"shift ({field_shift:+.1f} eV) is no small correction: "
+                  "this STO is diffuse enough to engulf the surrounding "
+                  "charge cage, so its on-site energy -- and every level "
+                  "it dominates -- is an artifact of the point-charge "
+                  "model, not chemistry")
     print(f" electrons per cell in the diagram: {int(diagram.electrons)}"
           + (" (all electrons of the neutral atoms; override with"
              " --electrons)" if electrons is None else ""))
@@ -1850,7 +2293,29 @@ def report_and_write(cell, *, left, right, symprec, electrons,
               f"lattice (multipole ligand field + penetration; "
               f"jellium-referenced monopole {own} omitted)")
     print(" hover wave-function sketches: all atomic-orbital components "
-          "of every level\n")
+          "of every level")
+    print(" * CAUTION: extended Hueckel gets the LEVEL ORDER wrong "
+          "sometimes *")
+    print("   This is a non-self-consistent one-electron model with fixed "
+          "atomic parameters.\n"
+          "   What is rigorous here is the SYMMETRY: the irrep labels, "
+          "which states may mix,\n"
+          "   and which stay nonbonding. The energies carry no "
+          "charge-transfer response, so\n"
+          "   a whole band can land in the wrong place -- rutile TiO2 puts "
+          "an artificial Ti 4p\n"
+          "   band inside the O 2p band and loses its insulating filling. "
+          "A wrong ORDER also\n"
+          "   inverts the COMPOSITIONS it feeds: in the same TiO2 the "
+          "bonding GM3+ comes out\n"
+          "   Ti-dominated and the antibonding one O-dominated, the reverse "
+          "of the\n"
+          "   heteropolar rule and of PySCF. Cross-check with --pyscf "
+          "(same command +\n"
+          "   --pyscf) wherever it runs -- it cannot for the lanthanides, "
+          "which no GTH basis\n"
+          "   covers; there this engine is the only one, read it as a "
+          "symmetry analysis.\n")
 
     entries = []
     kpoints = diagram.special_kpoints()
@@ -1877,6 +2342,23 @@ def report_and_write(cell, *, left, right, symprec, electrons,
         if diagram.last_dependent:
             print(f"   ({diagram.last_dependent} linearly dependent Bloch "
                   "combination(s) removed by canonical orthogonalization)")
+        for col_name, col_levels in (("crystal", levels["mo"]),
+                                     (diagram.formula["left"],
+                                      levels["left"]),
+                                     (diagram.formula["right"],
+                                      levels["right"])):
+            for lv in col_levels:
+                if getattr(lv, "partial", False):
+                    marker = "~" if getattr(lv, "estimated", False) else ""
+                    print(f"   WARNING: aufbau leaves the {col_name} "
+                          f"column's {lv.irrep} level at "
+                          f"{marker}{lv.energy:.2f} eV "
+                          f"partially filled ({lv.electrons} of "
+                          f"{2 * lv.degeneracy} electrons) -- a genuinely "
+                          "metallic k point, or a level-ordering artifact "
+                          "(an occupied level dominated by a strongly "
+                          "shifted diffuse shell is the usual culprit; "
+                          "see the on-site warnings above)")
         for column in ("left", "right"):
             parts = ", ".join(
                 f"{lv.label} ({'~' if lv.estimated else ''}{lv.energy:.2f})"

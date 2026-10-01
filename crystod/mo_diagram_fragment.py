@@ -78,7 +78,85 @@ class FragmentLevel:
 
 
 class EhtFragmentDiagram:
-    """MO diagram of an arbitrary two-fragment split in one EHT AO space."""
+    """Extended-Hueckel MO diagram of a molecule split into two fragments.
+
+    The engine behind ``crystod-mol --diagram --ao-left A --ao-right B``
+    without ``--pyscf``: the sibling of ``MODiagram`` for molecules without
+    a single center, e.g. benzene as H6 and C6 or methanol as H4 and CO.
+    Constructing the object runs the analysis: the point group is detected
+    and the molecule aligned to the standard frame when it belongs to one of
+    the 32 crystallographic groups; the atoms are partitioned by the two
+    formulas; the extended-Hueckel matrices of the whole molecule are built
+    once, and the pre-bonding levels of each fragment are the generalized
+    eigenstates of its own ``(H, S)`` sub-block (in extended Hueckel the
+    sub-block is the isolated fragment, so no ghost basis is needed); the
+    molecular MOs are projected onto the fragment MOs through the shared
+    overlap matrix for the correlation lines and compositions. Levels are
+    labeled by the characters of their eigenvectors (a fragment need not be
+    invariant under the full molecular group; unlabeled levels are numbered
+    plainly), numbered with the core shells counted, and given a COOP
+    bonding character.
+
+    Args:
+        xyz_path (str): Path of the molecule file in XYZ format.
+        tolerance (float): Distance tolerance in Angstrom for the symmetry
+            detection (``--tolerance``).
+        left_spec (str): Formula of the left fragment (``--ao-left``), e.g.
+            ``"H6"``: element symbols with optional counts.
+        right_spec (str): Formula of the right fragment (``--ao-right``),
+            e.g. ``"C6"``. Both formulas are required and together must
+            account for every atom of the molecule.
+
+    Attributes:
+        xyz_path: The molecule file as given.
+        formula: Hill formula of the molecule (``"C6H6"``).
+        schoenflies: Schoenflies symbol of the point group.
+        hm: Its Hermann-Mauguin symbol, or ``None`` for a
+            non-crystallographic group.
+        linear: Whether the molecule is linear.
+        character_table: Character table of the point group, or ``None``.
+        operations: Rotation matrices of the group in the standard frame
+            (empty when ``hm`` is ``None``).
+        operation_classes: Class label of every entry of ``operations``.
+        symbols: Element symbol of every atom.
+        coordinates: ``(n_atoms, 3)`` Cartesian coordinates in Angstrom.
+        left: Site indices of the left fragment.
+        right: Site indices of the right fragment.
+        left_name: Formula of the left fragment (``"H6"``).
+        right_name: Formula of the right fragment (``"C6"``).
+        orbitals: The AO basis of the whole molecule (``AtomicOrbital``
+            list).
+        S: AO overlap matrix.
+        H: Extended-Hueckel Hamiltonian in eV.
+        rows: AO indices of each column (``"left"``, ``"mo"``, ``"right"``).
+        electron_counts: Valence electrons of each column.
+        levels: ``FragmentLevel`` lists per column, energy ascending. Each
+            level has ``energy`` (eV), ``degeneracy``, ``irrep``, ``label``,
+            ``electrons``, ``vectors`` (``(n_ao, degeneracy)`` AO-space
+            coefficients) and ``composition`` (pairs of a level id and its
+            weight; for the molecular column the projection onto the fragment
+            levels); the molecular levels also carry ``bond_character`` and
+            ``overlap_population``, the fragment levels ``dominant_spec``,
+            their dominant ``(element, shell)``.
+        homo: Highest occupied molecular level (``None`` if none).
+        lumo: Lowest unoccupied molecular level (``None`` if none).
+
+    Raises:
+        SystemExit: The file is missing, a fragment formula is absent or
+            cannot be parsed, the two formulas do not partition the molecule,
+            or an element has no extended-Hueckel parameters.
+
+    Example:
+        >>> from crystod import mol
+        >>> from crystod.examples import example_path
+        >>> diagram = mol.EhtFragmentDiagram(
+        ...     example_path("XYZ_NH3.xyz"), left_spec="H3", right_spec="N")
+        >>> diagram.left_name, diagram.right_name, diagram.electron_counts
+        ('H3', 'N', {'mo': 8, 'left': 3, 'right': 5})
+        >>> diagram.homo.label, diagram.lumo.label
+        ('3a1', '2e')
+        >>> diagram.write_html("MolOD_NH3_fragments.html")
+    """
 
     def __init__(self, xyz_path, tolerance=0.3, left_spec=None,
                  right_spec=None):
@@ -546,6 +624,13 @@ class EhtFragmentDiagram:
         return [_sketch_entries(per_atom) for per_atom in partners]
 
     def print_report(self):
+        """Print the text report of the two-fragment diagram to stdout.
+
+        Sections: molecule and point group, the two fragments with their
+        atoms and valence-electron counts, the molecular orbitals up to
+        12 eV above the LUMO (energy, occupation, composition in fragment
+        levels), and the electron filling with HOMO, LUMO and gap.
+        """
         print("\n* Molecule *")
         print(f"{self.xyz_path} ({self.formula}, {len(self.symbols)} atoms)")
         print("\n* Point group *")
@@ -589,6 +674,17 @@ class EhtFragmentDiagram:
               "(extended Hueckel)")
 
     def write_html(self, output_path):
+        """Write the interactive three-column HTML diagram.
+
+        Columns: left-fragment MOs, molecule MOs, right-fragment MOs, with
+        correlation lines weighted by the projections, electron arrows,
+        HOMO/LUMO marks, an adjustable energy window, per-level details and
+        the orbital sketch viewer.
+
+        Args:
+            output_path (str): Path of the HTML file to write (``crystod-mol``
+                uses ``MolOD_{molecule}.html`` by default).
+        """
         columns = {"left": 200, "mo": 480, "right": 760}
         half = {"left": 34, "mo": 34, "right": 34}
         order = ["left", "mo", "right"]

@@ -2,7 +2,7 @@
 
 The domain API modules (``crystod.salc``, ``crystod.phonon``,
 ``crystod.group``, ``crystod.bz``, ``crystod.md``, ``crystod.mag``,
-``crystod.mol``) are thin, curated views over the implementation modules.
+``crystod.mol``, ``crystod.xrd``, ``crystod.search``) are thin, curated views over the implementation modules.
 Because many implementation modules import phonopy/spgrep (and patch
 spglib compatibility) at import time, the views resolve their attributes
 lazily via PEP 562: ``import crystod.phonon`` is instant, and the heavy

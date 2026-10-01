@@ -61,6 +61,36 @@ def build_parser() -> ArgumentParser:
 
 
 def get_character_table(point_group: str) -> dict:
+    """Character table of a crystallographic point group (phonopy data).
+
+    The table every point-group mode of ``crystod-group`` starts from
+    (``--table``, ``--decompose``, ``--ligand-field``, ``--product --pg``,
+    ``--multiplet``).
+
+    Args:
+        point_group: Hermann-Mauguin point-group label as used by phonopy,
+            e.g. ``"m-3m"``, ``"4/mmm"``, ``"3m"``.
+
+    Returns:
+        The phonopy character-table dict with the keys ``"rotation_list"``
+        (class labels in order), ``"character_table"``
+        (``{irrep: characters per class}``) and ``"mapping_table"``
+        (``{class label: rotation matrices}``, whose lengths are the class
+        sizes).
+
+    Raises:
+        SystemExit: Unknown point-group label; the message lists the
+            available labels (``ValueError`` when called through
+            ``crystod.group``).
+
+    Example:
+        >>> from crystod import group
+        >>> ct = group.get_character_table("m-3m")
+        >>> ct["rotation_list"]
+        ('E', 'C3', 'C2', 'C4', 'C4^2', 'i', 'S4', 'S6', 'sgh', 'sgd')
+        >>> ct["character_table"]["T2g"]
+        (3, 0, 1, -1, -1, 3, -1, 0, -1, 1)
+    """
     try:
         return all_character_tables[point_group][0]
     except KeyError:
@@ -76,7 +106,31 @@ def decompose(
     character_table: dict,
     multiplicities: list[int],
 ) -> dict[str, int]:
-    """Number of times each irrep appears in the reducible representation."""
+    """Multiplicity of every irrep in a reducible representation.
+
+    The reduction formula ``n_i = (1/|G|) sum_C |C| chi_i(C) chi(C)`` over
+    the classes ``C`` (real characters); the computation behind
+    ``crystod-group --decompose`` and the last step of ``--ligand-field``
+    and ``--multiplet``.
+
+    Args:
+        characters: Characters of the reducible representation, one per
+            class in the order of ``character_table["rotation_list"]``.
+        character_table: The table from ``get_character_table``.
+        multiplicities: Class sizes in the same order (the lengths of the
+            entries of ``character_table["mapping_table"]``).
+
+    Returns:
+        ``{irrep label: multiplicity}`` over every irrep of the table
+        (zeros included), rounded to integers.
+
+    Example:
+        >>> from crystod import group
+        >>> ct = group.get_character_table("3m")
+        >>> sizes = [len(ops) for ops in ct["mapping_table"].values()]
+        >>> group.decompose([3, 0, 1], ct, sizes)
+        {'A1': 1, 'A2': 0, 'E': 1}
+    """
     multiplicity = np.array(multiplicities, dtype=float)
     reducible = np.array(characters, dtype=float)
     results: dict[str, int] = {}

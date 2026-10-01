@@ -65,6 +65,31 @@ def build_parser() -> ArgumentParser:
 
 
 def parse_transformation_matrix(text: str) -> NDArray[np.float64]:
+    """Parse a ``--trans-mat`` string into a ``(3, 3)`` transformation matrix.
+
+    The nine numbers are read row-wise, as ``crystod-bz --trans-mat`` takes
+    them; fractions such as ``1/2`` are accepted. The matrix ``T`` maps the
+    unit-cell lattice ``A`` (row vectors) to the supercell lattice ``T @ A``,
+    so ``|det T|`` is the number of unit cells in the supercell.
+
+    Args:
+        text: Nine whitespace-separated numbers, e.g.
+            ``"0 1 2  -1 0 2  1 -1 2"``.
+
+    Returns:
+        The ``(3, 3)`` float matrix.
+
+    Raises:
+        SystemExit: The string does not hold exactly nine numbers, or the
+            matrix is singular (``ValueError`` when called through
+            ``crystod.bz``).
+        ValueError: A token is neither a number nor a fraction.
+
+    Example:
+        >>> from crystod import bz
+        >>> bz.parse_transformation_matrix("2 0 0  0 2 0  0 0 2").tolist()
+        [[2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 2.0]]
+    """
     values = [float(Fraction(token)) for token in text.split()]
     if len(values) != 9:
         raise SystemExit(
@@ -77,11 +102,35 @@ def parse_transformation_matrix(text: str) -> NDArray[np.float64]:
 
 
 def get_folded_gamma_points(trans_mat: NDArray[np.float64], rec_lat: NDArray[np.float64]) -> NDArray[np.float64]:
-    """Supercell reciprocal-lattice points folded into the unit-cell BZ.
+    """Unit-cell q points that fold onto the Gamma point of a supercell.
 
-    Returns their Cartesian coordinates (one per equivalence class modulo the
-    unit-cell reciprocal lattice; det(T) points including Gamma). These are
-    exactly the unit-cell q-points that fold onto Gamma of the supercell.
+    The reciprocal lattice of the supercell ``trans_mat @ lattice`` is
+    ``|det T|`` times denser than that of the unit cell, and its points fall
+    into ``|det T|`` classes modulo the unit-cell reciprocal lattice. One
+    representative per class, brought into the unit-cell Brillouin zone by
+    the minimum-image rule, is a unit-cell q point that becomes Gamma in the
+    supercell; ``crystod-bz --trans-mat`` prints these points and tiles the
+    supercell zone at each of them.
+
+    Args:
+        trans_mat: ``(3, 3)`` unit-cell to supercell transformation matrix
+            (rows, integer entries), e.g. from ``parse_transformation_matrix``.
+        rec_lat: ``(3, 3)`` reciprocal lattice of the unit cell, rows
+            ``b1``, ``b2``, ``b3`` (the command uses ``inv(lattice).T``).
+
+    Returns:
+        ``(|det T|, 3)`` array of Cartesian coordinates, Gamma included;
+        ``points @ inv(rec_lat)`` gives them in fractional coordinates of
+        the unit-cell reciprocal basis.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import bz
+        >>> rec_lat = np.linalg.inv(4.07 * np.eye(3)).T
+        >>> T = bz.parse_transformation_matrix("1 1 0  -1 1 0  0 0 1")
+        >>> points = bz.get_folded_gamma_points(T, rec_lat)
+        >>> np.round(points @ np.linalg.inv(rec_lat), 3).tolist()
+        [[0.0, 0.0, 0.0], [0.5, 0.5, 0.0]]
     """
     n_classes = int(round(abs(np.linalg.det(trans_mat))))
     inv_t_transpose = np.linalg.inv(trans_mat).T
@@ -113,6 +162,38 @@ def build_supercell_bz_traces(
     rec_super_lat: NDArray[np.float64],
     centers: NDArray[np.float64],
 ) -> list[dict]:
+    """Build the Plotly traces of a unit-cell zone tiled with supercell zones.
+
+    This is the figure of ``crystod-bz --trans-mat``: the unit-cell reciprocal
+    basis and zone edges (black, dotted), the supercell reciprocal basis
+    (red, green, blue) and a copy of the supercell Brillouin zone (red)
+    centred at every point of ``centers``, with a marker there whose hover
+    text gives the unit-cell fractional coordinates. As in
+    ``build_bz_traces``, the result is a list of plain ``scatter3d`` trace
+    dictionaries.
+
+    Args:
+        rec_lat: ``(3, 3)`` reciprocal lattice of the unit cell (rows).
+        rec_super_lat: ``(3, 3)`` reciprocal lattice of the supercell (rows),
+            ``inv(trans_mat @ lattice).T`` in the command's convention.
+        centers: ``(n, 3)`` Cartesian centres of the supercell zones, normally
+            the output of ``get_folded_gamma_points``.
+
+    Returns:
+        A list of Plotly ``scatter3d`` trace dictionaries.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import bz
+        >>> lattice = 4.07 * np.eye(3)
+        >>> T = bz.parse_transformation_matrix("2 0 0  0 2 0  0 0 2")
+        >>> rec_lat = np.linalg.inv(lattice).T
+        >>> rec_super_lat = np.linalg.inv(T @ lattice).T
+        >>> centers = bz.get_folded_gamma_points(T, rec_lat)
+        >>> traces = bz.build_supercell_bz_traces(rec_lat, rec_super_lat, centers)
+        >>> len(centers), len(traces)
+        (8, 61)
+    """
     traces: list[dict] = []
 
     # Unit-cell reciprocal basis (black, dotted)

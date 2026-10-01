@@ -18,11 +18,15 @@ crystod's space-group irrep machinery (an origin-shift fit absorbs any
 difference between the spglib and ISO-IR origin conventions, verified by
 invariance of the structure under every tabulated operation).  The subgroup translation lattice and the origin shift
 are found by strain-tolerant lattice matching plus atom pairing (the
-assignment minimizing the total distortion is chosen), the subgroup elements
+assignment minimizing the total distortion is chosen; among the
+symmetry-equivalent sublattice settings a symmetric parent leaves
+degenerate, the one whose child axes are rotated least against the parent
+axes -- both as oriented in the input files -- so that displacements and
+mode VESTA files follow the axes of the subgroup structure), the subgroup elements
 are identified as the parent operations that leave the distorted structure
 invariant, and the displacement field is projected onto every parent irrep
 at the k points folding to the subgroup Gamma point with the full induced
-irrep matrices (the same machinery as --supergroup).  Amplitudes follow the
+irrep matrices (the same machinery as --parent).  Amplitudes follow the
 AMPLIMODES convention: A = sqrt(sum |u_atom|^2) over the primitive cell of
 the distorted structure, with Cartesian displacements measured in the
 strain-free parent-derived reference lattice.  A completeness check
@@ -47,6 +51,13 @@ from .isotropy_subgroup import (
     _projector,
 )
 from .spacegroup_product import DEN, SpaceGroupIrrepAlgebra
+
+# An operation whose worst atom mismatch stays under this (Angstrom) leaves
+# the idealized structure invariant to machine precision -- not "small", but
+# exactly satisfied.  It separates operations that genuinely survive from
+# ones broken by a real, however tiny, displacement (a pseudo-symmetric
+# child can break its own operations by as little as ~0.001 A).
+_EXACT_MISMATCH = 1e-8
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -125,7 +136,60 @@ def _load_standardized(path: str, tolerance: float):
     if conventional is None or primitive is None:
         raise SystemExit(f"ERROR: spglib could not standardize {path}.")
     dataset = spglib.get_symmetry_dataset(conventional, symprec=1e-5)
-    return conventional, primitive, dataset
+    # the idealized cells are rotated into spglib's canonical Cartesian
+    # orientation, which forgets how the input structure was oriented; the
+    # rotation back to the input frame is recovered from the same cells
+    # standardized WITHOUT idealization
+    rotation = None
+    try:
+        raw_conventional = spglib.standardize_cell(
+            cell, to_primitive=False, no_idealize=True, symprec=tolerance
+        )
+        raw_primitive = spglib.standardize_cell(
+            cell, to_primitive=True, no_idealize=True, symprec=tolerance
+        )
+        rotation = _idealization_rotation(
+            conventional, primitive, raw_conventional, raw_primitive
+        )
+    except Exception:
+        rotation = None
+    return conventional, primitive, dataset, rotation
+
+
+def _idealization_rotation(conventional, primitive, raw_conventional,
+                           raw_primitive):
+    """Rotation Q (row convention, L_input = L_idealized @ Q) that takes
+    spglib's idealized standardized lattices back into the Cartesian frame
+    of the input file, or None when the non-idealized cells cannot be
+    trusted to be the same cells merely un-rotated (different atom count or
+    ordering, a non-orthogonal or improper map, or different rotations for
+    the conventional and the primitive cell)."""
+    if raw_conventional is None or raw_primitive is None:
+        return None
+    if len(raw_primitive[2]) != len(primitive[2]) or list(
+            raw_primitive[2]) != list(primitive[2]):
+        return None
+    # same basis and origin: the (non-idealized) positions must agree with
+    # the idealized ones atom by atom
+    difference = (np.asarray(raw_primitive[1]) - np.asarray(primitive[1])
+                  + 0.5) % 1.0 - 0.5
+    if np.max(np.abs(difference)) > 0.05:
+        return None
+    rotations = []
+    for ideal, raw in ((conventional, raw_conventional),
+                       (primitive, raw_primitive)):
+        try:
+            Q = np.linalg.solve(np.asarray(ideal[0], dtype=float),
+                                np.asarray(raw[0], dtype=float))
+        except np.linalg.LinAlgError:
+            return None
+        if (not np.allclose(Q @ Q.T, np.eye(3), atol=0.05)
+                or np.linalg.det(Q) <= 0):
+            return None
+        rotations.append(Q)
+    if not np.allclose(rotations[0], rotations[1], atol=0.05):
+        return None
+    return rotations[1]
 
 
 def _dataset_field(dataset, name):
@@ -148,13 +212,19 @@ def _fit_origin_shift(algebra, spg_rotations, spg_translations):
         cdml[np.rint(np.asarray(sym.R, dtype=float)).astype(np.int64).tobytes()] = (
             np.asarray(sym.t, dtype=float) % 1.0
         )
-    # centring translations in conventional fractional units
+    # centring translations in conventional fractional units.  The phonopy
+    # primitive matrix is column-convention (columns = primitive vectors in
+    # conventional units), so centring vectors are integer combinations of
+    # the COLUMNS.  Rows give the same mod-1 group for I/F (symmetric) and
+    # even for A/C centring, but NOT for rhombohedral R: rows generate
+    # (1/3,1/3,1/3) instead of the obverse (2/3,1/3,1/3) -- an origin fit
+    # against spglib's obverse copies then finds no solution at all.
     M = algebra.primitive_matrix
     centring = []
     seen = set()
     for z in product(range(3), repeat=3):
-        vector = (np.array(z, dtype=float) @ M) % 1.0
-        key = tuple(np.round(vector, 6))
+        vector = np.round(M @ np.array(z, dtype=float), 6) % 1.0
+        key = tuple(vector)
         if key not in seen:
             seen.add(key)
             centring.append(np.array(key))
@@ -447,17 +517,157 @@ def _match_atoms(parent_positions, parent_numbers, parent_orbits,
     return best
 
 
+def _select_setting(matches, L_parent_input, L_child_input):
+    """The atom mapping to use among the candidate sublattice bases.
+
+    The total distortion decides first: the assignment minimizing it.  A
+    symmetric parent leaves that minimum degenerate -- every S W (W a
+    point operation of the parent) pairs the atoms equally well and merely
+    presents the SAME distortion in a rotated setting, up to 24 of them for
+    a cubic parent, and the enumeration order used to pick one at random
+    (a polarization along c of a P4mm file came out along -b of the cubic
+    parent).  Among the tied settings the one whose child basis is rotated
+    least against the parent basis, both taken as the input files orient
+    them, is chosen, so that the displacement table and the mode VESTA
+    files follow the axes of the subgroup structure the user supplied.
+    Without an orientation reference the first candidate is kept.
+
+    Args:
+        matches: ``(total squared distortion, MappingResult)`` per
+            candidate basis.
+        L_parent_input: Parent primitive lattice (rows) in the Cartesian
+            frame of the parent input file, or None.
+        L_child_input: Child primitive lattice (rows) in the Cartesian
+            frame of the child input file, or None.
+
+    Returns:
+        ``(mapping, rotation, n_tied)``: the chosen mapping, the residual
+        rotation (degrees) between the child and the parent axes of the
+        input files for that setting (None without a reference), and the
+        number of settings that tied on the distortion.
+    """
+    best_total = min(total for total, _ in matches)
+    threshold = best_total + max(1e-9, 1e-6 * best_total)
+    tied = [mapping for total, mapping in matches if total <= threshold]
+    if len(tied) == 1 or L_parent_input is None or L_child_input is None:
+        return tied[0], None, len(tied)
+    scored = []
+    for index, mapping in enumerate(tied):
+        S = np.asarray(mapping.S, dtype=float)
+        # deformation gradient F taking the S cell of the parent onto the
+        # child cell, both in the input frames: L_child = (S L_parent) F^T;
+        # its polar (rotation) factor is the rigid rotation between the
+        # two settings, the strain being the symmetric factor
+        try:
+            F_T = np.linalg.solve(S @ L_parent_input, L_child_input)
+        except np.linalg.LinAlgError:
+            continue
+        U, _, Vt = np.linalg.svd(F_T)
+        R = U @ Vt
+        if np.linalg.det(R) < 0:
+            R = U @ np.diag([1.0, 1.0, -1.0]) @ Vt
+        cosine = np.clip((np.trace(R) - 1.0) / 2.0, -1.0, 1.0)
+        angle = float(np.degrees(np.arccos(cosine)))
+        S_int = np.rint(S).astype(np.int64)
+        # deterministic tie-break for settings rotated equally (a 45 deg
+        # sqrt2 x sqrt2 cell has two): the basis closest to the identity
+        key = (round(angle, 6), -int(np.trace(S_int)),
+               -int(np.sum(S_int >= 0)), tuple((-S_int).flatten()), index)
+        scored.append((key, mapping, angle))
+    if not scored:
+        return tied[0], None, len(tied)
+    scored.sort(key=lambda item: item[0])
+    return scored[0][1], scored[0][2], len(tied)
+
+
 # ---------------------------------------------------------------------------
 # the analysis
 # ---------------------------------------------------------------------------
 
 
 class SymmetryModeAnalysis:
+    """Symmetry-mode decomposition of a parent-child structure pair.
+
+    The analysis behind ``crystod-group --supergroup-cif PARENT
+    --subgroup-cif CHILD``: the displacive distortion between a
+    high-symmetry (parent) structure and a low-symmetry (child) structure
+    of the same compound is decomposed into symmetry-adapted modes of the
+    parent space group, giving for every parent irrep the k vector, the
+    order-parameter direction, the isotropy subgroup, the number of
+    independent modes and the amplitude in Angstrom (AMPLIMODES
+    convention).  All the work happens in the constructor; the results are
+    read from the attributes.
+
+    Args:
+        parent_file: High-symmetry structure file (CIF or POSCAR).
+        child_file: Low-symmetry (distorted) structure file (CIF or
+            POSCAR); its primitive cell must be an integer multiple of the
+            parent's.
+        tolerance: Symmetry-detection tolerance (symprec, Angstrom) for
+            both structures; the command's default is ``0.01``.
+
+    Attributes:
+        parent_number: Space-group number of the parent (``parent_symbol``
+            its Hermann-Mauguin symbol); ``child_number`` and
+            ``child_symbol`` likewise for the child.
+        algebra: The ``SpaceGroupIrrepAlgebra`` of the parent.
+        L_parent: Parent primitive lattice vectors (rows, Angstrom) of the
+            strain-free reference in which every displacement is measured.
+        parent_positions: Parent atoms in the primitive setting of the
+            ISO-IR tables (fractional); ``parent_numbers`` their atomic
+            numbers.
+        size: Primitive-cell multiplication of the child relative to the
+            parent.
+        mapping: The atom pairing: ``mapping.S`` (child primitive basis in
+            parent primitive units, rows), ``mapping.p`` (origin shift),
+            ``mapping.ref_frac`` (reference atoms), ``mapping.child_z``
+            (atomic numbers) and ``mapping.u_frac`` (displacements, parent
+            primitive fractional).  Among the symmetry-equivalent sublattice
+            settings of a symmetric parent, ``S`` is the one whose child
+            axes are rotated least against the parent axes as the input
+            files orient them (``setting_rotation``, the residual rotation
+            in degrees, None when the input orientation could not be
+            recovered; ``equivalent_settings``, how many settings tied).
+        core_size: Multiplication of the invariant-core analysis cell; its
+            atoms are ``ref_frac`` (``n_atoms`` of them) with atomic
+            numbers ``ref_z`` and Cartesian displacements ``u_cart``.
+        subgroup_members: The ``(i, t)`` parent operations that leave the
+            distorted structure invariant.
+        stars: The parent k stars folding to the child Gamma point, one
+            dict per star with ``kname``, ``kvec`` (primitive basis) and
+            ``kind`` (``"tabulated"`` or ``"computed"``).
+        modes: One entry per parent irrep with a nonzero number of modes,
+            carrying ``kname``, ``kvec``, ``irrep_name``, ``dim`` (number
+            of independent modes), ``amplitude`` (Angstrom),
+            ``projected_u`` (the irrep-projected displacement field on the
+            core cell, shape ``(n_atoms, 3)``) and ``label_info()``, which
+            returns ``(direction label, subgroup info, index)``.
+        total_distortion: Total distortion amplitude (Angstrom), normalized
+            within the primitive cell of the distorted structure.
+        parent_formula: Reduced chemical formula of the parent (the command
+            names its ``sym_mode_<formula>`` table after it).
+
+    Raises:
+        SystemExit: The child cell is not an integer multiple of the parent
+            cell, the child cannot be mapped onto the parent, or an
+            internal consistency check (mode completeness) fails.
+
+    Example:
+        >>> from crystod import group
+        >>> analysis = group.SymmetryModeAnalysis("221.cif", "140.cif", 0.01)
+        >>> for mode in analysis.modes:
+        ...     label, info, index = mode.label_info()
+        ...     print(mode.irrep_name, label, info.international_short,
+        ...           mode.dim, round(mode.amplitude, 4))
+    """
+
     def __init__(self, parent_file: str, child_file: str, tolerance: float):
-        parent_conv, parent_prim, parent_ds = _load_standardized(
-            parent_file, tolerance
+        parent_conv, parent_prim, parent_ds, parent_rotation = (
+            _load_standardized(parent_file, tolerance)
         )
-        child_conv, child_prim, child_ds = _load_standardized(child_file, tolerance)
+        child_conv, child_prim, child_ds, child_rotation = _load_standardized(
+            child_file, tolerance
+        )
         self.parent_number = int(_dataset_field(parent_ds, "number"))
         self.child_number = int(_dataset_field(child_ds, "number"))
         self.parent_symbol = str(
@@ -478,6 +688,11 @@ class SymmetryModeAnalysis:
         (self.L_parent, self.parent_positions, self.parent_numbers,
          self.A_setting) = _to_algebra_primitive(self.algebra, parent_conv, delta)
         self.delta = delta
+        # the parent basis as the parent input file orients it (orientation
+        # reference for the choice among equivalent sublattice settings)
+        self.L_parent_input = (
+            None if parent_rotation is None else self.L_parent @ parent_rotation
+        )
 
         # parent orbits (element + Wyckoff) in the primitive setting
         self.parent_orbits = self._parent_orbits()
@@ -517,21 +732,27 @@ class SymmetryModeAnalysis:
                 f"({len(self.parent_numbers)} atoms)."
             )
         self.size = len(child_numbers) // len(self.parent_numbers)
+        self.L_child_input = (
+            None if child_rotation is None else L_child @ child_rotation
+        )
         candidates = _sublattice_candidates(self.L_parent, L_child, self.size)
-        best = None
+        matches = []
         for S in candidates:
             result = _match_atoms(
                 self.parent_positions, self.parent_numbers, self.parent_orbits,
                 child_positions, child_numbers, S, self.L_parent,
             )
-            if result is not None and (best is None or result[0] < best[0]):
-                best = result
-        if best is None:
+            if result is not None:
+                matches.append(result)
+        if not matches:
             raise SystemExit(
                 "ERROR: could not map the child structure onto the parent "
                 "(is it really a distorted version of the parent structure?)."
             )
-        self.mapping = best[1]
+        (self.mapping, self.setting_rotation,
+         self.equivalent_settings) = _select_setting(
+            matches, self.L_parent_input, self.L_child_input
+        )
 
         # analysis cell: the largest G-invariant sublattice of T_H, so that
         # the displacement space carries a full representation of the parent
@@ -564,8 +785,12 @@ class SymmetryModeAnalysis:
             R = LT @ W @ np.linalg.inv(LT)
             rows.append(R - np.eye(3))
         free = _nullspace(np.vstack(rows))
+        self.polar_directions = free.shape[1]
         if free.shape[1] == 0:
             return
+        # the atom-pairing stage already refines the origin continuously, so
+        # the residual projected here is usually ~0; the flag above still
+        # records that the subgroup is polar (free origin) for the report
         mean = self.u_cart.mean(axis=0)
         shift = free @ (free.T @ mean)
         if np.linalg.norm(shift) < 1e-10:
@@ -713,12 +938,25 @@ class SymmetryModeAnalysis:
                 candidates.append(((i, np.asarray(t, dtype=np.int64)), worst))
         candidates.sort(key=lambda entry: entry[1])
 
-        # expected order of the child factor group on the core cell
+        # expected factor-group order of the child on its own (T_H) cell --
+        # a LOWER bound only.  Displacements are measured in the strain-free
+        # parent-derived reference lattice (the AMPLIMODES convention), so
+        # an operation broken by the child's METRIC alone, with no atomic
+        # counterpart, still leaves the displacement field invariant and
+        # belongs in H.  That is a whole class of transitions: a purely
+        # ferroelastic one, where the distortion is the fully symmetric
+        # irrep plus a spontaneous strain (La3Ni2O7 I4/mmm -> Fmmm keeps
+        # every one of the 16 parent operations exactly while spglib reads
+        # the child as Fmmm, 8).  Whenever at least `expected` operations
+        # sit at the numerical-noise level, they all survive.
         child_ops = spglib.get_symmetry(self.child_prim, symprec=1e-5)
-        # expected factor-group order of the child on its own (T_H) cell
         expected = len(child_ops["rotations"])
         if expected >= len(candidates):
             return [entry[0] for entry in candidates]
+        exact = sum(1 for _, worst in candidates if worst < _EXACT_MISMATCH)
+        if exact >= expected:
+            self.strain_only_operations = exact - expected
+            return [entry[0] for entry in candidates[:exact]]
         low = candidates[expected - 1][1]
         high = candidates[expected][1]
         if high < 2.0 * low + 1e-6:
@@ -1126,6 +1364,15 @@ def main(argv: list[str] | None = None) -> None:
     print(f"{analysis.parent_symbol} (No. {analysis.parent_number})")
     print("\n* Subgroup (distorted) structure *")
     print(f"{analysis.child_symbol} (No. {analysis.child_number})")
+    if getattr(analysis, "strain_only_operations", 0) > 0:
+        print(
+            f"note: {analysis.strain_only_operations} parent operations that "
+            "the child's own metric breaks leave its\natomic pattern exactly "
+            "invariant -- that part of the symmetry lowering is a "
+            "spontaneous\nstrain, which the displacive decomposition below "
+            "does not carry (mode amplitudes are\nmeasured in the strain-free "
+            "parent-derived reference lattice)."
+        )
 
     mapping = analysis.mapping
     print("\n* Cell relation *")
@@ -1135,6 +1382,14 @@ def main(argv: list[str] | None = None) -> None:
     print(f"origin shift (parent primitive fractional): ("
           + ", ".join(_format_fraction(v % 1.0) for v in mapping.p) + ")")
     print(f"primitive cell multiplication: {analysis.size}")
+    rotation = getattr(analysis, "setting_rotation", None)
+    if rotation is not None and rotation > 0.5:
+        print(
+            f"(setting: of {analysis.equivalent_settings} equivalent "
+            "sublattice bases the one closest to the orientation of the\n "
+            f"input files; the child axes are rotated {rotation:.1f} deg "
+            "against the parent axes)"
+        )
 
     print("\n* Atom pairings and displacements (parent primitive setting) *")
     print(f"{'atom':<5} {'reference':<28} {'displacement (frac)':<28} |u| (A)")
@@ -1156,6 +1411,14 @@ def main(argv: list[str] | None = None) -> None:
     print(f"\nmaximum atomic displacement: {max_u:.4f} A")
     print(f"total distortion amplitude : {analysis.total_distortion:.4f} A")
     print("(normalized within the primitive cell of the distorted structure)")
+    if getattr(analysis, "polar_directions", 0) > 0:
+        print(
+            "note: the subgroup is polar; the free origin is placed at the "
+            "minimum of the total\ndistortion (AMPLIMODES convention, no "
+            "acoustic translation in the modes) -- programs\npinning the "
+            "origin differently (e.g. ISODISTORT) report different "
+            "amplitudes for the\npolar irreps."
+        )
 
     table_lines = ["* Symmetry-mode decomposition *"]
     table_lines.append(

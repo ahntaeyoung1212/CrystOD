@@ -22,7 +22,9 @@ Four layers are provided:
 
 - ``isotropy_subgroups(space_group, irrep)`` -- pure group theory, no
   phonopy object needed: enumerate the isotropy subgroups of a
-  space-group irrep (the API form of ``crystod-group --supergroup``).
+  space-group irrep (the API form of ``crystod-group --parent``);
+  ``isotropy_subgroups_at_kpoint(space_group, kpoint)`` does so for every
+  irrep of one special k point (``crystod-group --parent SG --kpoint K``).
 - ``label_phonon_modes(phonon, qpoint)`` -- label the phonon modes of a
   live phonopy object at one q point with ISO-IR irrep labels,
   encapsulating the table/star-arm boilerplate of ``phonon_irreps``.
@@ -56,10 +58,29 @@ _IRREP_DIM_SUFFIX = re.compile(r"\((\d+)\)$")
 class IsotropySubgroup:
     """One isotropy subgroup of a space-group irrep.
 
-    ``basis`` (rows, in parent *conventional* units) and ``origin`` describe
-    the conventional cell of the subgroup in the parent convention, exactly
-    as printed by ``crystod-group --supergroup --order-parameter``; they are
-    ``None`` when the setting could not be standardized.
+    One row of the ``crystod-group --parent`` table, as returned by
+    :func:`isotropy_subgroups` and carried by
+    :class:`crystod.phonon.ImaginaryModeResult`.
+
+    Attributes:
+        irrep: ISO-IR label of the irrep, e.g. ``"R4+"`` (``"X3-+X2+"`` for a
+            coupled order parameter).
+        direction: Order-parameter direction, e.g. ``"(a,0,0)"``; the
+            components are grouped arm by arm (``","`` inside an arm, ``";"``
+            between arms).
+        label: Full label, e.g. ``"R4+(a,0,0)"``.
+        number: Space-group number of the subgroup.
+        symbol: International short symbol of the subgroup, e.g. ``"I4/mcm"``.
+        size: Primitive-cell multiplication of the subgroup relative to the
+            parent.
+        index: Index of the subgroup in the parent, [G:H].
+        n_free: Number of free order-parameter components.
+        basis: Rows of the conventional cell of the subgroup in parent
+            conventional units, exactly as printed by ``crystod-group
+            --parent --order-parameter``; ``None`` when the setting could
+            not be standardized or ``with_settings=False`` was passed.
+        origin: Origin of that cell in parent conventional coordinates, or
+            ``None`` likewise.
     """
 
     irrep: str                  # e.g. "R4+" ("X3-+X2+" for coupled input)
@@ -115,31 +136,50 @@ def isotropy_subgroups(
 ):
     """Isotropy subgroups of a space-group irrep, as data.
 
-    Programmatic counterpart of ``crystod-group --supergroup``.
+    Programmatic counterpart of ``crystod-group --parent``: the
+    order-parameter directions of the irrep (or of the coupled order parameter
+    of several irreps) are enumerated with
+    :class:`crystod.group.IsotropyAnalyzer`, and each direction is returned
+    with the space group it condenses into. No phonopy object is needed; the
+    function is also exported as ``crystod.group.isotropy_subgroups``.
 
-    Raises ``ValueError`` for an unknown space group, an irrep that is not
-    tabulated for it (the labels of symmetry lines and planes, e.g. ``DT5``,
-    have no isotropy subgroups in the tables), or an invalid order parameter.
+    Args:
+        space_group (str | int): International short symbol (e.g.
+            ``"Pm-3m"``) or number (e.g. ``221``) of the parent.
+        irrep (str | list[str]): ISO-IR irrep label (e.g. ``"R4+"``); a list
+            of labels enumerates the subgroups of the coupled order parameter.
+        order_parameter (list[str] | None): If given (e.g.
+            ``["a", "0", "0"]``), resolve only this direction and return a
+            single-element list. Components are plain numbers or parameter
+            names; composite entries of the enumerated table such as
+            ``"0.282a"`` are rejected.
+        with_settings: Also compute the conventional ``basis``/``origin`` of
+            each subgroup in the parent convention (slightly slower; on by
+            default).
 
-    Parameters
-    ----------
-    space_group : str | int
-        International short symbol (e.g. ``"Pm-3m"``) or number (e.g. 221).
-    irrep : str | list[str]
-        ISO-IR irrep label (e.g. ``"R4+"``); a list of labels enumerates
-        the subgroups of the coupled order parameters.
-    order_parameter : list[str] | None
-        If given (e.g. ``["a", "0", "0"]``), resolve only this direction
-        and return a single-element list.
-    with_settings : bool
-        Also compute the conventional ``basis``/``origin`` of each subgroup
-        in the parent convention (slightly slower; on by default).
+    Returns:
+        List of :class:`IsotropySubgroup`, sorted like the ``--parent``
+        table (free components, index, subgroup number).
 
-    Returns
-    -------
-    list[IsotropySubgroup]
-        Sorted like the ``--supergroup`` table (free components, index,
-        subgroup number).
+    Raises:
+        ValueError: For an unknown space group, an irrep that is not tabulated
+            for it (the labels of symmetry lines and planes, e.g. ``DT5``,
+            have no isotropy subgroups in the tables), or an invalid order
+            parameter.
+
+    Example:
+        >>> from crystod import phonon
+        >>> for sub in phonon.isotropy_subgroups("Pm-3m", "R4+"):
+        ...     print(sub)
+        R4+(0,0,a) -> I4/mcm (No. 140), size 2, index 6
+        R4+(a,a,a) -> R-3c (No. 167), size 2, index 8
+        R4+(0,a,a) -> Imma (No. 74), size 2, index 12
+        R4+(0,a,b) -> C2/m (No. 12), size 2, index 24
+        R4+(a,a,b) -> C2/c (No. 15), size 2, index 24
+        R4+(a,b,c) -> P-1 (No. 2), size 2, index 48
+        >>> sub = phonon.isotropy_subgroups(221, "R4+", ["0", "0", "a"])[0]
+        >>> sub.symbol, sub.basis.tolist()
+        ('I4/mcm', [[-1.0, 0.0, 1.0], [1.0, 0.0, 1.0], [0.0, 2.0, 0.0]])
     """
     # The implementation modules report bad input the way a command line
     # wants it -- by raising SystemExit -- which would tear down a program
@@ -178,7 +218,7 @@ def _isotropy_subgroups(space_group, irrep, order_parameter, *, with_settings):
             for i, t, matrix in analyzer.elements
             if np.allclose(matrix @ eta, eta, atol=1e-6)
         ]
-        # same direction string as crystod-group --supergroup: components are
+        # same direction string as crystod-group --parent: components are
         # grouped arm by arm ("," inside an arm, ";" between arms)
         if coupled:
             chunks, start = [], 0
@@ -203,6 +243,17 @@ def _isotropy_subgroups(space_group, irrep, order_parameter, *, with_settings):
             )
         ]
 
+    return _enumerated_subgroups(analyzer, with_settings)
+
+
+def _enumerated_subgroups(analyzer, with_settings):
+    """Every order-parameter direction of the analyzer's representation as
+    :class:`IsotropySubgroup` records, sorted like the ``--parent`` table."""
+    from .isotropy_subgroup import CoupledRepresentation
+
+    representation = analyzer.representation
+    coupled = isinstance(representation, CoupledRepresentation)
+    irrep_name = representation.name if coupled else representation.label
     results = []
     for projector, members in analyzer.enumerate_directions():
         label, generic = analyzer.direction_label(projector)
@@ -211,7 +262,7 @@ def _isotropy_subgroups(space_group, irrep, order_parameter, *, with_settings):
             label = representation.label + label
         else:
             # skip the single-irrep strata of a coupled representation,
-            # exactly as crystod-group --supergroup does
+            # exactly as crystod-group --parent does
             bounds = np.cumsum([0] + list(representation.dims))
             if any(
                 np.linalg.norm(generic[bounds[j]: bounds[j + 1]]) < 1e-8
@@ -232,6 +283,137 @@ def _isotropy_subgroups(space_group, irrep, order_parameter, *, with_settings):
         )
     results.sort(key=lambda s: (s.n_free, s.index, s.number))
     return results
+
+
+class KpointIsotropySubgroups(dict):
+    """Isotropy subgroups of every irrep of one special k point.
+
+    The ``crystod-group --parent SG --kpoint K`` table as data, returned by
+    :func:`isotropy_subgroups_at_kpoint`: a ``dict`` that maps the label of
+    every irrep of the k point to the list of its :class:`IsotropySubgroup`
+    records, in the order of the ISO-IR tables (``GM1+``, ``GM2+``, ...);
+    each list is what :func:`isotropy_subgroups` returns for that irrep.
+    The two members of a complex-conjugate pair share one physically
+    irreducible order parameter and appear once, under the pair label
+    (``"GM2+GM3+"`` of Pm-3); the records are those of the member that
+    comes first in the tables (``isotropy_subgroups(space_group, "GM2+")``),
+    and their ``direction`` components refer to the basis built from that
+    member, so pass its label, not the partner's, when a direction of the
+    table is resolved again.
+
+    Attributes:
+        space_group: International short symbol of the parent space group.
+        space_group_number: Its number.
+        kpoint: ISO-IR name of the k point, e.g. ``"GM"`` or ``"X"``.
+        coordinates: The tabulated arm of its star in the primitive
+            reciprocal basis, three floats.
+        n_arms: Number of arms of the star.
+        errors: Maps the label of an irrep that could not be enumerated to
+            the reason; such an irrep has no entry in the mapping itself.
+            Empty on success.
+    """
+
+    def __init__(self, tables=(), *, space_group: str = "",
+                 space_group_number: int = 0, kpoint: str = "",
+                 coordinates=(), n_arms: int = 0, errors=None):
+        super().__init__(tables)
+        self.space_group = space_group
+        self.space_group_number = space_group_number
+        self.kpoint = kpoint
+        self.coordinates = list(coordinates)
+        self.n_arms = n_arms
+        self.errors = dict(errors or {})
+
+
+def isotropy_subgroups_at_kpoint(
+    space_group,
+    kpoint,
+    *,
+    with_settings: bool = True,
+):
+    """Isotropy subgroups of every irrep of one special k point, as data.
+
+    Programmatic counterpart of ``crystod-group --parent SG --kpoint K``:
+    :func:`isotropy_subgroups` run over all irreps of the k point, in the
+    order of the ISO-IR tables. No phonopy object is needed; the function is
+    also exported as ``crystod.group.isotropy_subgroups_at_kpoint``.
+
+    Args:
+        space_group (str | int): International short symbol (e.g.
+            ``"Pm-3m"``) or number (e.g. ``221``) of the parent.
+        kpoint (str | sequence): The ISO-IR name of a special k point
+            (``"GM"``, ``"R"``, ``"X"``, ...; the case is ignored and
+            ``"G"``/``"GAMMA"`` mean ``"GM"``), or its three coordinates in
+            the primitive reciprocal basis (numbers, or strings such as
+            ``"1/2"``; a decimal within 0.0005 of a special point is taken
+            for it). Coordinates may be those of any arm of the star and
+            may differ from it by a reciprocal lattice vector. The names of
+            a space group are the keys of
+            ``crystod.group.SpaceGroupIrrepAlgebra(space_group).k_by_kname``.
+        with_settings: Also compute the conventional ``basis``/``origin`` of
+            each subgroup in the parent convention (slightly slower; on by
+            default).
+
+    Returns:
+        A :class:`crystod.group.KpointIsotropySubgroups`: a ``dict`` mapping
+        every irrep label to its list of :class:`IsotropySubgroup` records
+        (each sorted like the ``--parent`` table), with the k-point name,
+        its coordinates and the failed irreps as attributes. An irrep whose
+        enumeration fails is reported in ``errors`` and does not stop the
+        others.
+
+    Raises:
+        ValueError: For an unknown space group, an unknown k-point name, or
+            coordinates that are not a tabulated special point (symmetry
+            lines and planes and general points have no isotropy subgroups
+            in the tables); the message lists the k points of the space
+            group.
+
+    Example:
+        >>> from crystod import group
+        >>> table = group.isotropy_subgroups_at_kpoint("Pm-3m", "GM")
+        >>> list(table)
+        ['GM1+', 'GM2+', 'GM3+', 'GM4+', 'GM5+', 'GM1-', 'GM2-', 'GM3-', 'GM4-', 'GM5-']
+        >>> for sub in table["GM3+"]:
+        ...     print(sub)
+        GM3+(a,0) -> P4/mmm (No. 123), size 1, index 3
+        GM3+(a,b) -> Pmmm (No. 47), size 1, index 6
+        >>> table.kpoint, table.coordinates, table.n_arms, table.errors
+        ('GM', [0.0, 0.0, 0.0], 1, {})
+        >>> group.isotropy_subgroups_at_kpoint(221, [0, 0.5, 0.5]).kpoint
+        'M'
+    """
+    try:
+        return _isotropy_subgroups_at_kpoint(
+            space_group, kpoint, with_settings=with_settings
+        )
+    except SystemExit as exc:
+        message = " ".join(str(exc).split())
+        raise ValueError(message.removeprefix("ERROR: ") or "invalid input") from None
+
+
+def _isotropy_subgroups_at_kpoint(space_group, kpoint, *, with_settings):
+    from .isotropy_subgroup import kpoint_irrep_tables, resolve_special_kpoint
+    from .spacegroup_product import DEN, SpaceGroupIrrepAlgebra
+
+    if isinstance(space_group, (int, np.integer)):
+        space_group = str(int(space_group))
+    algebra = SpaceGroupIrrepAlgebra(space_group)
+    kname = resolve_special_kpoint(algebra, kpoint)
+    tables, errors = kpoint_irrep_tables(
+        algebra, kname,
+        lambda analyzer: _enumerated_subgroups(analyzer, with_settings),
+    )
+    arms, _ = algebra.star(kname)
+    return KpointIsotropySubgroups(
+        tables,
+        space_group=str(algebra.sg_type.international_short),
+        space_group_number=int(algebra.sg_type.number),
+        kpoint=kname,
+        coordinates=[int(v) / DEN for v in algebra.k_by_kname[kname]],
+        n_arms=len(arms),
+        errors=errors,
+    )
 
 
 def _arm_join(components, arm_chunks) -> str:
@@ -308,10 +490,22 @@ def _orth_rank(projector: np.ndarray) -> int:
 class PhononMode:
     """One degenerate phonon level at a q point.
 
-    ``band_indices`` are 1-based (CrystOD convention).  ``labels`` holds the
-    ISO-IR irrep label(s) of the level, without the dimension suffix that
-    ``phonon_irreps.yaml`` appends (i.e. ``"R4+"``, not ``"R4+(3)"``); it is
-    empty when the level could not be labeled.
+    Returned by :func:`label_phonon_modes`; ``crystod-phonon --subgroup``
+    prints one such level per imaginary mode. ``str(mode)`` gives the one-line
+    form ``"modes 1,2,3: -1.0867 THz  R5-"``.
+
+    Attributes:
+        band_indices: 1-based band indices of the level (CrystOD convention).
+        frequency: Frequency in THz; negative means imaginary.
+        labels: ISO-IR irrep label(s) of the level, without the dimension
+            suffix that ``phonon_irreps.yaml`` appends (``"R4+"``, not
+            ``"R4+(3)"``); empty when the level could not be labeled.
+        qpoint: The q point that was asked for, in fractional coordinates of
+            the primitive reciprocal basis.
+        qpoint_label: Tabulated name of its star (e.g. ``"R"``), or ``None``
+            for a q point outside every tabulated star.
+        representative_q: The tabulated arm of the star at which the labels
+            were read (equal to ``qpoint`` when that is the tabulated arm).
     """
 
     band_indices: tuple[int, ...]
@@ -323,10 +517,12 @@ class PhononMode:
 
     @property
     def degeneracy(self) -> int:
+        """Number of bands in the level."""
         return len(self.band_indices)
 
     @property
     def is_imaginary(self) -> bool:
+        """``True`` when the frequency is negative (no threshold applied)."""
         return self.frequency < 0.0
 
     def __str__(self) -> str:
@@ -347,15 +543,48 @@ def label_phonon_modes(
 ):
     """ISO-IR irrep labels of the phonon modes of ``phonon`` at ``qpoint``.
 
-    ``phonon`` is a live ``phonopy.Phonopy`` object with force constants
-    available (e.g. from ``phonopy.load``).  The q point is given in
-    fractional coordinates of the primitive reciprocal basis; if it is a
-    non-representative arm of a star, it is mapped onto the tabulated arm
-    automatically (the spectra of star arms coincide band by band).
+    The API form of ``crystod-phonon --irreps`` for one q point: the ISO-IR
+    table of the space group is loaded, q is mapped onto the tabulated arm of
+    its star with :func:`find_star_representative` (the spectra of star arms
+    coincide band by band), and the degenerate levels are labeled with
+    :func:`get_irrep_labels`. The levels come back as :class:`PhononMode`
+    records with 1-based band indices.
 
-    Returns a list of :class:`PhononMode`, one per degenerate level,
-    ordered by band index.  Raises ``RuntimeError`` if the space-group
-    tables cannot label this q point at all.
+    Args:
+        phonon: A live ``phonopy.Phonopy`` object with force constants
+            available (e.g. from ``phonopy.load``), built with
+            ``primitive_matrix="auto"`` so that a zone-boundary instability
+            appears at its own q point instead of being folded onto the
+            supercell Gamma point, where it cannot be labeled.
+        qpoint: Fractional coordinates of q in the primitive reciprocal
+            basis; any arm of a star is accepted.
+        degeneracy_tolerance: Frequency tolerance (THz) within which bands
+            count as degenerate.
+
+    Returns:
+        List of :class:`PhononMode`, one per degenerate level, ordered by band
+        index.
+
+    Raises:
+        RuntimeError: If the space-group tables cannot label this q point at
+            all.
+
+    Example:
+        >>> import phonopy
+        >>> from crystod import phonon
+        >>> from crystod.examples import example_path
+        >>> ph = phonopy.load(
+        ...     unitcell_filename=example_path("221_PPOSCAR_SrTiO3"),
+        ...     force_sets_filename=example_path("FORCE_SETS_SrTiO3"),
+        ...     supercell_matrix=[4, 4, 4], primitive_matrix="auto")
+        >>> for mode in phonon.label_phonon_modes(ph, [0.5, 0.5, 0.5]):
+        ...     print(mode)
+        modes 1,2,3: -1.0867 THz  R5-
+        modes 4,5,6: 3.9891 THz  R4-
+        modes 7,8,9: 11.6887 THz  R5+
+        modes 10,11,12: 12.6621 THz  R4-
+        modes 13,14: 14.8133 THz  R3-
+        modes 15: 23.2302 THz  R2-
     """
     from phonopy.structure.cells import get_primitive_matrix_by_centring
 
@@ -422,7 +651,23 @@ def label_phonon_modes(
 
 @dataclass(frozen=True)
 class ImaginaryModeResult:
-    """Isotropy subgroups reachable from one imaginary phonon level."""
+    """Isotropy subgroups reachable from one imaginary phonon level.
+
+    One block of the ``crystod-phonon --subgroup`` report, as returned by
+    :func:`imaginary_mode_subgroups` and :func:`scan_imaginary_modes`.
+
+    Attributes:
+        mode: The imaginary level, a :class:`PhononMode`.
+        space_group: International short symbol of the parent space group.
+        space_group_number: Its number.
+        subgroups: The :class:`IsotropySubgroup` records of every irrep label
+            of the level, in table order; empty when no label has tabulated
+            subgroups.
+        errors: Maps an irrep label to the reason its subgroup enumeration
+            failed (e.g. the label of a symmetry line or plane, which has no
+            isotropy subgroups in the tables; ``"?"`` when the level carries
+            no label at all). Empty on success.
+    """
 
     mode: PhononMode
     space_group: str            # parent international short symbol
@@ -443,17 +688,53 @@ def imaginary_mode_subgroups(
 ):
     """Isotropy subgroups of every imaginary phonon level at ``qpoint``.
 
-    For each degenerate level with frequency below ``threshold`` (THz;
-    the -0.1 default matches the instability criterion of structure-search
-    workflows), the level is labeled with its ISO-IR irrep and the
-    isotropy subgroups of that irrep are enumerated, covering *all*
-    order-parameter directions -- including the ones a single frozen-in
-    modulation would miss.
+    The symmetry-lowering step of a structure search, and the API form of
+    ``crystod-phonon --subgroup --qpoint``: every degenerate level with
+    frequency below ``threshold`` is labeled with :func:`label_phonon_modes`,
+    and the isotropy subgroups of its irrep are enumerated with
+    :func:`isotropy_subgroups`, covering all order-parameter directions,
+    including the ones a single frozen-in modulation would miss. The acoustic
+    modes at Gamma (uniform translations, at zero frequency) are skipped
+    whatever the threshold: freezing them in moves the crystal and lowers no
+    symmetry.
 
-    Returns a list of :class:`ImaginaryModeResult`.  Levels that could not
-    be labeled yield a result with empty ``subgroups`` and an entry in
-    ``errors``; a q point that cannot be labeled at all raises
-    ``RuntimeError`` (from :func:`label_phonon_modes`).
+    Args:
+        phonon: A live ``phonopy.Phonopy`` object with force constants, built
+            with ``primitive_matrix="auto"`` (see :func:`label_phonon_modes`).
+        qpoint: Fractional coordinates of q in the primitive reciprocal basis.
+        threshold: Frequency (THz) below which a level counts as imaginary;
+            the -0.1 default matches the instability criterion of
+            structure-search workflows.
+        degeneracy_tolerance: Frequency tolerance (THz) within which bands
+            count as degenerate.
+        with_settings: Also compute the conventional ``basis``/``origin`` of
+            every subgroup (see :func:`isotropy_subgroups`).
+
+    Returns:
+        List of :class:`ImaginaryModeResult`, one per imaginary level in band
+        order. A level that could not be labeled, or whose irrep has no
+        tabulated subgroups, yields a result with empty ``subgroups`` and the
+        reason in ``errors``; an empty list means no level lies below
+        ``threshold``.
+
+    Raises:
+        RuntimeError: If the q point cannot be labeled at all (from
+            :func:`label_phonon_modes`).
+
+    Example:
+        >>> from crystod import phonon
+        >>> # ph: the SrTiO3 object of the label_phonon_modes example
+        >>> for result in phonon.imaginary_mode_subgroups(ph, [0.5, 0.5, 0.5]):
+        ...     print(result.mode)
+        ...     for sub in result.subgroups:
+        ...         print("   ", sub.label, "->", sub.symbol)
+        modes 1,2,3: -1.0867 THz  R5-
+            R5-(0,0,a) -> I4/mcm
+            R5-(a,a,a) -> R-3c
+            R5-(0,a,a) -> Imma
+            R5-(0,a,b) -> C2/m
+            R5-(a,a,b) -> C2/c
+            R5-(a,b,c) -> P-1
     """
     from .runtime_compat import get_symmetry_dataset
 
@@ -464,6 +745,8 @@ def imaginary_mode_subgroups(
     modes = label_phonon_modes(
         phonon, qpoint, degeneracy_tolerance=degeneracy_tolerance
     )
+    at_gamma = np.allclose(np.asarray(qpoint, dtype=float), 0.0, atol=1e-8)
+    acoustic = _acoustic_bands(phonon) if at_gamma else set()
 
     # label -> (subgroups, error message); the error is cached too, so a label
     # that fails once still explains itself on every later level that carries it
@@ -471,6 +754,8 @@ def imaginary_mode_subgroups(
     results = []
     for mode in modes:
         if mode.frequency >= threshold:
+            continue
+        if acoustic and set(mode.band_indices) <= acoustic:
             continue
         subgroups: list[IsotropySubgroup] = []
         errors: dict[str, str] = {}
@@ -504,12 +789,49 @@ def imaginary_mode_subgroups(
     return results
 
 
+def _acoustic_bands(phonon) -> set[int]:
+    """1-based bands at Gamma that are uniform translations (the acoustic modes).
+
+    A band counts when more than half of its (mass-weighted) eigenvector lies
+    in the space of rigid translations, ``e_j`` proportional to
+    ``sqrt(m_j)``; phonopy's band order, as in :func:`label_phonon_modes`.
+    """
+    _, eigenvectors = phonon.get_frequencies_with_eigenvectors([0.0, 0.0, 0.0])
+    roots = np.sqrt(np.asarray(phonon.primitive.masses, dtype=float))
+    translations = np.zeros((3 * len(roots), 3))
+    for axis in range(3):
+        translations[axis::3, axis] = roots / np.linalg.norm(roots)
+    weights = np.sum(np.abs(translations.T @ eigenvectors) ** 2, axis=0)
+    return {int(band) + 1 for band in np.flatnonzero(weights > 0.5)}
+
+
 def commensurate_qpoints(phonon):
     """q points of the primitive cell commensurate with the phonon supercell.
 
-    These are exactly the q points the supercell calculation resolves
-    (i.e. the ones that fold onto Gamma of the supercell), as fractional
-    coordinates in the primitive reciprocal basis; Gamma comes first.
+    These are exactly the q points a supercell calculation resolves (the ones
+    that fold onto Gamma of the supercell): for a supercell matrix S in the
+    primitive basis, the ``det(S)`` distinct vectors ``m @ inv(S).T`` modulo
+    reciprocal-lattice translations. ``crystod-phonon --subgroup`` without
+    ``--qpoint`` scans this set.
+
+    Args:
+        phonon: A ``phonopy.Phonopy`` object; only its primitive cell and
+            supercell are read.
+
+    Returns:
+        List of ``(q1, q2, q3)`` tuples in fractional coordinates of the
+        primitive reciprocal basis, snapped to exact fractions and sorted by
+        length, so that Gamma comes first.
+
+    Raises:
+        ValueError: If the supercell is not an integer multiple of the
+            primitive cell.
+
+    Example:
+        >>> from crystod import phonon
+        >>> qpoints = phonon.commensurate_qpoints(ph)   # ph: 4x4x4 supercell
+        >>> len(qpoints), qpoints[0], qpoints[1]
+        (64, (0.0, 0.0, 0.0), (0.0, 0.0, 0.25))
     """
     supercell_in_primitive = (
         np.asarray(phonon.supercell.cell)
@@ -575,11 +897,33 @@ def scan_imaginary_modes(
 ):
     """Isotropy subgroups of all imaginary modes at the resolvable q points.
 
-    ``qpoints`` defaults to :func:`commensurate_qpoints` of the phonon
-    supercell.  Star arms are deduplicated -- all arms of a star carry the
-    same levels -- and the results are sorted most-unstable first.  A q
-    point whose modes cannot be labeled is skipped with a warning rather
-    than aborting the scan.
+    Runs :func:`imaginary_mode_subgroups` over ``qpoints`` and merges the
+    results; the API form of ``crystod-phonon --subgroup`` without
+    ``--qpoint``. Star arms are deduplicated (all arms of a star carry the
+    same levels), and a q point whose modes cannot be labeled is skipped with
+    a warning rather than aborting the scan.
+
+    Args:
+        phonon: A live ``phonopy.Phonopy`` object with force constants, built
+            with ``primitive_matrix="auto"`` (see :func:`label_phonon_modes`).
+        qpoints: q points to scan, in fractional coordinates of the primitive
+            reciprocal basis; ``None`` means :func:`commensurate_qpoints` of
+            the phonon supercell.
+        threshold: Frequency (THz) below which a level counts as imaginary.
+        degeneracy_tolerance: Frequency tolerance (THz) within which bands
+            count as degenerate.
+        with_settings: Also compute the conventional ``basis``/``origin`` of
+            every subgroup (see :func:`isotropy_subgroups`).
+
+    Returns:
+        List of :class:`ImaginaryModeResult` sorted most unstable first
+        (ascending frequency); empty when no level lies below ``threshold``.
+
+    Example:
+        >>> from crystod import phonon
+        >>> results = phonon.scan_imaginary_modes(ph)   # ph: SrTiO3, 4x4x4
+        >>> [(r.mode.qpoint_label, round(r.mode.frequency, 4)) for r in results]
+        [('R', -1.0867)]
     """
     import warnings
 
@@ -658,6 +1002,12 @@ def build_parser():
     return parser
 
 
+def _exact_float_text(value: float) -> str:
+    """Shortest text that reads back as exactly ``value`` (0.3, not 0.29999...)."""
+    text = f"{value:.10g}"
+    return text if float(text) == value else repr(float(value))
+
+
 def _generate_structures_for(
     phonon, result, amplitude, symprec=1e-5, source="", seen=None
 ) -> None:
@@ -712,9 +1062,10 @@ def _generate_structures_for(
             reproduce = " ".join(
                 f"--qpoint{i} " + " ".join(f"{x:g}" for x in q)
                 + f" --mode{i} " + " ".join(str(m) for m in modes)
-                # .10g, not .4g: 0.3 * 0.5478 needs five digits, and a rounded
-                # amplitude regenerates a *different* structure
-                + f" --amplitude{i} " + " ".join(f"{a:.10g}" for a in amps)
+                # the exact float: a rounded amplitude regenerates a
+                # *different* structure (the amplitudes are generated with ten
+                # significant digits, so this prints 0.16434, not 0.16433999...)
+                + f" --amplitude{i} " + " ".join(_exact_float_text(a) for a in amps)
                 for i, (q, modes, amps) in enumerate(
                     zip(entry.qpoints, entry.modes, entry.amplitudes), start=1
                 )

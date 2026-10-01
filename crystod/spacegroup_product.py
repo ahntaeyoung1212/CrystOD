@@ -122,8 +122,54 @@ def _snap(values, denominator: int = DEN) -> np.ndarray:
 
 
 class SpaceGroupIrrepAlgebra:
-    """Space-group symmetry + ISO-IR irrep tables in the primitive basis,
-    with runtime-verified conventions (group closure, little-group match)."""
+    """Space-group operations and ISO-IR irrep tables in the primitive basis.
+
+    The algebra behind ``crystod-group --product IRREP... --sg SG`` and the
+    isotropy-subgroup and symmetry-mode machinery: it holds the coset
+    representatives of the space group (rotations and translations in the
+    primitive basis, translations as integers in units of ``1/DEN``), the
+    tabulated ISO-IR small irreps grouped by k-point name, and the induced
+    (full) characters over the star of every k point.  Every convention is
+    verified at run time (group closure, little-group match against the
+    tables), and the tables are extended on the fly with spgrep for k points
+    that are not tabulated (symmetry lines and planes reached by sums of
+    star arms).
+
+    Args:
+        space_group_symbol: International short symbol (``"Pm-3m"``,
+            ``"P6_3/mmc"``) or space-group number (``"221"``).
+
+    Attributes:
+        sg_type: spglib space-group type record (``number``,
+            ``international_short``, ``hall_number``, ...).
+        table: The ISO-IR irrep table of the space group (``irreps``,
+            ``symmetries``).
+        primitive_matrix: Conventional-to-primitive transformation matrix
+            (phonopy convention for the centring).
+        rotations: Integer rotation parts of the coset representatives in
+            the primitive basis, shape ``(n_ops, 3, 3)``.
+        translations: Translation parts, shape ``(n_ops, 3)``, integers in
+            units of ``1/DEN`` (``DEN = 24``), reduced modulo lattice
+            translations.
+        n_ops: Number of coset representatives (order of the point group).
+        irreps_by_kname: Tabulated irreps grouped by k-point name, in table
+            order (``{"GM": [...], "R": [...], ...}``); each irrep record has
+            ``name``, ``dim``, ``kpname`` and ``characters``.
+        k_by_kname: k vector of every tabulated k point in the primitive
+            basis, integers in units of ``1/DEN``.
+
+    Raises:
+        SystemExit: Unknown space-group symbol or number, or a table whose
+            conventions cannot be reconciled with the primitive setting.
+
+    Example:
+        >>> from crystod import group
+        >>> algebra = group.SpaceGroupIrrepAlgebra("Pm-3m")
+        >>> algebra.n_ops, list(algebra.k_by_kname)
+        (48, ['GM', 'R', 'X', 'M'])
+        >>> [irrep.name for irrep in algebra.irreps_by_kname["R"]]
+        ['R1+', 'R2+', 'R3+', 'R4+', 'R5+', 'R1-', 'R2-', 'R3-', 'R4-', 'R5-']
+    """
 
     def __init__(self, space_group_symbol: str):
         sg_type = _resolve_space_group(space_group_symbol)
@@ -254,6 +300,19 @@ class SpaceGroupIrrepAlgebra:
         return True
 
     def find_irrep(self, label: str):
+        """Tabulated irrep record with the given ISO-IR label.
+
+        Args:
+            label: ISO-IR irrep label, e.g. ``"R4+"``.
+
+        Returns:
+            The irrep record (attributes ``name``, ``dim``, ``kpname``,
+            ``characters``) of the ISO-IR table.
+
+        Raises:
+            SystemExit: The label is not tabulated for this space group; the
+                message lists the available labels.
+        """
         for irreps in self.irreps_by_kname.values():
             for irrep in irreps:
                 if irrep.name == label:
@@ -268,7 +327,16 @@ class SpaceGroupIrrepAlgebra:
         )
 
     def little_group(self, k: np.ndarray) -> list[int]:
-        """Operation indices whose q-action leaves k invariant (mod 1)."""
+        """Indices of the coset representatives in the little group of k.
+
+        Args:
+            k: k vector in the primitive basis, integers in units of
+                ``1/DEN``.
+
+        Returns:
+            The operation indices ``i`` whose q-action ``k . W_i^-1`` leaves
+            k invariant modulo the reciprocal lattice.
+        """
         return [
             i
             for i in range(self.n_ops)
@@ -276,8 +344,17 @@ class SpaceGroupIrrepAlgebra:
         ]
 
     def star(self, kname: str) -> tuple[np.ndarray, list[int]]:
-        """Arms of the star of the tabulated k point, in the q-convention
-        q_a = k . W_{s_a}^{-1}, with the coset-representative indices s_a."""
+        """Arms of the star of a tabulated k point.
+
+        Args:
+            kname: k-point name of the ISO-IR table, e.g. ``"X"``.
+
+        Returns:
+            ``(arms, representatives)``: the arms as an integer array of
+            shape ``(n_arms, 3)`` in the q-convention
+            ``q_a = k . W_{s_a}^-1`` (units of ``1/DEN``), and the index of
+            the coset representative ``s_a`` generating every arm.
+        """
         if kname in self._star_cache:
             return self._star_cache[kname]
         k = self.k_by_kname[kname]
@@ -293,10 +370,22 @@ class SpaceGroupIrrepAlgebra:
         return result
 
     def induced_characters(self, irrep) -> tuple[np.ndarray, np.ndarray]:
-        """(arms, C) of the full (induced) irrep.
+        """Characters of the full (induced) irrep, arm by arm.
 
-        C[i, a] = chi_small(s_a^{-1} g_i s_a) when g_i fixes arm a, else 0.
-        The full character of (g_i, t) is sum_a C[i, a] exp(SIGMA*2j*pi*q_a.t).
+        Args:
+            irrep: A tabulated irrep record (from ``find_irrep`` or
+                ``irreps_by_kname``).
+
+        Returns:
+            ``(arms, C)`` with ``C[i, a] = chi_small(s_a^-1 g_i s_a)`` when
+            operation ``g_i`` fixes arm ``a`` and ``0`` otherwise; the full
+            character of ``(g_i, t)`` is
+            ``sum_a C[i, a] exp(SIGMA * 2j * pi * q_a . t)``.
+
+        Raises:
+            SystemExit: The tabulated characters do not match any small
+                representation allowed at that k point (convention
+                mismatch).
         """
         cache_key = (irrep.kpname, irrep.name)
         if cache_key in self._induced_cache:
@@ -421,10 +510,21 @@ class SpaceGroupIrrepAlgebra:
         return np.array(arms, dtype=np.int64), representatives
 
     def computed_irreps_at(self, k_int: np.ndarray) -> list:
-        """Small irreps at a non-tabulated k point, computed with spgrep.
+        """Small irreps at an arbitrary k point, computed with spgrep.
 
-        Returns a list of dicts {"chi": {op_index: character}, "dim": d}
-        keyed by this algebra's operation indices.
+        Args:
+            k_int: k vector in the primitive basis, integers in units of
+                ``1/DEN``.
+
+        Returns:
+            A list with one dict per small irrep.  Each dict holds ``"chi"``
+            (``{op_index: character}``), ``"dim"`` (the dimension) and
+            ``"small"`` (``{op_index: matrix}``), keyed by this algebra's
+            operation indices (the little group of k).
+
+        Raises:
+            SystemExit: spgrep could not compute the irreps at this k point,
+                or its little group disagrees with the q-convention one.
         """
         key = tuple(np.mod(k_int, DEN))
         if key in self._computed_cache:
@@ -471,8 +571,17 @@ class SpaceGroupIrrepAlgebra:
         return result
 
     def induced_characters_at(self, k_int: np.ndarray, small: dict) -> tuple[np.ndarray, np.ndarray]:
-        """(arms, C) of the irrep induced from a computed small irrep at an
-        arbitrary k point (same structure as ``induced_characters``)."""
+        """Induced characters of a computed small irrep at an arbitrary k.
+
+        Args:
+            k_int: k vector in the primitive basis, integers in units of
+                ``1/DEN``.
+            small: One entry of ``computed_irreps_at(k_int)`` (only its
+                ``"chi"`` is used).
+
+        Returns:
+            ``(arms, C)`` with the same structure as ``induced_characters``.
+        """
         k = np.mod(np.asarray(k_int, dtype=np.int64), DEN)
         arms, representatives = self._star_of_vector(k)
         chi = small["chi"]
@@ -499,11 +608,33 @@ class SpaceGroupIrrepAlgebra:
     def decompose_product(self, labels: list[str]):
         """Decompose the direct product of the full irreps named by labels.
 
-        Returns (factors, terms, leftovers): factors = resolved irreps;
-        terms = list of (kname, irrep-like, multiplicity) where irrep-like has
-        .name/.dim/.kpname (a tabulated ISO-IR irrep or a computed line
-        irrep); leftovers = k vectors (fractions of DEN) that could not be
-        decomposed at all.
+        The computation behind ``crystod-group --product IRREP... --sg SG``:
+        the reduction coefficients are character inner products over the
+        finite factor group, with the momentum-conservation condition
+        ``k1_a + k2_b = k3_c`` (modulo the reciprocal lattice) over the star
+        arms.  Product terms at non-tabulated k points are computed with
+        spgrep and named from the ISO-IR tables.
+
+        Args:
+            labels: ISO-IR labels of the factors, e.g. ``["R4-", "R5+"]``.
+
+        Returns:
+            ``(factors, terms, leftovers)``: ``factors`` are the resolved
+            irrep records; ``terms`` is a list of ``(kname, irrep,
+            multiplicity)`` where ``irrep`` has ``name``, ``dim`` and
+            ``kpname`` (a tabulated ISO-IR irrep or a computed line irrep);
+            ``leftovers`` lists the k vectors (units of ``1/DEN``) that could
+            not be decomposed at all.
+
+        Raises:
+            SystemExit: A label is not tabulated for this space group.
+
+        Example:
+            >>> from crystod import group
+            >>> algebra = group.SpaceGroupIrrepAlgebra("Pm-3m")
+            >>> factors, terms, left = algebra.decompose_product(["R4-", "R5+"])
+            >>> [(irrep.name, n) for _, irrep, n in terms]
+            [('GM2-', 1), ('GM3-', 1), ('GM4-', 1), ('GM5-', 1)]
         """
         factors = [self.find_irrep(label) for label in labels]
         factor_data = [self.induced_characters(irrep) for irrep in factors]
@@ -717,9 +848,17 @@ class SpaceGroupIrrepAlgebra:
         return None
 
     def isoir_display_arm(self, canonical: np.ndarray) -> np.ndarray:
-        """The star arm matching the tabulated ISO-IR parametrization of its
-        k-vector type (arm 0, e.g. SM = (a,a,0) rather than (0,a,a)), for
-        display; the canonical arm when no ISO-IR entry matches."""
+        """Star arm in the tabulated ISO-IR parametrization, for display.
+
+        Args:
+            canonical: Representative arm of a non-tabulated star (units of
+                ``1/DEN``).
+
+        Returns:
+            The arm matching arm 0 of the ISO-IR k-vector type (e.g. ``SM``
+            as ``(a,a,0)`` rather than ``(0,a,a)``); ``canonical`` itself
+            when no ISO-IR entry matches.
+        """
         inputs = self._isoir_labeler_inputs()
         if inputs is None:
             return np.asarray(canonical, dtype=np.int64)
@@ -814,6 +953,15 @@ class SpaceGroupIrrepAlgebra:
         return result if result >= 0 else None
 
     def full_dimension(self, irrep) -> int:
+        """Dimension of a full space-group irrep (star size times small dim).
+
+        Args:
+            irrep: A tabulated irrep record or a computed line irrep (as
+                returned in the ``terms`` of ``decompose_product``).
+
+        Returns:
+            The number of star arms times the small-irrep dimension.
+        """
         if isinstance(irrep, _ComputedIrrep):
             return irrep.star_size * int(irrep.dim)
         arms, _ = self.star(irrep.kpname)
@@ -831,6 +979,39 @@ def _format_fraction(value: int) -> str:
 
 
 def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) -> str:
+    """Text report of a space-group direct product.
+
+    Exactly what ``crystod-group --product IRREP... --sg SG`` prints: the
+    space group, the k points and star sizes involved, the decomposition
+    line, a dimension check (star size times small dimension on both sides)
+    and the DIRPRO cross-validation reference.
+
+    Args:
+        algebra: The ``SpaceGroupIrrepAlgebra`` of the space group.
+        labels: ISO-IR labels of the factors, e.g. ``["R4-", "R5+"]``.
+
+    Returns:
+        The report as one string (no trailing newline).
+
+    Raises:
+        SystemExit: A label is not tabulated for this space group
+            (``ValueError`` when called through ``crystod.group``).
+
+    Example:
+        >>> from crystod import group
+        >>> algebra = group.SpaceGroupIrrepAlgebra("Pm-3m")
+        >>> print(group.format_product_report(algebra, ["R4-", "R5+"]))
+        * Space group *
+        Pm-3m (No. 221)
+        <BLANKLINE>
+        * K points (primitive basis) *
+        R: (1/2, 1/2, 1/2)   star of 1 arm(s)
+        GM: (0, 0, 0)   star of 1 arm(s)
+        <BLANKLINE>
+        * Direct product (full space-group irreps) *
+        R4- x R5+ = GM2- + GM3- + GM4- + GM5-
+        ...
+    """
     factors, terms, leftovers = algebra.decompose_product(labels)
 
     lines = []

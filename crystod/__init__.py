@@ -1,8 +1,9 @@
 """crystod package.
 
 Command-line tools (``crystod``, ``crystod-group``, ``crystod-bz``,
-``crystod-phonon``, ``crystod-mag``, ``crystod-md``, ``crystod-mol``) live
-in ``crystod.cli``; the Python API mirrors the same domains:
+``crystod-phonon``, ``crystod-mag``, ``crystod-md``, ``crystod-mol``,
+``crystod-xrd``, ``crystod-search``) live in ``crystod.cli``; the Python API mirrors the same
+domains:
 
     import crystod
 
@@ -13,6 +14,8 @@ in ``crystod.cli``; the Python API mirrors the same domains:
     crystod.mag       # symmetry-adapted spin bases
     crystod.md        # MD-trajectory analyses (ADPs)
     crystod.mol       # molecular SALCs and MO diagrams
+    crystod.xrd       # powder X-ray diffraction patterns
+    crystod.search    # Materials Project search and POSCAR download
 
 The most common entry points are also importable from the top level::
 
@@ -51,8 +54,11 @@ __all__ = [
     "mag",
     "md",
     "mol",
+    "xrd",
+    "search",
     # flagship API symbols (lazy)
     "isotropy_subgroups",
+    "isotropy_subgroups_at_kpoint",
     "IsotropySubgroup",
     "label_phonon_modes",
     "imaginary_mode_subgroups",
@@ -63,12 +69,13 @@ __all__ = [
     "SpaceGroupIrrepAlgebra",
 ]
 
-__version__ = "0.3.7"
+__version__ = "0.4.2"
 
-_API_DOMAINS = ("salc", "group", "phonon", "bz", "mag", "md", "mol")
+_API_DOMAINS = ("salc", "group", "phonon", "bz", "mag", "md", "mol", "xrd", "search")
 
 _LAZY_SYMBOLS = {
     "isotropy_subgroups": ("phonon_subgroups", "isotropy_subgroups"),
+    "isotropy_subgroups_at_kpoint": ("phonon_subgroups", "isotropy_subgroups_at_kpoint"),
     "IsotropySubgroup": ("phonon_subgroups", "IsotropySubgroup"),
     "label_phonon_modes": ("phonon_subgroups", "label_phonon_modes"),
     "imaginary_mode_subgroups": ("phonon_subgroups", "imaginary_mode_subgroups"),

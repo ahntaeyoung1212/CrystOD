@@ -109,6 +109,35 @@ def format_irrep_table(point_group: str, ct: dict) -> str:
 
 
 def direct_product_character(ct: dict, point_group: str, irreps: list[str]) -> np.ndarray:
+    """Characters of the direct product of point-group irreps.
+
+    The first step of ``crystod-group --product IRREP... --pg PG``: the
+    character of a direct product is the product of the characters, class
+    by class.
+
+    Args:
+        ct: Character table from ``crystod.group.get_character_table``.
+        point_group: Point-group label (used in the error message only).
+        irreps: Irrep labels to multiply, e.g. ``["T2g", "T2g", "T1u"]``.
+
+    Returns:
+        The product characters, one per class in the order of
+        ``ct["rotation_list"]``.
+
+    Raises:
+        SystemExit: An irrep label is not in the table; the message lists
+            the available labels (``ValueError`` when called through
+            ``crystod.group``).
+
+    Example:
+        >>> from crystod import group
+        >>> ct = group.get_character_table("m-3m")
+        >>> chi = group.direct_product_character(ct, "m-3m", ["T2g", "T2g"])
+        >>> chi
+        array([9., 0., 1., 1., 1., 9., 1., 0., 1., 1.])
+        >>> {k: n for k, n in group.decompose_representation(ct, chi).items() if n}
+        {'A1g': 1, 'Eg': 1, 'T1g': 1, 'T2g': 1}
+    """
     all_irreps = list(ct["character_table"].keys())
     irreps_character = []
     for irrep in irreps:
@@ -124,6 +153,22 @@ def direct_product_character(ct: dict, point_group: str, irreps: list[str]) -> n
 
 
 def decompose_representation(ct: dict, reducible_character: np.ndarray) -> dict[str, int]:
+    """Reduce a character vector into the irreps of a point group.
+
+    The second step of ``crystod-group --product`` with a point group, and
+    the reduction used by ``--basis``: the reduction formula with the class
+    sizes taken from the table (same result as ``crystod.group.decompose``,
+    which takes the class sizes explicitly).
+
+    Args:
+        ct: Character table from ``crystod.group.get_character_table``.
+        reducible_character: Characters of the reducible representation,
+            one per class in the order of ``ct["rotation_list"]``.
+
+    Returns:
+        ``{irrep label: multiplicity}`` over every irrep of the table (zeros
+        included).
+    """
     multiplicities = np.array(
         [np.asarray(values).shape[0] for values in ct["mapping_table"].values()],
         dtype=float,

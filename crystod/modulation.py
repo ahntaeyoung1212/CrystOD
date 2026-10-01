@@ -21,16 +21,12 @@ from .operations import parse_qpoint_token
 from .runtime_compat import (
     SymmetryDatasetAdapter,
     get_chemical_symbols,
-    get_little_group,
-    get_scaled_positions,
 )
 from .spglib_compat import ensure_spglib_compat
 
 ensure_spglib_compat()
 
-from phonopy.structure.atoms import PhonopyAtoms
-from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
-from spgrep.representation import project_to_irrep
+from .symmetry_adapted_modes import NonPrimitiveCellError, solve_symmetry_adapted_modes
 
 
 class MyHelpFormatter(
@@ -99,7 +95,8 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         type=float,
         default=[0.3],
-        help="Modulation amplitude(s) in Angstroms.",
+        help="Modulation amplitude(s) in Angstroms: the norm of the displacement of\n"
+        "one primitive cell (exactly so where 2q is a reciprocal lattice vector).",
     )
     parser.add_argument(
         "--output",
@@ -129,6 +126,8 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
+# Used by crystod.spin_basis (imported through crystod.phonon_vector); the
+# phonon modes no longer use it (see crystod.symmetry_adapted_modes).
 def _find_intertwiner(
     rep: NDArray[np.complex128],
     space_s: NDArray[np.complex128],
@@ -426,6 +425,24 @@ def _irrep_filename_tag(labels: list[str]) -> str:
 
 @dataclass
 class ModulationTerm:
+    """One modulation term: modes of one q point with their amplitudes.
+
+    ``crystod-phonon --modulation`` builds one term from ``--qpoint``,
+    ``--mode`` and ``--amplitude``, or one per numbered set (``--qpoint1``,
+    ``--mode1``, ``--amplitude1``, ``--qpoint2``, ...); a combined structure
+    sums the terms on their common supercell.
+
+    Attributes:
+        qpoint: Fractional coordinates of q in the primitive reciprocal basis.
+        mode_indices: 0-based indices into the mode table of
+            :class:`SymmetryAdaptedModulation` at that q (the printed table
+            is 1-based).
+        amplitudes: Amplitude in Angstroms of each mode, same length as
+            ``mode_indices``: the norm of the mode's displacement of one
+            primitive cell at a time-reversal-invariant q (see
+            :meth:`SymmetryAdaptedModulation.get_modulated_structure`).
+    """
+
     qpoint: list[float]
     mode_indices: list[int]
     amplitudes: list[float]
@@ -438,112 +455,101 @@ class PreparedModulationTerm:
     amplitudes: list[float]
 
 
-class _CoreRepresentation:
-    def __init__(self, cell: PhonopyAtoms, symprec: float = 1e-5):
-        self.input_cell = cell
-        primitive_lattice, primitive_pos, primitive_numbers = spglib.standardize_cell(
-            cell.totuple(),
-            to_primitive=True,
-            symprec=symprec,
-        )
-        self.primitive_cell = PhonopyAtoms(
-            numbers=primitive_numbers,
-            scaled_positions=primitive_pos,
-            cell=primitive_lattice,
-        )
-        print("\n ### Inputed cell was converted into primitive cell. ###")
-
-        dataset = SymmetryDatasetAdapter(
-            spglib.get_symmetry_dataset(self.primitive_cell.totuple(), symprec=symprec)
-        )
-        self.spglib_dataset = dataset
-        self.rotations = dataset.rotations
-        self.translations = dataset.translations
-
-    def get_modified_permutation_rep(
-        self,
-        rotation: NDArray[np.int_],
-        translation: NDArray[np.float64],
-        kpoint: list[float],
-    ) -> NDArray[np.complex128]:
-        positions = get_scaled_positions(self.primitive_cell)
-        num_atom = len(positions)
-        matrix = np.zeros((num_atom, num_atom), dtype=complex)
-        for i, pos_in in enumerate(positions):
-            pos_rot = np.dot(rotation, pos_in) + translation
-            for j, pos_out in enumerate(positions):
-                diff = pos_rot - pos_out
-                if (abs(diff - np.rint(diff)) < 1e-5).all():
-                    phase_factor = np.dot(
-                        kpoint,
-                        np.dot(np.linalg.inv(rotation), pos_out - translation) - pos_out,
-                    )
-                    matrix[j, i] = np.exp(2j * np.pi * phase_factor)
-        return matrix
-
-    def get_permutation_reps_at_k(
-        self,
-        little_rotations: NDArray[np.int_],
-        little_translations: NDArray[np.float64],
-        kpoint: list[float],
-    ) -> NDArray[np.complex128]:
-        return np.array(
-            [
-                self.get_modified_permutation_rep(rotation, translation, kpoint)
-                for rotation, translation in zip(little_rotations, little_translations)
-            ],
-            dtype=np.complex128,
-        )
-
-    def get_little_group(self, kpoint: list[float]):
-        return get_little_group(
-            rotations=self.rotations,
-            translations=self.translations,
-            kpoint=kpoint,
-        )
-
-
-class _Vibrations(_CoreRepresentation):
-    def __init__(self, cell: PhonopyAtoms, symprec: float = 1e-5):
-        super().__init__(cell=cell, symprec=symprec)
-        lattice_t = np.transpose(self.primitive_cell.cell)
-        lattice_t_inv = np.linalg.inv(lattice_t)
-        self.rotations_cartesian = np.array(
-            [lattice_t @ rotation @ lattice_t_inv for rotation in self.rotations],
-            dtype=np.complex128,
-        )
-
-    def get_vibration_rep(self, kpoint: list[float]):
-        irreps, mapping_little_group = get_spacegroup_irreps_from_primitive_symmetry(
-            rotations=self.rotations,
-            translations=self.translations,
-            kpoint=kpoint,
-        )
-        little_rotations = self.rotations[mapping_little_group]
-        little_translations = self.translations[mapping_little_group]
-        permutation_matrices = self.get_permutation_reps_at_k(
-            little_rotations=little_rotations,
-            little_translations=little_translations,
-            kpoint=kpoint,
-        )
-        cartesian_rep = self.rotations_cartesian[mapping_little_group]
-        vibration_rep = np.array(
-            [
-                np.kron(permutation_matrix, cartesian_rotation)
-                for permutation_matrix, cartesian_rotation in zip(permutation_matrices, cartesian_rep)
-            ],
-            dtype=np.complex128,
-        )
-        return irreps, vibration_rep
-
-    def get_vibration_basis(self, irreps, vibration_rep) -> list[NDArray[np.complex128]]:
-        basis_vectors: list[NDArray[np.complex128]] = []
-        for irrep in irreps:
-            basis_vectors.extend(project_to_irrep(vibration_rep, irrep))
-        return basis_vectors
-
-
 class SymmetryAdaptedModulation:
+    """Symmetry-adapted phonon modes at one q point and their frozen-in structures.
+
+    The engine of ``crystod-phonon --modulation``. On construction the
+    dynamical matrix of ``phonon`` at ``qpoint`` is block-diagonalized in the
+    spgrep irrep-projected basis of ``phonon.primitive`` as it is (its atom
+    order, positions, lattice and Cartesian frame; no re-standardization), so
+    that the partners of a degenerate level transform with the irrep
+    matrices instead of coming out as arbitrary combinations -- the solver
+    shared with ``crystod-phonon --vector``
+    (:func:`crystod.symmetry_adapted_modes.solve_symmetry_adapted_modes`); the
+    result is verified against the plain phonopy spectrum.
+    :meth:`get_modulated_structure` then freezes selected modes into the
+    smallest commensurate supercell of that same cell, and
+    :meth:`analyze_symmetry` reports the space group of the result.
+
+    The frozen-in displacements are true harmonic eigen-displacements
+    (phonopy's eigenvector divided by the square root of the atomic mass, as
+    phonopy's own modulation does). At a time-reversal-invariant q (``2q`` a
+    reciprocal lattice vector) every mode vector is real, the partners of a
+    degenerate level are orthonormal real patterns along directions that
+    symmetry operations fix up to sign, chosen and ordered by the isotropy
+    subgroups they freeze into (independent of the origin, orientation and
+    lattice basis of the input; which of several equivalent domains comes
+    first, and the signs, are conventions -- the signs of the partners of one
+    level relative to each other do not depend on the origin either, the
+    overall sign at q != 0 only picks one of two copies translated by a
+    lattice vector, and nothing ties the signs of different q points), and
+    the amplitude is the norm of the displacement of one primitive cell. At
+    any other q the vector is a complex Bloch wave whose global phase (a
+    shift of the modulation along the lattice) is fixed by a convention only,
+    not controlled physically, and a single partner of a degenerate level
+    freezes into a structure that depends on that phase.
+
+    Args:
+        yaml_path: A ``phonopy_params.yaml`` (``.xz`` accepted) to load the
+            phonopy object from; ignored when ``phonon`` is given.
+        qpoint: Fractional coordinates of q in the reciprocal basis of
+            ``phonon.primitive`` (required).
+        symprec: Symmetry tolerance of the spglib/spgrep analysis.
+        keep_q_coords: Name a non-special q by its coordinates
+            (``q_<coords>``) in :meth:`get_q_label` instead of its ISO-IR
+            k-vector type.
+        phonon: A prebuilt ``phonopy.Phonopy`` object with force constants,
+            e.g. from ``phonopy.load`` of a unit cell with ``FORCE_SETS``;
+            lets one set of force data drive several q points without
+            reloading it. Build it with ``primitive_matrix="auto"``: its
+            primitive cell must be primitive.
+
+    Attributes:
+        qpoint: The q point as a float array of shape ``(3,)``.
+        phonon: The phonopy object.
+        vibrations: The symmetry analysis of ``phonon.primitive``
+            (``vibrations.primitive_cell`` -- the cell the structures are built
+            on --, ``vibrations.rotations``, ``vibrations.translations``).
+        irreps: The spgrep irreps of the little group of q.
+        vibration_basis: The irrep-projected basis of the vibration space,
+            one ``(dim, 3 * n_atoms)`` array per projected space (rows are
+            kets in phonopy's phase convention).
+        n_atoms: Number of atoms in the primitive cell.
+        mode_info: One ``{"frequency_THz": ..., "degeneracy": ...}`` dict per
+            mode, sorted by frequency (mode i is band i of the phonopy
+            spectrum).
+        mode_vectors: The corresponding freezing vectors, ``3 * n_atoms``
+            complex components each, ``v_j = e_j exp(2 pi i q . x_j) /
+            sqrt(m_j)`` normalized over the primitive cell (``e`` the phonopy
+            eigenvector, ``x_j`` the scaled position of atom j in
+            ``vibrations.primitive_cell``); the displacement of atom j in the
+            cell at lattice translation R is ``amplitude * Re(v_j * exp(2 pi i
+            q . R))``. Real at a time-reversal-invariant q.
+        eigenvectors: The same modes as unit eigenvectors of phonopy's
+            dynamical matrix, in phonopy's convention (mass-weighted,
+            atom-position phase).
+
+    Raises:
+        ValueError: If ``qpoint`` is missing, neither ``yaml_path`` nor
+            ``phonon`` is given, the phonopy object carries no force
+            constants, or its primitive cell is not primitive
+            (:class:`crystod.symmetry_adapted_modes.NonPrimitiveCellError`).
+        RuntimeError: If the symmetry-adapted construction does not reproduce
+            the phonopy spectrum.
+
+    Example:
+        Freeze one component of the R-point soft mode of cubic SrTiO3 (``ph``
+        as in :func:`crystod.phonon.label_phonon_modes`)::
+
+            from crystod import phonon
+
+            modulation = phonon.SymmetryAdaptedModulation(
+                phonon=ph, qpoint=[0.5, 0.5, 0.5])
+            modulation.print_mode_info()            # 15 modes, R5-(3) first
+            atoms = modulation.get_modulated_structure([0], [0.3])
+            modulation.analyze_symmetry(atoms)      # I4/mcm (No. 140)
+    """
+
     def __init__(self, yaml_path: str | None = None, qpoint: list[float] | None = None,
                  symprec: float = 1e-5, keep_q_coords: bool = False,
                  phonon=None) -> None:
@@ -560,157 +566,38 @@ class SymmetryAdaptedModulation:
                 raise ValueError("either yaml_path or phonon is required.")
             phonon = phonopy.load(yaml_path)
         self.phonon = phonon
-        dynamical_matrix = self.phonon.dynamical_matrix
-        if dynamical_matrix is None:
-            raise ValueError(
-                "the phonopy object carries no force constants "
-                "(FORCE_SETS/FORCE_CONSTANTS missing?)."
-            )
 
-        primitive = self.phonon.primitive
-        primitive_atoms = PhonopyAtoms(
-            numbers=primitive.numbers,
-            scaled_positions=primitive.scaled_positions,
-            cell=primitive.cell,
-        )
-
-        self.vibrations = _Vibrations(cell=primitive_atoms, symprec=symprec)
-        irreps, vibration_rep = self.vibrations.get_vibration_rep(qpoint)
-        vibration_basis = self.vibrations.get_vibration_basis(irreps, vibration_rep)
-        self.irreps = irreps
-        self.vibration_basis = vibration_basis
-
-        dynamical_matrix.run(qpoint)
-        raw_matrix = dynamical_matrix.dynamical_matrix.copy()
-        primitive_positions = self.vibrations.primitive_cell.scaled_positions
-        self.n_atoms = len(primitive_positions)
-
-        phase = np.exp(2j * np.pi * np.dot(primitive_positions, qpoint))
-        modified_matrix = np.zeros_like(raw_matrix)
-        for i in range(self.n_atoms):
-            for j in range(self.n_atoms):
-                modified_matrix[3 * i : 3 * i + 3, 3 * j : 3 * j + 3] = (
-                    raw_matrix[3 * i : 3 * i + 3, 3 * j : 3 * j + 3]
-                    * np.conj(phase[i])
-                    * phase[j]
-                )
-
-        spaces = vibration_basis
-        dims = [space.shape[0] for space in spaces]
-        if sum(dims) != modified_matrix.shape[0]:
-            raise RuntimeError("Irrep projection does not span the full vibration space.")
-        offsets = np.cumsum([0] + dims)
-        n_spaces = len(spaces)
-        stacked = np.vstack(spaces)
-        block_matrix = stacked @ modified_matrix @ stacked.conj().T
-
-        # Spaces carrying equivalent irreps couple through the dynamical
-        # matrix; diagonalizing each projected block on its own would drop
-        # that coupling and give wrong frequencies whenever an irrep occurs
-        # more than once at q. Group coupled spaces into clusters and
-        # diagonalize per cluster (same construction as crystod-phonon --vector).
-        coupled = np.zeros((n_spaces, n_spaces), dtype=bool)
-        for s in range(n_spaces):
-            for t in range(n_spaces):
-                sub = block_matrix[offsets[s] : offsets[s + 1], offsets[t] : offsets[t + 1]]
-                coupled[s, t] = bool(np.abs(sub).max() > 1e-6)
-        clusters: list[list[int]] = []
-        seen: set[int] = set()
-        for s in range(n_spaces):
-            if s in seen:
-                continue
-            stack, cluster = [s], []
-            while stack:
-                u = stack.pop()
-                if u in seen:
-                    continue
-                seen.add(u)
-                cluster.append(u)
-                stack.extend(v for v in range(n_spaces) if coupled[u, v] and v not in seen)
-            clusters.append(sorted(cluster))
-
-        self.mode_info: list[dict[str, float | int]] = []
-        self.mode_vectors: list[NDArray[np.complex128]] = []
-        for cluster in clusters:
-            dim = dims[cluster[0]]
-            if any(dims[index] != dim for index in cluster):
-                raise RuntimeError("Coupled irrep spaces with different dimensions.")
-            multiplicity = len(cluster)
-
-            aligned = [spaces[cluster[0]]]
-            for index in cluster[1:]:
-                intertwiner = _find_intertwiner(vibration_rep, spaces[index], spaces[cluster[0]])
-                if intertwiner is None:
-                    raise RuntimeError("Coupled irrep spaces are not equivalent.")
-                aligned.append(intertwiner.conj().T @ spaces[index])
-
-            # After alignment every coupling block is a scalar multiple of the
-            # identity (Schur), so the cluster reduces to one multiplicity-sized
-            # Hermitian matrix shared by all irrep components.
-            coupling = np.zeros((multiplicity, multiplicity), dtype=complex)
-            for a in range(multiplicity):
-                for b in range(multiplicity):
-                    sub = aligned[a] @ modified_matrix @ aligned[b].conj().T
-                    if np.abs(sub - np.eye(dim) * np.trace(sub) / dim).max() > 1e-6:
-                        raise RuntimeError("Coupling between irrep spaces is not scalar.")
-                    coupling[a, b] = np.trace(sub) / dim
-            eigenvalues, eigenvectors = np.linalg.eigh(coupling)
-            eigenvalues = eigenvalues.real
-
-            # Preserve the symmetry-adapted basis when the cluster is
-            # numerically degenerate. Re-diagonalizing an exactly degenerate
-            # cluster can pick an arbitrary rotated basis and lower the
-            # apparent symmetry of an individual mode.
-            if multiplicity > 1 and np.allclose(eigenvalues, eigenvalues.mean(), atol=1e-10, rtol=1e-8):
-                eigenvalues = np.full(multiplicity, eigenvalues.mean())
-                eigenvectors = np.eye(multiplicity, dtype=complex)
-
-            for w in range(multiplicity):
-                eigval = float(eigenvalues[w])
-                frequency = np.sign(eigval) * np.sqrt(np.abs(eigval)) * 15.633302
-                for component in range(dim):
-                    # Rows of the projected basis are bras; keep this module's
-                    # convention that the displacement is Re(vector * e^{2 pi i q.R}),
-                    # so the bra-space combination uses conjugated coefficients.
-                    mode_vector = np.zeros(3 * self.n_atoms, dtype=complex)
-                    for a in range(multiplicity):
-                        mode_vector += np.conj(eigenvectors[a, w]) * aligned[a][component]
-                    self.mode_info.append(
-                        {
-                            "frequency_THz": frequency,
-                            "degeneracy": dim,
-                        }
-                    )
-                    self.mode_vectors.append(mode_vector)
-
-        sort_indices = np.argsort([float(info["frequency_THz"]) for info in self.mode_info], kind="stable")
-        self.mode_info = [self.mode_info[index] for index in sort_indices]
-        self.mode_vectors = [self.mode_vectors[index] for index in sort_indices]
+        # One solver for --modulation and --vector: phonopy's dynamical matrix
+        # as it is, on phonon.primitive as it is, projected rows read as kets.
+        modes = solve_symmetry_adapted_modes(self.phonon, self.qpoint, symprec=symprec)
+        self.vibrations = modes.vibrations
+        self.irreps = modes.irreps
+        self.vibration_basis = modes.vibration_basis
+        self.n_atoms = len(self.vibrations.primitive_cell.scaled_positions)
+        self.mode_info: list[dict[str, float | int]] = [
+            {"frequency_THz": float(frequency), "degeneracy": int(degeneracy)}
+            for frequency, degeneracy in zip(modes.frequencies, modes.degeneracies)
+        ]
+        self.mode_vectors: list[NDArray[np.complex128]] = list(modes.freezing_vectors)
+        self.eigenvectors: list[NDArray[np.complex128]] = list(modes.eigenvectors)
         self._mode_labels: list[str] | None = None
         self._q_label: str | None = None
 
-        # Verify against the plain phonopy spectrum before trusting the result.
-        reference = np.sort(np.linalg.eigvalsh(modified_matrix).real)
-        reference = np.sign(reference) * np.sqrt(np.abs(reference)) * 15.633302
-        frequencies = [float(info["frequency_THz"]) for info in self.mode_info]
-        if not np.allclose(frequencies, reference, atol=1e-3):
-            raise RuntimeError("Symmetry-adapted frequencies do not match the phonopy spectrum.")
-        for info, mode_vector in zip(self.mode_info, self.mode_vectors):
-            eigenvalue = np.sign(info["frequency_THz"]) * (info["frequency_THz"] / 15.633302) ** 2
-            ket = np.conj(mode_vector)
-            if np.linalg.norm(modified_matrix @ ket - eigenvalue * ket) > 1e-6:
-                raise RuntimeError("A symmetry-adapted mode is not an eigenvector of the dynamical matrix.")
-
     @property
     def n_modes(self) -> int:
+        """Number of modes at q (``3 * n_atoms``)."""
         return len(self.mode_info)
 
     def get_mode_labels(self) -> list[str]:
-        """Per-mode irrep labels (e.g. 'X3-(1)'); '-' when labeling is unavailable.
+        """Per-mode irrep labels, e.g. ``'X3-(1)'``; ``'-'`` when unavailable.
 
-        Uses the ISO-IR-table-based labeling of crystod-phonon --vector/--irreps.
-        The label of band i applies to mode i because the symmetry-adapted
-        frequencies are verified to match the plain phonopy spectrum.
+        Uses the ISO-IR-table-based labeling of ``crystod-phonon --vector``
+        and ``--irreps``. The label of band i applies to mode i because the
+        symmetry-adapted frequencies are verified to match the plain phonopy
+        spectrum. Computed once and cached.
+
+        Returns:
+            List of ``n_modes`` label strings in mode order.
         """
         if self._mode_labels is None:
             labels = ["-"] * self.n_modes
@@ -731,8 +618,16 @@ class SymmetryAdaptedModulation:
         return self._mode_labels
 
     def get_q_label(self) -> str:
-        """Short q label for file names: the ISO-IR name (e.g. 'X') when q lies
-        in the star of a tabulated special point, else 'q_<coordinates>'."""
+        """Short q label for file names.
+
+        The ISO-IR name (e.g. ``'X'``) when q lies in the star of a tabulated
+        special point; else the ISO-IR k-vector type of q (e.g. ``'DT'``); else
+        ``'q_<coordinates>'``, which is also used when ``keep_q_coords`` is
+        set. Computed once and cached.
+
+        Returns:
+            The label string.
+        """
         if self._q_label is None:
             label = "q" + "".join(f"_{value:g}" for value in self.qpoint).replace("/", "o")
             try:
@@ -771,6 +666,11 @@ class SymmetryAdaptedModulation:
         return self._q_label
 
     def print_mode_info(self) -> None:
+        """Print the mode table: number, frequency (THz), irrep, degeneracy.
+
+        Mode numbers are 1-based, as ``--mode`` of ``crystod-phonon
+        --modulation`` expects them.
+        """
         labels = self.get_mode_labels()
         print(f"Phonon modes at q = {self.qpoint}")
         print(f"{'Mode':>5s}  {'Freq (THz)':>12s}  {'Irrep':>12s}  {'Degeneracy':>11s}")
@@ -783,12 +683,40 @@ class SymmetryAdaptedModulation:
 
     @staticmethod
     def get_commensurate_supercell_sizes(qpoint: list[float] | NDArray[np.float64]) -> NDArray[np.int_]:
+        """Supercell multiplicities along a, b, c commensurate with q.
+
+        The smallest diagonal supercell on which the modulation at q is
+        periodic (not always the smallest supercell of all: q = (1/2, 1/2, 0)
+        gives 2 x 2 x 1).
+
+        Args:
+            qpoint: Fractional coordinates of q in the primitive reciprocal
+                basis.
+
+        Returns:
+            Integer array ``(n1, n2, n3)``: 1 for an integer component, else
+            the denominator of the component.
+
+        Raises:
+            ValueError: If a component is not a fraction with a denominator
+                of at most 12 (e.g. 0.15): no such supercell holds the
+                modulation, and freezing it into one would build a
+                structure that is not periodic.
+        """
         sizes = []
         for component in qpoint:
-            if abs(component) < 1e-10:
+            value = float(component)
+            if abs(value - round(value)) < 1e-10:
                 sizes.append(1)
-            else:
-                sizes.append(Fraction(float(component)).limit_denominator(12).denominator)
+                continue
+            fraction = Fraction(value).limit_denominator(12)
+            if abs(value - float(fraction)) > 1e-4:
+                raise ValueError(
+                    f"q = {[float(v) for v in qpoint]} is not commensurate with a "
+                    f"supercell of at most 12 cells per axis (component {value:g}); "
+                    "give q as fractions with a denominator of at most 12, e.g. 1/3."
+                )
+            sizes.append(fraction.denominator)
         return np.array(sizes, dtype=int)
 
     def _get_commensurate_supercell_matrix(self) -> NDArray[np.int_]:
@@ -799,6 +727,35 @@ class SymmetryAdaptedModulation:
         mode_indices: list[int],
         amplitudes: list[float],
     ) -> Atoms:
+        """Freeze selected modes into the smallest commensurate supercell.
+
+        The supercell is ``n1 x n2 x n3`` copies of
+        ``vibrations.primitive_cell`` (phonopy's primitive cell as it is) with
+        ``n_i`` the denominator of the i-th component of q
+        (:meth:`get_commensurate_supercell_sizes`). Atom j in the cell at
+        lattice translation R is displaced by the sum over the selected modes
+        of ``amplitude * Re(vector_j * exp(2 pi i q . R))`` with ``vector`` the
+        mode's entry of ``mode_vectors`` -- the harmonic eigen-displacement of
+        the mode; at a time-reversal-invariant q the displacement of every
+        primitive cell has the norm ``amplitude``. The atoms are ordered by
+        species, as a POSCAR wants them.
+
+        Args:
+            mode_indices: 0-based indices into ``mode_vectors`` (the printed
+                mode table is 1-based).
+            amplitudes: Amplitude in Angstroms of each selected mode, same
+                length as ``mode_indices``.
+
+        Returns:
+            The modulated structure as an ``ase.Atoms`` object with periodic
+            boundary conditions.
+
+        Raises:
+            SystemExit: If a mode index is out of range (the command-line
+                convention; not translated to ``ValueError`` for methods).
+            ValueError: If q is not commensurate with a supercell of at most
+                12 cells per axis.
+        """
         for mode_index in mode_indices:
             if mode_index < 0 or mode_index >= self.n_modes:
                 raise SystemExit(
@@ -861,6 +818,20 @@ class SymmetryAdaptedModulation:
 
     @staticmethod
     def analyze_symmetry(atoms: Atoms, symprec: float = 0.1) -> dict[str, str | int]:
+        """Space group of a structure, printed and returned.
+
+        ``crystod-phonon --modulation`` reports the space group of the
+        generated structure with this; the default 0.1 is the tolerance the
+        command uses for that report (``--tolerance`` overrides it).
+
+        Args:
+            atoms: The structure as an ``ase.Atoms`` object.
+            symprec: spglib symmetry tolerance.
+
+        Returns:
+            Dict with ``"international"`` (short symbol), ``"number"`` and
+            ``"hall"`` (Hall symbol).
+        """
         cell = (
             atoms.cell.array,
             atoms.get_scaled_positions(),
@@ -1095,10 +1066,17 @@ def _coefficient_patterns(n_slots: int, max_patterns: int = 2048) -> list[tuple[
     of them. Patterns with the most zeros come first, so the high-symmetry
     directions are reached with the fewest trials; the cap keeps a large star
     (many arms x a degenerate level) from enumerating combinatorially.
-    """
-    from itertools import combinations
 
-    patterns: list[tuple[int, ...]] = []
+    After all of them come their sign variants (a negative number is the
+    negative of that parameter), in the same order: a direction such as
+    N1+(a;-a;a;a) differs from (a;a;a;a) only in a sign, and which signs it
+    needs depends on the sign convention of the mode vectors. The first
+    nonzero slot stays positive, since reversing every sign leaves the
+    isotropy subgroup unchanged.
+    """
+    from itertools import combinations, product
+
+    positive: list[tuple[int, ...]] = []
     for n_nonzero in range(1, n_slots + 1):
         labelings = _canonical_labelings(n_nonzero)
         for positions in combinations(range(n_slots), n_nonzero):
@@ -1106,10 +1084,27 @@ def _coefficient_patterns(n_slots: int, max_patterns: int = 2048) -> list[tuple[
                 assignment = [0] * n_slots
                 for position, label in zip(positions, labels):
                     assignment[position] = label
-                patterns.append(tuple(assignment))
+                positive.append(tuple(assignment))
+                if len(positive) >= max_patterns:
+                    return positive
+    patterns = list(positive)
+    for pattern in positive:
+        n_nonzero = sum(1 for value in pattern if value)
+        for signs in product((1, -1), repeat=n_nonzero - 1):
+            if -1 in signs:
+                patterns.append(_flip_signs(pattern, signs))
                 if len(patterns) >= max_patterns:
                     return patterns
     return patterns
+
+
+def _flip_signs(pattern: tuple[int, ...], signs: tuple[int, ...]) -> tuple[int, ...]:
+    """Apply ``signs`` to the nonzero slots of ``pattern`` after the first."""
+    result = list(pattern)
+    nonzero = [position for position, value in enumerate(pattern) if value]
+    for position, sign in zip(nonzero[1:], signs):
+        result[position] *= sign
+    return tuple(result)
 
 
 def _primitive_signature(cell, symprec: float) -> tuple[int, int]:
@@ -1129,7 +1124,7 @@ def classify_distorted_structure(
 
     Returns (number, symbol, size, index), where ``size`` is the primitive-cell
     multiplication against the parent and ``index`` is [G:H] -- the same two
-    quantities ``crystod-group --supergroup`` prints, computed here from the
+    quantities ``crystod-group --parent`` prints, computed here from the
     structure itself so that a generated structure can be matched against an
     enumerated order-parameter direction.
     """
@@ -1173,12 +1168,12 @@ def _direction_shape(label: str) -> tuple[int, tuple[int, ...]]:
 
 
 def _pattern_shape(pattern: tuple[int, ...]) -> tuple[int, tuple[int, ...]]:
-    """The same signature for a candidate coefficient pattern."""
+    """The same signature for a candidate coefficient pattern (signs ignored)."""
     zeros = sum(1 for value in pattern if not value)
     counts: dict[int, int] = {}
     for value in pattern:
         if value:
-            counts[value] = counts.get(value, 0) + 1
+            counts[abs(value)] = counts.get(abs(value), 0) + 1
     return (zeros, tuple(sorted(counts.values(), reverse=True)))
 
 
@@ -1234,19 +1229,15 @@ def generate_direction_structures(
     ``size``/``index``. Returns the directions that were realized and the ones
     that were not.
     """
-    import contextlib
-    import io
-
     arms = [list(map(float, q)) for q in qpoints]
-    # one modulation per arm; their constructors narrate the cell conversion,
-    # which would repeat once per arm in the middle of the subgroup report
-    with contextlib.redirect_stdout(io.StringIO()):
-        modulations = [
-            SymmetryAdaptedModulation(
-                phonon=phonon, qpoint=arm, symprec=symprec, keep_q_coords=keep_q_coords
-            )
-            for arm in arms
-        ]
+    # one modulation per arm, all on phonon.primitive as it is, so that the
+    # arms share one cell and can be summed on a common supercell
+    modulations = [
+        SymmetryAdaptedModulation(
+            phonon=phonon, qpoint=arm, symprec=symprec, keep_q_coords=keep_q_coords
+        )
+        for arm in arms
+    ]
     parent = modulations[0].vibrations.primitive_cell
     parent_cell = (
         parent.cell,
@@ -1272,12 +1263,18 @@ def generate_direction_structures(
     for pattern in _coefficient_patterns(len(arms) * n_modes):
         if not wanted or trials >= max_trials:
             break
-        coefficients = [_PARAMETER_VALUES[value - 1] if value else 0.0 for value in pattern]
+        coefficients = [
+            np.sign(value) * _PARAMETER_VALUES[abs(value) - 1] if value else 0.0
+            for value in pattern
+        ]
         terms: list[PreparedModulationTerm] = []
         for arm_index, modulation in enumerate(modulations):
             chunk = coefficients[arm_index * n_modes : (arm_index + 1) * n_modes]
+            # amplitudes rounded to ten significant digits, so that the
+            # printed reproduce command (which shows them that way) gives
+            # back exactly this structure: 0.3 * 0.5478 is 0.16433999999999999
             selected = [
-                (mode_indices[position], amplitude * coefficient)
+                (mode_indices[position], float(f"{amplitude * coefficient:.10g}"))
                 for position, coefficient in enumerate(chunk)
                 if coefficient
             ]
@@ -1367,12 +1364,26 @@ def _load_modulation_with_report(
 ) -> SymmetryAdaptedModulation:
     """Build the modulation at q and print the mode table and the star of q."""
     print(f"Loading '{source_label}' at q = {qpoint}...")
-    modulation = SymmetryAdaptedModulation(
-        phonon=phonon,
-        qpoint=qpoint,
-        symprec=symprec,
-        keep_q_coords=keep_q_coords,
-    )
+    try:
+        modulation = SymmetryAdaptedModulation(
+            phonon=phonon,
+            qpoint=qpoint,
+            symprec=symprec,
+            keep_q_coords=keep_q_coords,
+        )
+    except NonPrimitiveCellError as exc:
+        raise SystemExit(f"ERROR: {exc}") from None
+    except RuntimeError as exc:
+        raise SystemExit(
+            f"ERROR: the symmetry-adapted modes at q = {qpoint} could not be "
+            f"constructed: {exc}\n"
+            "       The usual cause is a structure that is symmetric only within "
+            f"--tolerance ({symprec:g}): the\n"
+            "       analysis runs on phonopy's primitive cell as it is, without "
+            "symmetrizing it. If so, try a\n"
+            "       smaller --tolerance, or symmetrize the structure before the "
+            "force calculation."
+        ) from None
     print()
     modulation.print_mode_info()
 
@@ -1455,6 +1466,14 @@ def main(argv: list[str] | None = None) -> None:
                 amplitudes=_normalize_amplitudes(mode_indices, args.amplitude),
             )
         ]
+
+    # a q that no supercell of at most 12 cells per axis holds cannot be
+    # frozen in; say so before any mode is computed
+    for term in terms:
+        try:
+            SymmetryAdaptedModulation.get_commensurate_supercell_sizes(term.qpoint)
+        except ValueError as exc:
+            raise SystemExit(f"ERROR: {exc}") from None
 
     modulation_cache: dict[tuple[float, float, float], SymmetryAdaptedModulation] = {}
     prepared_terms: list[PreparedModulationTerm] = []

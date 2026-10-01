@@ -74,7 +74,7 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
-def similarity_transformation(rot: NDArray[np.float_], mat: NDArray[np.float_]) -> NDArray[np.float_]:
+def similarity_transformation(rot: NDArray[np.float64], mat: NDArray[np.float64]) -> NDArray[np.float64]:
     """Similarity transformation by R x M x R^-1."""
     return rot @ mat @ np.linalg.inv(rot)
 
@@ -131,6 +131,71 @@ def get_label_overrides(
     return {}
 
 class CrystalOrbital:
+    """Irreps of the crystal orbitals built from one atomic shell (``crystod``).
+
+    The Bloch sums of one element's ``s``, ``p``, ``d``, ``f``, ``g``, ``h``
+    or ``i`` shell at a k point span a (reducible) representation of the
+    little group of ``k`` -- the site-symmetry induced representation, or
+    band representation, of that shell.  Its character is the product of
+    the permutation character of the element's sites (with the Bloch phases
+    of ``k``) and the rotation character of the shell, and its
+    decomposition into the irreps of the little group is what
+    ``crystod -c POSCAR --element EL --orbital ORB [--kpoint K]`` prints:
+    with ``--spinor`` the double-valued (spin-orbit) irreps, without
+    ``--kpoint`` every special point of the space group.  The spgrep irreps
+    are labelled with the ISO-IR (Miller-Love) names, ``GM3+(2)``,
+    ``X5-(2)`` and so on, the number in parentheses being the dimension.
+
+    The input cell is reduced to the spglib primitive cell, and the
+    symmetry operations are reordered to match the ISO-IR tables (a
+    ``ValueError`` is raised when that fails).
+
+    Args:
+        cell: The crystal structure as ``phonopy.structure.atoms.PhonopyAtoms``
+            (any setting; it is converted to the primitive cell).
+        symprec: Symmetry tolerance handed to spglib.
+        spior: ``True`` for the double-valued (spinor) irreps.  The parameter
+            is spelled this way in the signature; the attribute is
+            ``spinor``.
+
+    Attributes:
+        primitive_cell: The standardized primitive ``PhonopyAtoms`` cell that
+            every k point and atom index refers to.
+        spglib_dataset: The spglib symmetry dataset of the primitive cell
+            (``"international"``, ``"number"``, ``"wyckoffs"``,
+            ``"site_symmetry_symbols"``, ...).
+        transformation_matrix: The spglib transformation matrix of the
+            primitive cell; it carries the ISO-IR k vectors and rotations,
+            tabulated in the conventional setting, onto the primitive basis.
+        rotations: Integer rotation matrices in the primitive basis, in the
+            ISO-IR table order.
+        translations: The matching fractional translations.
+        seitz_symbols: The Seitz symbol of every operation, same order.
+        spinor: Whether double-valued irreps are used.
+        symprec: The symmetry tolerance in use.
+        irt_character_table: The ISO-IR table of the space group
+            (double-valued when ``spinor``).
+        irt_kpoint_table: The single-valued ISO-IR table the special
+            k points are enumerated from.
+        labels_from_isoir: Set by :meth:`get_irrep_labels` at a k point the
+            table does not list: whether the labels came from the full
+            ISO-IR k-vector data.
+
+    Example:
+        >>> from phonopy.interface.calculator import read_crystal_structure
+        >>> from crystod import salc
+        >>> from crystod.examples import example_path
+        >>> cell, _ = read_crystal_structure(
+        ...     str(example_path("221_PPOSCAR_ScF3")), interface_mode="vasp")
+        >>> co = salc.CrystalOrbital(cell)
+        >>> co.get_irt_special_points()[0]
+        ['GM', 'R', 'X', 'M']
+        >>> _, _, counts, labels = co.irreducible_decomposition(
+        ...     [0, 0, 0], "Sc", "d")
+        >>> {labels[key]: int(n) for key, n in counts.items() if n > 0}
+        {'GM3+(2)': 1, 'GM5+(3)': 1}
+    """
+
     def __init__(
             self, 
             cell: PhonopyAtoms,
@@ -176,8 +241,8 @@ class CrystalOrbital:
     def _sort_symmetry_operations_in_order_of_irt(
         self,
         spglib_R: NDArray[np.int_],
-        spglib_t: NDArray[np.float_],
-    ) -> tuple[NDArray[np.int_], NDArray[np.float_]]:
+        spglib_t: NDArray[np.float64],
+    ) -> tuple[NDArray[np.int_], NDArray[np.float64]]:
         """Sort symmetry operations found by spglib in the ISO-IR table order."""
         irt_conv_R = np.array([sym.R for sym in self.irt_character_table.symmetries], dtype=float)
         irt_prim_R = similarity_transformation(np.linalg.inv(self.transformation_matrix), irt_conv_R)
@@ -201,7 +266,17 @@ class CrystalOrbital:
         return np.array(sorted_R), np.array(sorted_t)
 
     def get_irt_irreps_at_k(self, k: list[float]) -> list[Irrep]:
-        """Get irreps at the k point from the ISO-IR tables."""
+        """Tabulated ISO-IR irreps at a k point.
+
+        Args:
+            k: Three primitive reciprocal coordinates.
+
+        Returns:
+            The ISO-IR irrep records whose k vector equals ``k`` -- each with
+            ``kpname``, ``k`` and its characters -- or an empty list when the
+            point is not tabulated as given (a non-tabulated arm of a star,
+            or no special point at all).
+        """
         k = canonicalize_kpoint(k)
         trans_inv = np.linalg.inv(self.transformation_matrix)
         conventional_k = np.array(k) @ trans_inv
@@ -212,9 +287,18 @@ class CrystalOrbital:
         return irreps_at_k
 
     def get_kpoint_name(self, k: list[float]) -> Optional[str]:
-        """Get the special k-point name from the ISO-IR tables if available.
+        """Name of a k point (``GM``, ``X``, ``M``, ...), or ``None``.
 
-        Any arm of a tabulated star is recognized, not only the tabulated arm.
+        Any arm of a tabulated star is recognized, not only the tabulated
+        arm; a k point that is no special point receives the ISO-IR
+        k-vector type letters (``GP``, ``DT``, ...) when those data are
+        available.
+
+        Args:
+            k: Three primitive reciprocal coordinates.
+
+        Returns:
+            The name, or ``None`` when nothing matches.
         """
         k = canonicalize_kpoint(k)
         irreps_at_k = self.get_irt_irreps_at_k(k)
@@ -255,7 +339,14 @@ class CrystalOrbital:
         )
 
     def get_irt_special_points(self) -> tuple[list[str], list[list[float]]]:
-        """Get unique special k-points from the ISO-IR tables in primitive basis."""
+        """Special k points of the space group from the ISO-IR tables.
+
+        Returns:
+            ``(names, kpoints)``: the tabulated names (``GM``, ``R``, ``X``,
+            ``M`` for Pm-3m) and their primitive reciprocal coordinates, one
+            entry per distinct point, in table order.  These are the points
+            ``crystod`` analyzes when ``--kpoint`` is omitted.
+        """
         primitive_kpoints = []
         kpoint_names = []
         for irrep in self.irt_kpoint_table.irreps:
@@ -319,7 +410,25 @@ class CrystalOrbital:
         irreps,
         mapping_little_group: NDArray[np.int_],
     ) -> dict[str, str]:
-        """Map spgrep irreps to ISO-IR labels by comparing characters."""
+        """Map spgrep irreps at ``k`` to ISO-IR labels by comparing characters.
+
+        Args:
+            k: Three primitive reciprocal coordinates.
+            irreps: The spgrep irreps at ``k`` (arrays of shape
+                ``(little_group_order, dim, dim)``), as returned by
+                :meth:`irreducible_decomposition`.
+            mapping_little_group: Indices into :attr:`rotations` of the
+                little-group operations, in the order of the irrep matrices.
+
+        Returns:
+            ``{generic: label}`` with the generic key ``"irrep_i(dim)"`` of
+            every irrep and its ISO-IR label such as ``"GM3+(2)"``.  A
+            k point the table does not list is first mapped onto the
+            tabulated arm of its star (characters transported by
+            conjugation), otherwise the full ISO-IR k-vector data are
+            consulted; an irrep that still finds no match keeps its generic
+            key as the label.
+        """
         k = canonicalize_kpoint(k)
         irt_irreps = self.get_irt_irreps_at_k(k)
         char_indices: list[int] = list(mapping_little_group)
@@ -773,6 +882,18 @@ class CrystalOrbital:
         return label_map
 
     def get_target_element_positions(self, element: str) -> list[int]:
+        """Indices of the atoms of ``element`` in the primitive cell.
+
+        Args:
+            element: Chemical symbol, e.g. ``"Sc"``.
+
+        Returns:
+            The atom indices in cell order (a contiguous block in the
+            standardized primitive cell).
+
+        Raises:
+            ValueError: The element is not in the cell.
+        """
         all_chemical_symbols = get_chemical_symbols(self.primitive_cell)
         if not element in all_chemical_symbols:
             raise ValueError(
@@ -784,9 +905,9 @@ class CrystalOrbital:
     def _get_rotations_at_k(
         self,
         rotations: NDArray[np.int_],
-        translations: NDArray[np.float_],
+        translations: NDArray[np.float64],
         k: list[float],
-    ) -> tuple[NDArray[np.int_], NDArray[np.float_]]:
+    ) -> tuple[NDArray[np.int_], NDArray[np.float64]]:
         """Get little-group operations using a stable integer-lattice test."""
         k = canonicalize_kpoint(k)
         rotations_at_k = []
@@ -804,10 +925,23 @@ class CrystalOrbital:
 
     def get_modified_permutation_rep(self, 
                                      r: NDArray[np.int_], 
-                                     t: NDArray[np.float_], 
+                                     t: NDArray[np.float64], 
                                      k: list[float, float, float]
                                      ) -> NDArray[np.complex128]:
-        """Get permutation matrix at the k point"""
+        """Bloch-phased permutation matrix of one operation at ``k``.
+
+        Args:
+            r: Integer rotation matrix in the primitive basis.
+            t: Its fractional translation.
+            k: Three primitive reciprocal coordinates.
+
+        Returns:
+            Complex array of shape ``(n_atoms, n_atoms)`` whose entry
+            ``[j, i]`` is the Bloch phase
+            ``exp(2 pi i k . (R^-1 (x_j - t) - x_j))`` when the operation
+            sends atom ``i`` onto atom ``j`` (modulo lattice translations),
+            and 0 elsewhere.
+        """
         pos = get_scaled_positions(self.primitive_cell)
         num_atom = len(pos)
         matrix = np.zeros((num_atom, num_atom), dtype=complex)
@@ -826,23 +960,19 @@ class CrystalOrbital:
                                   little_rotations,
                                   little_translations,
                                   k: list[float]
-                                  ) -> tuple[NDArray[np.int_], NDArray[np.float_], NDArray[np.complex128]]:
-        """Get permutation matrices at given k point.
-        
-        Parameter
-        ---------
-        mapping_little_group: NDArray, (little_group_order, )
-        k: list, (3, )
-            [kx, ky, kz], coordinates of the k point in primitive basis.
+                                  ) -> tuple[NDArray[np.int_], NDArray[np.float64], NDArray[np.complex128]]:
+        """Permutation matrices of the little-group operations at ``k``.
 
-        Returns
-        -------
-        little_rotations: NDArray[np.int_]
-            Rotations in primitive basis at k.
-        little_translations: NDArray[np.float_]
-            Translations in primitive basis at k.
-        permutation_matrices: NDArray[np.complex128]
-            Permutation matrices of symmetry operations at k.
+        Args:
+            little_rotations: Rotations of the little group of ``k``, shape
+                ``(order, 3, 3)``.
+            little_translations: Their fractional translations, shape
+                ``(order, 3)``.
+            k: Three primitive reciprocal coordinates.
+
+        Returns:
+            Complex array of shape ``(order, n_atoms, n_atoms)``: one
+            :meth:`get_modified_permutation_rep` matrix per operation.
         """
         permutation_matrices = []
         for r, t in zip(little_rotations, little_translations):
@@ -852,7 +982,16 @@ class CrystalOrbital:
         return permutation_matrices
     
     def get_little_group(self, k: list[float]):
-        """Same as spgrep.group.get_little_group."""
+        """Little group of ``k``: the operations that leave ``k`` invariant.
+
+        Args:
+            k: Three primitive reciprocal coordinates.
+
+        Returns:
+            ``(little_rotations, little_translations)`` in the ISO-IR
+            operation order (spgrep's ``get_little_group`` without the index
+            mapping, which :meth:`irreducible_decomposition` returns).
+        """
         k = canonicalize_kpoint(k)
         little_rotations, little_translations, mapping_little_group = get_little_group(
             rotations=self.rotations, 
@@ -864,7 +1003,16 @@ class CrystalOrbital:
     def get_little_group_symbol(self,
                                 k: list[float]
                                 ) -> str:
-        """Get little group symbol of k from rotations and translations at k."""
+        """Space-group-type symbol of the little group of ``k``.
+
+        Args:
+            k: Three primitive reciprocal coordinates.
+
+        Returns:
+            The short Hermann-Mauguin symbol and number spglib assigns to the
+            little-group operations, e.g. ``"Pm-3m (221)"`` at Gamma or
+            ``"P4/mmm (123)"`` at X of a cubic perovskite.
+        """
         little_rotations, little_translations = self._get_rotations_at_k(self.rotations, self.translations, k)
         site_sym_k = get_spacegroup_type_from_symmetry(little_rotations, little_translations)
         if hasattr(site_sym_k, "international_short"):
@@ -880,13 +1028,25 @@ class CrystalOrbital:
     def get_atomic_orbital_characters(self,
                                       rotations: NDArray[np.int_],
                                       orbital: str
-                                      ) -> dict[str: float]:
-        """Calculate characters of the atomic orbital for each rotation.
-        
-        Return
-        ------
-        result : dict[str: float]
-            {key = rotaion: value = character}
+                                      ) -> NDArray[np.float64]:
+        """Rotation characters of one atomic shell.
+
+        The character of a proper rotation by ``alpha`` on the ``2l+1``
+        orbitals of shell ``l`` is ``sin((l + 1/2) alpha) / sin(alpha / 2)``
+        (``2l+1`` for the identity); an improper operation multiplies it by
+        ``(-1)^l``.  With :attr:`spinor` the double-group factor
+        ``2 cos(alpha / 2)`` (2 for the identity) is included.
+
+        Args:
+            rotations: Integer rotation matrices, shape ``(n, 3, 3)``.
+            orbital: Shell letter ``"s"``, ``"p"``, ``"d"``, ``"f"``,
+                ``"g"``, ``"h"`` or ``"i"``.
+
+        Returns:
+            Real array of the ``n`` characters.
+
+        Raises:
+            ValueError: An unknown shell letter.
         """
         # azimuthal number (l)
         orbital_azimuthal_num = {"s" : 0, "p" : 1, "d" : 2, "f" : 3, "g" : 4, "h" : 5, "i" : 6}
@@ -921,7 +1081,16 @@ class CrystalOrbital:
                                    element: str, 
                                    permutation_matrices: NDArray[np.complex128]
                                    ) -> NDArray[np.complex128]:
-        """Calculate permutaion characters of target atoms."""
+        """Permutation characters restricted to the atoms of one element.
+
+        Args:
+            element: Chemical symbol.
+            permutation_matrices: Output of :meth:`get_permutation_reps_at_k`.
+
+        Returns:
+            Complex array with the trace of every matrix over the element's
+            block of atoms.
+        """
         elemet_positions = self.get_target_element_positions(element)
         range_strat, range_end = elemet_positions[0], elemet_positions[-1]+1
 
@@ -938,7 +1107,21 @@ class CrystalOrbital:
                                   orbital: str,
                                   mapping_little_group: NDArray[np.int_],
                                   ) -> NDArray[np.complex128]:
-        """Combine the characters of permutations with the characters of atomic orbital."""
+        """Characters of the crystal-orbital representation at ``k``.
+
+        Args:
+            k: Three primitive reciprocal coordinates.
+            element: Chemical symbol.
+            orbital: Shell letter (``"s"`` to ``"i"``).
+            mapping_little_group: Indices into :attr:`rotations` of the
+                little-group operations.
+
+        Returns:
+            Complex array, one entry per little-group operation: the product
+            of the permutation character of the element's atoms
+            (:meth:`get_permutation_characters`) and the rotation character
+            of the shell (:meth:`get_atomic_orbital_characters`).
+        """
         k = canonicalize_kpoint(k)
         little_rotations = self.rotations[mapping_little_group]
         little_translations = self.translations[mapping_little_group]
@@ -952,24 +1135,32 @@ class CrystalOrbital:
                                   k: list[float, float, float], 
                                   element: str, 
                                   orbital: str
-                                  ) -> tuple[NDArray[np.int_], object, dict[str: float], dict[str, str]]:
-        """Get irreps of crystal orbital at k.
+                                  ) -> tuple[NDArray[np.int_], object, dict[str, float], dict[str, str]]:
+        """Decompose the crystal orbitals of one shell at ``k`` into irreps.
 
-        Parameter
-        ---------
-        k: list[float, float, float]
-            [kx, ky, kz], k point in primtive basis.
-        element: str
-            Element.
-        orbital: str
-            Orbital.
+        The calculation behind every line ``crystod`` prints: the irreps of
+        the little group of ``k`` from spgrep (double-valued with
+        :attr:`spinor`), the reducible characters from
+        :meth:`calc_reducible_characters`, and the multiplicities from the
+        character inner product.
 
-        Returns
-        -------
-        little_group_symbol: str
-            Little group of k.
-        result : dict[str: float]
-            {key = irrep(dimension): value = number of the irrep}
+        Args:
+            k: Three primitive reciprocal coordinates.
+            element: Chemical symbol, e.g. ``"Sc"``.
+            orbital: Shell letter ``"s"`` to ``"i"``, e.g. ``"d"``.
+
+        Returns:
+            ``(mapping_little_group, irreps, counts, labels)``:
+            ``mapping_little_group`` are the indices into :attr:`rotations`
+            of the little-group operations, ``irreps`` the spgrep irrep
+            matrices, ``counts`` maps the generic key ``"irrep_i(dim)"`` of
+            every irrep to its multiplicity (rounded to two decimals), and
+            ``labels`` maps the same keys to the ISO-IR labels
+            (:meth:`get_irrep_labels`).
+
+        Raises:
+            ValueError: An element that is not in the cell, or an unknown
+                shell letter.
         """
         k = canonicalize_kpoint(k)
         # get irreps

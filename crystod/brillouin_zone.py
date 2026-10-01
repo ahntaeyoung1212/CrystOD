@@ -85,22 +85,36 @@ def build_parser() -> ArgumentParser:
 # Geometry helpers
 # ---------------------------------------------------------------------------
 def get_brillouin_zone_3d(rec_lat: NDArray) -> tuple[NDArray, list, list]:
-    """Construct the first Brillouin zone (Wigner-Seitz cell of the
-    reciprocal lattice) by Voronoi decomposition.
+    """Construct the first Brillouin zone of a reciprocal lattice.
 
-    Parameters
-    ----------
-    rec_lat : ndarray, shape=(3, 3)
-        Reciprocal lattice row vectors [b1, b2, b3]^T.
+    The first Brillouin zone is the Wigner-Seitz cell of the reciprocal
+    lattice. It is found by a Voronoi decomposition (scipy) of the 3x3x3
+    block of reciprocal-lattice points around the origin: the Voronoi cell
+    of the origin is the zone. This is the polyhedron ``crystod-bz`` draws,
+    for the unit cell and, with ``--trans-mat``, for the supercell as well.
 
-    Returns
-    -------
-    vertices : ndarray
-        Cartesian coordinates of the BZ vertices.
-    ridges : list of ndarray
-        Closed polylines (edges) of each BZ facet.
-    facets : list of ndarray
-        Vertices of each BZ facet.
+    Args:
+        rec_lat: ``(3, 3)`` array whose rows are the reciprocal basis vectors
+            ``b1``, ``b2``, ``b3``. Any overall scale is accepted; the command
+            uses ``inv(lattice).T`` (no factor of 2 pi), for which
+            ``cartesian @ inv(rec_lat)`` are fractional coordinates.
+
+    Returns:
+        The tuple ``(vertices, ridges, facets)`` where ``vertices`` is an
+        ``(N, 3)`` array with the Cartesian coordinates of the zone corners,
+        ``ridges`` is a list with one ``(M + 1, 3)`` array per facet holding
+        the closed polyline of its edges (the first vertex is repeated at the
+        end), and ``facets`` is the same list without the repeated vertex.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import bz
+        >>> rec_lat = np.linalg.inv(4.07 * np.eye(3)).T   # cubic, a = 4.07 A
+        >>> vertices, ridges, facets = bz.get_brillouin_zone_3d(rec_lat)
+        >>> len(vertices), len(facets)
+        (8, 6)
+        >>> np.allclose(np.abs(vertices @ np.linalg.inv(rec_lat)), 0.5)
+        True
     """
     from scipy.spatial import Voronoi
 
@@ -131,7 +145,36 @@ def _split_list(values: list, n: int):
 
 
 def parse_manual_band(band: str) -> list[NDArray]:
-    """Parse a --band string into a list of (N_i, 3) fractional-coordinate arrays."""
+    """Parse a ``--band`` string into k-path segments.
+
+    The string has the format of the ``crystod-bz --band`` option: continuous
+    segments separated by commas, each a whitespace-separated list of
+    fractional coordinates, three numbers per k point; fractions such as
+    ``1/2`` are accepted. The coordinates refer to the reciprocal basis of
+    the lattice the path is drawn on, which for the command is the input
+    cell as given.
+
+    Args:
+        band: The path string, e.g.
+            ``"0 0 0  0 1/2 0  1/2 1/2 0, 1/2 1/2 0  1/2 1/2 1/2"``.
+
+    Returns:
+        One ``(N_i, 3)`` float array per comma-separated segment, in the
+        order given; empty segments (a trailing comma) are skipped.
+
+    Raises:
+        SystemExit: The number of values in a segment is not a multiple of
+            3, a segment has fewer than two k points, or the string holds no
+            k point at all (``ValueError`` when called through ``crystod.bz``).
+        ValueError: A token is neither a number nor a fraction.
+
+    Example:
+        >>> from crystod import bz
+        >>> path = "0 0 0  1/2 1/2 0, 1/2 1/2 0  1/2 1/2 1/2"
+        >>> segments = bz.parse_manual_band(path)
+        >>> len(segments), segments[0].tolist()
+        (2, [[0.0, 0.0, 0.0], [0.5, 0.5, 0.0]])
+    """
     segments = []
     for part in band.split(","):
         tokens = part.split()
@@ -163,7 +206,25 @@ GREEK = {
 
 
 def prettify_label(label: str) -> str:
-    """Convert seekpath-style labels (GAMMA, X_1, SIGMA_0) into display form."""
+    """Convert a seekpath k-point label into its display form.
+
+    ``crystod-bz`` places these labels next to the k-path markers of the HTML
+    plot: ``GAMMA`` (or ``GM``), ``DELTA``, ``SIGMA`` and ``LAMBDA`` become the
+    Greek letters, and a ``_`` suffix becomes an HTML subscript, so ``X_1``
+    turns into ``X<sub>1</sub>``. Any other label is returned unchanged.
+
+    Args:
+        label: A seekpath-style label such as ``"GAMMA"``, ``"X_1"`` or
+            ``"SIGMA_0"``.
+
+    Returns:
+        The label as an HTML fragment for Plotly text.
+
+    Example:
+        >>> from crystod import bz
+        >>> bz.prettify_label("GAMMA"), bz.prettify_label("SIGMA_0")
+        ('Γ', 'Σ<sub>0</sub>')
+    """
     if "_" in label:
         stem, _, subscript = label.partition("_")
         return f"{GREEK.get(stem, stem)}<sub>{subscript}</sub>"
@@ -171,12 +232,45 @@ def prettify_label(label: str) -> str:
 
 
 def get_seekpath_kpath(cell, tolerance: float):
-    """Run seekpath on a PhonopyAtoms cell and return
-    (segments, label_segments, primitive_lattice, spacegroup_symbol, spacegroup_number).
+    """Generate the recommended high-symmetry k path of a cell with seekpath.
 
-    Each segment is an (N, 3) array of fractional coordinates in the
-    reciprocal basis of the seekpath standardized primitive cell; the
-    corresponding label segment is a list of N seekpath labels.
+    This is the automatic path of ``crystod-bz -c POSCAR`` without ``--band``.
+    seekpath standardizes the cell first, so the coordinates refer to the
+    reciprocal basis of the seekpath standardized primitive cell, which is
+    returned alongside; when that cell differs from the input, the command
+    prints a note and draws the zone for the standardized cell.
+
+    Args:
+        cell (PhonopyAtoms): The crystal structure as phonopy's
+            ``PhonopyAtoms`` (any object with ``cell``, ``scaled_positions``
+            and ``numbers`` attributes works).
+        tolerance: Symmetry tolerance forwarded to seekpath and spglib
+            (``--tolerance``; the command uses ``1e-5``).
+
+    Returns:
+        The tuple ``(segments, label_segments, primitive_lattice, symbol, number)``
+        where ``segments`` is a list of ``(N, 3)`` arrays of fractional k
+        coordinates, one per continuous piece of the path, ``label_segments``
+        the matching lists of ``N`` seekpath labels (``GAMMA``, ``X``, ...),
+        ``primitive_lattice`` the ``(3, 3)`` row-vector lattice of the
+        standardized primitive cell, and ``symbol``/``number`` the
+        international symbol and number of the detected space group.
+
+    Raises:
+        SystemExit: seekpath is not installed (``ValueError`` when called
+            through ``crystod.bz``).
+
+    Example:
+        >>> from phonopy.interface.vasp import read_vasp
+        >>> from crystod import bz
+        >>> from crystod.examples import example_path
+        >>> cell = read_vasp(example_path("221_PPOSCAR_ScF3"))
+        >>> segments, labels, lattice, symbol, number = bz.get_seekpath_kpath(
+        ...     cell, 1e-5)
+        >>> symbol, number
+        ('Pm-3m', 221)
+        >>> labels
+        [['GAMMA', 'X', 'M', 'GAMMA', 'R', 'X'], ['R', 'M']]
     """
     try:
         import seekpath
@@ -226,6 +320,39 @@ def build_bz_traces(
     segments: list[NDArray] | None,
     label_segments: list[list[str]] | None,
 ) -> list[dict]:
+    """Build the Plotly traces of a Brillouin zone with an optional k path.
+
+    This is the figure ``crystod-bz`` writes for the unit-cell zone: the
+    reciprocal basis vectors ``b1``, ``b2``, ``b3`` (red, green, blue), the
+    zone edges and corners (black; hovering a corner shows its fractional
+    coordinates) and, when ``segments`` is given, the k path (goldenrod)
+    with a marker and label at every k point. The traces are plain
+    dictionaries of ``scatter3d`` specifications, ready for
+    ``plotly.graph_objects.Figure(data=traces)`` or for ``json.dumps`` into
+    a page that loads plotly.js, which is what the command does.
+
+    Args:
+        rec_lat: ``(3, 3)`` reciprocal lattice, rows ``b1``, ``b2``, ``b3``
+            (see ``get_brillouin_zone_3d``).
+        segments: k-path segments as ``(N_i, 3)`` arrays of fractional
+            coordinates in the basis ``rec_lat``, as returned by
+            ``get_seekpath_kpath`` or ``parse_manual_band``; ``None`` draws
+            the zone alone.
+        label_segments: One list of ``N_i`` labels per segment, shown after
+            ``prettify_label``; ``None`` leaves the markers unlabelled.
+
+    Returns:
+        A list of Plotly ``scatter3d`` trace dictionaries.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import bz
+        >>> rec_lat = np.linalg.inv(4.07 * np.eye(3)).T
+        >>> path = bz.parse_manual_band("0 0 0  1/2 0 0  1/2 1/2 0  0 0 0")
+        >>> traces = bz.build_bz_traces(rec_lat, path, [["GM", "X", "M", "GM"]])
+        >>> len(traces), traces[-1]["text"]
+        (12, ['Γ', 'X', 'M', 'Γ'])
+    """
     traces: list[dict] = []
 
     # Reciprocal basis vectors
@@ -329,6 +456,7 @@ def build_bz_traces(
 
 
 def write_html(traces: list[dict], output: str, title: str) -> None:
+    """Write Plotly traces into a stand-alone HTML page (plotly.js from the CDN)."""
     layout = {
         "title": {"text": title},
         "showlegend": False,

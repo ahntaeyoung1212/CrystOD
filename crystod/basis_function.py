@@ -151,6 +151,33 @@ def _resolve_space_group_type(space_group_symbol: str) -> dict:
 
 
 def format_irrep_table(point_group: str, ct: dict) -> str:
+    """Character table of a point group as the ``--table`` text block.
+
+    What ``crystod-group --table --pg PG`` prints (and what
+    ``--show-irrep-table`` adds to ``--product`` and ``--basis``): one row
+    per irrep, one column per class with the class size in parentheses.
+
+    Args:
+        point_group: Point-group label, printed in the header.
+        ct: Character table from ``crystod.group.get_character_table``.
+
+    Returns:
+        The table as one string (leading and trailing newline).
+
+    Example:
+        >>> from crystod import group
+        >>> ct = group.get_character_table("3m")
+        >>> print(group.format_irrep_table("3m", ct).strip())
+        * Point group *
+        3m
+        <BLANKLINE>
+        * IrRep Table *
+        table:
+        irrep  E(1)  C3(2)  sgv(3)
+           A1     1      1       1
+           A2     1      1      -1
+            E     2     -1       0
+    """
     class_names = list(ct["rotation_list"])
     class_sizes = [
         np.asarray(ct["mapping_table"][class_name]).shape[0]
@@ -916,10 +943,41 @@ def _spacegroup_irrep_context(space_group_symbol: str, kpoint: list[float]):
 def format_spacegroup_table(space_group_symbol: str, kpoint: list[float]) -> str:
     """Character table of the little group of k for a space group.
 
-    The `crystod-group --table --space-group SG --kpoint ...` display: the
-    space-group analogue of the point-group character table, with ISO-IR
-    (ISOTROPY, Miller-Love) labels both at tabulated k points and at
-    symmetry lines/planes/general points.
+    What ``crystod-group --table --sg SG --kpoint KX KY KZ`` prints: the
+    space-group analogue of the point-group character table, with the
+    Seitz symbols of the little-group operations as columns and ISO-IR
+    (ISOTROPY, Miller-Love) labels for the small irreps, both at tabulated
+    k points and on symmetry lines, planes and general points (computed
+    with spgrep and labeled from the bundled ISO-IR tables).
+
+    Args:
+        space_group_symbol: International symbol in the standard setting
+            (``"Pm-3m"``) or space-group number (``"221"``).
+        kpoint: k point in the primitive basis, e.g. ``[0.5, 0.5, 0.5]``.
+
+    Returns:
+        The table as one string.
+
+    Raises:
+        SystemExit: Unknown space group (``ValueError`` when called through
+            ``crystod.group``).
+
+    Example:
+        >>> from crystod import group
+        >>> print(group.format_spacegroup_table("Pm-3m", [0.5, 0.5, 0.5]))
+        <BLANKLINE>
+        * Space group *
+        Pm-3m (221)
+        <BLANKLINE>
+        * k-point (primitive) *
+         R [0.5, 0.5, 0.5]
+        <BLANKLINE>
+        * IrRep Table *
+        little group: Pm-3m (221)
+        table:
+                       irrep  1  2_100  2_010  2_001  3^+_111 ...
+         irrep_1(1) = R1+(1)  1      1      1      1        1 ...
+        ...
     """
     context = _spacegroup_irrep_context(space_group_symbol, kpoint)
     header = [

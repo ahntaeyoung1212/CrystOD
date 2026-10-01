@@ -1,4 +1,4 @@
-"""Isotropy subgroups of space-group irreps (crystod-group --supergroup).
+"""Isotropy subgroups of space-group irreps (crystod-group --parent).
 
 Given a space group G and one of its irreps (ISO-IR label), a distortion that
 transforms as that irrep reduces the symmetry to the isotropy subgroup
@@ -10,7 +10,9 @@ Distinct order-parameter directions (a,0,0), (a,a,0), ... give distinct
 isotropy subgroups; this module enumerates all of them (the strata of the
 representation), or resolves a user-given direction, and identifies each
 subgroup with spglib (symbol, number, cell size, index, and the basis /
-origin of its conventional cell in the parent convention).
+origin of its conventional cell in the parent convention).  With --kpoint
+in place of --irrep, the enumeration runs over every irrep of one special
+k point and is printed as a single table.
 
 This is the offline counterpart of the ISOSUBGROUP tool of the ISOTROPY
 Software Suite (https://iso.byu.edu), and is validated against its output.
@@ -32,7 +34,7 @@ from fractions import Fraction
 
 import numpy as np
 
-from .spacegroup_product import DEN, SIGMA, SpaceGroupIrrepAlgebra
+from .spacegroup_product import DEN, SIGMA, SpaceGroupIrrepAlgebra, _format_fraction
 
 _PARAMETER_NAMES = "abcdefghijklmnopqrstuvwx"
 
@@ -76,12 +78,59 @@ ISOTROPY_LABELS = {
 
 
 class InducedRepresentation:
-    """Full (induced) irrep matrices of a space group, as explicit blocks.
+    """Full (induced) irrep of a space group as explicit real matrices.
 
-    Basis index = (arm a, small-irrep row p). Elements are parametrized as
-    (coset representative i, lattice translation t):
+    The representation of the order parameter of one ISO-IR irrep, used by
+    ``crystod-group --parent`` (through ``IsotropyAnalyzer``) and by the
+    symmetry-mode analysis.  The basis index is ``(arm a, small-irrep row
+    p)`` and the group elements are parametrized as (coset representative
+    ``i``, lattice translation ``t``)::
 
         D(g_i + t) = T(t) B_i,   T(t) = diag_a exp(SIGMA*2j*pi q_a.t) (x) 1_d
+
+    The small-irrep matrices come from spgrep and are matched to the
+    tabulated ISO-IR characters (with an origin-shift search where the
+    conventions differ); the induced blocks are verified against the
+    independently induced characters.  The matrices are finally brought to
+    the real, physically irreducible form: real-type irreps by a similarity
+    transform, complex- and pseudoreal-type irreps as the doubled real form
+    of ``D + D*`` (the paired ISOTROPY entries such as ``P1P2``).
+
+    Args:
+        algebra: The ``SpaceGroupIrrepAlgebra`` of the space group.
+        irrep_label: ISO-IR irrep label, e.g. ``"R4+"``.
+
+    Attributes:
+        algebra: The algebra the representation was built from.
+        irrep: The tabulated irrep record (``name``, ``dim``, ``kpname``).
+        k: k vector of the irrep (primitive basis, units of ``1/DEN``).
+        arms: Star arms, shape ``(n_arms, 3)``; ``representatives`` holds
+            the coset-representative index generating each arm.
+        n_arms: Number of star arms.
+        dim_small: Dimension of the small irrep.
+        dimension: Dimension of the order parameter (``n_arms * dim_small``,
+            doubled for complex- and pseudoreal-type irreps).
+        blocks: The matrices ``B_i`` of the coset representatives, before
+            realification.
+        elements: All distinct group elements as ``(i, t, matrix)`` with the
+            real matrix of ``D(g_i + t)``; ``t`` runs over the translation
+            grid of period ``grid_n``.
+        doubled: ``True`` when the physically irreducible form is
+            ``D + D*``; ``fs_type`` then names the type (``"complex"`` or
+            ``"pseudoreal"``).
+        grid_n: Period of the lattice-translation grid on which the
+            matrices are distinct.
+
+    Raises:
+        SystemExit: Unknown irrep label, or a tabulated entry that cannot be
+            matched to any spgrep small irrep.
+
+    Example:
+        >>> from crystod import group
+        >>> algebra = group.SpaceGroupIrrepAlgebra("Pm-3m")
+        >>> rep = group.InducedRepresentation(algebra, "R4+")
+        >>> rep.dimension, rep.n_arms, rep.dim_small, rep.label, rep.doubled
+        (3, 1, 3, 'R4+', False)
     """
 
     def __init__(self, algebra: SpaceGroupIrrepAlgebra, irrep_label: str):
@@ -248,7 +297,15 @@ class InducedRepresentation:
         return blocks
 
     def translation_phases(self, t: np.ndarray) -> np.ndarray:
-        """Diagonal of T(t) (t in integer lattice units)."""
+        """Diagonal of ``T(t)`` for a lattice translation.
+
+        Args:
+            t: Lattice translation, integer vector in primitive units.
+
+        Returns:
+            The phases ``exp(SIGMA * 2j * pi * q_a . t)``, one entry per
+            (arm, small-irrep row) in the basis order of ``blocks``.
+        """
         phases = np.exp(
             SIGMA * 2j * np.pi * (self.arms @ np.asarray(t, dtype=np.int64)) / DEN
         )
@@ -356,13 +413,41 @@ class InducedRepresentation:
         self.elements = new_elements
 
     def conjugate_partner(self) -> str | None:
-        """ISO-IR label of the complex-conjugate partner irrep (same k star,
-        or the -k star for +-k pairs such as P/PA), identified via the
-        induced characters (ours taken directly from the induced blocks)."""
-        # when the tabulated entry was matched in the conjugate gauge, our
-        # blocks already realize the partner, so test both orientations
-        traces = np.array([np.trace(block) for block in self.blocks])
-        targets = [np.conj(traces), traces]
+        """ISO-IR label of the complex-conjugate partner irrep.
+
+        The partner lives at the same k star, or at the -k star for +-k
+        pairs such as P/PA; it is the other tabulated irrep with the same
+        physically irreducible real form ``D + D*``, i.e. the same real part
+        of the character on every group element, lattice translations
+        included.  (The characters of the coset representatives alone do
+        not decide it: at H of P6_3/m, P of I4/mcm or K of P3 several
+        irreps share them and differ only on the translations.)
+
+        Returns:
+            The partner label, or ``None`` when the irrep is self-conjugate
+            or no partner is tabulated.
+        """
+        if "_conjugate_partner" not in self.__dict__:
+            self._conjugate_partner = self._find_conjugate_partner()
+        return self._conjugate_partner
+
+    def _real_character(self, arms: np.ndarray, per_arm: np.ndarray) -> np.ndarray:
+        """Re chi(g_i + t) on the translation grid, from the arm-resolved
+        characters ``per_arm[i, a]`` of the coset representatives."""
+        grid = np.array(self._translation_grid(), dtype=np.int64)
+        phases = np.exp(SIGMA * 2j * np.pi * (grid @ np.asarray(arms).T) / DEN)
+        return (per_arm @ phases.T).real
+
+    def _find_conjugate_partner(self) -> str | None:
+        d = self.dim_small
+        own = self._real_character(
+            self.arms,
+            np.array([
+                [np.trace(block[a * d : (a + 1) * d, a * d : (a + 1) * d])
+                 for a in range(self.n_arms)]
+                for block in self.blocks
+            ]),
+        )
         knames = [self.irrep.kpname] + [
             kname
             for kname in self.algebra.irreps_by_kname
@@ -372,17 +457,20 @@ class InducedRepresentation:
                 np.asarray(self.algebra.k_by_kname[kname]) % DEN,
             )
         ]
+        unresolved = []
         for kname in knames:
             for other in self.algebra.irreps_by_kname[kname]:
                 if other.name == self.irrep.name:
                     continue
                 try:
-                    _, C_other = self.algebra.induced_characters(other)
+                    arms_other, C_other = self.algebra.induced_characters(other)
                 except SystemExit:
+                    unresolved.append(other)
                     continue
-                chi_other = np.sum(C_other, axis=1)
-                if any(
-                    np.allclose(chi_other, target, atol=1e-6) for target in targets
+                # the real part is blind to the orientation, so a tabulated
+                # entry matched in the conjugate gauge needs no second test
+                if np.allclose(
+                    self._real_character(arms_other, C_other), own, atol=1e-6
                 ):
                     return other.name
         # fallback (conjugate-gauge tabulations, e.g. P/PA of I-42d): compare
@@ -390,23 +478,20 @@ class InducedRepresentation:
         table_self = {
             int(key) - 1: complex(v) for key, v in self.irrep.characters.items()
         }
-        for kname in knames:
-            for other in self.algebra.irreps_by_kname[kname]:
-                if other.name == self.irrep.name:
-                    continue
-                table_other = {
-                    int(key) - 1: complex(v) for key, v in other.characters.items()
-                }
-                if set(table_other) == set(table_self) and all(
-                    abs(table_other[op] - np.conj(table_self[op])) < 1e-3
-                    for op in table_self
-                ):
-                    return other.name
+        for other in unresolved:
+            table_other = {
+                int(key) - 1: complex(v) for key, v in other.characters.items()
+            }
+            if set(table_other) == set(table_self) and all(
+                abs(table_other[op] - np.conj(table_self[op])) < 1e-3
+                for op in table_self
+            ):
+                return other.name
         return None
 
     @property
     def label(self) -> str:
-        """Irrep label; the ISOTROPY-style pair label (P1P2) when doubled."""
+        """Irrep label; the ISOTROPY-style pair label (``P1P2``) when doubled."""
         if self.doubled:
             partner = self.conjugate_partner()
             if partner is not None and self.fs_type == "complex":
@@ -415,8 +500,11 @@ class InducedRepresentation:
 
     @property
     def arm_chunks(self) -> list[int]:
-        """Number of order-parameter components per star arm (ISOTROPY
-        separates arms by ';' and components within one arm by ',')."""
+        """Number of order-parameter components per star arm.
+
+        ISOTROPY separates arms by ``;`` and components within one arm by
+        ``,`` in the direction labels.
+        """
         per_arm = self.dim_small * (2 if self.doubled else 1)
         return [per_arm] * self.n_arms
 
@@ -452,7 +540,13 @@ class InducedRepresentation:
 
     # -- group elements of the image, with bookkeeping
     def image_elements(self):
-        """All (coset rep i, lattice translation t, real matrix)."""
+        """All group elements of the representation.
+
+        Returns:
+            The ``elements`` list, one ``(i, t, matrix)`` triple per group
+            element (coset-representative index, lattice translation, real
+            matrix).
+        """
         return self.elements
 
 
@@ -630,15 +724,33 @@ class ComputedInducedRepresentation(InducedRepresentation):
 
 
 class CoupledRepresentation:
-    """Direct sum of several induced irreps: one order-parameter space whose
-    components group irrep by irrep (then arm by arm within each irrep).
+    """Direct sum of several induced irreps (coupled order parameters).
 
     A distortion condensing several irreps simultaneously transforms as this
     reducible representation; its isotropy subgroups are the stabilizers of
-    the coupled order parameter (eta_1, eta_2, ...). Because the matrices are
-    block diagonal, every fixed subspace is a direct sum of per-irrep
-    subspaces -- the amplitudes of different irreps are always independent
-    free parameters.
+    the coupled order parameter ``(eta_1, eta_2, ...)``.  This is what
+    ``crystod-group --parent SG --irrep X3- X2+`` analyzes.  The
+    components group irrep by irrep (then arm by arm within each irrep), and
+    because the matrices are block diagonal every fixed subspace is a direct
+    sum of per-irrep subspaces: the amplitudes of different irreps are
+    always independent free parameters.
+
+    Args:
+        algebra: The ``SpaceGroupIrrepAlgebra`` of the space group.
+        irrep_labels: ISO-IR labels of the coupled irreps, e.g.
+            ``["X3-", "X2+"]``.
+
+    Attributes:
+        parts: The ``InducedRepresentation`` of every irrep, in input order.
+        dims: Dimension of every part; ``dimension`` is their sum.
+        name: The combined label, e.g. ``"X3- + X2+"``.
+        grid_n: Period of the common lattice-translation grid (least common
+            multiple of the parts' periods).
+        elements: All distinct group elements as ``(i, t, matrix)`` with the
+            block-diagonal real matrix.
+
+    Raises:
+        SystemExit: A label is not tabulated for this space group.
     """
 
     def __init__(self, algebra: SpaceGroupIrrepAlgebra, irrep_labels: list[str]):
@@ -670,6 +782,11 @@ class CoupledRepresentation:
                         self.elements.append((i, t, _block_diag(blocks)))
 
     def image_elements(self):
+        """All group elements of the coupled representation.
+
+        Returns:
+            The ``elements`` list of ``(i, t, matrix)`` triples.
+        """
         return self.elements
 
 
@@ -700,6 +817,52 @@ def _projector(basis: np.ndarray) -> np.ndarray:
 
 
 class IsotropyAnalyzer:
+    """Isotropy subgroups of a space-group irrep (or of coupled irreps).
+
+    The machinery behind ``crystod-group --parent SG --irrep IR``: it
+    builds the real induced representation of the order parameter,
+    enumerates the order-parameter directions (the strata of the
+    representation), finds the stabilizer of any direction, and identifies
+    the resulting space group with spglib, including the conventional basis
+    and origin of the subgroup in the parent convention.  The data-level
+    function ``crystod.group.isotropy_subgroups`` returns the same results
+    as ``IsotropySubgroup`` records; use this class when the matrices, the
+    subgroup elements or a custom direction are needed.
+
+    Args:
+        space_group: International short symbol (``"Pm-3m"``) or number
+            (``"221"``) of the parent space group.
+        irrep_labels: One ISO-IR label (``"R4+"``) or a list of labels for
+            coupled order parameters (``["X3-", "X2+"]``).
+
+    Attributes:
+        algebra: The ``SpaceGroupIrrepAlgebra`` of the parent space group.
+        representation: The ``InducedRepresentation`` (one label) or
+            ``CoupledRepresentation`` (several labels) of the order
+            parameter.
+        elements: The group elements ``(i, t, matrix)`` of the
+            representation (``representation.image_elements()``).
+
+    Raises:
+        SystemExit: Unknown space group, or an irrep label that is not
+            tabulated for it (the labels of symmetry lines and planes, e.g.
+            ``DT5``, have no entries in the tables).
+
+    Example:
+        >>> from crystod import group
+        >>> analyzer = group.IsotropyAnalyzer("Pm-3m", "R4+")
+        >>> for projector, members in analyzer.enumerate_directions():
+        ...     label, _ = analyzer.direction_label(projector)
+        ...     info, size, index, *_ = analyzer.subgroup_of(members)
+        ...     print(label, info.number, info.international_short, size, index)
+        (a,b,c) 2 P-1 2 48
+        (0,0,a) 140 I4/mcm 2 6
+        (0,a,b) 12 C2/m 2 24
+        (a,a,a) 167 R-3c 2 8
+        (0,a,a) 74 Imma 2 12
+        (a,a,b) 15 C2/c 2 24
+    """
+
     def __init__(self, space_group: str, irrep_labels: str | list[str]):
         if isinstance(irrep_labels, str):
             irrep_labels = [irrep_labels]
@@ -712,7 +875,18 @@ class IsotropyAnalyzer:
 
     @classmethod
     def from_representation(cls, algebra, representation):
-        """Analyzer on an already-built representation (shares the algebra)."""
+        """Analyzer over an already-built representation.
+
+        Args:
+            algebra: The ``SpaceGroupIrrepAlgebra`` the representation was
+                built from.
+            representation: An ``InducedRepresentation`` or
+                ``CoupledRepresentation`` (anything with
+                ``image_elements()``, ``dimension`` and ``grid_n``).
+
+        Returns:
+            A new ``IsotropyAnalyzer`` sharing the algebra.
+        """
         analyzer = cls.__new__(cls)
         analyzer.algebra = algebra
         analyzer.representation = representation
@@ -721,7 +895,16 @@ class IsotropyAnalyzer:
 
     # -- stabilizer of a direction (subspace)
     def stabilizer_of(self, projector: np.ndarray):
-        """(i, t) elements acting as the identity on the subspace."""
+        """Group elements acting as the identity on a subspace.
+
+        Args:
+            projector: Orthogonal projector onto the subspace of order
+                parameters, shape ``(dimension, dimension)``.
+
+        Returns:
+            The ``(i, t)`` pairs (coset-representative index, lattice
+            translation) whose matrices fix every vector of the subspace.
+        """
         return [
             (i, t)
             for i, t, matrix in self.elements
@@ -729,7 +912,15 @@ class IsotropyAnalyzer:
         ]
 
     def fixed_space(self, members) -> np.ndarray:
-        """Common fixed subspace of the given (i, t) elements (as basis)."""
+        """Common fixed subspace of a set of group elements.
+
+        Args:
+            members: ``(i, t)`` pairs as returned by ``stabilizer_of``.
+
+        Returns:
+            An orthonormal basis of the fixed subspace as columns, shape
+            ``(dimension, n_free)``; the identity when ``members`` is empty.
+        """
         n = self.representation.dimension
         stack = []
         member_keys = {(i, tuple(t)) for i, t in members}
@@ -742,6 +933,21 @@ class IsotropyAnalyzer:
 
     # -- enumerate strata (order-parameter direction types)
     def enumerate_directions(self):
+        """Enumerate the order-parameter direction types (strata).
+
+        Seeds the search with the fixed spaces of every group element and
+        closes the set under pairwise intersection; keeps the isotropy
+        subspaces (``V == Fix(Stab(V))``) and one representative per group
+        orbit (the one with the simplest direction label).  This is the
+        listing of ``crystod-group --parent`` without
+        ``--order-parameter``.
+
+        Returns:
+            A list of ``(projector, members)`` pairs, one per stratum, with
+            the orthogonal projector onto the subspace of the stratum and
+            the ``(i, t)`` elements of its stabilizer (the isotropy
+            subgroup).
+        """
         n = self.representation.dimension
         seen: dict[bytes, np.ndarray] = {}
 
@@ -808,7 +1014,28 @@ class IsotropyAnalyzer:
 
     # -- subgroup identification
     def subgroup_of(self, members):
-        """Space-group type of the isotropy subgroup given its (i, t) members."""
+        """Space-group type of the isotropy subgroup with the given elements.
+
+        The pure lattice translations among the members span the sublattice
+        of the subgroup; the operations are re-expressed in that sublattice
+        basis and identified with spglib through a generic-orbit structure.
+
+        Args:
+            members: ``(i, t)`` pairs of the subgroup (from ``stabilizer_of``
+                or ``enumerate_directions``).
+
+        Returns:
+            ``(info, size, index, B, rotations, translations, lattice)``:
+            the spglib space-group type of the subgroup (``number``,
+            ``international_short``, ...), the primitive-cell multiplication
+            ``size``, the index of the subgroup in the parent, the
+            sublattice basis ``B`` (rows, parent primitive units), the
+            subgroup operations in that basis, and the sublattice vectors
+            (rows, Cartesian, in an invariant parent lattice).
+
+        Raises:
+            SystemExit: spglib could not identify the subgroup.
+        """
         import spglib
         from sympy import Matrix
         from sympy.matrices.normalforms import hermite_normal_form
@@ -904,10 +1131,23 @@ class IsotropyAnalyzer:
         return get_spacegroup_type(info)
 
     def conventional_setting(self, B, rotations, translations, lattice, info):
-        """Child conventional basis and origin, in parent-conventional units.
+        """Conventional basis and origin of the subgroup (parent convention).
 
         Built from a generic-orbit structure with exactly the subgroup
         symmetry, standardized by spglib.
+
+        Args:
+            B: Sublattice basis from ``subgroup_of``.
+            rotations: Subgroup rotations from ``subgroup_of``.
+            translations: Subgroup translations from ``subgroup_of``.
+            lattice: Sublattice vectors from ``subgroup_of``.
+            info: Space-group type from ``subgroup_of``.
+
+        Returns:
+            ``(basis, origin)`` rounded to six decimals: the rows of the
+            child conventional basis and its origin, both in parent
+            conventional units (as printed by ``--order-parameter``);
+            ``None`` when spglib could not standardize the subgroup.
         """
         import spglib
 
@@ -967,11 +1207,20 @@ class IsotropyAnalyzer:
     def direction_label(
         self, projector: np.ndarray, letter_offset: int = 0
     ) -> tuple[str, np.ndarray]:
-        """Pretty parameter pattern of a stratum and a generic representative.
+        """Direction label of a stratum and a generic representative.
 
-        letter_offset shifts the free-parameter letters (used for the
-        single-irrep tables of a coupled run, so every irrep keeps its own
-        letters: X3-(a,b) + X2-(c,d))."""
+        Args:
+            projector: Orthogonal projector onto the subspace of the stratum.
+            letter_offset: Shift of the free-parameter letters (used for the
+                single-irrep tables of a coupled run, so that every irrep
+                keeps its own letters: ``X3-(a,b) + X2-(c,d)``).
+
+        Returns:
+            ``(label, generic)``: the ISOTROPY-style pattern such as
+            ``"(a,a,0)"`` (``;`` separates star arms, ``,`` components
+            within one arm; coupled runs give ``"X3-(a,b) X2-(c,d)"``) and
+            a generic order-parameter vector inside the stratum.
+        """
         basis = _orth_basis(projector)
         n_free = basis.shape[1]
         # RREF + integer prettification (same style as the molecular SALCs)
@@ -1047,8 +1296,22 @@ class IsotropyAnalyzer:
         )
 
     def resolve_direction(self, tokens: list[str]) -> np.ndarray:
-        """Build a representative order parameter from CLI tokens like
-        0 0 a  /  a a 0  /  a b 0  /  numeric values."""
+        """Order parameter from ``--order-parameter`` tokens.
+
+        Args:
+            tokens: One token per component, e.g. ``["0", "0", "a"]`` or
+                ``["a", "a", "0"]``; letters are free parameters (equal
+                letters mean equal components), numbers and fractions are
+                taken literally, a leading ``-`` flips the sign.
+
+        Returns:
+            A representative order-parameter vector of length
+            ``dimension``.
+
+        Raises:
+            SystemExit: Wrong number of components, or an all-zero order
+                parameter.
+        """
         n = self.representation.dimension
         if len(tokens) != n:
             name = (
@@ -1246,17 +1509,273 @@ def _enantiomorph_note(numbers) -> None:
     print("ISOTROPY listing may show either one.")
 
 
+def _print_citation() -> None:
+    print()
+    print("Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):")
+    print('H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating')
+    print('Isotropy Subgroups of Crystallographic Space Groups",')
+    print("J. Appl. Cryst. 49, 1849-1853 (2016).")
+
+
+# ------------------------------------------------------- every irrep of a k point
+
+# spellings of the zone centre accepted next to the tabulated name GM, the
+# same ones crystod-phonon --qpoint takes (phonon_vector.GAMMA_ALIASES); no
+# space group has a k point named G or GAMMA in the ISO-IR tables
+_GAMMA_ALIASES = {"G", "GAMMA", "Γ"}
+
+
+def _format_k(k_int) -> str:
+    return "(" + ", ".join(_format_fraction(v) for v in np.asarray(k_int)) + ")"
+
+
+def _available_kpoints(algebra: SpaceGroupIrrepAlgebra) -> str:
+    """The tabulated k points of the space group, for the error messages."""
+    return ", ".join(
+        f"{kname} {_format_k(k)}" for kname, k in algebra.k_by_kname.items()
+    )
+
+
+def resolve_special_kpoint(algebra: SpaceGroupIrrepAlgebra, kpoint) -> str:
+    """Name of the tabulated special k point a ``--kpoint`` value refers to.
+
+    Args:
+        algebra: The ``SpaceGroupIrrepAlgebra`` of the space group.
+        kpoint: Either the ISO-IR name of a special point (``"R"``; the case
+            is ignored, and ``G``/``GAMMA`` mean ``GM``), or three coordinates
+            in the primitive reciprocal basis (numbers, or strings such as
+            ``"1/2"``; a decimal within 0.0005 of a special point is taken
+            for it, so ``0.333`` means 1/3).  A name may also come as a
+            one-element sequence, the way the command line passes it.
+            Coordinates are matched modulo reciprocal lattice vectors
+            against every arm of every tabulated star, so any arm and any
+            ``q + G`` spelling of a special point is recognized.
+
+    Returns:
+        The k-point name, a key of ``algebra.irreps_by_kname``.
+
+    Raises:
+        SystemExit: An unknown name, a value that is neither one name nor
+            three coordinates, or coordinates that are not a tabulated
+            special point (a symmetry line or plane, or a general point);
+            the message lists the k points of the space group.
+    """
+    sg_type = algebra.sg_type
+    group_text = f"space group {sg_type.international_short} (No. {sg_type.number})"
+    available = (
+        f"Available k points (primitive basis): {_available_kpoints(algebra)}"
+    )
+    if isinstance(kpoint, str):
+        tokens = kpoint.replace(",", " ").split()
+    else:
+        try:
+            values = list(kpoint)
+        except TypeError:
+            values = [kpoint]
+        tokens = [
+            piece
+            for value in values
+            for piece in (
+                value.replace(",", " ").split() if isinstance(value, str) else [value]
+            )
+        ]
+    # one token is a name unless it starts like a number (-0.5, .5, +1/2)
+    if (
+        len(tokens) == 1
+        and isinstance(tokens[0], str)
+        and not (tokens[0][:1].isdigit() or tokens[0][:1] in "+-.")
+    ):
+        requested = tokens[0].upper()
+        by_upper = {kname.upper(): kname for kname in algebra.k_by_kname}
+        if requested not in by_upper and requested in _GAMMA_ALIASES:
+            requested = "GM"
+        if requested in by_upper:
+            return by_upper[requested]
+        for irreps in algebra.irreps_by_kname.values():
+            for irrep in irreps:
+                if irrep.name.upper() == requested:
+                    raise SystemExit(
+                        f'ERROR: "{tokens[0]}" is an irrep label of {group_text}, '
+                        f"not a k point; its k point is {irrep.kpname} (for this "
+                        f"irrep alone use --irrep {irrep.name}).\n"
+                        f"{available}"
+                    )
+        raise SystemExit(
+            f'ERROR: k point "{tokens[0]}" is not tabulated for {group_text}; '
+            "only the special points are (not symmetry lines, planes or "
+            "general points).\n"
+            f"{available}"
+        )
+    if len(tokens) != 3:
+        raise SystemExit(
+            "ERROR: the k point must be either one name (e.g. GM) or three "
+            "coordinates in the primitive basis (e.g. 1/2 1/2 1/2).\n"
+            f"{available}"
+        )
+    try:
+        coordinates = [
+            Fraction(token) if isinstance(token, str) else float(token)
+            for token in tokens
+        ]
+    except (TypeError, ValueError, ZeroDivisionError):
+        raise SystemExit(
+            "ERROR: the k point must be either one name (e.g. GM) or three "
+            f"coordinates in the primitive basis; got {' '.join(map(str, tokens))}.\n"
+            f"{available}"
+        ) from None
+    shown = "(" + ", ".join(
+        token if isinstance(token, str) else f"{float(token):g}" for token in tokens
+    ) + ")"
+    scaled = np.array([float(c) for c in coordinates]) * DEN
+    # the special points sit on the 1/DEN grid; three decimals (0.333 for
+    # 1/3) are enough to name one
+    if np.allclose(scaled, np.rint(scaled), rtol=0, atol=5e-4 * DEN):
+        k = np.mod(np.rint(scaled).astype(np.int64), DEN)
+        for kname in algebra.k_by_kname:
+            arms, _ = algebra.star(kname)
+            if any(np.array_equal(arm % DEN, k) for arm in arms):
+                return kname
+    raise SystemExit(
+        f"ERROR: k = {shown} is not a special k point of {group_text}; only "
+        "the tabulated special points have isotropy subgroups in the tables "
+        "(not symmetry lines, planes or general points).\n"
+        f"{available}"
+    )
+
+
+def _failure_reason(exc: BaseException) -> str:
+    text = " ".join(str(exc).split())
+    if isinstance(exc, SystemExit):
+        return text.removeprefix("ERROR: ").rstrip(".") or "failed"
+    return f"{type(exc).__name__}: {text}" if text else type(exc).__name__
+
+
+def kpoint_irrep_tables(algebra: SpaceGroupIrrepAlgebra, kname: str, rows_of):
+    """Enumerate the isotropy subgroups of every irrep of one k point.
+
+    The loop behind ``crystod-group --parent SG --kpoint K`` and
+    ``crystod.group.isotropy_subgroups_at_kpoint``: the irreps are taken in
+    table order and each one is analyzed on its own, exactly as
+    ``--irrep`` does.  The two members of a complex-conjugate pair at the
+    same k point share one physically irreducible order parameter (e.g.
+    ``GM2+GM3+`` of Pm-3) and are listed once, at the first member: the
+    block is that member's ``--irrep`` table, and its order-parameter
+    components refer to the basis built from that member (the partner
+    spans the same subgroups in a different basis).  A pair whose partner
+    sits at the -k point (``K2KA2`` of P3) has one member here and is
+    listed under the pair label as well.  An irrep whose analysis fails
+    does not stop the others.
+
+    Args:
+        algebra: The ``SpaceGroupIrrepAlgebra`` of the parent space group.
+        kname: k-point name, a key of ``algebra.irreps_by_kname`` (see
+            ``resolve_special_kpoint``).
+        rows_of: Callable turning the ``IsotropyAnalyzer`` of one irrep into
+            its rows.
+
+    Returns:
+        ``(tables, errors)``: ``tables`` maps the label of every analyzed
+        irrep to ``rows_of(analyzer)``, in table order; ``errors`` maps the
+        label of every irrep that could not be analyzed to a one-line
+        reason.
+    """
+    tables: dict[str, object] = {}
+    errors: dict[str, str] = {}
+    listed: list[np.ndarray] = []  # characters of the order parameters taken
+    for irrep in algebra.irreps_by_kname[kname]:
+        label = irrep.name
+        try:
+            representation = InducedRepresentation(algebra, irrep.name)
+            # the pair is recognized by the representation itself (equal
+            # characters of the real form), not by its label
+            character = np.array(
+                [np.trace(matrix) for _, _, matrix in representation.elements]
+            )
+            if representation.doubled and any(
+                np.allclose(character, other, atol=1e-6) for other in listed
+            ):
+                continue  # conjugate partner of a pair that is already listed
+            listed.append(character)
+            label = representation.label
+            if label in tables or label in errors:
+                label = irrep.name  # never drop an inequivalent irrep
+            analyzer = IsotropyAnalyzer.from_representation(algebra, representation)
+            tables[label] = rows_of(analyzer)
+        except (SystemExit, Exception) as exc:
+            errors[label] = _failure_reason(exc)
+    return tables, errors
+
+
+def _report_kpoint(parent: str, kpoint: list[str]) -> None:
+    """The --kpoint report: one table over every irrep of the k point."""
+    import textwrap
+
+    algebra = SpaceGroupIrrepAlgebra(parent)
+    kname = resolve_special_kpoint(algebra, kpoint)
+    arms, _ = algebra.star(kname)
+
+    print()
+    print("* Supergroup *")
+    print(f"{algebra.sg_type.international_short} (No. {algebra.sg_type.number})")
+    print()
+    print("* Kpoint *")
+    print(kname)
+    print(f"k = {_format_k(algebra.k_by_kname[kname])} in the primitive basis, "
+          f"star of {len(arms)} arm(s)")
+    print()
+
+    tables, errors = kpoint_irrep_tables(algebra, kname, _direction_results)
+    if not tables:
+        reasons = "\n".join(f"  {label}: {reason}" for label, reason in errors.items())
+        raise SystemExit(
+            f"ERROR: no irrep at {kname} could be enumerated:\n{reasons}"
+        )
+    results = [row for rows in tables.values() for row in rows]
+    print("* Order parameter directions and isotropy subgroups *")
+    _print_direction_table(results)
+
+    mapping = ISOTROPY_LABELS.get((algebra.sg_type.number, kname), {})
+    label_notes = [
+        f"crystod {irrep.name} = ISOTROPY {mapping[irrep.name]}"
+        for irrep in algebra.irreps_by_kname[kname]
+        if irrep.name in mapping
+    ]
+    if label_notes:
+        print()
+        print("note: the irrep labels at this k point differ between the ISO-IR")
+        print("data files (used by crystod) and the ISOTROPY/ISOSUBGROUP software:")
+        print(textwrap.fill(
+            f"{'; '.join(label_notes)} (see SUBGROUP/VALIDATION.md).",
+            width=70, break_long_words=False, break_on_hyphens=False,
+        ))
+    _enantiomorph_note([info.number for _, _, _, info, _ in results])
+    if errors:
+        print()
+        for label, reason in errors.items():
+            print(f"note: {label}: not enumerated ({reason})")
+    _print_citation()
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Isotropy subgroups of a space-group irrep."
     )
-    parser.add_argument("--supergroup", required=True, help='e.g. "Pm-3m" or 221.')
     parser.add_argument(
+        "--parent", "--supergroup", dest="parent", required=True,
+        help='parent space group, e.g. "Pm-3m" or 221 (--supergroup is an alias).',
+    )
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument(
         "--irrep",
-        required=True,
         nargs="+",
         help="ISO-IR irrep label(s), e.g. GM4-; several labels (e.g. X3- X2+) "
         "enumerate the isotropy subgroups of the coupled order parameters.",
+    )
+    target.add_argument(
+        "--kpoint",
+        nargs="+",
+        help="list every irrep of one special k point: its ISO-IR name (GM, R, "
+        "X, ...) or three coordinates in the primitive basis.",
     )
     parser.add_argument(
         "--order-parameter",
@@ -1265,6 +1784,8 @@ def main(argv: list[str] | None = None) -> None:
         help='components, e.g. "0 0 a" or "a a 0" (symbols = free parameters).',
     )
     args = parser.parse_args(argv)
+    if args.kpoint and args.order_parameter:
+        parser.error("--order-parameter needs --irrep; it is not used with --kpoint.")
 
     import spglib
 
@@ -1275,7 +1796,11 @@ def main(argv: list[str] | None = None) -> None:
             f"identification (found {spglib.__version__}).",
         )
 
-    analyzer = IsotropyAnalyzer(args.supergroup, args.irrep)
+    if args.kpoint:
+        _report_kpoint(args.parent, args.kpoint)
+        return
+
+    analyzer = IsotropyAnalyzer(args.parent, args.irrep)
     representation = analyzer.representation
     algebra = analyzer.algebra
     coupled = isinstance(representation, CoupledRepresentation)
@@ -1399,11 +1924,7 @@ def main(argv: list[str] | None = None) -> None:
             results = _direction_results(analyzer)
             _print_direction_table(results)
             _enantiomorph_note([info.number for _, _, _, info, _ in results])
-    print()
-    print("Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):")
-    print('H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating')
-    print('Isotropy Subgroups of Crystallographic Space Groups",')
-    print("J. Appl. Cryst. 49, 1849-1853 (2016).")
+    _print_citation()
 
 
 if __name__ == "__main__":

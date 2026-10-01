@@ -554,8 +554,30 @@ def _single_square_root(matrix, params) -> str | None:
 
 
 class TermEnergy:
-    """Energy of one term: exact linear coefficients when unique in the
-    configuration, or a CI block (m >= 2)."""
+    """Coulomb energy of one term of a configuration.
+
+    Returned by ``compute_term_energies``: a term occurring once has an
+    exact linear energy; a term occurring ``multiplicity >= 2`` times is a
+    CI block, given in closed form for two occurrences and numerically
+    otherwise.
+
+    Args:
+        spin: Total spin ``S`` of the term (a ``Fraction``).
+        irrep: Spatial irrep label of the term.
+        dim: Dimension of the spatial irrep.
+        multiplicity: Number of times the term occurs in the configuration.
+        params: Parameter names (``["A", "B", "C"]`` for d shells).
+
+    Attributes:
+        linear: Exact coefficients (one ``Fraction`` per parameter) of a
+            unique term; ``None`` for a CI block.
+        ci_mean: Coefficients of the mean ``(E1 + E2) / 2`` of a two-fold
+            CI block, with ``ci_quadratic`` the matrix of the quadratic form
+            ``(E1 - E2)^2``; both ``None`` otherwise.
+        numeric: Eigenvalues of a CI block at the reference parameter
+            point; ``None`` for a unique term.
+        reference_note: Description of the reference parameter point.
+    """
 
     def __init__(self, spin, irrep, dim, multiplicity, params):
         self.spin = spin
@@ -570,12 +592,27 @@ class TermEnergy:
         self.reference_note = "the reference parameter point"
 
     def reference_values(self, reference) -> list[float]:
-        """Numeric energies at the reference parameter values."""
+        """Numeric energies at the reference parameter values.
+
+        Args:
+            reference: Parameter values in the order of ``params``.
+
+        Returns:
+            One value for a unique term, ``multiplicity`` values for a CI
+            block.
+        """
         if self.linear is not None:
             return [float(sum(c * r for c, r in zip(self.linear, reference)))]
         return list(self.numeric)
 
     def describe(self) -> list[str]:
+        """The energy as printed by ``crystod-group --multiplet --orbital``.
+
+        Returns:
+            One line, e.g. ``"3A - 15B"`` for a unique term or
+            ``"3A - 6B + 3C +- ...   (x2, configuration mixing)"`` for a
+            two-fold CI block.
+        """
         if self.linear is not None:
             return [format_linear(self.linear, self.params)]
         if self.ci_mean is not None:
@@ -597,9 +634,59 @@ def compute_term_energies(
     shells: list[tuple[str, int]],
     terms: list[tuple[Fraction, str, int]],
 ):
-    """Coulomb energies of every term of the configuration.
+    """Coulomb multiplet energies of every term of a configuration.
 
-    Returns (params, list of TermEnergy ordered like `terms`)."""
+    The ``Multiplet Energies`` block of ``crystod-group --multiplet CONFIG
+    --pg PG --orbital ORB``: exact diagonal energies of the
+    electron-electron interaction as linear combinations of the Racah
+    parameters ``A, B, C`` (d shells) or of the reduced Slater-Condon
+    parameters (``F0, F2`` for p, ``F0, F2, F4, F6`` for f), from
+    two-electron integrals over the real orbitals of the shell, Slater
+    determinants, and spin and point-group projectors.  A term occurring
+    more than once mixes (configuration interaction): for two occurrences
+    the eigenvalues are given in closed form, for more numerically at the
+    reference parameter point.
+
+    Args:
+        character_table: Table from ``crystod.group.get_character_table``.
+        l: Azimuthal quantum number of the parent atomic shell (``0`` to
+            ``3``); the occupied irrep shells must occur in its
+            ligand-field splitting.
+        shells: ``[(irrep, n_electrons), ...]`` from
+            ``crystod.group.parse_config``.
+        terms: Terms ``(S, irrep, count)`` of the configuration, from
+            ``crystod.group.shell_terms`` / ``couple_shells``.
+
+    Returns:
+        ``(params, energies, reference, reference_note)``: the parameter
+        names (``["A", "B", "C"]`` for d), one ``TermEnergy`` per term in
+        the order of ``terms`` (``linear`` holds the exact coefficients of a
+        unique term, ``ci_mean`` and ``ci_quadratic`` the closed-form CI
+        block of a doubly occurring term, ``numeric`` the eigenvalues at
+        the reference point; ``describe()`` formats them), the reference
+        parameter values, and a note describing them (``C/B = 4.5`` for d).
+
+    Raises:
+        SystemExit: A projector rank or the trace identity disagrees with
+            the term list (``ValueError`` when called through
+            ``crystod.group``).
+
+    Example:
+        >>> from crystod import group
+        >>> from crystod.multiplet import _GroupClasses
+        >>> ct = group.get_character_table("m-3m")
+        >>> classes = _GroupClasses(ct)
+        >>> shells = group.parse_config(["T2g3"], classes)
+        >>> terms = group.shell_terms(classes, "T2g", 3)
+        >>> params, energies, reference, note = group.compute_term_energies(
+        ...     ct, 2, shells, terms)
+        >>> for (spin, irrep, _), entry in zip(terms, energies):
+        ...     print(f"^{int(2 * spin + 1)}{irrep}:", entry.describe()[0])
+        ^4A2g: 3A - 15B
+        ^2Eg: 3A - 6B + 3C
+        ^2T1g: 3A - 6B + 3C
+        ^2T2g: 3A + 5C
+    """
     params = _PARAM_NAMES[l]
     n_params = len(params)
     shell_irreps = [name for name, _ in shells]
@@ -806,8 +893,34 @@ def _verify_trace(space, integrals_by_param, results, reference, n_params):
 
 
 def ground_state(results, reference):
-    """(list of lowest TermEnergy, unconditional) at the reference point;
-    unconditional means provably lowest for any positive parameters."""
+    """Lowest term(s) of a configuration at the reference parameter point.
+
+    The ``Ground-state Term Symbol`` block of ``crystod-group --multiplet
+    --orbital``.
+
+    Args:
+        results: The ``TermEnergy`` list from ``compute_term_energies``.
+        reference: The reference parameter values from the same call.
+
+    Returns:
+        ``(winners, unconditional)``: the ``TermEnergy`` entries with the
+        lowest energy at the reference point, and whether that ordering is
+        provably independent of the parameters (``True`` when a unique
+        linear winner has coefficients no larger than those of every other
+        linear term in every parameter beyond the first).
+
+    Example:
+        >>> from crystod import group
+        >>> from crystod.multiplet import _GroupClasses
+        >>> ct = group.get_character_table("m-3m")
+        >>> classes = _GroupClasses(ct)
+        >>> terms = group.shell_terms(classes, "T2g", 3)
+        >>> params, energies, reference, note = group.compute_term_energies(
+        ...     ct, 2, [("T2g", 3)], terms)
+        >>> winners, unconditional = group.ground_state(energies, reference)
+        >>> [(str(w.spin), w.irrep) for w in winners], unconditional
+        ([('3/2', 'A2g')], True)
+    """
     minima = [min(entry.reference_values(reference)) for entry in results]
     lowest = min(minima)
     winners = [

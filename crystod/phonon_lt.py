@@ -107,10 +107,40 @@ def get_longitudinal_ratio(
     eigenvectors: NDArray[np.complex128],
     reciprocal_lattice: NDArray[np.float64],
 ) -> NDArray[np.float64]:
-    """Longitudinal character per (q-point, band): sqrt(sum_atoms |q_hat . e_atom|^2).
+    """Longitudinal character of every (q point, band) pair.
 
-    1 for a purely longitudinal mode, 0 for a purely transverse one;
-    0.5 (neutral) at the Gamma point where no propagation direction exists.
+    The character is ``sqrt(sum over atoms of |q_hat . e_atom|^2)``, with
+    ``q_hat`` the unit propagation vector and ``e_atom`` the three components
+    of the normalized eigenvector on that atom: 1 for a purely longitudinal
+    mode, 0 for a purely transverse one. At the Gamma point no propagation
+    direction exists and the neutral value 0.5 is returned.
+    ``crystod-phonon --lt`` colors each band of the band structure by this
+    quantity (red = longitudinal, blue = transverse).
+
+    Args:
+        qpoints: Fractional q coordinates along the path, shape ``(n_q, 3)``.
+        eigenvectors: Eigenvectors of the dynamical matrix, shape
+            ``(n_q, 3 * n_atoms, n_bands)`` with the bands in columns, as
+            phonopy returns them (``run_qpoints(..., with_eigenvectors=True)``
+            or a band structure computed with eigenvectors).
+        reciprocal_lattice: Reciprocal lattice vectors as rows, used only for
+            the direction of q (with or without the 2 pi factor).
+
+    Returns:
+        Array of shape ``(n_q, n_bands)`` with the longitudinal character in
+        ``[0, 1]``.
+
+    Example:
+        >>> import numpy as np
+        >>> from crystod import phonon
+        >>> from crystod.runtime_compat import get_qpoints_result
+        >>> qpoints = np.array([[0.0, 0.0, 0.0], [0.25, 0.0, 0.0], [0.5, 0.0, 0.0]])
+        >>> ph.run_qpoints(qpoints, with_eigenvectors=True)   # ph: cubic SrTiO3
+        >>> eigenvectors = np.array(get_qpoints_result(ph).eigenvectors)
+        >>> reciprocal = np.linalg.inv(np.array(ph.primitive.cell)).T
+        >>> ratio = phonon.get_longitudinal_ratio(qpoints, eigenvectors, reciprocal)
+        >>> ratio.shape                                       # 15 bands
+        (3, 15)
     """
     n_q, n_dof, n_bands = eigenvectors.shape
     per_atom = eigenvectors.reshape(n_q, n_dof // 3, 3, n_bands)
