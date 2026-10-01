@@ -16,7 +16,15 @@ import sys
 from argparse import ArgumentParser, RawTextHelpFormatter
 from fractions import Fraction
 
-from .common import CRYSTOD_CITATION, add_cell_argument, add_output_argument, banner
+from .common import (
+    CRYSTOD_CITATION,
+    ExampleRequested,
+    add_cell_argument,
+    add_example_argument,
+    add_output_argument,
+    banner,
+    run_example,
+)
 
 desc = """\
 Plot the first Brillouin zone of a crystal structure as an interactive 3D HTML file.
@@ -41,6 +49,7 @@ crystod-bz -c 221_PPOSCAR_ScF3 \\
     --band "0 0 0  0 1/2 0  1/2 1/2 0  0 0 0  1/2 1/2 1/2  0 1/2 0, 1/2 1/2 0  1/2 1/2 1/2" \\
     --band-labels "GM X M GM R X  M R"
 crystod-bz -c 221_PPOSCAR_ScF3 --trans-mat "0 1 2  -1 0 2  1 -1 2"
+crystod-bz --example ScF3   (bundled input; --example alone lists the names)
 """
 
 IDENTITY_MATRIX = "1 0 0  0 1 0  0 0 1"
@@ -54,6 +63,7 @@ def build_parser() -> ArgumentParser:
         formatter_class=RawTextHelpFormatter,
     )
     add_cell_argument(parser)
+    add_example_argument(parser, "crystod-bz")
     parser.add_argument(
         "--show-kpoint",
         "--show-kpoints",
@@ -132,8 +142,17 @@ def _parse_trans_mat(parser: ArgumentParser, text: str) -> list[float]:
 
 
 def main(argv: list[str] | None = None) -> None:
+    if argv is None:
+        argv = sys.argv[1:]
+    argv = list(argv)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except ExampleRequested as request:
+        # --example: put the bundled input in place, then run the ordinary
+        # command line it stands for (plus whatever else was given)
+        main(run_example("crystod-bz", request.name, argv))
+        return
 
     if args.show_kpoint:
         if not args.space_group:

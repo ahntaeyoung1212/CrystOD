@@ -14,6 +14,9 @@ This package hosts the main command and one module per sectioned command
 - ``group``   -- ``crystod-group``: point/space-group representation-theory
   calculator (product, table, decompose, ligand-field, basis, generate-basis,
   coset).
+- ``mol``     -- ``crystod-mol``: molecular point groups, SALCs and MO diagrams.
+- ``xrd``     -- ``crystod-xrd``: powder X-ray diffraction patterns.
+- ``search``  -- ``crystod-search``: Materials Project search and POSCAR download.
 """
 
 from .main import build_parser, main

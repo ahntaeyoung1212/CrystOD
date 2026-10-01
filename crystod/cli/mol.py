@@ -14,7 +14,14 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from .common import CRYSTOD_CITATION, banner
+from .common import (
+    CRYSTOD_CITATION,
+    ExampleRequested,
+    add_example_argument,
+    banner,
+    require_pyscf_or_exit,
+    run_example,
+)
 
 desc = """\
 Analyze the point-group symmetry of a molecule (XYZ file) and construct its
@@ -66,6 +73,7 @@ crystod-mol --diagram --xyz XYZ_C6H6.xyz --ao-left H6 --ao-right C6
 crystod-mol --diagram --xyz XYZ_H2O.xyz --pyscf
 crystod-mol --diagram --xyz XYZ_O2.xyz --pyscf --spin 2 --ao-left O --ao-right O
 crystod-mol --diagram --xyz XYZ_CH3OH.xyz --pyscf --ao-left H4 --ao-right CO
+crystod-mol --example CH4   (bundled input; --example alone lists the names)
 """
 
 
@@ -82,6 +90,7 @@ def build_parser() -> ArgumentParser:
         metavar="FILE",
         help="Molecule file in XYZ format.",
     )
+    add_example_argument(parser, "crystod-mol")
     parser.add_argument(
         "--symmetry",
         action="store_true",
@@ -216,8 +225,19 @@ def build_parser() -> ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    import sys
+
+    if argv is None:
+        argv = sys.argv[1:]
+    argv = list(argv)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except ExampleRequested as request:
+        # --example: put the bundled input in place, then run the ordinary
+        # command line it stands for (plus whatever else was given)
+        main(run_example("crystod-mol", request.name, argv))
+        return
 
     if args.symmetry and args.diagram:
         parser.error("--symmetry cannot be combined with --diagram.")
@@ -227,6 +247,9 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--center is only available with --diagram.")
     if args.pyscf and not args.diagram:
         parser.error("--pyscf is only available with --diagram.")
+    if args.pyscf:
+        # PySCF is optional: say so in one line before the diagram dispatches
+        require_pyscf_or_exit("crystod-mol --diagram --pyscf")
     if not args.pyscf and (args.spin is not None or args.charge):
         parser.error("--charge/--spin require --diagram --pyscf.")
     if not args.diagram and (args.ao_left or args.ao_right):

@@ -16,6 +16,7 @@ No structure file is needed: the group is selected with --pg/--point-group or
 
 from __future__ import annotations
 
+import re
 from argparse import ArgumentParser, RawTextHelpFormatter
 from fractions import Fraction
 
@@ -31,7 +32,8 @@ crystod-group --product R4- R5+ --sg Pm-3m
 crystod-group --multiplet T2g2 --pg m-3m [--orbital d]
 crystod-group --poscar2cif -c PPOSCAR [--tolerance 0.01]
 crystod-group --cif2poscar -c FILE.cif [--conventional]
-crystod-group --supergroup Pm-3m --irrep R4+          (--parent Pm-3m is the same)
+crystod-group --parent Pm-3m --irrep R4+              (--supergroup is an alias)
+crystod-group --parent Pm-3m --kpoint GM              (every irrep of the k point)
 crystod-group --supergroup-cif 221.cif --subgroup-cif 140.cif
 crystod-group --table --pg 3m
 crystod-group --decompose --pg 3m --characters 3 0 1
@@ -49,6 +51,36 @@ def _parse_fractional_float(value: str) -> float:
         return float(Fraction(value))
     except Exception:
         return float(value)
+
+
+def _kpoint_tokens(values: list[str]) -> list[str]:
+    """Split quoted values, so that --kpoint "0 1/2 0" equals --kpoint 0 1/2 0."""
+    return [token for value in values for token in value.replace(",", " ").split()]
+
+
+def _kpoint_coordinates(parser: ArgumentParser, values: list[str]) -> list[float]:
+    """The three --kpoint coordinates of the modes that take no k-point name
+    (every mode but --parent), with the messages argparse gave for nargs=3."""
+    tokens = _kpoint_tokens(values)
+    if len(tokens) > 3:
+        parser.error(f"unrecognized arguments: {' '.join(tokens[3:])}")
+    if len(tokens) == 1 and not tokens[0][:1].isdigit() and tokens[0][:1] not in "+-.":
+        parser.error(
+            "argument --kpoint: expected 3 arguments (three coordinates in the "
+            f"primitive basis; a k-point name such as {tokens[0]} is only "
+            "accepted with --parent)"
+        )
+    if len(tokens) != 3:
+        parser.error("argument --kpoint: expected 3 arguments")
+    coordinates = []
+    for token in tokens:
+        try:
+            coordinates.append(_parse_fractional_float(token))
+        except ValueError:
+            parser.error(
+                f"argument --kpoint: invalid _parse_fractional_float value: {token!r}"
+            )
+    return coordinates
 
 
 def build_parser() -> ArgumentParser:
@@ -139,18 +171,20 @@ def build_parser() -> ArgumentParser:
         "mode amplitudes, e.g. --supergroup-cif 221.cif --subgroup-cif 140.cif.",
     )
     mode.add_argument(
-        "--supergroup",
-        # the flag names the PARENT group but returns its subgroups, which reads
-        # backwards to most users; --parent is the same option under a name that
-        # says what the value is
         "--parent",
-        dest="supergroup",
+        # the value is the PARENT group and the output is its subgroups;
+        # --supergroup was the original name and stays as an alias, but next
+        # to --supergroup-cif (a different analysis) it is easy to confuse
+        "--supergroup",
+        dest="parent",
         default=None,
         metavar="SG",
         help="Isotropy subgroups: which space group results when a distortion\n"
-        "with a given irrep (and order-parameter direction) condenses,\n"
-        "e.g. --supergroup Pm-3m --irrep GM4- [--order-parameter 0 0 a].\n"
-        "--parent SG is an alias (the value is the parent group).",
+        "with a given irrep (and order-parameter direction) condenses in the\n"
+        "parent group SG, e.g. --parent Pm-3m --irrep GM4- [--order-parameter 0 0 a].\n"
+        "With --kpoint instead of --irrep, every irrep of that k point is\n"
+        "listed in one table, e.g. --parent Pm-3m --kpoint GM.\n"
+        "--supergroup SG is an alias.",
     )
 
     parser.add_argument(
@@ -158,16 +192,17 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         default=None,
         metavar="IR",
-        help="ISO-IR irrep label(s) for --supergroup, e.g. GM4- or R4+;\n"
+        help="ISO-IR irrep label(s) for --parent, e.g. GM4- or R4+;\n"
         "several labels (e.g. --irrep X3- X2+) enumerate the isotropy\n"
-        "subgroups of the coupled order parameters.",
+        "subgroups of the coupled order parameters. For every irrep of one\n"
+        "k point, give --kpoint instead.",
     )
     parser.add_argument(
         "--order-parameter",
         nargs="+",
         default=None,
         metavar="C",
-        help='Order-parameter direction for --supergroup, e.g. 0 0 a or a a 0\n'
+        help='Order-parameter direction for --parent, e.g. 0 0 a or a a 0\n'
         "(letters = free parameters). Omit to list every direction.",
     )
     parser.add_argument(
@@ -242,10 +277,16 @@ def build_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--kpoint",
-        nargs=3,
-        type=_parse_fractional_float,
+        # one name or three coordinates: validated per mode in main(), since
+        # only --parent takes a name
+        nargs="+",
         default=None,
-        help="k-point in the primitive basis (space-group modes).",
+        metavar="K",
+        help="k-point in the primitive basis (space-group modes): three\n"
+        "coordinates, fractions allowed (e.g. 0.5 0.5 0 or 1/2 1/2 0).\n"
+        "With --parent, the k point whose irreps are all listed: its\n"
+        "ISO-IR name (GM, R, X, M, ...) or the coordinates of any arm of\n"
+        "its star.",
     )
     parser.add_argument(
         "--subgroup",
@@ -277,18 +318,22 @@ def build_parser() -> ArgumentParser:
 
 
 _DASH_VALUE_FLAGS = ("--point-group", "--pointgroup", "--pg", "--subgroup")
+_NEGATIVE_FRACTION = re.compile(r"-\d+/\d+")
 
 
 def _merge_dash_values(argv: list[str]) -> list[str]:
     """Merge crystallographic values starting with '-' (e.g. -43m, -3m, -1)
     into their flag as --flag=value, so argparse does not mistake them for
-    options."""
+    options; negative fractions of --kpoint (-1/2 1/2 0) are kept as values."""
     merged: list[str] = []
     skip_next = False
+    in_kpoint = False
     for index, token in enumerate(argv):
         if skip_next:
             skip_next = False
             continue
+        if token.startswith("--"):
+            in_kpoint = token == "--kpoint"
         if (
             token in _DASH_VALUE_FLAGS
             and index + 1 < len(argv)
@@ -297,6 +342,10 @@ def _merge_dash_values(argv: list[str]) -> list[str]:
         ):
             merged.append(f"{token}={argv[index + 1]}")
             skip_next = True
+        elif in_kpoint and _NEGATIVE_FRACTION.fullmatch(token):
+            # argparse takes -0.5 for a number but -1/2 for an option; a
+            # leading space marks it as a value (_kpoint_tokens strips it)
+            merged.append(" " + token)
         else:
             merged.append(token)
     return merged
@@ -320,23 +369,52 @@ def main(argv: list[str] | None = None) -> None:
                 f"{mode_name} requires exactly one of --pg/--point-group or --sg/--space-group."
             )
 
-    if args.supergroup:
-        if not args.irrep:
-            parser.error("--supergroup requires --irrep (e.g. --irrep GM4-).")
+    if args.parent:
         if args.point_group or args.space_group:
-            parser.error("--supergroup replaces --pg/--sg; give the space group "
-                         "directly as --supergroup SG.")
-        dispatch_argv = [f"--supergroup={args.supergroup}", "--irrep", *args.irrep]
-        if args.order_parameter:
-            dispatch_argv.append("--order-parameter")
-            dispatch_argv.extend(args.order_parameter)
+            parser.error("--parent replaces --pg/--sg; give the parent space "
+                         "group directly as --parent SG.")
+        if args.irrep and args.kpoint is not None:
+            parser.error("--parent takes either --irrep (one irrep, or coupled "
+                         "irreps) or --kpoint (every irrep of a k point), not both.")
+        if args.kpoint is not None and args.order_parameter:
+            parser.error("--order-parameter selects a direction of one --irrep; "
+                         "it is not used with --kpoint.")
+        if not args.irrep and args.kpoint is None:
+            message = ("--parent requires --irrep or --kpoint (e.g. --irrep GM4- "
+                       "for one irrep, --kpoint GM for every irrep of a k point).")
+            try:
+                from ..isotropy_subgroup import _available_kpoints
+                from ..spacegroup_product import SpaceGroupIrrepAlgebra
+
+                algebra = SpaceGroupIrrepAlgebra(args.parent)
+                message += (
+                    f"\nk points of {algebra.sg_type.international_short} "
+                    f"(No. {algebra.sg_type.number}), primitive basis: "
+                    f"{_available_kpoints(algebra)}"
+                )
+            except SystemExit as exc:
+                # unknown space group: say so instead of listing k points
+                message += "\n" + str(exc).removeprefix("ERROR: ")
+            parser.error(message)
+        if args.kpoint is not None:
+            # one token: the isotropy module splits it again (a name or
+            # three coordinates), and negative fractions survive its parser
+            dispatch_argv = [f"--parent={args.parent}",
+                             f"--kpoint={' '.join(_kpoint_tokens(args.kpoint))}"]
+        else:
+            dispatch_argv = [f"--parent={args.parent}", "--irrep", *args.irrep]
+            if args.order_parameter:
+                dispatch_argv.append("--order-parameter")
+                dispatch_argv.extend(args.order_parameter)
 
         from ..isotropy_subgroup import main as isotropy_subgroup_main
 
         isotropy_subgroup_main(dispatch_argv)
         return
     if args.irrep or args.order_parameter:
-        parser.error("--irrep/--order-parameter are only used with --supergroup.")
+        parser.error("--irrep/--order-parameter are only used with --parent.")
+    if args.kpoint is not None:
+        args.kpoint = _kpoint_coordinates(parser, args.kpoint)
 
     if args.supergroup_cif:
         if not args.subgroup_cif:

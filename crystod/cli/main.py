@@ -19,10 +19,14 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from fractions import Fraction
 
 from .common import (
+    ExampleRequested,
     add_cell_argument,
+    add_example_argument,
     add_output_argument,
     banner,
     print_crystod_citation,
+    require_pyscf_or_exit,
+    run_example,
 )
 
 # Mode flags that live in a sectioned command (or under another spelling):
@@ -47,6 +51,8 @@ MOVED_MODE_FLAGS = {
     "--bz": "crystod-bz",
     "--bz-supercell": "crystod-bz --trans-mat ...",
     "--xdatcar2adp": "crystod-md --adp",
+    "--xrd": "crystod-xrd -c POSCAR",
+    "--search": "crystod-search QUERY (SrTiO3, Sr-Ti-O, ...; --get MPID downloads a POSCAR)",
 }
 
 desc = """\
@@ -60,6 +66,7 @@ crystod -c 221_PPOSCAR_SrTiO3 --atomic-orbital Ti_d O_p --kpoint 0 0 0
 crystod --diagram -c 221_PPOSCAR_SrTiO3 --co-left SrTi --co-right O3
 crystod -c 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 0 0 0 --visualize
 crystod --star-of-k -c 221_PPOSCAR_ScF3 --kpoint 0.5 0.5 0
+crystod --example ScF3_d   (bundled input; --example alone lists the names)
 """
 
 epilog = """\
@@ -67,12 +74,14 @@ Sectioned commands (see crystod-<section> --help):
   crystod-phonon   phonon analyses (--irreps/--fatband/--lt/--vector/--modulation/
                    --vibration/--subgroup)
   crystod-group    point/space-group calculator (--product/--table/--decompose/
-                   --ligand-field/--basis/--generate-basis/--coset/--supergroup/
+                   --ligand-field/--basis/--generate-basis/--coset/--parent/
                    --multiplet/--poscar2cif/--cif2poscar/--supergroup-cif)
   crystod-mag      symmetry-adapted spin bases (MAGMOM / QE noncollinear input)
   crystod-md       MD-trajectory analyses (--adp/--summary)
   crystod-bz       Brillouin-zone plots (unit cell, or + supercell via --trans-mat)
   crystod-mol      molecular point groups, SALCs and MO diagrams (XYZ files)
+  crystod-xrd      powder X-ray diffraction patterns (--xraytype/--peak-profile)
+  crystod-search   Materials Project search and POSCAR download (--get)
 
 If you use CrystOD in your research, please cite:
   H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024). https://doi.org/10.1103/PhysRevB.110.064104
@@ -98,7 +107,12 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--version", action="version", version=f"CrystOD {__version__}"
     )
-    add_cell_argument(parser)
+    # the sentinel form (default None): --diagram --vasp has to tell "-c was
+    # given" from "-c was left out" -- without it the structure is the crystal
+    # run's own POSCAR.  Every other mode substitutes the documented POSCAR
+    # default right after parsing.
+    add_cell_argument(parser, default=None)
+    add_example_argument(parser, "crystod")
     parser.add_argument(
         "--element",
         default=None,
@@ -124,10 +138,9 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         default=None,
         help="k-point: three primitive reciprocal coordinates (fractions such as 1/2\n"
-        "are allowed), or a high-symmetry label such as GM/X/M/R in\n"
-        "--star-of-k/--visualize mode (which labels a space group has:\n"
-        "crystod-bz --show-kpoint --space-group SG). When omitted in SALC\n"
-        "mode, all special k points are analyzed.",
+        "are allowed), or a high-symmetry label such as GM/X/M/R (which\n"
+        "labels a space group has: crystod-bz --show-kpoint --space-group SG).\n"
+        "When omitted in SALC mode, all special k points are analyzed.",
     )
     parser.add_argument(
         "--diagram",
@@ -179,6 +192,173 @@ def build_parser() -> ArgumentParser:
         "one AO space: the removed sublattice stays as ghost basis functions\n"
         "and acts through its formal-charge point lattice, so every fragment\n"
         "level is a real pre-bonding electronic state.",
+    )
+    parser.add_argument(
+        "--vasp",
+        nargs="*",
+        default=None,
+        metavar="PATH",
+        help="Make the --diagram quantitative from three FINISHED VASP runs.\n"
+        "Takes no path (the current directory is the ROOT), one ROOT --\n"
+        "ROOT/BAND (the crystal) and ROOT/BAND_sublattice* (the two\n"
+        "sublattices, whose removed atoms are Va point charges) -- or the\n"
+        "three run directories in ANY order, whatever they are named (the\n"
+        "crystal run is the one whose POSCAR has no Va species). Each\n"
+        "directory's band/ subdirectory is used when it carries a PROCAR of\n"
+        "the special k points. Needs LORBIT=12.\n"
+        "-c is OPTIONAL here: without it the structure is the crystal run's\n"
+        "POSCAR; with it, the analysis setting is the primitive cell of that\n"
+        "file and every run is mapped onto it (one origin shift, an atom\n"
+        "permutation and lattice wraps), so the irrep labels agree with the\n"
+        "other engines on the same file.",
+    )
+    parser.add_argument(
+        "--vasp-setup",
+        nargs="?",
+        const=".",
+        default=None,
+        metavar="ROOT",
+        help="Write the INPUTS of those runs (POSCAR with the Va point-charge\n"
+        "species, POTCAR split out of ROOT/BAND/POTCAR, INCAR, and a KPOINTS\n"
+        "file that carries the weighted irreducible mesh AND the zero-weight\n"
+        "special points), print the three run commands and stop.\n"
+        "-c is OPTIONAL here too (without it the structure is ROOT/BAND/\n"
+        "POSCAR); the written POSCARs always follow the CRYSTAL RUN's cell,\n"
+        "origin and ion order, the -c file only names the fragments and the\n"
+        "formal charges. A run directory that already holds a finished\n"
+        "calculation is not rewritten without --force.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Let --vasp-setup overwrite the inputs of a run directory that\n"
+        "already holds a finished calculation (OUTCAR/PROCAR/vasprun.xml).",
+    )
+    parser.add_argument(
+        "--vasp-crystal",
+        default=None,
+        metavar="DIR",
+        help="Override the crystal run directory of --vasp/--vasp-setup.",
+    )
+    parser.add_argument(
+        "--vasp-left",
+        default=None,
+        metavar="DIR",
+        help="Override the --co-left sublattice run directory of --vasp.",
+    )
+    parser.add_argument(
+        "--vasp-right",
+        default=None,
+        metavar="DIR",
+        help="Override the --co-right sublattice run directory of --vasp.",
+    )
+    parser.add_argument(
+        "--vasp-window",
+        type=float,
+        nargs=2,
+        default=None,
+        metavar=("EMIN", "EMAX"),
+        help="Energy window of the --vasp crystal column, in eV relative to\n"
+        "the valence-band maximum (default: everything below VBM+10).",
+    )
+    parser.add_argument(
+        "--vasp-mesh",
+        type=int,
+        nargs=3,
+        default=None,
+        metavar=("N1", "N2", "N3"),
+        help="Gamma-centred mesh --vasp-setup reduces into the weighted part\n"
+        "of its KPOINTS (default: n_i = max(1, round(24 / |a_i|))).",
+    )
+    parser.add_argument(
+        "--potcar-dir",
+        default=None,
+        metavar="DIR",
+        help="Where --vasp-setup looks for <El>*/POTCAR when the crystal run\n"
+        "has no POTCAR (default: PMG_VASP_PSP_DIR of ~/.pmgrc.yaml).",
+    )
+    parser.add_argument(
+        "--potcar-map",
+        nargs="+",
+        default=None,
+        metavar="EL=NAME",
+        help="PAW dataset --vasp-setup takes for an element, e.g.\n"
+        "--potcar-map Sc=Sc_sv. Without it the semicore variant is preferred\n"
+        "whenever the formal charge would strip a whole valence shell.",
+    )
+    parser.add_argument(
+        "--vasp-bin",
+        default=None,
+        metavar="PATH",
+        help="The CrystOD-patched vasp_std --vasp-setup names in the run\n"
+        "commands it prints (default: $CRYSTOD_VASP, else PATH). A stock\n"
+        "VASP cannot read the Va point-charge species.",
+    )
+    parser.add_argument(
+        "--vasp-rwall",
+        type=float,
+        default=None,
+        metavar="A",
+        help="VACRWALL (wall width in A around a positive Va point charge)\n"
+        "written by --vasp-setup (default 0.45, the calibrated value). The\n"
+        "fragment eigenvalues are sensitive to it, so both sublattice runs\n"
+        "must use the same value.",
+    )
+    parser.add_argument(
+        "--vasp-sigma",
+        type=float,
+        default=None,
+        metavar="A",
+        help="VACSIGMA (width in A of the smeared Coulomb potential of a Va\n"
+        "point charge) written by --vasp-setup (default 0.5).",
+    )
+    parser.add_argument(
+        "--vasp-wall-factor",
+        type=float,
+        default=None,
+        metavar="F",
+        help="VACWALL written by --vasp-setup, in units of the smeared\n"
+        "Coulomb depth q e^2 sqrt(2/pi)/sigma (default 2.5). One height per\n"
+        "Va species is written, so the charge scaling stays automatic and\n"
+        "one setting serves Va2+, Va3+ and Va4+ alike.",
+    )
+    parser.add_argument(
+        "--vasp-anchor",
+        nargs=2,
+        action="append",
+        default=None,
+        metavar=("EL", "SHELL"),
+        help="Anchor the column of EL on its EL SHELL manifold instead of on\n"
+        "the deepest chemically inert level, e.g. --vasp-anchor Ti 3d.\n"
+        "Repeatable (once per column).",
+    )
+    parser.add_argument(
+        "--vasp-projection-floor",
+        type=float,
+        default=None,
+        metavar="W",
+        help="Smallest projected weight per degenerate partner a --vasp level\n"
+        "must carry to be drawn (default 0.30). The two populations are not\n"
+        "always well separated; vary it to test the sensitivity.",
+    )
+    parser.add_argument(
+        "--vasp-align",
+        choices=("site", "rigid"),
+        default=None,
+        help="How the --vasp fragment columns are put on the crystal column's\n"
+        "scale. site (default): one shift per (column, ELEMENT), fitted to\n"
+        "the symmetry-forbidden probes and the pure counterparts -- shells of\n"
+        "one atom move together, different SITES do not. rigid: one shift per\n"
+        "column (the XPS-style deep-level anchor, --vasp-anchor applies).",
+    )
+    parser.add_argument(
+        "--vasp-zero",
+        choices=("vbm", "efermi", "raw"),
+        default=None,
+        help="Energy zero of the --vasp page and tables: vbm (default,\n"
+        "E - E_VBM with the VBM the highest occupied crystal eigenvalue over\n"
+        "all k of the crystal run), efermi, or raw (the crystal run's own\n"
+        "G = 0 reference).",
     )
     parser.add_argument(
         "--basis",
@@ -290,8 +470,18 @@ def build_parser() -> ArgumentParser:
         default=None,
         metavar="FILE",
         help="For --diagram --pyscf: WAVECAR-style restart file -- written\n"
-        "after the SCFs if missing, read (skipping all three SCFs) if present;\n"
-        "the defining parameters are verified before reuse.",
+        "after the SCFs if missing, read (skipping all three SCFs) if\n"
+        "present; the defining parameters are verified before reuse, and a\n"
+        "file that does not match aborts the run. Without this option the\n"
+        "SCFs are cached anyway, under CHK_{formula}.chk (CHK_TiO2.chk):\n"
+        "that automatic file is reused when the options match and silently\n"
+        "recomputed when they do not.",
+    )
+    parser.add_argument(
+        "--no-chk",
+        action="store_true",
+        help="For --diagram --pyscf: do not write the automatic\n"
+        "CHK_{formula}.chk cache (and do not read one).",
     )
     parser.add_argument(
         "--chk-info",
@@ -456,17 +646,71 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
-def _normalize_kpoint(parser: ArgumentParser, tokens: list[str], allow_label: bool) -> list[str]:
-    """Return the k-point as float strings, or as a label where supported."""
+def _kpoint_from_label(
+    parser: ArgumentParser, cell_path: str, label: str, tolerance: float | None
+) -> list[str]:
+    """Resolve an ISO-IR special-point label into primitive coordinates.
+
+    The SALC and hybridization analyses take coordinates only, and when
+    ``--kpoint`` is omitted they survey the ISO-IR special points of the
+    space group. The label is looked up in that same table -- the names
+    ``crystod-bz --show-kpoint`` prints -- so ``--kpoint R`` analyzes exactly
+    the point the survey calls R, expressed in the spglib primitive basis
+    the analysis uses (seekpath's labels and basis can differ from it on
+    base-centred cells).
+    """
+    import contextlib
+    import io
+
+    from ..crystal_orbital_spgrep import CrystalOrbital
+    from ..star_of_k import read_poscar_or_exit
+
+    cell = read_poscar_or_exit(cell_path)
+    options = {} if tolerance is None else {"symprec": tolerance}
+    # the structure classes announce the primitive-cell conversion on stdout;
+    # the analysis that follows prints that line itself, so keep it quiet here
+    with contextlib.redirect_stdout(io.StringIO()):
+        names, kpoints = CrystalOrbital(cell, **options).get_irt_special_points()
+    aliases = {"GAMMA": "GM", "G": "GM", "\u0393": "GM"}
+    wanted = label.strip().upper()
+    wanted = aliases.get(wanted, wanted)
+    table = {name.upper(): kpoint for name, kpoint in zip(names, kpoints)}
+    if wanted not in table:
+        parser.error(
+            f"--kpoint {label}: not a special k point of this space group. "
+            f"Available labels: {', '.join(names)} (the ISO-IR names that "
+            "crystod-bz --show-kpoint prints); coordinates are accepted too."
+        )
+    return [str(float(value)) for value in table[wanted]]
+
+
+def _normalize_kpoint(
+    parser: ArgumentParser,
+    tokens: list[str],
+    allow_label: bool,
+    *,
+    cell: str | None = None,
+    tolerance: float | None = None,
+) -> list[str]:
+    """Return the k-point as float strings, or as a label where supported.
+
+    ``allow_label=True`` passes a single label token through to an analysis
+    that resolves labels itself; with ``allow_label=False`` and a ``cell``,
+    the label is resolved here (:func:`_kpoint_from_label`) for the analyses
+    that take coordinates only.
+    """
     if len(tokens) == 3:
         try:
             return [str(_parse_fractional_float(token)) for token in tokens]
         except (ValueError, ZeroDivisionError):
             pass
-    if allow_label and len(tokens) == 1:
-        return list(tokens)
+    if len(tokens) == 1:
+        if allow_label:
+            return list(tokens)
+        if cell is not None:
+            return _kpoint_from_label(parser, cell, tokens[0], tolerance)
     message = "--kpoint requires three coordinates such as 0 0 0 (fractions allowed)"
-    if allow_label:
+    if allow_label or cell is not None:
         message += " or a high-symmetry label such as GM/X/M/R"
     parser.error(message + ".")
 
@@ -490,7 +734,24 @@ def main(argv: list[str] | None = None) -> None:
             )
 
     parser = build_parser()
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except ExampleRequested as request:
+        # --example: put the bundled input in place, then run the ordinary
+        # command line it stands for (plus whatever else was given)
+        main(run_example("crystod", request.name, argv))
+        return
+
+    # -c is the sentinel form above: remember whether it was given, then put
+    # the documented default back for every mode that needs a structure file
+    cell_given = args.cell is not None
+    if args.cell is None:
+        args.cell = "POSCAR"
+
+    if args.pyscf:
+        # PySCF is optional: say so in one line before any mode dispatches
+        require_pyscf_or_exit("crystod --pyscf (the quantitative engine of "
+                              "--diagram, --band, --dos and --visualize)")
 
     if args.chk_info:
         from ..crystal_orbital_pyscf import describe_chk
@@ -590,6 +851,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--projection", args.projection])
         if args.chk is not None:
             dispatch_argv.extend(["--chk", args.chk])
+        if args.no_chk:
+            dispatch_argv.append("--no-chk")
         if args.onsite:
             dispatch_argv.append("--onsite")
 
@@ -641,6 +904,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--projection", args.projection])
         if args.chk is not None:
             dispatch_argv.extend(["--chk", args.chk])
+        if args.no_chk:
+            dispatch_argv.append("--no-chk")
         if args.onsite:
             # the DOS only ever uses the crystal density, so the
             # single-SCF mode (and its crystal-only chk files) fit here too
@@ -723,6 +988,8 @@ def main(argv: list[str] | None = None) -> None:
                 dispatch_argv.extend(["--projection", args.projection])
             if args.chk is not None:
                 dispatch_argv.extend(["--chk", args.chk])
+            if args.no_chk:
+                dispatch_argv.append("--no-chk")
             if args.conventional:
                 dispatch_argv.append("--conventional")
 
@@ -846,9 +1113,10 @@ def main(argv: list[str] | None = None) -> None:
                 "--co-left SrTi --co-right O3; the hover wave-function "
                 "sketches are always embedded."
             )
-        dispatch_argv = ["--poscar", args.cell,
-                         "--co-left", *args.co_left,
+        dispatch_argv = ["--co-left", *args.co_left,
                          "--co-right", *args.co_right]
+        if cell_given or (args.vasp is None and args.vasp_setup is None):
+            dispatch_argv[:0] = ["--poscar", args.cell]
         if args.atomic_orbital:
             parser.error(
                 "--diagram no longer takes --atomic-orbital: the hover "
@@ -877,6 +1145,58 @@ def main(argv: list[str] | None = None) -> None:
             parser.error("--onsite needs --pyscf: the extended-Hueckel "
                          "columns already come from the one shared "
                          "Hamiltonian.")
+        if args.force and args.vasp_setup is None:
+            parser.error("--force is only used with --vasp-setup (it lets it "
+                         "overwrite the inputs of a finished run).")
+        if (args.vasp is not None or args.vasp_setup is not None):
+            if args.pyscf:
+                parser.error("--vasp and --pyscf are two different quantitative "
+                             "engines; pick one.")
+            if args.vasp is not None and args.vasp_setup is not None:
+                parser.error("--vasp reads finished runs and --vasp-setup writes "
+                             "their inputs; pick one.")
+            if args.vasp is not None:
+                dispatch_argv.extend(["--vasp", *args.vasp])
+            else:
+                dispatch_argv.extend(["--vasp-setup", args.vasp_setup])
+                if args.force:
+                    dispatch_argv.append("--force")
+            for flag, value in (("--vasp-crystal", args.vasp_crystal),
+                                ("--vasp-left", args.vasp_left),
+                                ("--vasp-right", args.vasp_right),
+                                ("--potcar-dir", args.potcar_dir),
+                                ("--vasp-align", args.vasp_align),
+                                ("--vasp-zero", args.vasp_zero),
+                                ("--vasp-bin", args.vasp_bin)):
+                if value is not None:
+                    dispatch_argv.extend([flag, value])
+            if args.potcar_map is not None:
+                dispatch_argv.extend(["--potcar-map", *args.potcar_map])
+            if args.vasp_rwall is not None:
+                dispatch_argv.extend(["--vasp-rwall", str(args.vasp_rwall)])
+            if args.vasp_sigma is not None:
+                dispatch_argv.extend(["--vasp-sigma", str(args.vasp_sigma)])
+            if args.vasp_wall_factor is not None:
+                dispatch_argv.extend(["--vasp-wall-factor",
+                                      str(args.vasp_wall_factor)])
+            for pair in args.vasp_anchor or []:
+                dispatch_argv.extend(["--vasp-anchor", *pair])
+            if args.vasp_projection_floor is not None:
+                dispatch_argv.extend(["--vasp-projection-floor",
+                                      str(args.vasp_projection_floor)])
+            if args.vasp_window is not None:
+                dispatch_argv.extend(["--vasp-window",
+                                      *map(str, args.vasp_window)])
+            if args.vasp_mesh is not None:
+                dispatch_argv.extend(["--vasp-mesh", *map(str, args.vasp_mesh)])
+            if args.no_align:
+                dispatch_argv.append("--no-align")
+
+            from ..crystal_orbital_vasp import main as vasp_diagram_main
+
+            vasp_diagram_main(dispatch_argv)
+            print_crystod_citation()
+            return
         if args.pyscf:
             for flag, value in (("--basis", args.basis), ("--pseudo", args.pseudo),
                                 ("--xc", args.xc)):
@@ -898,6 +1218,8 @@ def main(argv: list[str] | None = None) -> None:
                 dispatch_argv.extend(["--projection", args.projection])
             if args.chk is not None:
                 dispatch_argv.extend(["--chk", args.chk])
+            if args.no_chk:
+                dispatch_argv.append("--no-chk")
             if args.onsite:
                 dispatch_argv.append("--onsite")
 
@@ -912,6 +1234,28 @@ def main(argv: list[str] | None = None) -> None:
         crystal_diagram_main(dispatch_argv)
         print_crystod_citation()
         return
+    for flag, value in (("--vasp", args.vasp is not None),
+                        ("--vasp-setup", args.vasp_setup is not None),
+                        ("--force", args.force),
+                        ("--vasp-crystal", args.vasp_crystal),
+                        ("--vasp-left", args.vasp_left),
+                        ("--vasp-right", args.vasp_right),
+                        ("--vasp-window", args.vasp_window),
+                        ("--vasp-mesh", args.vasp_mesh),
+                        ("--potcar-dir", args.potcar_dir),
+                        ("--potcar-map", args.potcar_map),
+                        ("--vasp-bin", args.vasp_bin),
+                        ("--vasp-rwall", args.vasp_rwall is not None),
+                        ("--vasp-sigma", args.vasp_sigma is not None),
+                        ("--vasp-wall-factor",
+                         args.vasp_wall_factor is not None),
+                        ("--vasp-anchor", args.vasp_anchor),
+                        ("--vasp-align", args.vasp_align),
+                        ("--vasp-zero", args.vasp_zero),
+                        ("--vasp-projection-floor",
+                         args.vasp_projection_floor is not None)):
+        if value:
+            parser.error(f"{flag} is only used with --diagram.")
     for flag, value in (("--pyscf", args.pyscf), ("--basis", args.basis),
                         ("--pseudo", args.pseudo), ("--kmesh", args.kmesh),
                         ("--ke-cutoff", args.ke_cutoff),
@@ -951,7 +1295,8 @@ def main(argv: list[str] | None = None) -> None:
         dispatch_argv = ["--poscar", args.cell, "--orbital", *args.atomic_orbital]
         if args.kpoint is not None:
             dispatch_argv.extend(
-                ["--kpoint", *_normalize_kpoint(parser, args.kpoint, allow_label=False)]
+                ["--kpoint", *_normalize_kpoint(parser, args.kpoint, allow_label=False,
+                                                cell=args.cell, tolerance=args.tolerance)]
             )
         if args.spinor:
             dispatch_argv.append("--spinor")
@@ -979,7 +1324,8 @@ def main(argv: list[str] | None = None) -> None:
         ]
         if args.kpoint is not None:
             dispatch_argv.extend(
-                ["--kpoint", *_normalize_kpoint(parser, args.kpoint, allow_label=False)]
+                ["--kpoint", *_normalize_kpoint(parser, args.kpoint, allow_label=False,
+                                                cell=args.cell, tolerance=args.tolerance)]
             )
         if args.spinor:
             dispatch_argv.append("--spinor")

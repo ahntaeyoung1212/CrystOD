@@ -15,7 +15,15 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from .common import CRYSTOD_CITATION, add_cell_argument, add_output_argument, banner
+from .common import (
+    CRYSTOD_CITATION,
+    ExampleRequested,
+    add_cell_argument,
+    add_example_argument,
+    add_output_argument,
+    banner,
+    run_example,
+)
 
 desc = """\
 Phonon analyses from phonopy force data: a unit cell with FORCE_SETS (or
@@ -34,6 +42,7 @@ crystod-phonon --vibration -c 221_PPOSCAR_ScF3 --qpoint R
 crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_ScF3   (scan every commensurate q)
 crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --qpoint R --modulate
 crystod-phonon --subgroup --yaml phonopy_params.yaml --qpoint R
+crystod-phonon --example SrTiO3   (bundled input; --example alone lists the names)
 """
 
 
@@ -85,6 +94,7 @@ def build_parser() -> ArgumentParser:
     # from the structure file + FORCE_SETS) from "-c was left out" (fall back to
     # phonopy_params.yaml, as before); every other mode substitutes "POSCAR"
     add_cell_argument(parser, default=None)
+    add_example_argument(parser, "crystod-phonon")
     parser.add_argument(
         "--dim",
         nargs="+",
@@ -244,6 +254,26 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
+def _require_force_file(parser: ArgumentParser, readfc: bool) -> None:
+    """Stop with one line when the force file is not in the working directory.
+
+    ``--irreps``, ``--fatband``, ``--lt``, ``--vector`` and ``--subgroup`` read
+    ``FORCE_SETS`` (``FORCE_CONSTANTS`` with ``--readfc``) from the working
+    directory, as phonopy does; only ``--modulation`` also looks next to the
+    cell file. Without this check the run died in a phonopy traceback.
+    """
+    import os
+
+    name = "FORCE_CONSTANTS" if readfc else "FORCE_SETS"
+    if not os.path.isfile(name):
+        parser.error(
+            f"{name} not found in the current directory ({os.getcwd()}). This "
+            f"mode reads {name} from the working directory, as phonopy does; run "
+            f"the command where {name} is (--modulation also looks next to the "
+            "cell file)."
+        )
+
+
 def _parse_dim(parser: ArgumentParser, tokens: list[str]) -> str:
     """Normalize --dim to the three diagonal values as one string ("4 4 4")."""
     flat = " ".join(tokens).split()
@@ -274,7 +304,14 @@ def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     if argv is None:
         argv = sys.argv[1:]
-    args, unknown = parser.parse_known_args(list(argv))
+    argv = list(argv)
+    try:
+        args, unknown = parser.parse_known_args(argv)
+    except ExampleRequested as request:
+        # --example: put the bundled input in place, then run the ordinary
+        # command line it stands for (plus whatever else was given)
+        main(run_example("crystod-phonon", request.name, argv))
+        return
 
     if unknown and not args.modulation:
         parser.error(f"unrecognized arguments: {' '.join(unknown)}")
@@ -290,6 +327,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.irreps:
         if not dim:
             parser.error("--irreps requires --dim.")
+        _require_force_file(parser, args.readfc)
 
         dispatch_argv = ["--dim", dim, "--poscar", cell]
         if args.readfc:
@@ -307,6 +345,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.fatband:
         if not dim:
             parser.error("--fatband requires --dim.")
+        _require_force_file(parser, args.readfc)
 
         dispatch_argv = ["--dim", dim, "--poscar", cell]
         if args.readfc:
@@ -336,6 +375,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.lt:
         if not dim:
             parser.error("--lt requires --dim.")
+        _require_force_file(parser, args.readfc)
 
         dispatch_argv = ["--dim", dim, "--poscar", cell]
         if args.readfc:
@@ -363,6 +403,7 @@ def main(argv: list[str] | None = None) -> None:
             parser.error("--vector requires --dim.")
         if not args.qpoint:
             parser.error("--vector requires --qpoint.")
+        _require_force_file(parser, args.readfc)
 
         dispatch_argv = ["--dim", dim, "--poscar", cell]
         if args.readfc:
@@ -446,6 +487,7 @@ def main(argv: list[str] | None = None) -> None:
 
         dispatch_argv = []
         if dim:
+            _require_force_file(parser, args.readfc)
             dispatch_argv.extend(["--dim", dim, "--poscar", cell])
             if args.readfc:
                 dispatch_argv.append("--readfc")
