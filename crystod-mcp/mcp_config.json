@@ -1,0 +1,19 @@
+{
+  "_comment": "Two ways to start crystod-mcp. Keep one 'crystod' entry: 'python -m crystod_mcp' uses the interpreter where crystod-mcp (and CrystOD) are installed; the uvx form fetches crystod-mcp from PyPI into its own environment. CRYSTOD_MCP_TIMEOUT (seconds, default 60) bounds the wait of every tool call; a calculation already running in a worker thread finishes in the background.",
+  "mcpServers": {
+    "crystod": {
+      "command": "python",
+      "args": ["-m", "crystod_mcp"],
+      "env": {
+        "CRYSTOD_MCP_TIMEOUT": "60"
+      }
+    },
+    "crystod-uvx": {
+      "command": "uvx",
+      "args": ["crystod-mcp"],
+      "env": {
+        "CRYSTOD_MCP_TIMEOUT": "60"
+      }
+    }
+  }
+}

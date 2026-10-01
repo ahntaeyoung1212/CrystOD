@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crystod-mcp"
+version = "0.1.0"
+description = "Model Context Protocol server for CrystOD: space-group irreps, isotropy subgroups, phonon irreps, crystal-orbital SALCs, special k points and molecular point groups as tools for AI assistants."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [
+  {name = "Yasuhide Mochizuki", email = "mochizuki@rs.tus.ac.jp"},
+]
+maintainers = [
+  {name = "Yasuhide Mochizuki", email = "mochizuki@rs.tus.ac.jp"},
+]
+keywords = [
+  "mcp",
+  "model context protocol",
+  "crystallography",
+  "space group",
+  "irreducible representation",
+  "phonon",
+  "SALC",
+  "symmetry",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Science/Research",
+  "Natural Language :: English",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Chemistry",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+# mcp 2.x: MCPServer (the FastMCP successor), in-process Client for tests.
+dependencies = [
+  "mcp>=2,<3",
+  "CrystOD>=0.4.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+crystod-mcp = "crystod_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/ahntaeyoung1212/CrystOD"
+Documentation = "https://mochizuki-tus.github.io/CrystOD/crystod-mcp.html"
+Repository = "https://github.com/ahntaeyoung1212/CrystOD"
+Issues = "https://github.com/ahntaeyoung1212/CrystOD/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

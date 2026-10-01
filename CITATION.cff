@@ -1,8 +1,29 @@
 cff-version: 1.2.0
 message: "If you use CrystOD in your research, please cite the article below (preferred-citation)."
 title: "CrystOD"
-version: 0.3.6
+version: "0.4.2"
 license: MIT
+type: software
+abstract: "CrystOD is a Python command-line and API toolkit for the symmetry analysis of crystalline solids: irreducible representations of Symmetry-Adapted Linear Combinations (SALC) for crystal-orbital diagrams, phonon mode irreps, isotropy subgroups, and symmetry-mode decomposition of distorted structures."
+# date-released describes the release named in `version` above; move both
+# together at every version bump.
+date-released: "2026-10-01"
+repository-code: "https://github.com/ahntaeyoung1212/CrystOD"
+repository-artifact: "https://pypi.org/project/CrystOD/"
+url: "https://mochizuki-tus.github.io/CrystOD/"
+keywords:
+  - crystallography
+  - space group
+  - irreducible representation
+  - phonon
+  - SALC
+  - crystal orbital
+  - symmetry
+contact:
+  - family-names: Mochizuki
+    given-names: Yasuhide
+    email: mochizuki@rs.tus.ac.jp
+    affiliation: "Tokyo University of Science"
 authors:
   - family-names: Mochizuki
     given-names: Yasuhide
