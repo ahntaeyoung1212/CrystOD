@@ -65,13 +65,35 @@ DEFAULT_TWO_THETA_RANGE = (10.0, 120.0)
 DEFAULT_WIDTH = 0.1
 
 
+def _three_index(hkl) -> tuple[int, int, int]:
+    """The Miller indices ``(h, k, l)`` of a reflection.
+
+    pymatgen's ``XRDCalculator`` writes the reflections of a hexagonal
+    lattice (hexagonal and trigonal crystals, rhombohedral ones in the
+    hexagonal setting) as Miller-Bravais indices ``(h, k, i, l)``.  The third
+    index is redundant, ``i = -(h + k)``, and is dropped here, so that every
+    lattice is indexed with ``(h, k, l)`` on the basis of its own cell.
+
+    Raises:
+        ValueError: Neither three indices nor four with ``i = -(h + k)``.
+    """
+    indices = tuple(int(index) for index in hkl)
+    if len(indices) == 4 and indices[2] == -(indices[0] + indices[1]):
+        return indices[0], indices[1], indices[3]
+    if len(indices) != 3:
+        raise ValueError(f"not Miller (h k l) or Miller-Bravais (h k i l) indices: {indices}")
+    return indices
+
+
 @dataclass(frozen=True)
 class Peak:
     """One Bragg reflection of a computed pattern.
 
     Attributes:
-        hkl: Miller indices of the first family of planes contributing to
-            the peak.
+        hkl: Miller indices ``(h, k, l)`` of the first family of planes
+            contributing to the peak.  Miller-Bravais indices ``(h, k, i, l)``,
+            which pymatgen gives for a hexagonal lattice, are stored without
+            the redundant ``i = -(h + k)``.
         multiplicity: Multiplicity of that family.
         families: Every ``((h, k, l), multiplicity)`` that pymatgen merged
             into this peak because the ``d`` spacings coincide (cubic
@@ -92,6 +114,12 @@ class Peak:
     two_theta: float
     intensity: float
     line: str
+
+    def __post_init__(self) -> None:
+        # (h k i l) of a hexagonal lattice -> (h k l), here and in every family
+        object.__setattr__(self, "hkl", _three_index(self.hkl))
+        object.__setattr__(self, "families", tuple(
+            (_three_index(hkl), int(mult)) for hkl, mult in self.families))
 
     @property
     def families_label(self) -> str:
@@ -203,10 +231,14 @@ def load_structure(path: str):
     """
     from pymatgen.io.vasp.inputs import Poscar
 
+    from .vasp_io import poscar_structure
+
     if not os.path.isfile(path):
         raise SystemExit(f"ERROR: No POSCAR named {path}!")
     try:
-        return Poscar.from_file(path, read_velocities=False).structure
+        # the cell VASP reads from the file (scale line, Cartesian coordinates)
+        return poscar_structure(
+            Poscar.from_file(path, read_velocities=False).structure, path)
     except Exception as exc:  # pymatgen raises several types for a bad file
         raise SystemExit(f"ERROR: failed to read POSCAR file '{path}': {exc}") from None
 
@@ -507,8 +539,9 @@ def main(argv: list[str] | None = None) -> None:
     prefix = args.output or f"XRD_{name}_{pattern.xray_type}"
     table_path = write_peak_table(pattern, prefix + ".txt")
     figure_path = plot_xrd_pattern(pattern, prefix + ".pdf", profile, args.width, show=args.show)
-    print(f"\nPeak table written to: {table_path}")
-    print(f"Pattern ({profile} profile, width {args.width:g} deg) written to: {figure_path}")
+    print("\n * Output files *")
+    print(f" Peak table written to: {table_path}")
+    print(f" Pattern ({profile} profile, width {args.width:g} deg) written to: {figure_path}")
     print("\nIntensities: pymatgen XRDCalculator (S. P. Ong et al., Comput. Mater. Sci. 68, "
           "314 (2013));\nwavelengths: RIETAN-FP manual (F. Izumi and K. Momma).")
 

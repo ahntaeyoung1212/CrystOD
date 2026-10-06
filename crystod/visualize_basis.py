@@ -25,7 +25,7 @@ from .spglib_compat import ensure_spglib_compat
 ensure_spglib_compat()
 
 from phonopy.interface.calculator import read_crystal_structure
-from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
 from spgrep.representation import project_to_irrep
 
 from .crystal_orbital_spgrep import format_kpoint, sort_irrep_items
@@ -1385,7 +1385,8 @@ def write_html_visualization(
 
 
 def _special_kpoints(orbitals) -> tuple[list[str], list[list[float]]]:
-    """Unique special k points of the space group, in the primitive basis."""
+    """Unique special k points of the space group, in the primitive basis,
+    named in the frame of the labels."""
     from phonopy.structure.cells import get_primitive_matrix_by_centring
 
     from .irreptables_compat import load_irreptables
@@ -1396,7 +1397,9 @@ def _special_kpoints(orbitals) -> tuple[list[str], list[list[float]]]:
     prim_mat = get_primitive_matrix_by_centring(
         orbitals.spglib_dataset["international"][0]
     )
-    return get_irt_special_points(irt_table, prim_mat)
+    return orbitals._special_points_in_label_frame(
+        *get_irt_special_points(irt_table, prim_mat)
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -1422,18 +1425,44 @@ def main(argv: list[str] | None = None) -> None:
 
         stem = os.path.splitext(os.path.basename(args.poscar))[0]
         kpoint_names, kpoints = _special_kpoints(orbitals)
-        for kpoint_label, kpoint in zip(kpoint_names, kpoints):
+        written = []
+        for position, (kpoint_label, kpoint) in enumerate(zip(kpoint_names, kpoints)):
             output_path = (
                 f"SALC_{stem}_{args.element}_{args.orbital}_{kpoint_label}.html"
             )
-            _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, output_path)
+            # the previous k point's listing already ends with a blank line
+            written.append(
+                _run_at_kpoint(
+                    args, orbitals, l, kpoint_label, kpoint, output_path,
+                    leading_blank=position == 0,
+                )
+            )
+        print(format_output_files(written))
         return
 
     kpoint_label, kpoint = resolve_kpoint_input(orbitals, args.kpoint)
-    _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, None)
+    written = _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, None)
+    print(format_output_files([written]))
 
 
-def _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, forced_output) -> None:
+def format_output_files(paths: list[str]) -> str:
+    """Format the final ``* Output files *`` block of ``crystod --visualize``.
+
+    Args:
+        paths: The HTML files written, in the order they were written.
+
+    Returns:
+        The block text (header line plus one notice per file).
+    """
+    lines = [" * Output files *"]
+    lines.extend(f" Saved 3D visualization to: {p}" for p in paths)
+    return "\n".join(lines)
+
+
+def _run_at_kpoint(
+    args, orbitals, l, kpoint_label, kpoint, forced_output, leading_blank=True
+) -> str:
+    """Write the SALC viewer at one k point and return the path written."""
     element_indices = orbitals.get_element_indices(args.element)
     wyckoff_letters = [orbitals.spglib_dataset["wyckoffs"][index] for index in element_indices]
     site_symmetry_symbols = [
@@ -1441,7 +1470,8 @@ def _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, forced_output) -> No
     ]
 
     print(
-        f"\n * Space group *\n {orbitals.spglib_dataset['international']} "
+        ("\n" if leading_blank else "")
+        + f" * Space group *\n {orbitals.spglib_dataset['international']} "
         f"({orbitals.spglib_dataset['number']})\n"
     )
     print(f" * Orbital (number of atoms) *\n {args.element}_{args.orbital} ({len(element_indices)})\n")
@@ -1563,7 +1593,7 @@ def _run_at_kpoint(args, orbitals, l, kpoint_label, kpoint, forced_output) -> No
         bonds=bond_specs,
         conventional=args.conventional,
     )
-    print(f"Saved 3D visualization to: {output_path}")
+    return output_path
 
 
 if __name__ == "__main__":

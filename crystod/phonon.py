@@ -21,6 +21,32 @@ Irrep labeling (``crystod-phonon --irreps``):
 - :func:`find_star_representative` -- map any arm of a star onto its
   tabulated arm.
 
+Spectroscopic activity at Gamma (``--irreps`` and ``--vibration --qpoint GM``):
+
+- :func:`gamma_mode_activities` -- IR / Raman / silent / acoustic activity of
+  the Gamma-point modes, from a phonopy object (per degenerate set) or from
+  the structure alone (per mode space), as :class:`Activity` records;
+- :func:`classify_gamma_irreps` -- the IR and Raman multiplicities of irrep
+  characters over the point-group rotations;
+- :func:`format_activity_summary` -- the one-line per-irrep summary the
+  commands print;
+- :func:`gamma_raman_tensors` -- the symmetry-allowed Raman tensors of the
+  Raman-active Gamma irreps in the axes of the input cell
+  (``--raman-tensor``), as :class:`RamanTensors` records, printed by
+  :func:`format_raman_tensors`; :func:`raman_tensor_basis` for any irrep
+  character;
+- :func:`wyckoff_orbit_decomposition` -- the Gamma irreps per orbit of
+  equivalent atoms (``--vibration --qpoint GM``), as :class:`WyckoffOrbit`
+  records, printed by :func:`format_wyckoff_orbits`;
+- :func:`mulliken_symbols` -- the Mulliken symbol (phonopy's point-group
+  character tables and axis convention) of every ISO-IR Gamma irrep, the
+  bracket after the Gamma labels of ``--vibration`` and ``--irreps``;
+- :func:`mode_effective_charges` and :func:`dielectric_response` -- with
+  Born effective charges (``--irreps --nac``), the mode effective charges,
+  the dielectric contribution of every set, eps_0, the acoustic sum rule
+  and the Lyddane-Sachs-Teller check, as a :class:`DielectricResponse` of
+  :class:`DielectricSet` records, printed by :func:`format_dielectric_table`.
+
 Mode labeling and isotropy subgroups (``crystod-phonon --subgroup``; the
 structure-search API):
 
@@ -72,7 +98,7 @@ Symmetry-only vibration bases (``crystod-phonon --vibration``):
 
 Attributes resolve lazily (PEP 562): importing this module is instant and
 pulls in phonopy/spgrep only on first use. The implementation lives in
-``crystod.phonon_irreps``, ``crystod.phonon_subgroups``,
+``crystod.phonon_irreps``, ``crystod.phonon_activity``, ``crystod.phonon_subgroups``,
 ``crystod.phonon_vector``, ``crystod.phonon_lt``, ``crystod.modulation`` and
 ``crystod.vibration_modes``, whose import paths keep working. Bad input
 raises ``ValueError`` from the functions of this namespace, where the
@@ -107,6 +133,24 @@ _EXPORTS = {
     "get_irrep_labels": ("phonon_irreps", "get_irrep_labels"),
     "get_irt_special_points": ("phonon_irreps", "get_irt_special_points"),
     "find_star_representative": ("phonon_irreps", "find_star_representative"),
+    # spectroscopic activity at Gamma (--irreps / --vibration --qpoint GM)
+    "gamma_mode_activities": ("phonon_activity", "gamma_mode_activities"),
+    "classify_gamma_irreps": ("phonon_activity", "classify_gamma_irreps"),
+    "format_activity_summary": ("phonon_activity", "format_activity_summary"),
+    "Activity": ("phonon_activity", "Activity"),
+    "gamma_raman_tensors": ("phonon_activity", "gamma_raman_tensors"),
+    "raman_tensor_basis": ("phonon_activity", "raman_tensor_basis"),
+    "format_raman_tensors": ("phonon_activity", "format_raman_tensors"),
+    "RamanTensors": ("phonon_activity", "RamanTensors"),
+    "wyckoff_orbit_decomposition": ("phonon_activity", "wyckoff_orbit_decomposition"),
+    "WyckoffOrbit": ("phonon_activity", "WyckoffOrbit"),
+    "format_wyckoff_orbits": ("phonon_activity", "format_wyckoff_orbits"),
+    "mulliken_symbols": ("phonon_activity", "mulliken_symbols"),
+    "mode_effective_charges": ("phonon_activity", "mode_effective_charges"),
+    "dielectric_response": ("phonon_activity", "dielectric_response"),
+    "DielectricResponse": ("phonon_activity", "DielectricResponse"),
+    "DielectricSet": ("phonon_activity", "DielectricSet"),
+    "format_dielectric_table": ("phonon_activity", "format_dielectric_table"),
     # high-level labeling / subgroup API (macer-style structure searches)
     "label_phonon_modes": ("phonon_subgroups", "label_phonon_modes"),
     "imaginary_mode_subgroups": ("phonon_subgroups", "imaginary_mode_subgroups"),

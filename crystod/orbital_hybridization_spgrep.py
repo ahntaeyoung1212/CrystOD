@@ -164,10 +164,26 @@ class CrystalOrbital:
         return irreps_at_k
 
     def get_kpoint_name(self, k: list[float]) -> Optional[str]:
-        """Get the special k-point name from the ISO-IR tables if available.
+        """Get the ISO-IR k-vector type name of a k point.
 
-        Any arm of a tabulated star is recognized, not only the tabulated arm.
+        The name refers to the frame of the labels (the ISO-IR frame of the
+        input cell): any arm of a special-point star gets the star's name,
+        any other k point its k-vector type name, the partner of a star
+        tabulated only through -k the 'A' name (``PA`` of I-4).  The
+        special-point table is the fallback where the ISO-IR data give
+        nothing.
         """
+        # the labeller first: the table below is in spglib's basis, which
+        # differs from the frame of the labels for an input outside the
+        # ISO-IR setting (it would name P what the labels call PA)
+        from .isoir import get_isoir_kpoint_name
+
+        name = get_isoir_kpoint_name(
+            self.spglib_dataset['number'], self.primitive_cell.totuple(),
+            self.symprec, k, input_cell=self._inputed_cell.totuple(),
+        )
+        if name is not None:
+            return name
         irreps_at_k = self.get_irt_irreps_at_k(k)
         if irreps_at_k:
             return irreps_at_k[0].kpname
@@ -176,13 +192,7 @@ class CrystalOrbital:
             irreps_at_rep = self.get_irt_irreps_at_k(arm[1])
             if irreps_at_rep:
                 return irreps_at_rep[0].kpname
-        # non-special k: fall back to the ISO-IR k-vector type label
-        from .isoir import get_isoir_kpoint_name
-
-        return get_isoir_kpoint_name(
-            self.spglib_dataset['number'], self.primitive_cell.totuple(),
-            self.symprec, k,
-        )
+        return None
 
     def _find_irt_star_arm(self, k: list[float]) -> Optional[tuple[int, list[float]]]:
         """(g_index, k_rep) mapping k onto the tabulated arm of its star, or None."""
@@ -213,6 +223,7 @@ class CrystalOrbital:
             [self.rotations[idx] for idx in mapping_little_group],
             [self.translations[idx] for idx in mapping_little_group],
             [get_character(irrep) for irrep in irreps],
+            input_cell=self._inputed_cell.totuple(),
         )
         if matched is None:
             return None
@@ -225,7 +236,11 @@ class CrystalOrbital:
         }
 
     def get_irt_special_points(self) -> tuple[list[str], list[list[float]]]:
-        """Get unique special k-points from the ISO-IR tables in primitive basis."""
+        """Get unique special k-points from the ISO-IR tables in primitive basis.
+
+        The table's own points in spglib's basis, as the direct character
+        comparison needs them; the survey uses :meth:`get_special_points`.
+        """
         kpoint_names = []
         primitive_kpoints = []
         for irrep in self.irt_kpoint_table.irreps:
@@ -235,13 +250,38 @@ class CrystalOrbital:
                 kpoint_names.append(irrep.kpname)
         return kpoint_names, primitive_kpoints
 
+    def get_special_points(self) -> tuple[list[str], list[list[float]]]:
+        """Special k points named in the frame of the labels.
+
+        :meth:`get_irt_special_points` passed through
+        ``crystod.isoir.special_points_in_frame`` with the labeller of the
+        labels (that of the input cell): the names are the letters of the
+        labels printed at the points, and a point that is the -k partner of
+        a tabulated type is replaced by -k.
+        """
+        from .isoir import get_cached_labeler, special_points_in_frame
+
+        labeler = get_cached_labeler(
+            self.spglib_dataset['number'], self.primitive_cell.totuple(),
+            self.symprec, input_cell=self._inputed_cell.totuple(),
+        )
+        names, kpoints = self.get_irt_special_points()
+        return special_points_in_frame(names, kpoints, labeler, canonical=snap_qpoint)
+
     def get_irrep_labels(
         self,
         k: list[float],
         irreps,
         mapping_little_group: NDArray[np.int_],
     ) -> dict[str, str]:
-        """Map spgrep irreps to ISO-IR labels by comparing characters."""
+        """Map spgrep irreps to ISO-IR labels.
+
+        The ISO-IR labeller (``crystod.isoir``) names the irreps at any k, in
+        the ISO-IR frame of the input cell ('A' names at a k point tabulated
+        only through -k); the direct comparison of characters with the
+        special-point table is the fallback where the labeller gives nothing,
+        and the route of the spinor irreps.
+        """
         irt_irreps = self.get_irt_irreps_at_k(k)
         char_indices: list[int] = list(mapping_little_group)
         char_phases = np.ones(len(char_indices), dtype=complex)
@@ -260,12 +300,22 @@ class CrystalOrbital:
                     ):
                         irt_irreps = candidate_irreps
                         char_indices, char_phases = conjugated
+        # The ISO-IR labeller is the label authority at every k: it compares
+        # in the ISO-IR setting, at the exact translations and with the
+        # conjugate phase convention.  The direct special-point comparison
+        # below ignores all three and names a physically different irrep at
+        # some points (H/K of the hexagonal groups, P of I4/mcm, Y/T of
+        # Ccce, ...); it is kept as a fallback and for the spinor irreps,
+        # which the ISO-IR data do not contain.
+        isoir_labels = self._get_isoir_labels(k, irreps, mapping_little_group)
+        if irt_irreps and isoir_labels is not None:
+            # the flag keeps its meaning "k is not a tabulated point"
+            self.labels_from_isoir = False
+            return isoir_labels
         if not irt_irreps:
             # Not among the tabulated special k points (e.g. a symmetry
-            # line/plane or generic k): fall back to the full ISO-IR (ISOTROPY)
-            # tables, which cover every k-vector type.  Labels then follow the
-            # Miller-Love convention.
-            isoir_labels = self._get_isoir_labels(k, irreps, mapping_little_group)
+            # line/plane or generic k): only the full ISO-IR (ISOTROPY)
+            # tables cover it.  Labels then follow the Miller-Love convention.
             if isoir_labels is not None:
                 return isoir_labels
             return {
@@ -580,7 +630,7 @@ class CrystalOrbital:
                                                                           kpoint=k
                                                                           )
         else:
-            from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+            from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
             irreps, mapping_little_group = get_spacegroup_irreps_from_primitive_symmetry(
                                                                    rotations=self.rotations,
                                                                    translations=self.translations,
@@ -730,7 +780,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         print("  tables; spinor irreps are shown with generic labels.)\n")
 
     if args.kpoint is None:
-        kpoint_names, kpoints = crystal_orbital.get_irt_special_points()
+        kpoint_names, kpoints = crystal_orbital.get_special_points()
         print(" * Result *")
         for kpoint_name, kpoint in zip(kpoint_names, kpoints):
             mapping_little_group, irreps, labeled_result, irrep_labels = get_result_at_k(

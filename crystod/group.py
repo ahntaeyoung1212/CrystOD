@@ -34,11 +34,62 @@ Isotropy subgroups (``crystod-group --parent``):
   subgroup identification, conventional settings.
 - ``InducedRepresentation``, ``CoupledRepresentation`` -- the real matrices
   of the order parameter of one irrep or of several coupled irreps.
+- ``find_isotropy_irreps`` -- the reverse lookup (``--parent G --child H``):
+  every special-point irrep stratum whose isotropy subgroup has type H, as
+  ``IsotropyMatch`` records.
+- ``find_coupled_isotropy_irreps`` -- the coupled reverse lookup
+  (``--child H --coupled``): the pairs of irreps and directions whose
+  coupled isotropy subgroup has type H, as ``CoupledIsotropyMatch`` records.
+- ``isotropy_table`` -- every stratum of every special-point irrep of a
+  parent with its setting, as an ``IsotropyTable`` (cached on disk below
+  ``$CRYSTOD_CACHE_DIR`` or ``~/.cache/crystod``).
+- ``subgroup_graph`` -- the group-subgroup graph of the isotropy subgroups
+  of one irrep or of a direct sum (``--parent SG --irrep IR [IR2 ...]
+  --graph``), as a ``SubgroupGraph`` of ``GraphNode`` and ``GraphEdge``
+  records.
+
+Invariant polynomials (``crystod-group --parent SG --irrep IR --invariants``):
+
+- ``invariant_polynomials`` -- the invariant polynomials (Landau
+  free-energy terms) of an irrep degree by degree, as an
+  ``InvariantBasis``, checked against the Molien series.
+- ``landau_lifshitz`` -- the Landau (no cubic invariant) and Lifshitz
+  conditions of an irrep, as a ``LandauLifshitz`` record.
+- ``coupling_terms`` -- the lowest-order coupling term of a direct sum of
+  irreps (e.g. the trilinear ``Q1 Q2 P`` of hybrid improper
+  ferroelectrics), as a ``CouplingTerm``.
+- ``secondary_order_parameters`` -- the irreps with a nonzero component
+  fixed by the isotropy subgroup of a given order-parameter direction
+  (``--secondary``), as ``SecondaryOrderParameter`` records.
+
+Correlation of irreps (``crystod-group --correlate``):
+
+- ``correlation_table`` -- the irreps of a point group restricted to every
+  inequivalent orientation of a subgroup type (``--correlate --pg G
+  --subgroup H``), as a ``CorrelationTable``; ``format_correlation_table``
+  renders it.
+
+- ``subduce_to_child`` -- parent irreps restricted to the Gamma point of the
+  isotropy subgroup of a direction (``--correlate --parent``), as
+  ``Subduction`` records; ``format_subduction`` renders them.
+- ``compatibility_relations`` -- the small irreps of two special points
+  restricted to the symmetry line joining them (``--correlate --sg``), as
+  ``Compatibility`` records; ``format_compatibility`` renders them.
 
 Symmetry-mode analysis (``crystod-group --supergroup-cif``):
 
 - ``SymmetryModeAnalysis`` -- AMPLIMODES-style decomposition of the
   distortion between a parent and a child structure into parent irreps.
+
+Property tensors (``crystod-group --tensor``):
+
+- ``tensor_form`` -- the symmetry-allowed form of a property tensor
+  (Neumann's principle) in a point group, a space group's point group or a
+  structure's point group, by name (``dielectric``, ``piezoelectric``,
+  ``elastic``, ...) or Jahn symbol, as a ``TensorForm`` (independent
+  components, matrix form, relations); ``format_tensor_form`` renders it.
+- ``raman_forms`` -- the Raman tensors of every Raman-active irrep of a
+  point group (Mulliken labels).
 
 Point-group tools (``--table``, ``--decompose``, ``--product --pg``,
 ``--ligand-field``):
@@ -47,6 +98,12 @@ Point-group tools (``--table``, ``--decompose``, ``--product --pg``,
   ``format_irrep_table`` renders it.
 - ``decompose``, ``decompose_representation`` -- reduce a character vector
   into irreps; ``direct_product_character`` multiplies irreps.
+- ``symmetric_square``, ``antisymmetric_square`` -- the squares
+  ``[IR x IR]`` and ``{IR x IR}`` (``--product IR IR --symmetric``);
+  ``jahn_teller_modes`` -- Jahn-Teller active modes and symmetry-allowed
+  pseudo-Jahn-Teller coupling modes as a ``JahnTellerModes`` record
+  (``--jahn-teller``).  The space-group squares are
+  ``SpaceGroupIrrepAlgebra.decompose_square``.
 - ``get_orbital_characters`` -- the (2l+1)-dimensional orbital representation
   (ligand-field splitting).
 - ``format_spacegroup_table`` -- the character table of the little group of
@@ -96,14 +153,57 @@ _EXPORTS = {
     "isotropy_subgroups_at_kpoint": ("phonon_subgroups", "isotropy_subgroups_at_kpoint"),
     "IsotropySubgroup": ("phonon_subgroups", "IsotropySubgroup"),
     "KpointIsotropySubgroups": ("phonon_subgroups", "KpointIsotropySubgroups"),
+    # reverse lookup (crystod-group --parent G --child H)
+    "find_isotropy_irreps": ("isotropy_table", "find_isotropy_irreps"),
+    "IsotropyMatch": ("isotropy_table", "IsotropyMatch"),
+    "isotropy_table": ("isotropy_table", "isotropy_table"),
+    "IsotropyTable": ("isotropy_table", "IsotropyTable"),
+    "find_coupled_isotropy_irreps": ("isotropy_table", "find_coupled_isotropy_irreps"),
+    "CoupledIsotropyMatch": ("isotropy_table", "CoupledIsotropyMatch"),
+    # group-subgroup graph (crystod-group --parent SG --irrep IR ... --graph)
+    "subgroup_graph": ("subgroup_graph", "subgroup_graph"),
+    "SubgroupGraph": ("subgroup_graph", "SubgroupGraph"),
+    "GraphNode": ("subgroup_graph", "GraphNode"),
+    "GraphEdge": ("subgroup_graph", "GraphEdge"),
+    # invariant polynomials (crystod-group --parent --irrep --invariants)
+    "invariant_polynomials": ("invariants", "invariant_polynomials"),
+    "InvariantBasis": ("invariants", "InvariantBasis"),
+    "landau_lifshitz": ("invariants", "landau_lifshitz"),
+    "LandauLifshitz": ("invariants", "LandauLifshitz"),
+    "coupling_terms": ("invariants", "coupling_terms"),
+    "CouplingTerm": ("invariants", "CouplingTerm"),
+    # secondary order parameters (crystod-group --parent ... --secondary)
+    "secondary_order_parameters": (
+        "secondary_order_parameter", "secondary_order_parameters"),
+    "SecondaryOrderParameter": ("secondary_order_parameter", "SecondaryOrderParameter"),
+    # correlation of irreps (crystod-group --correlate)
+    "subduce_to_child": ("correlation", "subduce_to_child"),
+    "Subduction": ("correlation", "Subduction"),
+    "compatibility_relations": ("correlation", "compatibility_relations"),
+    "Compatibility": ("correlation", "Compatibility"),
+    "format_subduction": ("correlation", "format_subduction"),
+    "format_compatibility": ("correlation", "format_compatibility"),
+    "correlation_table": ("correlation", "correlation_table"),
+    "CorrelationTable": ("correlation", "CorrelationTable"),
+    "format_correlation_table": ("correlation", "format_correlation_table"),
     # symmetry-mode analysis (crystod-group --supergroup-cif)
     "SymmetryModeAnalysis": ("symmetry_mode", "SymmetryModeAnalysis"),
+    # property tensors (crystod-group --tensor)
+    "tensor_form": ("tensor_form", "tensor_form"),
+    "TensorForm": ("tensor_form", "TensorForm"),
+    "format_tensor_form": ("tensor_form", "format_tensor_form"),
+    "raman_forms": ("tensor_form", "raman_forms"),
     # point-group reduction (crystod-group --decompose)
     "get_character_table": ("decompose_irrep", "get_character_table"),
     "decompose": ("decompose_irrep", "decompose"),
     # point-group direct products (crystod-group --product)
     "direct_product_character": ("direct_product", "direct_product_character"),
     "decompose_representation": ("direct_product", "decompose_representation"),
+    # symmetrized squares and Jahn-Teller modes (--product --symmetric, --jahn-teller)
+    "symmetric_square": ("direct_product", "symmetric_square"),
+    "antisymmetric_square": ("direct_product", "antisymmetric_square"),
+    "jahn_teller_modes": ("direct_product", "jahn_teller_modes"),
+    "JahnTellerModes": ("direct_product", "JahnTellerModes"),
     # ligand-field splitting (crystod-group --ligand-field)
     "get_orbital_characters": ("ligand_field", "get_orbital_characters"),
     # spin multiplets (crystod-group --multiplet)

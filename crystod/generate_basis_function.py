@@ -12,9 +12,10 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, RawDescripti
 from fractions import Fraction
 
 from .basis_function import (
-    _analyze_point_group,
-    _analyze_space_group,
     _parse_function,
+    _point_group_blocks,
+    _render_blocks,
+    _space_group_blocks,
 )
 
 
@@ -100,6 +101,50 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
+def format_generated_basis(
+    orders: list[int],
+    point_group: str | None = None,
+    space_group: str | None = None,
+    kpoint: list[float] | None = None,
+    show_irrep_table: bool = False,
+) -> str:
+    """Text report of ``crystod-group --generate-basis``.
+
+    The group blocks (``* Point group *``, or ``* Space group *``,
+    ``* Little group of k *`` and ``* k-point (primitive) *``, then the
+    ``* IrRep Table *`` with ``show_irrep_table``) are printed once; every
+    order follows with its own ``* Input basis functions: 1st order
+    (linear) *``, ``* Decomposition: ... *`` ... blocks.
+
+    Args:
+        orders: Polynomial orders, any of 1, 2, 3.
+        point_group: Point-group label (exclusive with ``space_group``).
+        space_group: Space-group symbol; needs ``kpoint``.
+        kpoint: k point in the primitive basis.
+        show_irrep_table: Add the character table of the (little) group.
+
+    Returns:
+        The report as one string (leading newline, no trailing newline).
+    """
+    blocks: list[tuple[str, list[str]]] = []
+    for position, order in enumerate(sorted(set(orders))):
+        seed_expressions = [_parse_function(monomial) for monomial in DEGREE_MONOMIALS[order]]
+        if space_group:
+            header_blocks, analysis_blocks = _space_group_blocks(
+                space_group, kpoint, seed_expressions, show_irrep_table
+            )
+        else:
+            header_blocks, analysis_blocks = _point_group_blocks(
+                point_group, seed_expressions, show_irrep_table
+            )
+        if position == 0:
+            blocks.extend(header_blocks)
+        blocks.extend(
+            (f"{title}: {_ORDER_TITLES[order]}", lines) for title, lines in analysis_blocks
+        )
+    return _render_blocks(blocks)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -109,27 +154,13 @@ def main(argv: list[str] | None = None) -> None:
     if args.space_group and args.kpoint is None:
         parser.error("--space-group requires --kpoint.")
 
-    orders = sorted(set(args.order))
-    for position, order in enumerate(orders):
-        seed_expressions = [_parse_function(monomial) for monomial in DEGREE_MONOMIALS[order]]
-        show_table = args.show_irrep_table and position == 0
-
-        print("=" * 60)
-        print(f"  {_ORDER_TITLES[order]} basis functions")
-        print("=" * 60)
-        if args.space_group:
-            print(
-                _analyze_space_group(
-                    args.space_group,
-                    args.kpoint,
-                    seed_expressions,
-                    show_table,
-                )
-            )
-        else:
-            print(_analyze_point_group(args.point_group, seed_expressions, show_table))
-        print("")
-
+    print(format_generated_basis(
+        args.order,
+        point_group=args.point_group,
+        space_group=args.space_group,
+        kpoint=args.kpoint,
+        show_irrep_table=args.show_irrep_table,
+    ))
 
 if __name__ == "__main__":
     main()

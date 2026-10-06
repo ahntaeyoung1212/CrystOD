@@ -76,7 +76,7 @@ from .spglib_compat import ensure_spglib_compat
 ensure_spglib_compat()
 
 from phonopy.structure.cells import get_primitive_matrix_by_centring
-from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
 
 from .irreptables_compat import load_irreptables
 from .operations import wigner_D_real, snap_qpoint
@@ -1770,7 +1770,9 @@ class CrystalOrbitalDiagram:
             ``[(name, kpoint), ...]`` with the ISO-IR names (``GM``, ``R``,
             ``X``, ``M`` for Pm-3m) and primitive reciprocal coordinates, in
             table order: the k points ``crystod --diagram`` draws
-            (``--kpoint NAME`` restricts the run to one of them).
+            (``--kpoint NAME`` restricts the run to one of them).  The
+            points are named in the frame of the labels
+            (``crystod.isoir.special_points_in_frame``).
         """
         table = IrrepTable(self.builder.spglib_dataset["number"], spinor=False)
         primitive_matrix = get_primitive_matrix_by_centring(
@@ -1782,6 +1784,7 @@ class CrystalOrbitalDiagram:
             if kpoint not in kpoints:
                 kpoints.append(kpoint)
                 names.append(irrep.kpname)
+        names, kpoints = self.builder._special_points_in_label_frame(names, kpoints)
         return list(zip(names, kpoints))
 
 
@@ -1909,6 +1912,62 @@ def _with_periodic_images(partners, replica_map):
     return extended
 
 
+def diagram_dipole_rules(diagram, name: str, kpoint, levels):
+    """Dipole selection rules of one k point of any ``--diagram`` engine.
+
+    The one helper the engines share: the terminal block and the HTML page
+    (:func:`write_crystal_diagram_html`) both call it, so they show the same
+    result; it is computed once per k point and cached on the diagram object
+    (``diagram.dipole_rules``, see
+    :func:`crystod.selection_rules.kpoint_selection_rules`).  The rules use
+    ``diagram.builder`` (the ISO-IR labeller of every engine) and the
+    ``irrep`` of the crystal-column levels, with polarizations in the
+    Cartesian axes of the input cell; spinor results (``diagram.spinor``)
+    are not evaluated.
+
+    Args:
+        diagram: The engine's diagram object (``builder``, optionally
+            ``spinor``).
+        name: The k-point label.
+        kpoint: Its primitive reciprocal coordinates in the builder's cell.
+        levels: ``{column: [DiagramLevel]}`` of that k point.
+
+    Returns:
+        A :class:`crystod.selection_rules.DipoleSelectionRules`.
+    """
+    from .selection_rules import kpoint_selection_rules
+
+    return kpoint_selection_rules(diagram, name, kpoint, levels)
+
+
+def dipole_rules_lines(diagram, name: str, kpoint, levels) -> list[str]:
+    """The `` * Dipole selection rules at <k> *`` block of one k point.
+
+    Indented as a part of the engine report (the `` * k point <k> *``
+    blocks): a leading space in the title, three-space content.
+
+    Args:
+        diagram: The engine's diagram object.
+        name: The k-point label.
+        kpoint: Its primitive reciprocal coordinates.
+        levels: ``{column: [DiagramLevel]}`` of that k point.
+
+    Returns:
+        The block's lines, the leading blank line included.
+    """
+    from .selection_rules import format_dipole_selection_rules
+
+    rules = diagram_dipole_rules(diagram, name, kpoint, levels)
+    return format_dipole_selection_rules(rules, _format_kpoint(kpoint),
+                                         nested=True)
+
+
+def print_dipole_rules(diagram, name: str, kpoint, levels) -> None:
+    """Print :func:`dipole_rules_lines` (the engines' terminal reports)."""
+    for line in dipole_rules_lines(diagram, name, kpoint, levels):
+        print(line)
+
+
 def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                                k_entries: list, output_path: str,
                                structure_label: str) -> None:
@@ -1993,6 +2052,10 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                     # facing note lives in the tooltip detail)
                     **({"est": 1} if getattr(level, "estimated", False)
                        else {}),
+                    # spinor levels: one bar per Kramers pair holding two
+                    # electrons, instead of one bar per degenerate partner
+                    **({"bars": level.bars} if getattr(level, "bars", None)
+                       else {}),
                     # a crystal level the engine could not classify is marked
                     # "u" so the renderer gives it the NEUTRAL stroke: without
                     # it an occupied level would keep the .occ blue, which is
@@ -2003,6 +2066,11 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
                     **({"bond": bond_letter[character]} if character
                        else ({"bond": "u"} if column == "mo" else {})),
                     "label": level.label,
+                    # crystal levels: the bare irrep name, the key into the
+                    # variant's dipole selection-rule table ("dip")
+                    **({"irrep": level.irrep}
+                       if column == "mo" and getattr(level, "irrep", "")
+                       else {}),
                     # atomic-shell levels carry electrons=None (no arrows;
                     # occupation is a sublattice/crystal-column concept)
                     "el": level.electrons,
@@ -2058,6 +2126,12 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
             view_hi = min(e_max + padding, _VIEW_E_MAX)
         if view_hi - view_lo < 1.0:
             view_lo, view_hi = e_min - padding, e_max + padding
+        # dipole selection rules between the crystal levels on the page: the
+        # allowed irrep pairs only (computed here; the page script does no
+        # group theory, it looks the clicked pair up)
+        dipole = diagram_dipole_rules(diagram, name, kpoint, levels).pair_table(
+            [level.irrep for level in levels.get("mo", [])
+             if getattr(level, "irrep", "")])
         variants.append({
             "key": f"{name} {_format_kpoint(kpoint)}",
             "levels": levels_json,
@@ -2066,6 +2140,10 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
             "eMin": round(view_lo, 2),
             "eMax": round(view_hi, 2),
             "geom": geometry,
+            **({"dip": dipole} if dipole else {}),
+            # engines may add one note per k point (shown under the k bar)
+            **({"note": diagram.k_notes[name]}
+               if name in getattr(diagram, "k_notes", {}) else {}),
         })
 
     first = variants[0]
@@ -2102,6 +2180,8 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
         f"on {sketch_cell} (drag to rotate; degenerate "
         "partners switchable)."
     )
+    # engines without orbital coefficients replace (or drop) that sentence
+    sketch_foot = getattr(diagram, "sketch_foot", sketch_foot)
     ao_foot = ""
     if has_ao:
         # engines override ao_foot (the PySCF columns are isolated-ion
@@ -2127,6 +2207,16 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
             "their energies are first-order L&ouml;wdin estimates, marked "
             "~ in the terminal report and noted in the level's tooltip."
         )
+    dipole_foot = ""
+    if any("dip" in variant for variant in variants):
+        dipole_foot = (
+            " Dipole selection rules: click one crystal orbital and then "
+            "another to see whether the electric-dipole (vertical) transition "
+            "between them is allowed at this k point, and for which "
+            "polarization (x, y, z: the Cartesian axes of the input cell; "
+            "when those axes are rotated against the crystal axes the "
+            "terminal report gives the allowed directions as vectors); "
+            "click empty space to clear.")
     bond_foot = ""
     engine_bond_foot = getattr(diagram, "bond_foot", "")
     if (engine_bond_foot and not any(
@@ -2199,13 +2289,14 @@ def write_crystal_diagram_html(diagram: CrystalOrbitalDiagram,
             + " The energy window opens on the frontier states; use \"Show "
             "all energy levels\" for the deep shells. Switch the k point "
             "with the buttons above." + ao_foot + estimated_foot + bond_foot
-            + sketch_foot
+            + sketch_foot + dipole_foot
         ),
         geometry=variants[0]["geom"],
         variants=variants,
         # engines may rename the energy axis (the VASP engine reports
         # E - E_VBM by default, not the raw eigenvalue)
         axis_title=getattr(diagram, "axis_title", "E (eV)"),
+        extra_css=getattr(diagram, "extra_css", ""),
     )
 
 
@@ -2376,6 +2467,7 @@ def report_and_write(cell, *, left, right, symprec, electrons,
             energy_str = f"{'~' if lv.estimated else ''}{lv.energy:.2f}"
             print(f"     {lv.label:<10} {energy_str:>9} eV  x{lv.degeneracy}"
                   f"  {occupancy:<4} {composition}")
+        print_dipole_rules(diagram, name, kpoint, levels)
         print("")
 
     write_crystal_diagram_html(diagram, entries, output_path, structure_label)

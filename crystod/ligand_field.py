@@ -19,7 +19,7 @@ from argparse import (
 
 import numpy as np
 
-from .decompose_irrep import decompose, get_character_table
+from .decompose_irrep import class_names, class_sizes, decompose, get_character_table
 
 
 class MyHelpFormatter(
@@ -101,14 +101,13 @@ def get_orbital_characters(orbital: str, character_table: dict) -> dict[str, int
         >>> from crystod import group
         >>> ct = group.get_character_table("m-3m")
         >>> chi = group.get_orbital_characters("d", ct)
-        >>> sizes = [len(ops) for ops in ct["mapping_table"].values()]
-        >>> counts = group.decompose(list(chi.values()), ct, sizes)
+        >>> counts = group.decompose(list(chi.values()), ct)
         >>> {name: n for name, n in counts.items() if n}
         {'Eg': 1, 'T2g': 1}
     """
     l = ORBITAL_AZIMUTHAL_NUMBER[orbital]
     characters: dict[str, int] = {}
-    for rotation in character_table["rotation_list"]:
+    for rotation in class_names(character_table):
         if rotation == "E":
             character = 2 * l + 1
         elif rotation == "i":
@@ -141,13 +140,13 @@ def main(argv: list[str] | None = None) -> None:
     character_table = get_character_table(args.point_group)
     orbital_characters = get_orbital_characters(orbital, character_table)
 
-    multiplicities = [np.array(ops).shape[0] for ops in character_table["mapping_table"].values()]
+    multiplicities = class_sizes(character_table)
 
     print(f"\n* Point group *\n{args.point_group}\n")
     print(f"* Orbital *\n{orbital}\n")
     print(
         f"* Reducible representation of the {orbital} orbital "
-        f"in the {args.point_group} field *\n"
+        f"in the {args.point_group} field *"
     )
     for (rotation, character), multiplicity in zip(orbital_characters.items(), multiplicities):
         print(f"{multiplicity}{rotation}: {character}")

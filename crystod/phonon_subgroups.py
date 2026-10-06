@@ -502,10 +502,19 @@ class PhononMode:
             ``"R4+(3)"``); empty when the level could not be labeled.
         qpoint: The q point that was asked for, in fractional coordinates of
             the primitive reciprocal basis.
-        qpoint_label: Tabulated name of its star (e.g. ``"R"``), or ``None``
-            for a q point outside every tabulated star.
+        qpoint_label: Tabulated name of its star (e.g. ``"R"``) in the
+            frame of the labels, or ``None`` for a q point outside every
+            tabulated star.
         representative_q: The tabulated arm of the star at which the labels
             were read (equal to ``qpoint`` when that is the tabulated arm).
+        activity: At Gamma, the spectroscopic activity of the level:
+            ``("IR",)``, ``("Raman",)``, ``("IR", "Raman")``, ``("silent",)``
+            or ``("acoustic",)`` (see :mod:`crystod.phonon_activity`); a
+            level that holds several irreps (more than one label) lists every
+            kind that occurs in it, e.g. ``("IR", "silent", "acoustic")``;
+            ``("unknown",)`` when the characters of the level are not those of
+            a representation (a degenerate level split by too small a
+            degeneracy tolerance). Empty at any other q.
     """
 
     band_indices: tuple[int, ...]
@@ -514,6 +523,7 @@ class PhononMode:
     qpoint: tuple[float, float, float]
     qpoint_label: str | None    # tabulated name of the star (e.g. "R"), if any
     representative_q: tuple[float, float, float]
+    activity: tuple[str, ...] = ()  # Gamma only: IR / Raman / silent / acoustic
 
     @property
     def degeneracy(self) -> int:
@@ -563,7 +573,8 @@ def label_phonon_modes(
 
     Returns:
         List of :class:`PhononMode`, one per degenerate level, ordered by band
-        index.
+        index; at Gamma each level carries its IR / Raman / silent / acoustic
+        ``activity``.
 
     Raises:
         RuntimeError: If the space-group tables cannot label this q point at
@@ -590,6 +601,7 @@ def label_phonon_modes(
 
     from .irreptables_compat import load_irreptables
     from .phonon_irreps import (
+        _special_points_in_label_frame,
         find_star_representative,
         get_irrep_labels,
         get_irt_special_points,
@@ -608,11 +620,20 @@ def label_phonon_modes(
         qpoint_label = None
         q_names, q_list = get_irt_special_points(irt_table, prim_mat)
         rotations = get_symmetry_dataset(phonon.primitive_symmetry)["rotations"]
+        # the tabulated arm in the table's own basis, where the labels are
+        # read (and the table-character fallback compares) ...
         representative = find_star_representative(
             qpoint, rotations, q_names, q_list
         )
         if representative is not None:
-            qpoint_label, label_q = representative
+            label_q = representative[1]
+        # ... and the name of the star in the frame of the labels
+        named = find_star_representative(
+            qpoint, rotations,
+            *_special_points_in_label_frame(phonon, irt_table, prim_mat),
+        )
+        if named is not None:
+            qpoint_label = named[0]
         labels, band_indices, frequencies = get_irrep_labels(
             q=label_q,
             phonon=phonon,
@@ -628,8 +649,16 @@ def label_phonon_modes(
             f"could not label the phonon modes at q = {list(qpoint)}: {reason}"
         ) from None
 
+    activities = [()] * len(band_indices)
+    if np.allclose(label_q, np.rint(np.asarray(label_q, dtype=float)), atol=1e-8):
+        # Gamma: get_irrep_labels left phonon.irreps there
+        from .phonon_activity import activities_from_phonopy_irreps
+
+        activities = [
+            record.activity for record in activities_from_phonopy_irreps(phonon, labels)
+        ]
     modes = []
-    for label, indices in zip(labels, band_indices):
+    for label, indices, activity in zip(labels, band_indices, activities):
         clean = tuple(_strip_dim_suffix(text) for text in label) if label else ()
         modes.append(
             PhononMode(
@@ -639,6 +668,7 @@ def label_phonon_modes(
                 qpoint=qpoint,
                 qpoint_label=qpoint_label,
                 representative_q=tuple(float(x) for x in label_q),
+                activity=activity,
             )
         )
     modes.sort(key=lambda m: m.band_indices[0])
@@ -789,19 +819,56 @@ def imaginary_mode_subgroups(
     return results
 
 
-def _acoustic_bands(phonon) -> set[int]:
-    """1-based bands at Gamma that are uniform translations (the acoustic modes).
+def _qpoints_result(phonon):
+    """``(frequencies, eigenvectors)`` of the last ``phonon.run_qpoints`` run.
 
-    A band counts when more than half of its (mass-weighted) eigenvector lies
-    in the space of rigid translations, ``e_j`` proportional to
-    ``sqrt(m_j)``; phonopy's band order, as in :func:`label_phonon_modes`.
+    The ``qpoints`` result object of current phonopy; the deprecated
+    ``get_qpoints_dict`` of older versions as a fallback.
     """
-    _, eigenvectors = phonon.get_frequencies_with_eigenvectors([0.0, 0.0, 0.0])
+    result = getattr(phonon, "qpoints", None)
+    if result is not None and getattr(result, "frequencies", None) is not None:
+        return result.frequencies, result.eigenvectors
+    data = phonon.get_qpoints_dict()
+    return data["frequencies"], data["eigenvectors"]
+
+
+def _translation_weights(phonon, eigenvectors=None) -> np.ndarray:
+    """Rigid-translation weight of every band at Gamma.
+
+    The weight of band b is the squared norm of the projection of its
+    eigenvector (of the dynamical matrix, so mass-weighted) onto the
+    three rigid translations, ``e_j`` proportional to ``sqrt(m_j)``: 1 for an
+    acoustic band, 0 for an optical one. The sum of the weights over a
+    degenerate set is the number of acoustic bands it holds, whatever basis
+    the set's eigenvectors are in.
+
+    Args:
+        phonon: A ``phonopy.Phonopy`` object with force constants.
+        eigenvectors: The Gamma eigenvectors as columns, shape
+            ``(3 n_atoms, 3 n_atoms)`` (e.g. ``phonon.irreps.eigenvectors``);
+            computed at Gamma when omitted.
+
+    Returns:
+        The weights in phonopy's band order, shape ``(3 n_atoms,)``.
+    """
+    if eigenvectors is None:
+        phonon.run_qpoints([[0.0, 0.0, 0.0]], with_eigenvectors=True)
+        eigenvectors = _qpoints_result(phonon)[1][0]
     roots = np.sqrt(np.asarray(phonon.primitive.masses, dtype=float))
     translations = np.zeros((3 * len(roots), 3))
     for axis in range(3):
         translations[axis::3, axis] = roots / np.linalg.norm(roots)
-    weights = np.sum(np.abs(translations.T @ eigenvectors) ** 2, axis=0)
+    return np.sum(np.abs(translations.T @ np.asarray(eigenvectors)) ** 2, axis=0)
+
+
+def _acoustic_bands(phonon) -> set[int]:
+    """1-based bands at Gamma that are uniform translations (the acoustic modes).
+
+    A band counts when more than half of its (mass-weighted) eigenvector lies
+    in the space of rigid translations (:func:`_translation_weights`);
+    phonopy's band order, as in :func:`label_phonon_modes`.
+    """
+    weights = _translation_weights(phonon)
     return {int(band) + 1 for band in np.flatnonzero(weights > 0.5)}
 
 
@@ -991,6 +1058,11 @@ def build_parser():
         help="degeneracy tolerance of the irrep labeling (THz), as in --irreps.",
     )
     parser.add_argument(
+        "--nac", action="store_true",
+        help="apply the non-analytical term correction (./BORN, or the NAC "
+        "parameters of --yaml); without it neither is read.",
+    )
+    parser.add_argument(
         "--modulate", action="store_true",
         help="also generate the distorted structure of every order-parameter "
         "direction (the --modulation step, run automatically).",
@@ -1089,12 +1161,14 @@ def _modulation_source_options(args) -> str:
     read, or pasting it lands on the POSCAR default and fails.
     """
     if args.yaml:
-        return f"--yaml {args.yaml} "
+        return f"--yaml {args.yaml} " + ("--nac " if getattr(args, "nac", False) else "")
     source = f"-c {args.poscar} "
     if args.dim:
         source += f'--dim "{args.dim}" '
     if args.readfc:
         source += "--readfc "
+    if getattr(args, "nac", False):
+        source += "--nac "
     return source
 
 
@@ -1105,19 +1179,28 @@ def main(argv: list[str] | None = None) -> None:
 
     import phonopy
 
+    from .phonon_irreps import check_nac_loaded, nac_load_options, yaml_nac_source
+    from .vasp_io import read_poscar_cell
+
     try:
         if args.yaml:
-            phonon = phonopy.load(args.yaml, primitive_matrix="auto")
+            phonon = phonopy.load(
+                args.yaml, primitive_matrix="auto",
+                **nac_load_options(args.nac, yaml=True),
+            )
+            nac_source = yaml_nac_source(args.yaml) if args.nac else ""
         else:
             if not args.dim:
                 raise SystemExit("ERROR: --subgroup requires --dim (or --yaml).")
             phonon = phonopy.load(
                 supercell_matrix=[float(n) for n in args.dim.split()],
                 primitive_matrix="auto",
-                unitcell_filename=args.poscar,
+                unitcell=read_poscar_cell(args.poscar),
                 force_sets_filename=None if args.readfc else "./FORCE_SETS",
                 force_constants_filename="./FORCE_CONSTANTS" if args.readfc else None,
+                **nac_load_options(args.nac),
             )
+            nac_source = "BORN"
     except FileNotFoundError as exc:
         if exc.filename:
             raise SystemExit(f"ERROR: {exc.filename} not found.")
@@ -1127,6 +1210,7 @@ def main(argv: list[str] | None = None) -> None:
             "ERROR: no force constants available; --subgroup needs FORCE_SETS "
             "(or FORCE_CONSTANTS with --readfc, or --yaml phonopy_params.yaml)."
         )
+    nac_note = check_nac_loaded(phonon, args.nac, nac_source)
 
     from .runtime_compat import get_symmetry_dataset
 
@@ -1135,20 +1219,22 @@ def main(argv: list[str] | None = None) -> None:
     print()
     print("* Parent structure *")
     print(f"{dataset['international']} (No. {dataset['number']})")
+    if nac_note:
+        print(nac_note)
     print()
 
     if args.qpoint:
         from phonopy.structure.cells import get_primitive_matrix_by_centring
 
         from .irreptables_compat import load_irreptables
-        from .phonon_irreps import get_irt_special_points
+        from .phonon_irreps import _special_points_in_label_frame
         from .phonon_vector import resolve_qpoint
 
         IrrepTable, _ = load_irreptables()
         try:
             irt_table = IrrepTable(dataset["number"], spinor=False)
             prim_mat = get_primitive_matrix_by_centring(dataset["international"][0])
-            q_names, q_list = get_irt_special_points(irt_table, prim_mat)
+            q_names, q_list = _special_points_in_label_frame(phonon, irt_table, prim_mat)
         except Exception:
             q_names, q_list = [], []
         rotations = get_symmetry_dataset(phonon.primitive_symmetry)["rotations"]
@@ -1193,6 +1279,7 @@ def main(argv: list[str] | None = None) -> None:
             continue
         width = max([20] + [len(s.label) + 1 for s in result.subgroups])
         print()
+        print("* Order parameter directions and isotropy subgroups *")
         print(f"{'irrep':<{width}} {'subgroup':<18} {'size':<5} {'index':<5}")
         for sub in result.subgroups:
             subgroup = f"{sub.number} {sub.symbol}"
@@ -1207,7 +1294,7 @@ def main(argv: list[str] | None = None) -> None:
     if not args.modulate:
         print("The distortion of each order-parameter direction can be generated with")
         print("crystod-phonon --modulation, or by adding --modulate here.")
-    print()
+        print()
     print("Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):")
     print('H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating')
     print('Isotropy Subgroups of Crystallographic Space Groups",')

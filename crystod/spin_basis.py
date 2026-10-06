@@ -30,7 +30,7 @@ from .spglib_compat import ensure_spglib_compat
 
 ensure_spglib_compat()
 
-from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
 from spgrep.representation import project_to_irrep
 
 from .phonon_vector import _find_intertwiner, reduced_formula, write_vesta_with_arrows
@@ -582,11 +582,12 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(f"ERROR: element '{args.element}' is not in this POSCAR ({available}).")
     n_sites = len(site_indices)
 
-    print(f"Space group: {vibrations.spglib_dataset['international']} "
+    print("\n* Structure *")
+    print(f"  Space group: {vibrations.spglib_dataset['international']} "
           f"(#{vibrations.spglib_dataset['number']})")
-    print(f"Magnetic sites: {args.element} x {n_sites}")
+    print(f"  Magnetic sites: {args.element} x {n_sites}")
     for k, index in enumerate(site_indices):
-        print(f"  {args.element}{k + 1}: {np.round(positions[index], 6).tolist()}")
+        print(f"    {args.element}{k + 1}: {np.round(positions[index], 6).tolist()}")
 
     if args.qpoint is None:
         # survey mode (as in --salc without --kpoint): spin-multipole irreps
@@ -601,9 +602,12 @@ def main(argv: list[str] | None = None) -> None:
         dataset = vibrations.spglib_dataset
         irt_table = IrrepTable(dataset["number"], spinor=False)
         primitive_matrix = get_primitive_matrix_by_centring(dataset["international"][0])
-        q_names, q_list = get_irt_special_points(irt_table, primitive_matrix)
+        # named in the frame of the labels, the table's own basis being spglib's
+        q_names, q_list = vibrations._special_points_in_label_frame(
+            *get_irt_special_points(irt_table, primitive_matrix)
+        )
 
-        print(f"\n * Spin (axial-vector) Irreducible Representations of {args.element} sites *")
+        print(f"\n* Spin (axial-vector) Irreducible Representations of {args.element} sites *")
         for name, q in zip(q_names, q_list):
             irreps, spin_rep, mapping = get_spin_representation(vibrations, site_indices, q)
             labels = vibrations.get_irrep_labels(q, irreps, mapping)
@@ -614,14 +618,15 @@ def main(argv: list[str] | None = None) -> None:
                 count = int(round(float(np.real(np.dot(rep_characters, np.conj(characters)))) / len(spin_rep)))
                 if count > 0:
                     terms.append(f"{count}.0 [{label}]")
-            print(f"\n * k point (primitive) * \n {name} {np.round(q, 6).tolist()}")
-            print(f"   {' + '.join(terms)}")
+            print(f"  k point (primitive): {name} {np.round(q, 6).tolist()}")
+            print(f"    {' + '.join(terms)}")
         print("\nUse --qpoint to obtain the symmetry-adapted spin bases, MAGMOM lines, and VESTA files at one k point.")
         return
 
     qpoint_label, qpoint = vibrations.resolve_qpoint(args.qpoint)
     is_gamma = np.allclose(qpoint, 0.0)
-    print(f"\nSelected q-point: {qpoint_label} = {qpoint}")
+    print("\n* Selected Q point *")
+    print(f"  Selected q-point: {qpoint_label} = {qpoint}")
 
     irreps, spin_rep, mapping = get_spin_representation(vibrations, site_indices, qpoint)
     irrep_labels = vibrations.get_irrep_labels(qpoint, irreps, mapping)
@@ -637,16 +642,17 @@ def main(argv: list[str] | None = None) -> None:
             raw_irrep_indices.append(irrep_index)
 
     total_dim = sum(space.shape[0] for space in raw_spaces)
-    print(f"\nSpin (axial-vector) representation on {args.element} sites: "
+    print("\n* Spin (axial-vector) representation *")
+    print(f"  Spin (axial-vector) representation on {args.element} sites: "
           f"{3 * n_sites} dimensions")
     counted: dict[str, int] = {}
     for label, space in zip(raw_labels, raw_spaces):
         counted[label] = counted.get(label, 0) + 1
-    print("Decomposition: " + " + ".join(
+    print("  Decomposition: " + " + ".join(
         (f"{count} x {label}" if count > 1 else label) for label, count in counted.items()
     ))
     if total_dim != 3 * n_sites:
-        print(f"WARNING: projected dimensions ({total_dim}) do not span the full space.")
+        print(f"  WARNING: projected dimensions ({total_dim}) do not span the full space.")
 
     # FM/AFM separation (Gamma only) and multipole-rank naming
     entries = []  # (label, kind, rank_name, space)
@@ -677,7 +683,7 @@ def main(argv: list[str] | None = None) -> None:
         for label, space in zip(raw_labels, raw_spaces):
             entries.append((label, "AFM (q != 0)", None, space))
 
-    print("\nSymmetry-adapted spin bases:")
+    print("\n* Symmetry-adapted spin bases *")
     for label, kind, rank_name, space in entries:
         rank_text = f", {rank_name}" if rank_name else ""
         print(f"  {label}: dim {space.shape[0]} [{kind}{rank_text}]")
@@ -694,8 +700,9 @@ def main(argv: list[str] | None = None) -> None:
             ],
             dtype=int,
         )
+        print("\n* Magnetic cell *")
         print(
-            f"\nMagnetic (commensurate) supercell: "
+            f"  Magnetic (commensurate) supercell: "
             f"{supercell_sizes[0]}x{supercell_sizes[1]}x{supercell_sizes[2]}"
         )
 
@@ -713,8 +720,10 @@ def main(argv: list[str] | None = None) -> None:
         multiples = np.rint(
             np.diag(cell_matrix @ np.linalg.inv(np.array(base_matrix, dtype=float)))
         ).astype(int)
+        if is_gamma:
+            print("\n* Magnetic cell *")
         print(
-            f"Display cell: conventional ({centring} centring), "
+            f"  Display cell: conventional ({centring} centring), "
             f"{multiples[0]}x{multiples[1]}x{multiples[2]} cells"
         )
     else:
@@ -753,7 +762,7 @@ def main(argv: list[str] | None = None) -> None:
     # detailed output + VESTA export
     formula = reduced_formula(symbols)
     used_names: set[str] = set()
-    print()
+    written: list[str] = []
     for label, kind, rank_name, space in entries:
         short_label = label.split("(")[0].strip()
         component_tags = []
@@ -770,7 +779,7 @@ def main(argv: list[str] | None = None) -> None:
                 component_vectors.append(sign * vector)
 
         header = f"{label} [{kind}" + (f", {rank_name}]" if rank_name else "]")
-        print(f"=== {header} ===")
+        print(f"\n* {header} *")
         export_list = list(zip(component_tags, component_vectors))
         # combined x+y+z configuration for 3-dim spaces with x/y/z components
         if sorted(component_tags) == ["x", "y", "z"]:
@@ -856,9 +865,13 @@ def main(argv: list[str] | None = None) -> None:
                 arrows_cartesian=arrows,
                 title=f"{formula} spin basis: {label} {rank_tag} {tag}",
             )
-            print(f"    written to: {name}")
-        print()
+            written.append(name)
 
+    if written:
+        print("\n* Output files *")
+        for name in written:
+            print(f"  Spin basis written to: {name}")
+    print()
     if is_gamma:
         print("All AFM bases satisfy sum_i S_i = 0; FM entries carry the cluster dipole moment.")
     print("Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).")

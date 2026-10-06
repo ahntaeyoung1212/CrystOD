@@ -1414,6 +1414,10 @@ const CFG = __CONFIG__;
 let LEVELS = __LEVELS__;
 let GEOM = __GEOM__;
 const VARIANTS = __VARIANTS__;
+// dipole selection rules of the shown k point (crystal-orbital diagrams):
+// {ir: [evaluated irreps], ok: {"A|B": "xyz"}}, computed in Python
+let DIP = VARIANTS && VARIANTS[0] ? (VARIANTS[0].dip || null) : null;
+let pickA = null, pickB = null;
 const byId = {};
 LEVELS.forEach(l => byId[l.id] = l);
 let eMin = CFG.eMin, eMax = CFG.eMax;
@@ -1452,7 +1456,8 @@ function mulliken(node, text) {
 function yOf(E) { return CFG.top + (eMax - E) / (eMax - eMin) * CFG.H; }
 
 function segments(level) {
-  const x = CFG.columns[level.col], h = CFG.half[level.col], d = level.deg;
+  // level.bars: one bar per Kramers pair (spinor levels), else one per partner
+  const x = CFG.columns[level.col], h = CFG.half[level.col], d = level.bars || level.deg;
   const seg = Math.min(2 * h, (2 * h + 8) / d - 5);
   const total = d * seg + (d - 1) * 5;
   const out = [];
@@ -1519,6 +1524,10 @@ function show(id) {
                               parts.join(' &middot; ') + '</div>';
   }
   if (d.note) html += '<div class="note">' + d.note + '</div>';
+  if (DIP && pickA && pickB && (id === pickA || id === pickB) &&
+      byId[pickA] && byId[pickB])
+    html += '<div class="note"><b>dipole</b> ' + byId[pickA].label + ' &rarr; ' +
+            byId[pickB].label + ': ' + dipVerdict(pickA, pickB)[0] + '</div>';
   if (d.orb && GEOM) {
     if (sketchLevel !== id) sketchPartner = 0;
     html += '<div id="onav"></div>';
@@ -1800,7 +1809,7 @@ function render() {
         if (level.elc) seg.style.stroke = level.elc;
         g.appendChild(seg);
         if (level.el) {
-          const d = level.deg;
+          const d = level.bars || level.deg;
           const ups = Math.min(level.el, d) > k ? 1 : 0;
           const downs = (level.el - Math.min(level.el, d)) > k ? 1 : 0;
           const arrows = '↑'.repeat(ups) + '↓'.repeat(downs);
@@ -1828,6 +1837,7 @@ function render() {
       g.addEventListener('mouseenter', () => { highlight(level.id, true); show(level.id); });
       g.addEventListener('mouseleave', () => highlight(level.id, false));
       g.addEventListener('click', () => show(level.id));
+      if (DIP && (level.id === pickA || level.id === pickB)) g.classList.add('pick');
       gLvl.appendChild(g);
       // the badge goes AFTER the label, measured -- a fixed offset printed
       // "GM5+ #LUMO" across labels of the "GM5+ #1" length.  Measuring only
@@ -1839,6 +1849,49 @@ function render() {
       }
     });
   });
+
+  // dipole selection rule of the clicked pair, written left of the levels
+  if (DIP && pickA && byId[pickA]) {
+    const marks = [[pickA, pickB ? ['from', 'from']
+                                 : ['from: click a second level', 'from']]];
+    if (pickB && byId[pickB]) marks.push([pickB, dipVerdict(pickA, pickB)]);
+    marks.forEach(([id, [text, cls]]) => {
+      if (!visIds.has(id)) return;
+      const d = byId[id];
+      gLvl.appendChild(el('text', {x: CFG.columns[d.col] - CFG.half[d.col] - 8,
+                                   y: yOf(d.e) + 4, 'class': 'dip ' + cls,
+                                   'text-anchor': 'end'}, text));
+    });
+  }
+}
+
+// verdict of the pair (a, b) from the table; the rule is symmetric in a, b
+function dipVerdict(a, b) {
+  const ia = byId[a].irrep, ib = byId[b].irrep;
+  if (!DIP.ir.includes(ia) || !DIP.ir.includes(ib)) return ['not evaluated', 'no'];
+  const allowed = DIP.ok[[ia, ib].sort().join('|')];
+  // the stored text is the terminal's: axis letters "x, z" are shown in
+  // parentheses, vectors "(0 1 -1), (1 0 0)" as they are
+  if (!allowed) return ['forbidden', 'no'];
+  return [allowed.charAt(0) === '(' ? 'allowed ' + allowed
+                                    : 'allowed (' + allowed + ')', 'ok'];
+}
+
+// click one crystal level, then another: the dipole verdict appears next to
+// the second; a click on empty space clears the pair
+function pickLevel(id) {
+  if (!DIP) return;
+  const d = id ? byId[id] : null;
+  if (!d) {
+    if (pickA || pickB) { pickA = pickB = null; render(); }
+    return;
+  }
+  if (d.col !== 'mo' || !d.irrep) return;
+  if (pickA === null || pickB !== null) { pickA = id; pickB = null; }
+  else if (id === pickA) { pickA = null; }
+  else { pickB = id; }
+  render();
+  show(id);
 }
 
 function setRange(lo, hi) {
@@ -1865,6 +1918,9 @@ function applyVariant(index) {
   LEVELS = variant.levels;
   if (variant.geom) GEOM = variant.geom;
   CFG.homo = variant.homo; CFG.lumo = variant.lumo;
+  DIP = variant.dip || null; pickA = pickB = null;
+  const knote = document.getElementById('knote');
+  if (knote) knote.innerHTML = variant.note || '';
   CFG.eMin = variant.eMin; CFG.eMax = variant.eMax;
   Object.keys(byId).forEach(key => delete byId[key]);
   LEVELS.forEach(l => byId[l.id] = l);
@@ -1876,6 +1932,8 @@ function applyVariant(index) {
   if (panel) show(CFG.homo && byId[CFG.homo] ? CFG.homo : LEVELS[0].id);
 }
 if (VARIANTS) {
+  const knote0 = document.getElementById('knote');
+  if (knote0) knote0.innerHTML = VARIANTS[0].note || '';
   document.querySelectorAll('.kbtn').forEach((btn, i) =>
     btn.addEventListener('click', () => applyVariant(i)));
   // ?k=R (or #R) chooses the k point the page opens on, so that a copy embedded
@@ -1902,6 +1960,21 @@ svg.addEventListener('wheel', e => {
   const lo = Ec + (eMin - Ec) * f, hi = Ec + (eMax - Ec) * f;
   if (hi - lo >= 0.5 && hi - lo <= 2000) setRange(lo, hi);
 }, {passive: false});
+
+// a press and release without movement is a click (the drag below captures
+// the pointer, which retargets the click event away from the level)
+let downAt = null;
+svg.addEventListener('pointerdown', e => {
+  const g = e.target.closest ? e.target.closest('g.lvl') : null;
+  downAt = {x: e.clientX, y: e.clientY, id: g ? g.dataset.id : null};
+});
+svg.addEventListener('pointerup', e => {
+  if (!downAt) return;
+  const moved = Math.abs(e.clientX - downAt.x) + Math.abs(e.clientY - downAt.y);
+  const id = downAt.id;
+  downAt = null;
+  if (moved < 5) pickLevel(id);
+});
 
 // drag: pan the energy window
 let dragY = null, dragMin = 0, dragMax = 0;
@@ -1953,6 +2026,7 @@ def render_diagram_page(
     geometry: dict | None = None,
     variants: list[dict] | None = None,
     axis_title: str = "E (eV)",
+    extra_css: str = "",
 ) -> None:
     """Write the standalone interactive MO-diagram page.
 
@@ -1993,7 +2067,10 @@ def render_diagram_page(
             f'<button class="kbtn obtn{" sel" if i == 0 else ""}">{v["key"]}</button>'
             for i, v in enumerate(variants)
         )
-        kbar_html = f'<div id="kbar">k point: {buttons}</div>'
+        kbar_html = (f'<div id="kbar">k point: {buttons}</div>'
+                     # one note per k point, filled by applyVariant
+                     + ('<div id="knote"></div>'
+                        if any(v.get("note") for v in variants) else ""))
 
     from .cli.common import CRYSTOD_CITATION_HTML as citation_html
 
@@ -2070,6 +2147,14 @@ def render_diagram_page(
  .lvl {{ cursor: pointer; outline: none; }}
  .lvl:hover .seg {{ stroke-width: 4; }}
  #foot {{ color: #777; font-size: 11.5px; margin-top: 8px; }}
+ #knote {{ font-size: 12.5px; color: #455a64; margin: 0 0 6px; }}
+ .dip {{ font-size: 11.5px; font-weight: 600; pointer-events: none;
+         paint-order: stroke; stroke: #fff; stroke-width: 3px; }}
+ .dip.ok {{ fill: #2e7d32; }}
+ .dip.no {{ fill: #616161; }}
+ .dip.from {{ fill: #e65100; }}
+ .lvl.pick .seg {{ stroke-width: 4.4; }}
+{extra_css}
 </style>
 </head>
 <body>

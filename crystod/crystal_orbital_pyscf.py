@@ -100,6 +100,7 @@ from .crystal_orbital_diagram import (
     assign_bond_characters,
     assign_fragment_compositions,
     parse_fragment_formula,
+    print_dipole_rules,
     write_crystal_diagram_html,
 )
 from .operations import wigner_D_real
@@ -232,6 +233,90 @@ def default_kmesh(lattice: np.ndarray) -> list[int]:
     thumb that a ~4 Angstrom cell wants a 2x2x2 mesh."""
     lengths = np.linalg.norm(np.asarray(lattice, dtype=float), axis=1)
     return [max(1, int(round(KMESH_TARGET_ANGSTROM / length))) for length in lengths]
+
+
+def _alignment_counterparts(fragments, crystals):
+    """The crystal counterpart of each fragment level of ONE column at ONE k.
+
+    A crystal level is an inert counterpart of a fragment level when it
+    consists of it to at least :data:`ALIGNMENT_PURITY` (absolute projection).
+    With a genuine overlap -- the PySCF engine, whose fragment states of one
+    column are orthonormal in the shared AO space -- such a counterpart is
+    unique both ways: Bessel's inequality caps the weights of one fragment
+    level summed over the crystal levels, and of one crystal level summed over
+    the fragment levels of one column, at 1, and two weights of 0.8 do not
+    fit under it.  The highest-overlap rule never had to choose.
+
+    The radially blind projection of ``--vasp`` has no such bound.  The
+    PROCAR basis has ONE channel per ``(atom, l)``, so every s-like state of a
+    site lies along the same direction: at R in SrTiO3, where no O state
+    shares the irrep, the Sr 4s R2- semicore fragment level overlaps its own
+    band R2- #1 AND the empty Sr 5s-like level R2- #2 more than 40 eV above
+    it, both at 1.000 (and the Sr 5s and Sr 6s fragment levels overlap both of
+    them just as much).  The highest-overlap rule took whichever came out
+    larger in the last digit.  On the PBE run the two overlaps were
+    bit-identical and the first, right one was kept; on a METAGGA = LAK run
+    the semicore one came out 4e-16 below 1, and the rigid cation-column
+    shift was +15.7 eV (+50.0 eV with ``--kpoint R`` alone) instead of
+    +4.26 eV.  The overlap cannot rank such candidates: their weights differ
+    only by how much of the OTHER sublattice each one carries, which says
+    nothing about which radial state it is.
+
+    The inert counterparts are therefore assigned ONE-TO-ONE IN ENERGY ORDER:
+    the fragment levels are taken from the deepest up, and each one takes the
+    deepest inert candidate that no deeper fragment level has taken -- the
+    n-th s-like fragment state goes with the n-th s-like crystal state, the
+    only information the projection leaves.  Where the inert counterpart is
+    unique (every PySCF level, and every VASP level without a radial twin)
+    that is the highest-overlap choice, unchanged.  A fragment level left
+    without an inert candidate keeps the highest-overlap crystal level among
+    those not taken, as before; that pair is below the purity cut by
+    construction, so it only matters to a column with no inert anchor at all.
+
+    Args:
+        fragments: The fragment levels of one column at one k point.
+        crystals: The crystal levels at the same k point, carrying
+            ``absolute_composition`` (or ``composition``).
+
+    Returns:
+        ``{fragment level_id: (overlap, crystal level)}``, in the order in
+        which the fragment levels first appear in the crystal compositions.
+    """
+    overlaps: dict = {}
+    for crystal in crystals:
+        # absolute projections: the renormalized composition can show ~100%
+        # for a level whose true overlap with the retained fragment states
+        # is tiny
+        for level_id, weight in getattr(crystal, "absolute_composition",
+                                        crystal.composition):
+            overlaps.setdefault(level_id, []).append((weight, crystal))
+    depth = {crystal.level_id: rank for rank, crystal in enumerate(
+        sorted(crystals, key=lambda level: level.energy))}
+    ordered = sorted(fragments, key=lambda level: level.energy)
+    chosen: dict = {}
+    taken: set = set()
+    for fragment in ordered:
+        inert = [(depth[crystal.level_id], weight, crystal)
+                 for weight, crystal in overlaps.get(fragment.level_id, [])
+                 if weight >= ALIGNMENT_PURITY
+                 and crystal.level_id not in taken]
+        if inert:
+            _, weight, crystal = min(inert, key=lambda item: item[0])
+            chosen[fragment.level_id] = (weight, crystal)
+            taken.add(crystal.level_id)
+    for fragment in ordered:
+        if fragment.level_id in chosen:
+            continue
+        best = None
+        for weight, crystal in overlaps.get(fragment.level_id, []):
+            if crystal.level_id in taken:
+                continue
+            if weight > (best[0] if best else 0.0):
+                best = (weight, crystal)
+        if best is not None:
+            chosen[fragment.level_id] = best
+    return {level_id: chosen[level_id] for level_id in overlaps
+            if level_id in chosen}
 
 
 @dataclass
@@ -1080,7 +1165,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             (5.0 * base, cycles, 0.3),
         ]
 
-    def run(self, report=print) -> None:
+    def run(self, report=print, defer_notice: bool = False) -> str | None:
         """Run the periodic SCF calculations, or restore them from ``chk``.
 
         The crystal is solved first; its converged density restricted to one
@@ -1095,9 +1180,13 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         Args:
             report: Callable that receives the progress lines (default
                 ``print``).
+            defer_notice: Do not report the "SCF saved to ..." line; the
+                caller prints the returned text where it lists its output
+                files.
 
         Returns:
-            ``None``.
+            The "SCF saved to FILE (...)" notice (without indentation) when
+            a checkpoint was written, else ``None``.
 
         Raises:
             SystemExit: An SCF that does not converge even with smearing, or
@@ -1107,7 +1196,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
 
         if self.chk_path and os.path.exists(self.chk_path):
             if self._load_chk(report):
-                return
+                return None
 
         # The crystal is solved first: its converged density restricted to one
         # sublattice's AO block (ghost rows/columns zeroed) is the best
@@ -1209,7 +1298,8 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                    f"charge {cell.charge:+d})")
 
         if self.chk_path:
-            self._save_chk(report)
+            return self._save_chk(report, defer_notice=defer_notice)
+        return None
 
     # WAVECAR-style restart: the converged density matrices are all that the
     # band step needs (get_bands rebuilds the Fock operator from them), so
@@ -1236,12 +1326,14 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             "symbols": list(self.symbols),
         }
 
-    def _save_chk(self, report) -> None:
+    def _save_chk(self, report, defer_notice: bool = False) -> str | None:
         """Write the checkpoint.  Never fatal for an automatic file: the
         cache is an optimization, and the three SCFs are already done --
         losing the page because the working directory is read-only or full
         would be absurd.  Written to a temporary file and renamed, so an
-        interrupted write cannot leave a truncated checkpoint behind."""
+        interrupted write cannot leave a truncated checkpoint behind.
+        Returns the "SCF saved to ..." notice (reported here unless
+        ``defer_notice``), or ``None`` when nothing was written."""
         import os
 
         try:
@@ -1256,14 +1348,17 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                     os.remove(leftover)
                 except OSError:
                     pass
-            return
-        report(f"   SCF saved to {self.chk_path} "
-               + ("(reused automatically by the next --pyscf run on this "
-                  "structure; delete the file to force a fresh SCF, or pass "
-                  "--no-chk to skip it)"
-                  if self.chk_auto else
-                  "(reuse with --chk; delete the file to force a fresh "
-                  "SCF)"))
+            return None
+        notice = (f"SCF saved to {self.chk_path} "
+                  + ("(reused automatically by the next --pyscf run on this "
+                     "structure; delete the file to force a fresh SCF, or "
+                     "pass --no-chk to skip it)"
+                     if self.chk_auto else
+                     "(reuse with --chk; delete the file to force a fresh "
+                     "SCF)"))
+        if not defer_notice:
+            report(f"   {notice}")
+        return notice
 
     def _write_chk(self) -> None:
         import json
@@ -1540,7 +1635,7 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
             ``(irreps, mapping, labels, representation)`` as in
             :meth:`CrystalOrbitalDiagram.little_group_data`.
         """
-        from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+        from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
 
         irreps, mapping = get_spacegroup_irreps_from_primitive_symmetry(
             rotations=self.builder.rotations,
@@ -1711,12 +1806,13 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         the raw columns are offset by one rigid constant each.  For every
         fragment column the deepest *chemically inert* level is located -- the
         deepest fragment level some crystal level consists of to at least
-        ALIGNMENT_PURITY -- and its fragment -> crystal energy difference,
-        averaged over the k points where the pair exists, is that column's
-        offset.  The zero is then put at the deeper of the two anchors in its
-        PRE-BONDING (fragment) value: that fragment column stays, the crystal
-        column moves by -delta_ref, the other fragment column by
-        delta_other - delta_ref.
+        ALIGNMENT_PURITY, the two paired one-to-one in energy order at each k
+        point (:func:`_alignment_counterparts`) -- and its fragment -> crystal
+        energy difference, averaged over the k points where the pair exists,
+        is that column's offset.  The zero is then put at the deeper of the two
+        anchors in its PRE-BONDING (fragment) value: that fragment column
+        stays, the crystal column moves by -delta_ref, the other fragment
+        column by delta_other - delta_ref.
 
         Args:
             records: The per-k-point list built by :func:`report_and_write`:
@@ -1740,19 +1836,9 @@ class PySCFCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                 fragment_levels = {
                     level.level_id: level for level in record["levels"][column]
                 }
-                best: dict[str, tuple[float, object]] = {}
-                for crystal in record["levels"]["mo"]:
-                    # absolute projections: the renormalized composition can
-                    # show ~100% for a level whose true overlap with the
-                    # retained fragment states is tiny
-                    weights = getattr(crystal, "absolute_composition",
-                                      crystal.composition)
-                    for level_id, weight in weights:
-                        if not level_id.startswith(column):
-                            continue
-                        if weight > best.get(level_id, (0.0, None))[0]:
-                            best[level_id] = (weight, crystal)
-                for level_id, (purity, crystal) in best.items():
+                counterparts = _alignment_counterparts(
+                    record["levels"][column], record["levels"]["mo"])
+                for level_id, (purity, crystal) in counterparts.items():
                     fragment = fragment_levels[level_id]
                     pairs.append((fragment.energy, crystal.energy - fragment.energy,
                                   fragment.label, record["name"], purity))
@@ -2723,8 +2809,16 @@ def describe_chk(path: str) -> None:
              if params.get("max_l") is not None else "")
           + (f", smearing sigma {params['sigma']:g} eV"
              if params.get("sigma") else ""))
-    print(f"   electrons : {params['electrons']:g} per cell "
-          f"(oxidation {oxidation})")
+    # the electron count is not part of the checkpoint (--electrons only
+    # fills the diagram's levels); files of early versions stored it
+    if "electrons" in params:
+        print(f"   electrons : {params['electrons']:g} per cell "
+              f"(oxidation {oxidation or 'none'})")
+    else:
+        print(f"   oxidation : {oxidation or 'none (neutral sublattices)'}")
+    if "conv_tol" in params or "max_cycle" in params:
+        print(f"   SCF       : conv_tol {params.get('conv_tol', 0):g}, "
+              f"max_cycle {params.get('max_cycle', 0)}")
     print(f"   fragments : left {params['left']} | right {params['right']}"
           + (", own-sublattice basis (--no-ghost)"
              if params.get("no_ghost") else ", counterpoise ghosts"))
@@ -2746,7 +2840,7 @@ def describe_chk(path: str) -> None:
              + (" --no-ghost" if params.get("no_ghost") else "")
              + (f" --sigma {params['sigma']:g}"
                 if params.get("sigma") else "")
-             + f" --oxidation {oxidation}"
+             + (f" --oxidation {oxidation}" if oxidation else "")
              # a crystal-only checkpoint can only feed --onsite runs
              + ("" if kind.startswith("full") else " --onsite"))
     print(f"   reuse with: {reuse} --chk {path}")
@@ -3042,6 +3136,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
                 print(f"     {lv_left.label:<16} x {lv_right.label:<16} "
                       f"|H~| = {strength:6.2f} eV   |S| = {overlap_norm:5.3f}"
                       f"   dE = {gap:7.2f} eV   mix = {100 * mixing:4.1f}%")
+        print_dipole_rules(diagram, name, kpoint, levels)
 
     # the terminal shows only the top-8 couplings per k point; the full list
     # is a result worth keeping, so it is written next to the HTML

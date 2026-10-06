@@ -213,6 +213,16 @@ def real_two_electron_integrals(l: int) -> dict[tuple[int, int, int, int], tuple
     return integrals
 
 
+def _projector_scale(characters, class_labels, class_index) -> float:
+    """Prefactor ``dim / sum_g chi(g)^2`` of the character projector
+    ``sum_g chi(g) D(g)``: ``dim / |G|`` for an ordinary irrep and ``1 / |G|``
+    for an entry that stores a real pair of complex-conjugate irreps (norm
+    ``2|G|``), so the projector is idempotent in both cases."""
+    dim = float(characters[class_index["E"]])
+    norm = float(sum(characters[class_index[label]] ** 2 for label in class_labels))
+    return dim / norm
+
+
 # ---------------------------------------------------------------------------
 # shell subspaces of the l shell
 # ---------------------------------------------------------------------------
@@ -225,18 +235,17 @@ def _shell_bases(character_table: dict, l: int, shell_irreps: list[str]):
     class_names = list(character_table["rotation_list"])
     class_index = {name: i for i, name in enumerate(class_names)}
     d_matrices = [wigner_D_real(l, op) for op in operations]
-    order = len(operations)
 
     bases = []
     for irrep in shell_irreps:
-        characters = np.asarray(
+        characters = np.atleast_1d(np.asarray(
             character_table["character_table"][irrep], dtype=float
-        )
+        ))
         dim = int(round(characters[class_index["E"]]))
         projector = np.zeros((2 * l + 1, 2 * l + 1))
         for label, dmat in zip(class_labels, d_matrices):
             projector += characters[class_index[label]] * dmat
-        projector *= dim / order
+        projector *= _projector_scale(characters, class_labels, class_index)
         eigenvalues, eigenvectors = np.linalg.eigh((projector + projector.T) / 2)
         kept = eigenvectors[:, eigenvalues > 0.5]
         if kept.shape[1] != dim:
@@ -735,7 +744,6 @@ def compute_term_energies(
 
     space = _DeterminantSpace(shell_dims, occupations)
     n_electrons = sum(occupations)
-    order = len(operations)
 
     # reference point for numeric CI blocks and the ground-state selection:
     # typical physical parameter ratios of the shell
@@ -793,14 +801,14 @@ def compute_term_energies(
             )
 
         # point-group character projector on the determinant sector
-        characters = np.asarray(
+        characters = np.atleast_1d(np.asarray(
             character_table["character_table"][irrep], dtype=float
-        )
+        ))
         dim = int(round(characters[class_index["E"]]))
         pg_projector = np.zeros((len(sector), len(sector)))
         for label, gmat in zip(class_labels, cache["group"]):
             pg_projector += characters[class_index[label]] * gmat
-        pg_projector *= dim / order
+        pg_projector *= _projector_scale(characters, class_labels, class_index)
 
         combined = pg_projector @ projector
         combined = (combined + combined.T) / 2
@@ -1045,7 +1053,6 @@ def coupled_parent_matrices(
 
     space = _DeterminantSpace(shell_dims, occupations)
     n_electrons = sum(occupations)
-    order = len(operations)
     shell_orbitals = [
         list(range(shell_dims[0])),
         list(range(shell_dims[0], shell_dims[0] + shell_dims[1])),
@@ -1098,14 +1105,14 @@ def coupled_parent_matrices(
             return projector
 
         def pg_projector(group_matrices, target_irrep):
-            characters = np.asarray(
+            characters = np.atleast_1d(np.asarray(
                 character_table["character_table"][target_irrep], dtype=float
-            )
+            ))
             dim = int(round(characters[class_index["E"]]))
             projector = np.zeros((n, n))
             for label, gmat in zip(class_labels, group_matrices):
                 projector += characters[class_index[label]] * gmat
-            return projector * dim / order
+            return projector * _projector_scale(characters, class_labels, class_index)
 
         # total-term projector and its range
         total = pg_projector(cache["group"], irrep) @ spin_projector(
@@ -1114,9 +1121,9 @@ def coupled_parent_matrices(
         total = (total + total.T) / 2
         eigenvalues, eigenvectors = np.linalg.eigh(total)
         kept = eigenvectors[:, eigenvalues > 0.5]
-        characters = np.asarray(
+        characters = np.atleast_1d(np.asarray(
             character_table["character_table"][irrep], dtype=float
-        )
+        ))
         dim = int(round(characters[class_index["E"]]))
         if kept.shape[1] != 2 * dim:
             continue

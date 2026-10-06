@@ -35,7 +35,7 @@ from math import comb, factorial
 
 import numpy as np
 
-from .decompose_irrep import decompose, get_character_table
+from .decompose_irrep import class_names, decompose, get_character_table
 from .ligand_field import ORBITAL_AZIMUTHAL_NUMBER, get_orbital_characters
 
 
@@ -157,7 +157,7 @@ class _GroupClasses:
 
     def __init__(self, character_table: dict):
         self.ct = character_table
-        self.names = list(character_table["rotation_list"])
+        self.names = class_names(character_table)
         self.matrices = [
             np.asarray(character_table["mapping_table"][name])
             for name in self.names
@@ -188,7 +188,7 @@ class _GroupClasses:
         return result
 
     def irrep_characters(self, irrep: str) -> np.ndarray:
-        return np.asarray(self.ct["character_table"][irrep], dtype=float)
+        return np.atleast_1d(np.asarray(self.ct["character_table"][irrep], dtype=float))
 
     def irrep_dimension(self, irrep: str) -> int:
         return int(round(self.irrep_characters(irrep)[self.names.index("E")]))
@@ -505,7 +505,7 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     print("* Term Symbols *")
-    print(f"{_config_label(shells)} = {format_terms(classes, terms)}\n")
+    print(f"{_config_label(shells)} = {format_terms(classes, terms)}")
     print(
         f"check: {term_states} states = "
         + " x ".join(
@@ -635,7 +635,8 @@ def main(argv: list[str] | None = None) -> None:
                 reference_note=reference_note,
                 l=l,
             )
-            print(f"\nTerm-state viewer written to {output_path}")
+            print("\n* Output files *")
+            print(f"  Term-state viewer written to {output_path}")
     else:
         candidates = hund_candidates(classes, ordered_terms)
         print("* Ground-state Term Symbol (Hund's rules) *")

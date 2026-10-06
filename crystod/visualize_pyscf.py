@@ -204,6 +204,31 @@ def _canonical_split(cell, sublattice_tokens):
     return [symbols[0]], [e for e in elements if e != symbols[0]], "mo"
 
 
+# the notice SymmetryAdaptedOrbitalBasis prints in its constructor
+# (crystal_orbital_spgrep.py); the level engine has already printed it once,
+# so the viewers drop the repeat.  Keep this string in sync with that print.
+PRIMITIVE_CELL_NOTICE = "### Inputed cell was converted into primitive cell. ###"
+
+
+def _quiet_orbital_basis(basis_class, cell, symprec):
+    """Build the viewer's orbital basis without repeating the primitive-cell
+    notice the level engine has already printed.
+
+    Used by both the extended-Hueckel and the PySCF level viewers.
+    """
+    import contextlib
+    import io
+
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        orbitals = basis_class(cell=cell, symprec=symprec)
+    rest = [line for line in buffer.getvalue().splitlines()
+            if line.strip() and line.strip() != PRIMITIVE_CELL_NOTICE]
+    if rest:
+        print("\n".join(rest))
+    return orbitals
+
+
 def report_and_write(cell, *, sublattice, bonds, real_coefficient,
                      kpoint_filter, output_path, structure_label,
                      window=None, diagonalize=False, valence_only=False,
@@ -232,13 +257,14 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
     )
     described = ("crystal" if column == "mo"
                  else f"{diagram.formula[column]} sublattice")
-    print(f" * PySCF levels for the SALC viewer: {described} "
-          f"(fragments {diagram.formula['left']} | {diagram.formula['right']}) *")
-    print(f"   basis {diagram.basis_name} / pseudo {diagram.pseudo_name} / "
+    print("\n* PySCF levels *")
+    print(f"  SALC viewer levels: {described} "
+          f"(fragments {diagram.formula['left']} | {diagram.formula['right']})")
+    print(f"  basis {diagram.basis_name} / pseudo {diagram.pseudo_name} / "
           f"functional {diagram.xc.upper()}, "
           f"{'x'.join(map(str, diagram.kmesh))} k-mesh, "
           f"ke_cutoff {diagram.ke_cutoff:g} Hartree")
-    diagram.run()
+    chk_notice = diagram.run(defer_notice=True)
 
     kpoints = diagram.special_kpoints()
     diagram.prepare_bands([kpoint for _, kpoint in kpoints])
@@ -253,7 +279,6 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
                 f"{shifts['left']:+.2f} / mo {shifts['mo']:+.2f} / right "
                 f"{shifts['right']:+.2f} eV vs the {shifts['reference']} "
                 "fragment reference")
-    print(f"   {note}")
 
     # --valence-only: shells whose occupied fragment bands sit far below the
     # crystal VBM on the aligned scale are energetically inert semicore
@@ -276,11 +301,15 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
                         deepest[key] = max(deepest.get(key, -1e30), lv.energy)
         semicore = {key for key, top in deepest.items() if top < vbm - 12.0}
         if semicore:
-            print("   --valence-only: semicore shells "
+            print("  --valence-only: semicore shells "
                   + ", ".join(f"{el} {sh}" for el, sh in sorted(semicore))
                   + " dropped from the drawings (kept in levels they dominate)")
         else:
-            print("   --valence-only: no semicore shells found")
+            print("  --valence-only: no semicore shells found")
+    # the drawing filter above is part of the levels block; the energy
+    # reference gets its own block after it (same order as the EHT viewer)
+    print("\n* Energy reference *")
+    print(f"  {note}")
 
     if kpoint_filter:
         wanted = [r for r in records if r["name"] == kpoint_filter]
@@ -320,9 +349,10 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
         energies = [lv.energy for lv in every]
         view_lo, view_hi = min(energies) - 1.0, max(energies) + 1.0
 
-    orbitals = SymmetryAdaptedOrbitalBasis(cell=cell, symprec=symprec)
+    orbitals = _quiet_orbital_basis(SymmetryAdaptedOrbitalBasis, cell, symprec)
     n_atoms = len(diagram.symbols)
     outputs = []
+    output_lines: list[str] = []
     for record in selected:
         name, kpoint = record["name"], record["kpoint"]
         levels = [lv for lv in record["levels"][column]
@@ -344,7 +374,7 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
                     "atoms": atoms,
                 })
         if not level_modes:
-            print(f"   {name}: no levels inside the window, skipped")
+            output_lines.append(f"{name}: no levels inside the window, skipped")
             continue
         info = {
             "formula": diagram.formula["left"] + diagram.formula["right"],
@@ -383,10 +413,12 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
             basis_heading="PySCF levels (click to show)",
         )
         outputs.append(page_path)
-        print(f"   {name}: {len(levels)} levels "
-              f"({len(level_modes)} partners) -> {page_path}")
+        output_lines.append(f"{name}: {len(levels)} levels "
+                            f"({len(level_modes)} partners) -> {page_path}")
     if outputs:
-        print("SALC viewer pages written: " + ", ".join(outputs))
+        print("\n* Output files *")
+        for line in output_lines + ([chk_notice] if chk_notice else []):
+            print(f"  {line}")
     else:
         raise SystemExit(
             f"ERROR: no levels inside the energy window "

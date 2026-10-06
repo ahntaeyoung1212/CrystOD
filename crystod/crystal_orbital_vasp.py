@@ -37,7 +37,11 @@ What is taken from the runs, and how:
   COOP sign of the other engines is unavailable; bonding/antibonding is read
   from the aligned energies against the composition-weighted parent energy.
 
-Spin-polarized runs are not supported (a clean ERROR).
+Spin-polarized runs are not supported (a clean ERROR), nor are spin-orbit
+(non-collinear) runs, which the WAVECAR-overlap engine reads instead
+(``--vasp-engine overlap``, :mod:`crystod.crystal_orbital_overlap`: no energy
+alignment at all, frozen-ion parents and a sublattice-orbital COHP from the
+all-electron overlaps of the sublattice and crystal Bloch states).
 """
 
 from __future__ import annotations
@@ -53,6 +57,7 @@ from .crystal_orbital_diagram import (
     CrystalOrbitalDiagram,
     DiagramLevel,
     _format_kpoint,
+    print_dipole_rules,
     write_crystal_diagram_html,
 )
 from .operations import wigner_D_real
@@ -513,6 +518,8 @@ class VASPCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         functional = self.runs["mo"]["outcar"].get("functional") or ""
         from .vasp_io import GGA_NAMES
 
+        # the METAGGA tag of a meta-GGA run (LAK, SCAN, R2SCAN) is printed as
+        # it is; GGA_NAMES only spells out the GGA tags (PE -> PBE)
         self.functional = GGA_NAMES.get(functional, functional or "PAW")
         encut = self.runs["mo"]["outcar"].get("encut")
         self.method_chip = (f"VASP PAW/{self.functional}"
@@ -637,6 +644,14 @@ class VASPCrystalOrbitalDiagram(CrystalOrbitalDiagram):
                     f"ERROR: {directory} is spin polarized (ISPIN = "
                     f"{outcar['ispin']}); the --vasp crystal-orbital engine "
                     "handles non-spin-polarized runs only.")
+            if outcar.get("noncollinear"):
+                # a spinor PROCAR carries one Kramers partner per band and
+                # magnetization blocks the projection reader does not split:
+                # every degeneracy and electron count would come out wrong
+                raise SystemExit(
+                    f"ERROR: {directory} is a spin-orbit (non-collinear, vasp_ncl) "
+                    "run; the anchor engine reads scalar runs only.  The overlap "
+                    "engine reads spinor runs: add --vasp-engine overlap.")
             mapping = self._match_atoms(structure, directory)
             self.mappings[column] = mapping
             ions = list(mapping.ions)
@@ -856,7 +871,7 @@ class VASPCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         systems reproduce their previous numbers to the last printed digit.
         See section 2 of ``crystod_dev/reports/crystod_vasp_engine.md``.
         """
-        from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+        from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
 
         irreps, mapping = get_spacegroup_irreps_from_primitive_symmetry(
             rotations=self.builder.rotations,
@@ -1281,6 +1296,24 @@ class VASPCrystalOrbitalDiagram(CrystalOrbitalDiagram):
         the CRYSTAL column keeps shift 0 and each fragment column moves by its
         own ``delta = E_crystal - E_fragment``.  ``--vasp-anchor EL nl`` is
         honoured through the shared ``anchor_override`` hook.
+
+        The shared rule pairs every fragment level with its inert crystal
+        counterpart one-to-one and in energy order
+        (``crystal_orbital_pyscf._alignment_counterparts``).  That is what
+        the radially blind PROCAR basis needs: without it the Sr 4s R2-
+        semicore level of a METAGGA = LAK SrTiO3 run was paired with the
+        empty Sr 5s-like level R2- #2, 46 eV above its own band, because both
+        overlaps are 1.000 and the empty one came out larger by 4e-16 (the
+        PBE run has the same tie and kept the right level only because its
+        two overlaps are bit-identical).  The result is not only the
+        ``--vasp-align rigid`` shift: it
+        places the fragment levels against the anchor-window cut in the FIRST
+        pass of :meth:`site_anchor_report`, and it is the shift a column falls
+        back to when none of its elements finds an anchor, so the default
+        site-resolved alignment depends on it wherever that cut or that
+        fallback decides (``--kpoint R`` on that run lost every Sr and Ti
+        anchor to it, moved the whole cation column up by the +50.0 eV and
+        so left it off the page).
 
         Returns:
             ``(deltas, anchors)``: ``deltas`` maps ``"left"``/``"right"`` to
@@ -2312,7 +2345,7 @@ NSW = 0
 LORBIT = 12
 LASPH = .TRUE.
 GGA = PE
-LWAVE = .FALSE.
+LWAVE = {lwave}
 LCHARG = .FALSE.
 NBANDS = {nbands}
 {va}"""
@@ -2346,7 +2379,7 @@ def _va_incar_lines(charges, *, sigma=VACSIGMA_DEFAULT,
             "VACWALL": " ".join(f"{value:.6f}" for value in heights)}
 
 
-def _strip_incar(text, nbands, va=None) -> str:
+def _strip_incar(text, nbands, va=None, lwave=False) -> str:
     """The crystal INCAR, made fit for a sublattice run.
 
     ``NELECT`` is dropped (VASP derives it from the signed Va charges),
@@ -2355,13 +2388,14 @@ def _strip_incar(text, nbands, va=None) -> str:
     need not fit the rank count of the printed command), ``LORBIT`` is forced
     to 12, the three ``Va`` tags to the calibrated wall of
     :func:`_va_incar_lines`, ``LWAVE``/``LCHARG`` to ``.FALSE.`` (a
-    single-shot run has nothing to restart), and the ionic loop is switched
-    off -- the three runs must share one geometry, and a relaxation would move
-    the real atoms away from it.
+    single-shot run has nothing to restart) -- ``LWAVE = .TRUE.`` with
+    ``lwave``, for the overlap engine, which reads the wavefunctions -- and
+    the ionic loop is switched off: the three runs must share one geometry,
+    and a relaxation would move the real atoms away from it.
     """
     forced = {"LORBIT": "12", "IBRION": "-1", "NSW": "0",
               "NBANDS": str(nbands),
-              "LWAVE": ".FALSE.", "LCHARG": ".FALSE."}
+              "LWAVE": ".TRUE." if lwave else ".FALSE.", "LCHARG": ".FALSE."}
     forced.update(va or {})
     out = []
     seen: set = set()
@@ -2514,7 +2548,8 @@ def write_vasp_inputs(diagram_cell, *, left, right, root, symprec, oxidation,
                       potcar_dir=None, potcar_map=None, mesh=None,
                       rwall=VACRWALL_DEFAULT, sigma=VACSIGMA_DEFAULT,
                       wall_factor=VACWALL_FACTOR_DEFAULT, binary=None,
-                      force=False, report=print) -> None:
+                      force=False, engine="anchor", frozen_window=None,
+                      report=print) -> None:
     """Write the inputs of the two sublattice runs (and of the crystal run).
 
     The POSCARs keep the crystal's cell and atom order; the atoms of the
@@ -2551,6 +2586,13 @@ def write_vasp_inputs(diagram_cell, *, left, right, root, symprec, oxidation,
             written, so the ``q`` scaling stays automatic.
         binary: Absolute path of the CrystOD-patched ``vasp_std`` for the
             printed commands; ``None`` looks at ``CRYSTOD_VASP`` and ``PATH``.
+        engine: ``"overlap"`` prepares the runs for the WAVECAR-overlap
+            engine: ``LWAVE = .TRUE.``, the sublattice runs get at least the
+            crystal run's NBANDS, and the crystal run is checked
+            (:func:`_overlap_band_check`).  ``"anchor"`` leaves everything
+            as it was.
+        frozen_window: The overlap engine's frozen window (eV above the
+            VBM, default 14) the crystal bands must reach.
 
     Returns:
         ``None``.  The run commands are printed (unless a POTCAR is missing);
@@ -2630,6 +2672,13 @@ def write_vasp_inputs(diagram_cell, *, left, right, root, symprec, oxidation,
     incar_source = os.path.join(crystal_dir, "INCAR")
     incar_text = (open(incar_source).read() if os.path.isfile(incar_source)
                   else None)
+    overlap = engine == "overlap"
+    if overlap:
+        crystal_bands = _overlap_band_check(
+            crystal_dir, 14.0 if frozen_window is None else float(frozen_window),
+            report)
+        if crystal_bands:
+            nbands = max(nbands, crystal_bands)
     commands = []
     not_ready: list = []
     targets = [("left", os.path.join(root, "BAND_sublattice1")),
@@ -2694,11 +2743,12 @@ def write_vasp_inputs(diagram_cell, *, left, right, root, symprec, oxidation,
                                   factor=wall_factor)
         if incar_text is not None:
             open(os.path.join(directory, "INCAR"), "w").write(
-                _strip_incar(incar_text, nbands, va_tags))
+                _strip_incar(incar_text, nbands, va_tags, lwave=overlap))
         else:
             open(os.path.join(directory, "INCAR"), "w").write(
                 _INCAR_TEMPLATE.format(
                     system=comment, nbands=nbands,
+                    lwave=".TRUE." if overlap else ".FALSE.",
                     va="".join(f"{name} = {value}\n"
                                for name, value in va_tags.items())))
         missing = [name for name in real if name not in blocks]
@@ -2742,7 +2792,8 @@ def write_vasp_inputs(diagram_cell, *, left, right, root, symprec, oxidation,
     for command in commands:
         report(f"   {command}")
     report("\n Then draw the diagram with the same command and --vasp "
-           f"{root}")
+           f"{root}" + (" (the overlap engine reads the three WAVECARs)"
+                        if overlap else ""))
 
 
 def _choose_potcar(directory, element, charge, potcar_map):
@@ -2831,6 +2882,82 @@ def _pmg_psp_dir():
         if match:
             return os.path.expanduser(match.group(1).strip('"\''))
     return None
+
+
+#: The overlap engine's outer bands: the crystal bands must reach this far
+#: above the frozen window (VBM + 14 eV), so that the disentanglement has
+#: bands to draw the empty active shells from (the published CsPbI3 + SOC run,
+#: NBANDS 128, reaches VBM + 17.5 eV).
+OVERLAP_BAND_MARGIN_EV = 3.0
+
+
+def _incar_tag(text, name):
+    """The value of one INCAR tag (``None`` when it is not set)."""
+    for line in (text or "").splitlines():
+        body = line.split("#")[0].split("!")[0]
+        for tag in body.split(";"):
+            if "=" in tag and tag.split("=")[0].strip().upper() == name:
+                return tag.split("=", 1)[1].strip()
+    return None
+
+
+def _overlap_band_check(crystal_dir, window, report) -> int | None:
+    """What the overlap engine needs of the crystal run, checked where possible.
+
+    The engine reads the crystal's WAVECAR (``LWAVE = .TRUE.``) and keeps
+    its levels up to VBM + ``window`` exactly, drawing the empty active shells
+    from the bands above; so the crystal bands must reach VBM + ``window`` +
+    :data:`OVERLAP_BAND_MARGIN_EV` at every k point.  A finished crystal run
+    (``EIGENVAL``) is checked and a larger NBANDS suggested when its bands
+    stop short; an unfinished one is checked for ``LWAVE``.
+
+    Args:
+        crystal_dir: ``<ROOT>/BAND``.
+        window: The frozen window (eV above the VBM).
+        report: Print function.
+
+    Returns:
+        The crystal run's NBANDS (finished run, or the INCAR tag), else
+        ``None``; the sublattice runs are given at least as many.
+    """
+    from .vasp_io import read_eigenval, resolve_vasp_file
+
+    target = window + OVERLAP_BAND_MARGIN_EV
+    report(f" overlap engine: LWAVE = .TRUE. in every run; the crystal bands must "
+           f"reach VBM + {target:g} eV (frozen window {window:g} eV + "
+           f"{OVERLAP_BAND_MARGIN_EV:g} eV of outer bands) at every k point")
+    incar = os.path.join(crystal_dir, "INCAR")
+    incar_text = open(incar).read() if os.path.isfile(incar) else ""
+    tagged = _incar_tag(incar_text, "NBANDS")
+    eigenval = resolve_vasp_file(os.path.join(crystal_dir, "EIGENVAL"))
+    if not eigenval:
+        lwave = (_incar_tag(incar_text, "LWAVE") or "").upper().strip(".")
+        if incar_text and not lwave.startswith("T"):
+            report(f"   NOTE: {incar} does not set LWAVE = .TRUE.: add it before "
+                   "running the crystal (its WAVECAR is read)")
+        report("   the band reach of the crystal run is checked here once it has run")
+        return int(tagged) if tagged and tagged.isdigit() else None
+    _kpoints, _weights, energies, occupations = read_eigenval(eigenval)
+    nbands = energies.shape[1]
+    occupied = energies[occupations > 0.5]
+    if not occupied.size:
+        return nbands
+    vbm = float(occupied.max())
+    reach = float(energies[:, -1].min()) - vbm
+    if not os.path.isfile(os.path.join(crystal_dir, "WAVECAR")):
+        report(f"   NOTE: {crystal_dir} holds no WAVECAR: repeat the crystal run with "
+               "LWAVE = .TRUE.")
+    if reach >= target:
+        report(f"   crystal run: NBANDS {nbands} reaches VBM + {reach:.1f} eV -- enough")
+        return nbands
+    bottom = float(energies.min()) - vbm
+    # free-electron-like counting, N(E) ~ (E - E_bottom)^(3/2), rounded up to 8
+    estimate = nbands * ((target - bottom) / max(reach - bottom, 1e-6)) ** 1.5
+    suggested = int(8 * math.ceil(estimate / 8))
+    report(f"   WARNING: the crystal run's highest band reaches only VBM + {reach:.1f} eV "
+           f"(NBANDS {nbands}); repeat it with NBANDS = {suggested} or more "
+           "(LWAVE = .TRUE.), and give the sublattice runs as many")
+    return max(nbands, suggested)
 
 
 def _suggest_nbands(shell) -> int:
@@ -3737,6 +3864,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
             occupancy = f"{level.electrons}e" if level.electrons else "  "
             print(f"     {level.label:<10} {level.energy:9.2f} eV  "
                   f"x{level.degeneracy}  {occupancy:<4} {composition}")
+        print_dipole_rules(diagram, name, kpoint, levels)
 
     tally: dict = {}
     for record in records:
@@ -4169,9 +4297,38 @@ def main(argv=None) -> None:
     parser.add_argument("--conventional", action="store_true")
     parser.add_argument("--output", default=None)
     parser.add_argument("--tolerance", type=float, default=1e-5)
+    # the WAVECAR-overlap engine (crystod.crystal_orbital_overlap)
+    parser.add_argument("--vasp-engine", choices=("anchor", "overlap"),
+                        default="anchor")
+    parser.add_argument("--vasp-shells", nargs="+", default=None, metavar="SHELL")
+    parser.add_argument("--vasp-frozen-window", type=float, default=None,
+                        metavar="EV")
+    parser.add_argument("--vasp-frozen-qmin", type=float, default=None, metavar="Q")
+    parser.add_argument("--vasp-cache", default=None, metavar="FILE")
+    parser.add_argument("--vasp-scalar-reference", default=None, metavar="JSON")
+    parser.add_argument("--vasp-irrep-json", default=None, metavar="PATTERN")
+    parser.add_argument("--vasp-cross-sphere", default="bessel",
+                        choices=("bessel", "projector", "none"),
+                        help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
     oxidation = (parse_oxidation_tokens(args.oxidation) if args.oxidation else None)
+    if args.vasp_setup is None and args.vasp_engine == "overlap":
+        from .crystal_orbital_overlap import run_vasp_diagram
+
+        run_vasp_diagram(
+            args.co_left, args.co_right, vasp_paths=args.vasp,
+            overrides={"mo": args.vasp_crystal, "left": args.vasp_left,
+                       "right": args.vasp_right},
+            cell_path=args.poscar, kpoint=args.kpoint, output=args.output,
+            symprec=args.tolerance, shells=args.vasp_shells,
+            frozen_window=args.vasp_frozen_window,
+            frozen_qmin=args.vasp_frozen_qmin, cache_path=args.vasp_cache,
+            scalar_reference=args.vasp_scalar_reference,
+            irrep_json=args.vasp_irrep_json,
+            window=(tuple(args.vasp_window) if args.vasp_window else None),
+            cross_sphere=args.vasp_cross_sphere)
+        return
     if args.vasp_setup is not None:
         # -c is optional here for the same reason it is optional with --vasp:
         # the crystal run's POSCAR IS the structure, and it is also the
@@ -4192,7 +4349,9 @@ def main(argv=None) -> None:
                           mesh=args.vasp_mesh, rwall=args.vasp_rwall,
                           sigma=args.vasp_sigma,
                           wall_factor=args.vasp_wall_factor,
-                          binary=args.vasp_bin, force=args.force)
+                          binary=args.vasp_bin, force=args.force,
+                          engine=args.vasp_engine,
+                          frozen_window=args.vasp_frozen_window)
         return
     overrides = {"mo": args.vasp_crystal, "left": args.vasp_left,
                  "right": args.vasp_right}

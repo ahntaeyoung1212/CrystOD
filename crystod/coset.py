@@ -132,7 +132,21 @@ def _left_coset_decomposition(
     return cosets
 
 
-def _show_point_group_cosets(point_group: str, subgroup: str) -> None:
+def format_point_group_cosets(point_group: str, subgroup: str) -> str:
+    """Text report of ``crystod-group --coset --pg G --subgroup H``.
+
+    Args:
+        point_group: Label of the group G, e.g. ``"m-3m"``.
+        subgroup: Label of the subgroup H, e.g. ``"4/mmm"``.
+
+    Returns:
+        The ``* Groups *`` and ``* Coset decomposition G = sum_i g_i H *``
+        blocks as one string (leading newline, no trailing newline).
+
+    Raises:
+        ValueError: H is not a subgroup of G in the tabulated axes, or |H|
+            does not divide |G|; the message is one sentence.
+    """
     group_rotations, group_labels = _point_group_operations(point_group)
     subgroup_rotations, _ = _point_group_operations(subgroup)
 
@@ -145,34 +159,31 @@ def _show_point_group_cosets(point_group: str, subgroup: str) -> None:
         else:
             subgroup_indices.append(index)
 
-    print(f"\n * Groups *")
-    print(f" G = {point_group} (order {len(group_rotations)})")
-    print(f" H = {subgroup} (order {len(subgroup_rotations)})\n")
-
+    group_text = f"G = {point_group} (order {len(group_rotations)})"
+    subgroup_text = f"H = {subgroup} (order {len(subgroup_rotations)})"
     if missing:
-        print(" ERROR: H is not a subgroup of G with the tabulated axes conventions.")
-        print(f"        {len(missing)} operation(s) of H are not contained in G.")
-        print(
-            "        The character-table settings of G and H may use different axes\n"
-            "        (e.g. 2-fold axes along different directions). Coset decomposition\n"
-            "        requires H expressed in the same axes as G."
-        )
-        return
-
+        raise ValueError(
+            f"{subgroup_text} is not a subgroup of {group_text} in the tabulated "
+            f"axes: {len(missing)} of its operations are not in G (the "
+            "character-table settings may orient the axes differently, and the "
+            "coset decomposition needs H in the axes of G).")
     if len(group_rotations) % len(subgroup_rotations) != 0:
-        print(" ERROR: |G| is not divisible by |H| (Lagrange's theorem violated).")
-        return
+        raise ValueError(
+            f"|H| does not divide |G| for {subgroup_text} and {group_text} "
+            "(Lagrange's theorem), so H is not a subgroup of G.")
+
+    lines = ["", "* Groups *", f" {group_text}", f" {subgroup_text}", ""]
 
     cosets = _left_coset_decomposition(group_rotations, subgroup_indices)
     index_of_group = len(group_rotations) // len(subgroup_rotations)
-    print(f" * Coset decomposition G = sum_i g_i H *")
-    print(f" index [G:H] = {index_of_group}\n")
+    lines.append("* Coset decomposition G = sum_i g_i H *")
+    lines.append(f" index [G:H] = {index_of_group}")
     for coset_number, coset in enumerate(cosets, start=1):
         representative_label = group_labels[coset[0]] if coset_number > 1 else "E"
         members = ", ".join(group_labels[index] for index in coset)
-        print(f" coset {coset_number} (representative: {representative_label}):")
-        print(f"   {{ {members} }}")
-    print("")
+        lines.append(f" coset {coset_number} (representative: {representative_label}):")
+        lines.append(f"   {{ {members} }}")
+    return "\n".join(lines)
 
 
 def _space_group_primitive_symmetry(space_group_symbol: str):
@@ -191,13 +202,26 @@ def _space_group_primitive_symmetry(space_group_symbol: str):
             [primitive_matrix_inv @ rotation @ primitive_matrix for rotation in conventional_rotations]
         )
     ).astype(int)
-    primitive_translations = np.mod(conventional_translations @ primitive_matrix_inv, 1.0)
+    # column convention x_conv = M x_prim, matching the rotation conversion above
+    primitive_translations = np.mod((primitive_matrix_inv @ conventional_translations.T).T, 1.0)
     primitive_translations[np.isclose(primitive_translations, 1.0, atol=1e-8)] = 0.0
     return sg_type, primitive_matrix, primitive_rotations, primitive_translations
 
 
-def _show_space_group_cosets(space_group_symbol: str, kpoint: list[float]) -> None:
-    from .star_of_k import compute_star, _wrap_to_unit
+def format_space_group_cosets(space_group_symbol: str, kpoint: list[float]) -> str:
+    """Text report of ``crystod-group --coset --sg SG --kpoint K``.
+
+    Args:
+        space_group_symbol: Space-group symbol or number, e.g. ``"Pm-3m"``.
+        kpoint: k point in the primitive basis.
+
+    Returns:
+        The ``* Space group *``, ``* k point (primitive) *``,
+        ``* Little co-group G_k *`` and ``* Coset decomposition ... *``
+        blocks (one coset per arm of the star of k) as one string (leading
+        newline, no trailing newline).
+    """
+    from .star_of_k import compute_star
 
     sg_type, primitive_matrix, rotations, translations = _space_group_primitive_symmetry(
         space_group_symbol
@@ -210,24 +234,31 @@ def _show_space_group_cosets(space_group_symbol: str, kpoint: list[float]) -> No
         kpoint=kpoint,
     )
 
-    print(f"\n * Space group *\n {sg_type.international_short} ({sg_type.number})\n")
-    print(f" * k point (primitive) *\n {np.round(np.asarray(kpoint, dtype=float), 6).tolist()}\n")
-    print(" * Little co-group G_k *")
-    print(f" order |G_k| = {len(mapping_little_group)} (|G| = {len(rotations)})")
     little_members = ", ".join(seitz_symbols[index] for index in mapping_little_group)
-    print(f" {{ {little_members} }}\n")
-
     arms = compute_star(rotations, translations, kpoint)
-    print(" * Coset decomposition G = sum_i G_k g_i (one coset per arm of the star) *")
-    print(f" index [G:G_k] = |star of k| = {len(arms)}\n")
+    lines = [
+        "",
+        "* Space group *",
+        f" {sg_type.international_short} ({sg_type.number})",
+        "",
+        "* k point (primitive) *",
+        f" {np.round(np.asarray(kpoint, dtype=float), 6).tolist()}",
+        "",
+        "* Little co-group G_k *",
+        f" order |G_k| = {len(mapping_little_group)} (|G| = {len(rotations)})",
+        f" {{ {little_members} }}",
+        "",
+        "* Coset decomposition G = sum_i G_k g_i (one coset per arm of the star) *",
+        f" index [G:G_k] = |star of k| = {len(arms)}",
+    ]
     for arm_index, arm in enumerate(arms, start=1):
         coords = np.round(arm["kpoint"], 6)
         coords_text = "[" + ", ".join(f"{value:+g}" for value in coords) + "]"
         representative = seitz_symbols[arm["representative_index"]]
         members = ", ".join(seitz_symbols[index] for index in arm["operation_indices"])
-        print(f" coset {arm_index} (representative: {representative}, k arm = {coords_text}):")
-        print(f"   {{ {members} }}")
-    print("")
+        lines.append(f" coset {arm_index} (representative: {representative}, k arm = {coords_text}):")
+        lines.append(f"   {{ {members} }}")
+    return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -240,12 +271,16 @@ def main(argv: list[str] | None = None) -> None:
     if args.point_group:
         if not args.subgroup:
             parser.error("--point-group requires --subgroup for the coset decomposition.")
-        _show_point_group_cosets(args.point_group, args.subgroup)
+        try:
+            text = format_point_group_cosets(args.point_group, args.subgroup)
+        except ValueError as error:
+            raise SystemExit(f"ERROR: {error}") from None
+        print(text)
         return
 
     if args.kpoint is None:
         parser.error("--space-group requires --kpoint.")
-    _show_space_group_cosets(args.space_group, args.kpoint)
+    print(format_space_group_cosets(args.space_group, args.kpoint))
 
 
 if __name__ == "__main__":

@@ -232,7 +232,8 @@ def main(argv: list[str] | None = None) -> None:
         output_path = "phonon_band_LT_nac.pdf" if args.nac else "phonon_band_LT.pdf"
     plt.savefig(output_path)
     plt.close(fig)
-    print(f"L/T-resolved phonon band written to: {output_path}")
+    print("\n* Output files *")
+    print(f"  L/T-resolved phonon band written to: {output_path}")
 
 
 if __name__ == "__main__":

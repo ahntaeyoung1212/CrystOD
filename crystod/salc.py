@@ -28,6 +28,15 @@ Crystal-orbital diagrams (``crystod --diagram``)
     :func:`assign_bond_characters`
         The COOP bonding/antibonding/nonbonding classification both
         engines apply to their levels.
+    :func:`dipole_selection_rules`
+        ``dipole_selection_rules(diagram)``: the band-edge electric-dipole
+        selection rules of every k point of a diagram object of any engine
+        (Gamma_f x Gamma_V x Gamma_i per polarization, in the Cartesian
+        axes of the input cell), the blocks the engines print;
+        :func:`band_edge_selection_rules` does one k point from its solved
+        levels, :func:`little_group_dipole_table` gives the rule for every
+        irrep pair of the little group, and
+        :func:`format_dipole_selection_rules` the report block.
 
 Symmetry-adapted orbital bases (``crystod --visualize``)
     :class:`SymmetryAdaptedOrbitalBasis`
@@ -63,6 +72,10 @@ _EXPORTS = {
     "CrystalOrbitalDiagram": ("crystal_orbital_diagram", "CrystalOrbitalDiagram"),
     "assign_bond_characters": ("crystal_orbital_diagram", "assign_bond_characters"),
     "PySCFCrystalOrbitalDiagram": ("crystal_orbital_pyscf", "PySCFCrystalOrbitalDiagram"),
+    "dipole_selection_rules": ("selection_rules", "dipole_selection_rules"),
+    "band_edge_selection_rules": ("selection_rules", "band_edge_selection_rules"),
+    "little_group_dipole_table": ("selection_rules", "little_group_dipole_table"),
+    "format_dipole_selection_rules": ("selection_rules", "format_dipole_selection_rules"),
     # symmetry-adapted orbital bases (crystod --visualize)
     "SymmetryAdaptedOrbitalBasis": ("visualize_basis", "SymmetryAdaptedOrbitalBasis"),
     # star of k (crystod --star-of-k)

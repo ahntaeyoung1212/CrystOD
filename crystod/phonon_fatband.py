@@ -30,6 +30,7 @@ from phonopy.phonon.band_structure import get_band_qpoints_and_path_connections
 
 from .brillouin_zone import get_seekpath_kpath, parse_manual_band
 from .phonon_vector import DEFAULT_ELEMENT, VESTA_ELEMENTS
+from .vasp_io import read_poscar_cell
 
 
 class MyHelpFormatter(
@@ -265,7 +266,7 @@ def compute_band_structure(args):
     phonon = load(
         supercell_matrix=supercell_mat,
         primitive_matrix="auto",
-        unitcell_filename=args.poscar,
+        unitcell=read_poscar_cell(args.poscar),
         force_sets_filename=force_sets,
         force_constants_filename=force_constants,
         is_nac=args.nac,
@@ -278,6 +279,7 @@ def compute_band_structure(args):
 
     # band path: manual --band/--label, or automatic seekpath k-path
     if args.band:
+        print("\n* Band path *")
         segments = parse_manual_band(args.band)
         if args.label:
             labels_flat = args.label.split()
@@ -298,22 +300,24 @@ def compute_band_structure(args):
         segments, label_segments, seekpath_lattice, spacegroup, spacegroup_number = (
             get_seekpath_kpath(primitive, args.tolerance)
         )
-        print(f"Space group: {spacegroup} (#{spacegroup_number})")
+        print("\n* Structure *")
+        print(f"  Space group: {spacegroup} (#{spacegroup_number})")
         path_text = "  ".join(
             "-".join(_prettify_label_mpl(label) for label in labels) for labels in label_segments
         )
-        print(f"k-path (seekpath): {path_text}")
+        print("\n* Band path *")
+        print(f"  k-path (seekpath): {path_text}")
         if not np.allclose(np.array(primitive.cell), seekpath_lattice, atol=1e-4):
             print(
-                "NOTE: the input cell differs from the seekpath standardized primitive cell;\n"
-                "      the k-path coordinates refer to the standardized primitive cell."
+                "  NOTE: the input cell differs from the seekpath standardized primitive cell;\n"
+                "        the k-path coordinates refer to the standardized primitive cell."
             )
 
     band_paths = [np.array(segment, dtype=float) for segment in segments]
     qpoints, path_connections = get_band_qpoints_and_path_connections(
         band_paths, npoints=args.npoints
     )
-    print(f"\nComputing phonon band structure with eigenvectors "
+    print(f"  Computing phonon band structure with eigenvectors "
           f"({sum(len(q) for q in qpoints)} q-points)...")
     phonon.run_band_structure(
         qpoints,
@@ -343,7 +347,8 @@ def main(argv: list[str] | None = None) -> None:
         fractional = np.array(args.direction.split(), dtype=float)
         cartesian = fractional @ np.array(primitive.cell)
         direction = cartesian / np.linalg.norm(cartesian)
-        print(f"Projection direction (Cartesian): {np.round(direction, 6).tolist()}")
+        print("\n* Projection *")
+        print(f"  Projection direction (Cartesian): {np.round(direction, 6).tolist()}")
 
     # per-atom projected weight: sum_axes |e_atom|^2 (optionally along `direction`)
     atom_weights = []
@@ -375,6 +380,7 @@ def main(argv: list[str] | None = None) -> None:
     else:
         prefix = "fatband_nac" if args.nac else "fatband"
 
+    print("\n* Output files *")
     for element in unique_elements:
         atom_indices = [i for i, symbol in enumerate(symbols) if symbol == element]
         projections = [weights[:, atom_indices, :].sum(axis=1) for weights in atom_weights]
@@ -393,7 +399,7 @@ def main(argv: list[str] | None = None) -> None:
             n_element_atoms=len(atom_indices),
             output_path=output_path,
         )
-        print(f"Fatband for {element} written to: {output_path}")
+        print(f"  Fatband for {element} written to: {output_path}")
 
 
 if __name__ == "__main__":

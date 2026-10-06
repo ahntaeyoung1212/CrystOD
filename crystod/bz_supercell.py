@@ -311,17 +311,17 @@ def main(argv: list[str] | None = None) -> None:
     rec_super_lat = np.linalg.inv(super_lattice).T
     n_cells = abs(np.linalg.det(trans_mat))
 
-    print("Transformation matrix (unit cell -> supercell):")
+    print("\n* Transformation matrix (unit cell -> supercell) *")
     for row in trans_mat:
         print(f"  [{row[0]:8.4f} {row[1]:8.4f} {row[2]:8.4f}]")
-    print(f"Volume ratio |det T| = {n_cells:g}")
-    print("\nSupercell lattice (rows):")
+    print(f"  Volume ratio |det T| = {n_cells:g}")
+    print("\n* Supercell lattice (rows) *")
     for row in super_lattice:
         print(f"  [{row[0]:10.6f} {row[1]:10.6f} {row[2]:10.6f}]")
 
     centers = get_folded_gamma_points(trans_mat, rec_lat)
     centers_frac = centers @ np.linalg.inv(rec_lat)
-    print(f"\nUnit-cell q-points folding onto the supercell Gamma point ({len(centers)}):")
+    print(f"\n* Unit-cell q-points folding onto the supercell Gamma point ({len(centers)}) *")
     for frac in centers_frac:
         text = ", ".join(_format_fraction(float(value)) for value in frac)
         print(f"  ({text})")
@@ -333,7 +333,8 @@ def main(argv: list[str] | None = None) -> None:
         output = f"BZ_supercell_{os.path.basename(args.poscar)}.html"
     title = f"Brillouin zones: {os.path.basename(args.poscar)} (black: unit cell, red: supercell)"
     write_html(traces, output, title)
-    print(f"\nWrote supercell Brillouin-zone visualization: {output}")
+    print("\n* Output files *")
+    print(f"  Wrote supercell Brillouin-zone visualization: {output}")
 
 
 if __name__ == "__main__":

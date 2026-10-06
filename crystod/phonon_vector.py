@@ -42,9 +42,17 @@ from .irreptables_compat import load_irreptables
 # _find_intertwiner is not used here; crystod.spin_basis imports it from this module
 from .modulation import _find_intertwiner, _irrep_filename_tag  # noqa: F401
 from .operations import parse_qpoint_token
-from .phonon_irreps import find_star_representative, get_irrep_labels, get_irt_special_points
+from .phonon_irreps import (
+    _special_points_in_label_frame,
+    check_nac_loaded,
+    find_star_representative,
+    get_irrep_labels,
+    get_irt_special_points,
+    nac_load_options,
+)
 from .runtime_compat import get_qpoints_result, get_symmetry_dataset
 from .symmetry_adapted_modes import solve_symmetry_adapted_modes
+from .vasp_io import read_poscar_cell
 
 IrrepTable, Irrep = load_irreptables()
 
@@ -241,6 +249,13 @@ def build_parser() -> ArgumentParser:
         default=1e-3,
         help="Degeneracy tolerance for irrep labeling.",
     )
+    parser.add_argument(
+        "--nac",
+        dest="nac",
+        action="store_true",
+        help="Apply the non-analytical term correction with ./BORN (without it\n"
+        "a BORN file is not read).",
+    )
     return parser
 
 
@@ -264,12 +279,16 @@ def resolve_qpoint(
     ``--qpoint`` argument: a single token is the label of a tabulated special
     point (``GM``, ``G``, ``GAMMA`` and the Greek capital gamma all mean
     Gamma); three tokens are coordinates in the primitive reciprocal basis,
-    fractions such as ``1/3`` allowed. Coordinates are labeled with the name
-    of the special point they coincide with. With ``rotations``, any arm of a
-    tabulated star is labeled with the star's name, not only the tabulated
-    arm; with ``isoir_context``, a q point outside every tabulated star is
-    labeled with its ISO-IR k-vector type (e.g. ``U``, ``B``, ``DT``) instead
-    of ``q_<coords>``.
+    fractions such as ``1/3`` allowed. With ``isoir_context``, coordinates
+    are labeled with their ISO-IR k-vector type in the frame of the labels
+    (the star's name at a special point, ``PA`` at the -k partner of P,
+    ``U``, ``B``, ``DT`` on a line or plane). Otherwise, or when the ISO-IR
+    data give nothing, they are labeled with the name of the special point
+    they coincide with; with ``rotations``, any arm of a tabulated star is
+    labeled with the star's name, not only the tabulated arm; anything else
+    is ``q_<coords>``. The commands pass the list in the frame of the labels
+    (``phonon_irreps._special_points_in_label_frame``), so a label given on
+    the command line names the point the labels call by it.
 
     Args:
         raw_qpoint: The tokens, one label or three coordinate strings.
@@ -279,7 +298,9 @@ def resolve_qpoint(
         rotations: Space-group rotations in the primitive basis, shape
             ``(n_ops, 3, 3)``, or ``None`` to label exact matches only.
         isoir_context: ``(space-group number, primitive cell tuple, symprec)``
-            for the ISO-IR fallback label, or ``None`` for ``q_<coords>``.
+            for the ISO-IR fallback label, optionally followed by the input
+            cell tuple whose ISO-IR frame the label refers to, or ``None``
+            for ``q_<coords>``.
 
     Returns:
         ``(label, qpoint)`` with ``qpoint`` a list of three floats. The
@@ -317,6 +338,17 @@ def resolve_qpoint(
         raise ValueError("--qpoint must be either one label or three coordinates.")
 
     qpoint = [_parse_coordinate(value) for value in raw_qpoint]
+    if isoir_context is not None:
+        # the ISO-IR k-vector type in the frame of the labels first
+        from .isoir import get_isoir_kpoint_name
+
+        sgnum, cell, symprec = isoir_context[:3]
+        input_cell = isoir_context[3] if len(isoir_context) > 3 else None
+        isoir_name = get_isoir_kpoint_name(
+            sgnum, cell, symprec, qpoint, input_cell=input_cell
+        )
+        if isoir_name is not None:
+            return isoir_name, qpoint
     for name, q in zip(q_names, q_list):
         if np.allclose(qpoint, q, atol=1e-8):
             return name, qpoint
@@ -324,14 +356,6 @@ def resolve_qpoint(
         representative = find_star_representative(qpoint, rotations, q_names, q_list)
         if representative is not None:
             return representative[0], qpoint
-    if isoir_context is not None:
-        # non-special q: fall back to the ISO-IR k-vector type label
-        from .isoir import get_isoir_kpoint_name
-
-        sgnum, cell, symprec = isoir_context
-        isoir_name = get_isoir_kpoint_name(sgnum, cell, symprec, qpoint)
-        if isoir_name is not None:
-            return isoir_name, qpoint
     label = "q" + "".join(f"_{value:g}" for value in qpoint).replace("/", "o")
     return label, qpoint
 
@@ -878,33 +902,40 @@ def main(argv: list[str] | None = None) -> None:
     phonon = load(
         supercell_matrix=supercell_mat,
         primitive_matrix="auto",
-        unitcell_filename=args.poscar,
+        unitcell=read_poscar_cell(args.poscar),
         force_sets_filename=force_sets,
         force_constants_filename=force_constants,
+        **nac_load_options(args.nac),
     )
+    nac_note = check_nac_loaded(phonon, args.nac, "BORN")
+    if nac_note:
+        print(nac_note)
 
     dataset = get_symmetry_dataset(phonon.symmetry)
     prim_mat = get_primitive_matrix_by_centring(dataset["international"][0])
     try:
         irt_table = IrrepTable(dataset["number"], spinor=False)
-        q_names, q_list = get_irt_special_points(irt_table, prim_mat)
+        q_names, q_list = _special_points_in_label_frame(phonon, irt_table, prim_mat)
     except Exception:
         q_names, q_list = [], []
 
     formula = reduced_formula(list(phonon.primitive.symbols))
 
-    # the header + mode table is also saved as a text file (report_lines)
+    # the header + mode table is also saved as a text file (report_lines, in
+    # its own layout); the terminal shows the same lines in titled blocks
     report_lines: list[str] = []
-
-    def echo(line: str = "") -> None:
-        print(line)
-        report_lines.append(line)
+    # "written to" notices, printed together in the final block
+    output_notices: list[str] = []
 
     if q_names:
-        echo(f"Space group: {dataset['international']} (#{dataset['number']})")
-        echo("Available high-symmetry q-points:")
+        report_lines.append(f"Space group: {dataset['international']} (#{dataset['number']})")
+        report_lines.append("Available high-symmetry q-points:")
+        print("\n* Structure *")
+        print(f"  {report_lines[0]}")
+        print("\n* Available high-symmetry q-points *")
         for name, q in zip(q_names, q_list):
-            echo(f"  {name:8s} {np.round(q, 6).tolist()}")
+            report_lines.append(f"  {name:8s} {np.round(q, 6).tolist()}")
+            print(report_lines[-1])
 
     try:
         primitive_rotations = get_symmetry_dataset(phonon.primitive_symmetry)["rotations"]
@@ -915,10 +946,12 @@ def main(argv: list[str] | None = None) -> None:
     else:
         try:
             primitive = phonon.primitive
+            unitcell = phonon.unitcell
             isoir_context = (
                 dataset["number"],
                 (primitive.cell, primitive.scaled_positions, primitive.numbers),
                 phonon.primitive_symmetry.tolerance,
+                (unitcell.cell, unitcell.scaled_positions, unitcell.numbers),
             )
         except Exception:
             isoir_context = None
@@ -926,7 +959,9 @@ def main(argv: list[str] | None = None) -> None:
         args.qpoint, q_names, q_list,
         rotations=primitive_rotations, isoir_context=isoir_context,
     )
-    echo(f"\nSelected q-point: {q_label} = {qpoint}")
+    report_lines.append(f"\nSelected q-point: {q_label} = {qpoint}")
+    print("\n* Selected Q point *")
+    print(f"  Selected q-point: {q_label} = {qpoint}")
 
     # Symmetry-adapted eigenvectors: the partners of degenerate modes transform
     # with the irrep matrices (same construction as crystod-phonon --modulation)
@@ -949,23 +984,30 @@ def main(argv: list[str] | None = None) -> None:
         mode_vectors = [eigenvector_matrix[:, band] for band in range(len(frequencies))]
 
     _, mode_labels = _get_mode_labels(qpoint, phonon, dataset, args.tol)
-    echo(f"\nPhonon modes at q = {q_label}")
-    echo(f"{'Mode':>5s}  {'Freq (THz)':>12s}  Irrep")
-    echo("-" * 40)
+    report_lines.append(f"\nPhonon modes at q = {q_label}")
+    print(f"\n* Phonon modes at q = {q_label} *")
+    table_start = len(report_lines)
+    report_lines.append(f"{'Mode':>5s}  {'Freq (THz)':>12s}  Irrep")
+    report_lines.append("-" * 40)
     for mode_index, frequency in enumerate(frequencies):
-        echo(f"{mode_index + 1:5d}  {frequency:12.4f}  {mode_labels[mode_index]}")
+        report_lines.append(f"{mode_index + 1:5d}  {frequency:12.4f}  {mode_labels[mode_index]}")
+    print("\n".join(report_lines[table_start:]))
 
     report_path = f"phonon_modes_{formula}_{q_label}.txt"
     with open(report_path, "w") as handle:
         handle.write("\n".join(report_lines) + "\n")
-    print(f"\nMode table written to: {report_path}")
+    output_notices.append(f"Mode table written to: {report_path}")
 
     n_modes = len(frequencies)
     if args.mode is None:
         if args.output:
+            print("\n* Output files *")
+            for notice in output_notices:
+                print(f"  {notice}")
             raise SystemExit("ERROR: --output requires --mode (one summed output file).")
         mode_groups = [[index] for index in range(n_modes)]
-        print(f"\nNo --mode given; exporting all {n_modes} modes as individual VESTA files.")
+        print("\n* Displacement patterns *")
+        print(f"  No --mode given; exporting all {n_modes} modes as individual VESTA files.")
     else:
         selected: list[int] = []
         for value in args.mode:
@@ -975,13 +1017,14 @@ def main(argv: list[str] | None = None) -> None:
                 )
             selected.append(value - 1)
         mode_groups = [selected]
+        print("\n* Displacement patterns *")
 
     if args.conventional:
         centring = dataset["international"][0]
         base_matrix = get_conventional_matrix(centring)
-        print(f"\nConventional-cell output (centring {centring}); primitive-to-conventional matrix:")
+        print(f"  Conventional-cell output (centring {centring}); primitive-to-conventional matrix:")
         for row in base_matrix:
-            print(f"  {row.tolist()}")
+            print(f"    {row.tolist()}")
     else:
         base_matrix = np.eye(3, dtype=int)
 
@@ -989,12 +1032,12 @@ def main(argv: list[str] | None = None) -> None:
     if not np.array_equal(supercell_matrix, base_matrix):
         multiples = np.rint(np.diag(supercell_matrix @ np.linalg.inv(base_matrix))).astype(int)
         print(
-            f"\nCommensurate supercell for visualization: "
+            f"  Commensurate supercell for visualization: "
             f"{multiples[0]}x{multiples[1]}x{multiples[2]} "
             f"{'conventional' if args.conventional else 'primitive'} cells"
         )
     elif not args.conventional:
-        print("\nCommensurate supercell for visualization: 1x1x1")
+        print("  Commensurate supercell for visualization: 1x1x1")
 
     # As in --modulation, multiple modes selected with --mode are summed into
     # one displacement pattern (each mode with unit weight). Without --mode,
@@ -1013,7 +1056,7 @@ def main(argv: list[str] | None = None) -> None:
             displacements = complex_field.real
             max_norm = float(np.max(np.linalg.norm(displacements, axis=1)))
             if max_norm < 1e-12:
-                print(f"Mode {mode_index + 1}: real part of the eigenvector vanished; contributes nothing.")
+                print(f"  Mode {mode_index + 1}: real part of the eigenvector vanished; contributes nothing.")
             print(
                 f"  + mode {mode_index + 1}: {mode_labels[mode_index]}, "
                 f"{frequencies[mode_index]:.4f} THz"
@@ -1022,7 +1065,7 @@ def main(argv: list[str] | None = None) -> None:
 
         max_norm = float(np.max(np.linalg.norm(total_displacements, axis=1)))
         if max_norm < 1e-12:
-            print("The summed displacement pattern vanished; nothing to write.")
+            print("  The summed displacement pattern vanished; nothing to write.")
             continue
         arrows = total_displacements * (args.amplitude / max_norm)
 
@@ -1060,14 +1103,17 @@ def main(argv: list[str] | None = None) -> None:
             title=title,
         )
         if len(group) == 1:
-            print(f"Mode {mode_string} written to: {output_path}")
+            output_notices.append(f"Mode {mode_string} written to: {output_path}")
         else:
-            print(f"Sum of modes {mode_string} written to: {output_path}")
+            output_notices.append(f"Sum of modes {mode_string} written to: {output_path}")
 
     print(
-        f"\nArrows are scaled so the largest displacement is {args.amplitude:g} A; "
+        f"  Arrows are scaled so the largest displacement is {args.amplitude:g} A; "
         "adjust arrow size in VESTA via Edit > Vectors or Properties > Vectors if needed."
     )
+    print("\n* Output files *")
+    for notice in output_notices:
+        print(f"  {notice}")
 
 
 if __name__ == "__main__":

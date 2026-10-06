@@ -20,8 +20,6 @@ from .spglib_compat import ensure_spglib_compat
 
 ensure_spglib_compat()
 
-from phonopy.interface.calculator import read_crystal_structure
-
 from .vibration_modes import SymmetryOnlyVibrations
 
 
@@ -250,12 +248,18 @@ def print_star_of_k(
 
 
 def read_poscar_or_exit(poscar_path: str):
-    """Read a POSCAR file, exiting with a clear message when it cannot be read."""
+    """Read a POSCAR file, exiting with a clear message when it cannot be read.
+
+    The cell is the one VASP reads from the file (scale line and Cartesian
+    coordinates included): :func:`crystod.vasp_io.read_poscar_cell`.
+    """
     import os
+
+    from .vasp_io import read_poscar_cell
 
     if not os.path.isfile(poscar_path):
         raise SystemExit(f"ERROR: No POSCAR named {poscar_path}!")
-    cell, _ = read_crystal_structure(poscar_path, interface_mode="vasp")
+    cell = read_poscar_cell(poscar_path)
     if cell is None:
         raise SystemExit(f"ERROR: failed to read POSCAR file: '{poscar_path}'")
     return cell

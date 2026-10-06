@@ -31,10 +31,17 @@ by sums of star arms) are computed with spgrep and named from the ISO-IR
 tables (``crystod.isoir``); they are marked ``[ISO-IR labels]`` in the
 report.  All labels follow the ISO-IR (ISOTROPY, Miller-Love) convention
 throughout.
+
+The symmetric and antisymmetric squares of one irrep (``--symmetric``,
+``--antisymmetric``) are reduced from the characters
+``(chi(g)^2 +- chi(g^2)) / 2`` of the explicit order-parameter matrices
+(``crystod.isotropy_subgroup.InducedRepresentation``, the physically
+irreducible real form) over the finite factor group ``G / T_N``.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from fractions import Fraction
 
 import numpy as np
@@ -84,6 +91,41 @@ class _SyntheticIrrep:
         self.dim = dim
         self.kpname = kpname
         self.characters = characters
+
+
+@dataclass
+class SquareDecomposition:
+    """Symmetric or antisymmetric square of a full space-group irrep.
+
+    Returned by ``SpaceGroupIrrepAlgebra.decompose_square``.
+
+    Attributes:
+        label: Label of the squared representation: the ISO-IR irrep label,
+            or the ISOTROPY pair label (``P1P2``) of the physically
+            irreducible real form of a complex-type irrep.
+        irrep: The tabulated irrep record of the requested label.
+        kind: ``"symmetric"`` or ``"antisymmetric"``.
+        dimension: Dimension of the square, ``n(n+1)/2`` or ``n(n-1)/2``.
+        rep_dimension: Dimension ``n`` of the squared (real) representation.
+        doubled: ``True`` when the square is that of the real form
+            ``D + D*`` of a complex- or pseudoreal-type irrep.
+        fs_type: ``"complex"`` or ``"pseudoreal"`` when ``doubled``, else
+            ``None``.
+        terms: ``(kname, irrep, multiplicity)`` as in
+            ``SpaceGroupIrrepAlgebra.decompose_product``.
+        leftovers: k vectors (units of ``1/DEN``) that could not be
+            decomposed.
+    """
+
+    label: str
+    irrep: object
+    kind: str
+    dimension: int
+    rep_dimension: int
+    doubled: bool
+    fs_type: str | None
+    terms: list = field(default_factory=list)
+    leftovers: list = field(default_factory=list)
 
 
 def _character_fingerprint(chi: dict) -> tuple:
@@ -241,13 +283,18 @@ class SpaceGroupIrrepAlgebra:
         self._add_minus_k_stars()
 
     def _add_minus_k_stars(self) -> None:
-        """Synthesize the -k ('A') stars of polar space groups.
+        """Synthesize the -k ('A') stars of the special points of acentric
+        space groups.
 
-        For space groups without inversion, -k may belong to a star that is
-        not tabulated in the ISO-IR tables (e.g. PA of I-43m). The allowed small
-        irreps at -k are the complex conjugates of those at k; the names
-        them with an 'A' suffix on the k-point letter (P1 -> PA1).
+        For space groups without inversion, -k of a tabulated special point
+        may belong to a star that the ISO-IR tables do not list (e.g. PA of
+        I-43m). The allowed small irreps at -k are the complex conjugates of
+        those at k; they are named as the ISOTROPY software names them, with
+        an 'A' suffix on the k-point letter (P1 -> PA1), as the labeller of
+        ``crystod.isoir`` does.  The -k partners of lines and planes are
+        named in ``_isoir_line_labels``.
         """
+        from .isoir import minus_k_label
         for kname in list(self.k_by_kname):
             k = self.k_by_kname[kname]
             arms, _ = self.star(kname)
@@ -264,7 +311,7 @@ class SpaceGroupIrrepAlgebra:
                     break
             if covered:
                 continue
-            new_kname = kname + "A"
+            new_kname = minus_k_label(kname, self.sg_type.number)
             self.k_by_kname[new_kname] = minus_k
             self.irreps_by_kname[new_kname] = [
                 _SyntheticIrrep(
@@ -437,44 +484,25 @@ class SpaceGroupIrrepAlgebra:
     def _refine_small_characters(self, k: np.ndarray, small: dict) -> dict | None:
         """Match the tabulated characters onto the exact spgrep values.
 
-        When exactly one spgrep-computed small irrep at the same k matches
-        the table characters, its exact characters are used.  Where the
-        small-irrep family is not self-conjugate (P/N/W points of some
-        body-/face-centred nonsymmorphic groups), the tabulated ISO-IR
-        characters (phase convention exp(+2*pi*i k.t), exact translations)
-        relate to the spgrep candidates (exp(-2*pi*i k.t), mod-1-wrapped
-        translations) by complex conjugation times the wrapped-lattice
-        phase; that branch resolves the assignment.  Returns None when the
-        tabulated characters match no allowed small irrep at all.
+        The tabulated ISO-IR characters (phase convention exp(+2*pi*i k.t),
+        exact translations) and the spgrep candidates (exp(-2*pi*i k.t),
+        translations reduced mod 1) describe the same small irrep when
+        chi_spgrep(op) = conj(chi_table(op)) * exp(+2*pi*i k.delta_op),
+        delta_op being the lattice translation wrapped away when the
+        primitive operators were reduced mod 1.  The candidate selected this
+        way is the irrep of the same name in the ISO-IR data (checked for
+        every special-point irrep of all 230 space groups: always exactly
+        one candidate).  A direct comparison chi_spgrep = chi_table ignores
+        both factors and attaches the label to a physically different irrep
+        at some points (P of I4/mcm, H/K of the trigonal and hexagonal
+        groups, Y and T of Ccce, ...).  Returns None when no unique
+        candidate exists; the tabulated characters are returned unchanged
+        when spgrep cannot compute the small irreps at k.
         """
         try:
             computed = self.computed_irreps_at(k)
         except SystemExit:
             return small
-        matches = []
-        for candidate in computed:
-            chi = candidate["chi"]
-            if set(chi.keys()) != set(small.keys()):
-                continue
-            if all(abs(chi[op] - small[op]) < 5e-3 for op in small):
-                matches.append(chi)
-        if len(matches) == 1:
-            return {op: complex(value) for op, value in matches[0].items()}
-        if matches:
-            return small
-        # sum-of-two pairing ("physical" combined irrep)?
-        for i, c1 in enumerate(computed):
-            for c2 in computed[i:]:
-                if set(c1["chi"]) == set(small) and all(
-                    abs(c1["chi"][op] + c2["chi"][op] - small[op]) < 5e-3 for op in small
-                ):
-                    return small
-        # not self-conjugate at this k: the tabulated ISO-IR characters
-        # (exp(+2*pi*i k.t) at the exact translations) correspond to the
-        # spgrep candidate with chi_spgrep(op) = conj(chi_table(op)) *
-        # exp(+2*pi*i k.delta_op), where delta_op is the lattice translation
-        # wrapped away when the primitive operators were reduced mod 1
-        # (e.g. P of I-42d/Ia-3d, N of I4_132, W of Fd-3m)
         conjugated = []
         for candidate in computed:
             chi = candidate["chi"]
@@ -529,7 +557,7 @@ class SpaceGroupIrrepAlgebra:
         key = tuple(np.mod(k_int, DEN))
         if key in self._computed_cache:
             return self._computed_cache[key]
-        from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+        from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
 
         kpoint = np.array(key, dtype=float) / DEN
         try:
@@ -711,6 +739,135 @@ class SpaceGroupIrrepAlgebra:
         leftovers = sorted(candidate_vectors - covered)
         return factors, terms, leftovers
 
+    def decompose_square(self, label: str, kind: str = "symmetric") -> SquareDecomposition:
+        """Decompose the symmetric or antisymmetric square of a full irrep.
+
+        The computation behind ``crystod-group --product IR IR --sg SG
+        --symmetric|--antisymmetric``.  The order-parameter matrices of
+        ``InducedRepresentation`` (the physically irreducible real form:
+        ``D + D*`` for complex- and pseudoreal-type irreps) give the
+        characters ``(chi(g)^2 +- chi(g^2)) / 2`` with
+        ``chi(g^2) = tr M(g)^2`` on every element of the finite factor group
+        ``G / T_N``; these are reduced by character inner products with the
+        induced characters of the irreps at the stars of ``k_a + k_b``
+        (tabulated special points first, other stars computed with spgrep
+        and named from the ISO-IR tables, as in ``decompose_product``).
+
+        Args:
+            label: ISO-IR label of the irrep, e.g. ``"R4+"``.
+            kind: ``"symmetric"`` or ``"antisymmetric"``.
+
+        Returns:
+            A ``SquareDecomposition`` record.
+
+        Raises:
+            SystemExit: The label is not tabulated, or its order-parameter
+                matrices are not available (``InducedRepresentation``).
+
+        Example:
+            >>> from crystod import group
+            >>> algebra = group.SpaceGroupIrrepAlgebra("Pm-3m")
+            >>> square = algebra.decompose_square("R4+", "symmetric")
+            >>> [(irrep.name, n) for _, irrep, n in square.terms]
+            [('GM1+', 1), ('GM3+', 1), ('GM5+', 1)]
+        """
+        if kind not in ("symmetric", "antisymmetric"):
+            raise SystemExit(f"ERROR: unknown square kind {kind!r}.")
+        from .isotropy_subgroup import InducedRepresentation
+
+        rep = InducedRepresentation(self, label)
+        ops = np.array([i for i, _, _ in rep.elements], dtype=np.int64)
+        shifts = np.array([t for _, t, _ in rep.elements], dtype=np.int64)
+        chi = np.array([np.trace(matrix) for _, _, matrix in rep.elements], dtype=float)
+        chi2 = np.array(
+            [np.trace(matrix @ matrix) for _, _, matrix in rep.elements], dtype=float
+        )
+        sign = 1.0 if kind == "symmetric" else -1.0
+        character = (chi**2 + sign * chi2) / 2.0
+        order = len(rep.elements)
+
+        def multiplicity(arms3: np.ndarray, C3: np.ndarray) -> int | None:
+            phases = np.exp(SIGMA * 2j * np.pi * (shifts @ arms3.T) / DEN)
+            chi3 = np.sum(C3[ops] * phases, axis=1)
+            value = np.sum(character * np.conj(chi3)) / order
+            if abs(value.imag) > 1e-6 or abs(value.real - round(value.real)) > 1e-6:
+                return None
+            result = int(round(value.real))
+            return result if result >= 0 else None
+
+        # candidate k vectors: q_a + q_b over the arms of the real form
+        # (the arms and, for D + D*, their negatives)
+        arms = np.asarray(rep.arms, dtype=np.int64) % DEN
+        if rep.doubled:
+            arms = np.unique(np.concatenate([arms, (-arms) % DEN]), axis=0)
+        sums = (arms[:, None, :] + arms[None, :, :]).reshape(-1, 3) % DEN
+        candidate_vectors = {tuple(vector) for vector in sums}
+
+        terms = []
+        covered: set[tuple] = set()
+        for kname in self.k_by_kname:
+            star_arms, _ = self.star(kname)
+            arm_set = {tuple(arm) for arm in star_arms}
+            if not (arm_set & candidate_vectors):
+                continue
+            star_terms = []
+            integral = True
+            for irrep in self.irreps_by_kname[kname]:
+                try:
+                    arms3, C3 = self.induced_characters(irrep)
+                except SystemExit:
+                    integral = False
+                    break
+                count = multiplicity(arms3, C3)
+                if count is None:
+                    integral = False
+                    break
+                if count:
+                    star_terms.append((kname, irrep, count))
+            if integral:
+                terms.extend(star_terms)
+                covered |= arm_set
+
+        remaining = sorted(candidate_vectors - covered)
+        while remaining:
+            representative = np.array(remaining[0], dtype=np.int64)
+            star_arms, _ = self._star_of_vector(representative)
+            canonical = np.array(min(tuple(arm) for arm in star_arms), dtype=np.int64)
+            star_arms, _ = self._star_of_vector(canonical)
+            arm_set = {tuple(arm) for arm in star_arms}
+            point_name, names, label_source = self._line_names(canonical)
+            for index, small in enumerate(self.computed_irreps_at(canonical)):
+                arms3, C3 = self.induced_characters_at(canonical, small)
+                count = multiplicity(arms3, C3)
+                if count is None:
+                    raise SystemExit(
+                        "ERROR: non-integer multiplicity in the computed "
+                        f"square decomposition at k={tuple(canonical)} (bug)."
+                    )
+                if count:
+                    name = names[index] if names else f"{point_name}({index + 1})"
+                    terms.append((
+                        point_name,
+                        _ComputedIrrep(name, small["dim"], point_name, canonical,
+                                       len(star_arms), label_source),
+                        count,
+                    ))
+            covered |= arm_set
+            remaining = sorted(set(remaining) - arm_set)
+
+        n = rep.dimension
+        return SquareDecomposition(
+            label=rep.label,
+            irrep=rep.irrep,
+            kind=kind,
+            dimension=n * (n + 1) // 2 if kind == "symmetric" else n * (n - 1) // 2,
+            rep_dimension=n,
+            doubled=rep.doubled,
+            fs_type=getattr(rep, "fs_type", None) if rep.doubled else None,
+            terms=terms,
+            leftovers=sorted(candidate_vectors - covered),
+        )
+
     def _isoir_labeler_inputs(self):
         """(cell, conventional rotations, conventional translations) for the
         ISO-IR labeler, or None when construction failed.
@@ -747,19 +904,21 @@ class SpaceGroupIrrepAlgebra:
                 self._isoir_cell = False
         return self._isoir_cell or None
 
-    @staticmethod
-    def _minus_k_name(label: str) -> str:
-        """'A' suffix of a -k star label (P1 -> PA1, DT -> DTA)."""
-        import re
-
-        return re.sub(r"^[A-Z]+", lambda match: match.group(0) + "A", label)
-
     def _isoir_line_labels(self, canonical: np.ndarray) -> tuple[str, list[str] | None] | None:
         """ISO-IR (ISOTROPY, Miller-Love) names of the computed small irreps
         at a non-tabulated k point: (k-type label, names) on a full match,
         (k-type label, None) when only the k-vector type is identified, or
-        None.  A -k star absent from the ISO-IR tables (polar space groups)
-        is labeled through its +k conjugates with the 'A' suffix."""
+        None.
+
+        The names are those of the ISO-IR labeller of every other command
+        (``crystod.isoir.IsoIRLabeler.label_characters``).  In a group
+        without inversion the stars of k and -k can be distinct; the one
+        ISO-IR tabulates (on a line or plane: the one at the canonical,
+        positive parameter) keeps the tabulated name, and the other is named
+        as the ISOTROPY software names it, with the conjugate irreps: LE1
+        for the conjugate of LD1, DU for DT, SN for SM, GQ for GP, the
+        suffix A (C in a few hexagonal groups) otherwise, so the two stars
+        of one product keep distinct names."""
         key = tuple(np.mod(canonical, DEN))
         if key in self._isoir_line_cache:
             return self._isoir_line_cache[key]
@@ -788,63 +947,17 @@ class SpaceGroupIrrepAlgebra:
             np.array([small["chi"][i] for i in little], dtype=np.complex128)
             for small in smalls
         ]
-        # when star(k) and star(-k) are distinct (acentric groups), both can
-        # appear in one product and ISO-IR may match both to the same k-type
-        # letter through the free line parameter; the star whose -k partner
-        # has the smaller canonical representative deterministically takes
-        # the 'A' suffix (P1 -> PA1) so the two keep distinct names
-        minus_arms, _ = self._star_of_vector(np.mod(-canonical, DEN))
-        minus_canonical = min(tuple(arm) for arm in minus_arms)
-        prefer_minus = minus_canonical < tuple(np.mod(canonical, DEN))
-
-        def direct():
-            """Labels of the small irreps matched at +k."""
-            result = get_isoir_label_map(
-                self.sg_type.number, cell, 1e-5, k_conv,
-                little_rotations, little_translations, characters,
-            )
-            if result is None:
-                return None
+        result = get_isoir_label_map(
+            self.sg_type.number, cell, 1e-5, k_conv,
+            little_rotations, little_translations, characters,
+        )
+        if result is not None and len(result[0]) == len(smalls):
             label_map, ktype = result
-            if len(label_map) != len(smalls):
-                return None
             return ktype, [label_map[index] for index in range(len(smalls))]
-
-        def conjugate():
-            """'A'-suffixed labels through the -k star: the small irreps at
-            -k are the complex conjugates of those at k (only one member of
-            a +/-k pair is tabulated in ISO-IR)."""
-            result = get_isoir_label_map(
-                self.sg_type.number, cell, 1e-5, -k_conv,
-                little_rotations, little_translations,
-                [np.conj(chi) for chi in characters],
-            )
-            if result is None:
-                return None
-            label_map, ktype = result
-            if len(label_map) != len(smalls):
-                return None
-            return (
-                self._minus_k_name(ktype),
-                [
-                    self._minus_k_name(label_map[index])
-                    for index in range(len(smalls))
-                ],
-            )
-
-        attempts = (conjugate, direct) if prefer_minus else (direct, conjugate)
-        for attempt in attempts:
-            result = attempt()
-            if result is not None:
-                return result
         # no irrep-level match: identify at least the k-vector type letter
-        candidates = ((k_conv, ""), (-k_conv, "A"))
-        if prefer_minus:
-            candidates = tuple(reversed(candidates))
-        for k, suffix in candidates:
-            name = get_isoir_kpoint_name(self.sg_type.number, cell, 1e-5, k)
-            if name is not None:
-                return name + suffix, None
+        name = get_isoir_kpoint_name(self.sg_type.number, cell, 1e-5, k_conv)
+        if name is not None:
+            return name, None
         return None
 
     def isoir_display_arm(self, canonical: np.ndarray) -> np.ndarray:
@@ -978,17 +1091,77 @@ def _format_fraction(value: int) -> str:
     return f"{fraction.numerator}/{fraction.denominator}"
 
 
-def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) -> str:
+def format_square_block(algebra: SpaceGroupIrrepAlgebra, square: SquareDecomposition) -> list[str]:
+    """Lines of the ``* Symmetric square *`` / ``* Antisymmetric square *``
+    block of ``crystod-group --product IR IR --sg SG --symmetric``.
+
+    Args:
+        algebra: The ``SpaceGroupIrrepAlgebra`` of the space group.
+        square: The record from ``SpaceGroupIrrepAlgebra.decompose_square``.
+
+    Returns:
+        The block as a list of lines: the title, a note for the doubled
+        real form of a complex- or pseudoreal-type irrep, the decomposition
+        (``[R4+ x R4+] = ...`` symmetric, ``{R4+ x R4+} = ...``
+        antisymmetric) and the dimension check.
+    """
+    symmetric = square.kind == "symmetric"
+    title = "Symmetric square" if symmetric else "Antisymmetric square"
+    lines = [f"* {title} (full space-group irreps) *"]
+    if square.doubled:
+        lines.append(
+            f"note: {square.irrep.name} is of {square.fs_type} type; the square "
+            "is that of the physically irreducible real representation "
+            f"{square.label} (D + D*, dimension {square.rep_dimension})"
+        )
+    pair = f"{square.label} x {square.label}"
+    left = f"[{pair}]" if symmetric else f"{{{pair}}}"
+    right = " + ".join(
+        (f"{multiplicity}" if multiplicity > 1 else "") + irrep.name
+        for _, irrep, multiplicity in square.terms
+    )
+    lines.append(f"{left} = {right if right else '(none)'}")
+    dims = " + ".join(
+        (f"{multiplicity}x" if multiplicity > 1 else "") + str(algebra.full_dimension(irrep))
+        for _, irrep, multiplicity in square.terms
+    )
+    lines.append(f"dimension: {square.dimension}" + (f" = {dims}" if dims else ""))
+    total = sum(
+        multiplicity * algebra.full_dimension(irrep) for _, irrep, multiplicity in square.terms
+    )
+    if not square.leftovers and (
+        total != square.dimension or any(m < 0 for _, _, m in square.terms)
+    ):
+        lines.append("WARNING: dimension mismatch - please report this case.")
+    if square.leftovers:
+        lines.append(
+            "NOTE: part of the square lives at non-tabulated k point(s): "
+            + "; ".join(
+                "(" + ", ".join(_format_fraction(v) for v in vector) + ")"
+                for vector in square.leftovers
+            )
+        )
+    return lines
+
+
+def format_product_report(
+    algebra: SpaceGroupIrrepAlgebra, labels: list[str], squares: tuple[str, ...] = ()
+) -> str:
     """Text report of a space-group direct product.
 
     Exactly what ``crystod-group --product IRREP... --sg SG`` prints: the
     space group, the k points and star sizes involved, the decomposition
     line, a dimension check (star size times small dimension on both sides)
-    and the DIRPRO cross-validation reference.
+    and the DIRPRO cross-validation reference.  With ``squares`` (two
+    identical labels, ``--symmetric`` / ``--antisymmetric``), the blocks of
+    ``format_square_block`` follow the dimension check and the reference
+    comes last.
 
     Args:
         algebra: The ``SpaceGroupIrrepAlgebra`` of the space group.
         labels: ISO-IR labels of the factors, e.g. ``["R4-", "R5+"]``.
+        squares: ``"symmetric"`` and/or ``"antisymmetric"``; requires two
+            identical labels.
 
     Returns:
         The report as one string (no trailing newline).
@@ -1013,6 +1186,10 @@ def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) ->
         ...
     """
     factors, terms, leftovers = algebra.decompose_product(labels)
+    if squares and (len(labels) != 2 or labels[0] != labels[1]):
+        raise SystemExit("ERROR: the symmetric and antisymmetric squares need "
+                         "two identical irreps, e.g. R4+ R4+.")
+    square_records = [algebra.decompose_square(labels[0], kind) for kind in squares]
 
     lines = []
     lines.append("* Space group *")
@@ -1025,7 +1202,7 @@ def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) ->
     for irrep in factors:
         if irrep.kpname not in shown:
             shown.append(irrep.kpname)
-    for _, irrep, _ in terms:
+    for _, irrep, _ in terms + [term for square in square_records for term in square.terms]:
         if irrep.kpname not in shown:
             shown.append(irrep.kpname)
     for kname in shown:
@@ -1035,7 +1212,7 @@ def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) ->
         arms, _ = algebra.star(kname)
         coordinates = ", ".join(_format_fraction(v) for v in k)
         lines.append(f"{kname}: ({coordinates})   star of {len(arms)} arm(s)")
-    for _, irrep, _ in terms:
+    for _, irrep, _ in terms + [term for square in square_records for term in square.terms]:
         if isinstance(irrep, _ComputedIrrep) and irrep.kpname not in algebra.k_by_kname:
             coordinates = ", ".join(_format_fraction(v) for v in irrep.k_int)
             entry = (f"{irrep.kpname}: ({coordinates})   star of "
@@ -1081,6 +1258,9 @@ def format_product_report(algebra: SpaceGroupIrrepAlgebra, labels: list[str]) ->
         )
     elif resolved != product_dimension:
         lines.append("WARNING: dimension mismatch - please report this case.")
+    for square in square_records:
+        lines.append("")
+        lines.extend(format_square_block(algebra, square))
     lines.append("")
     lines.append(
         "Cross-validated against the Bilbao Crystallographic Server DIRPRO:"
@@ -1100,11 +1280,18 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument("--space-group", required=True, help='e.g. "Pm-3m" or "P6_3/mmc".')
     parser.add_argument("--irreps", nargs="+", required=True, help="e.g. R4- R5+")
+    parser.add_argument("--symmetric", action="store_true",
+                        help="Also decompose the symmetric square (two identical irreps).")
+    parser.add_argument("--antisymmetric", action="store_true",
+                        help="Also decompose the antisymmetric square (two identical irreps).")
     args = parser.parse_args(argv)
 
+    squares = tuple(kind for kind, wanted in (("symmetric", args.symmetric),
+                                              ("antisymmetric", args.antisymmetric))
+                    if wanted)
     algebra = SpaceGroupIrrepAlgebra(args.space_group)
     print()
-    print(format_product_report(algebra, args.irreps))
+    print(format_product_report(algebra, args.irreps, squares))
     print()
 
 

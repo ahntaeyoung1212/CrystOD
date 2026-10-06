@@ -26,7 +26,14 @@ mode VESTA files follow the axes of the subgroup structure), the subgroup elemen
 are identified as the parent operations that leave the distorted structure
 invariant, and the displacement field is projected onto every parent irrep
 at the k points folding to the subgroup Gamma point with the full induced
-irrep matrices (the same machinery as --parent).  Amplitudes follow the
+irrep matrices (the same machinery as --parent).  When the minimum-
+distortion mapping is not a group-subgroup setting (some operation of the
+child is not an exact parent operation in it, or the pairing breaks one),
+the mapping is redone among the settings in which every child operation is
+a parent operation, with the origin solved exactly from the translation
+parts and a symmetry-consistent pairing.  A complex-type irrep and its
+conjugate enter as one physically irreducible pair (label GM3+GM4+, the
+ISODISTORT convention).  Amplitudes follow the
 AMPLIMODES convention: A = sqrt(sum |u_atom|^2) over the primitive cell of
 the distorted structure, with Cartesian displacements measured in the
 strain-free parent-derived reference lattice.  A completeness check
@@ -38,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import textwrap
 from fractions import Fraction
 from itertools import product
 
@@ -95,6 +103,22 @@ def build_parser() -> argparse.ArgumentParser:
         "basis instead of the invariant-core (primitive-derived) cell "
         "(file names get a _conv suffix).",
     )
+    files = parser.add_mutually_exclusive_group()
+    files.add_argument(
+        "--output-dir",
+        dest="output_dir",
+        default=None,
+        metavar="DIR",
+        help="Directory for the decomposition table (sym_mode_<formula>) and "
+        "the per-irrep VESTA files, created if missing (default: the current "
+        "directory).",
+    )
+    files.add_argument(
+        "--no-files",
+        dest="no_files",
+        action="store_true",
+        help="Print the analysis only; write no table or VESTA files.",
+    )
     return parser
 
 
@@ -122,6 +146,11 @@ def _load_standardized(path: str, tolerance: float):
                 structure = Structure.from_str(open(path).read(), fmt="poscar")
             except Exception as exc:
                 raise SystemExit(f"ERROR: could not read {path}: {exc}")
+        # a POSCAR means the cell VASP reads from it (scale line, Cartesian
+        # coordinates); a CIF is left as pymatgen read it
+        from .vasp_io import poscar_structure
+
+        structure = poscar_structure(structure, path)
     cell = (
         np.asarray(structure.lattice.matrix),
         np.asarray(structure.frac_coords),
@@ -337,13 +366,15 @@ def _sublattice_candidates(L_parent, L_child, n, strain_tol=0.20):
             if abs(length - lengths[i]) < strain_tol * lengths[i]:
                 norms[i].append(v)
     G_parent = L_parent @ L_parent.T
+    third = np.array(norms[2], dtype=np.int64).reshape(-1, 3)
     candidates = []
     for v1 in norms[0]:
         for v2 in norms[1]:
-            for v3 in norms[2]:
-                S = np.array([v1, v2, v3])
-                if round(np.linalg.det(S)) != n:
-                    continue
+            # det [v1; v2; v3] = (v1 x v2) . v3, exact in integers, for all
+            # v3 at once (the loop over v3 dominated the run time of large
+            # cell multiplications); same candidates in the same order
+            for index in np.nonzero(third @ np.cross(v1, v2) == n)[0]:
+                S = np.array([v1, v2, third[index]])
                 G = S @ G_parent @ S.T
                 # principal strains: sqrt(eig(G^-1 G_child)) - 1
                 try:
@@ -487,15 +518,17 @@ def _match_atoms(parent_positions, parent_numbers, parent_orbits,
                 continue
             # continuous origin refinement: subtract the mean displacement
             # (for non-polar subgroups it is ~0; for polar ones this is the
-            # AMPLIMODES minimum-distortion origin) and re-pair once
+            # AMPLIMODES minimum-distortion origin) and re-pair once; the
+            # origin moves only together with an accepted re-pairing, so the
+            # stored origin is the one the stored positions were paired at
             for _ in range(2):
                 mean = np.mean([u for _, u in result[1]], axis=0)
                 if np.linalg.norm(mean @ L_parent) < 1e-8:
                     break
-                p = p - mean
-                refined = pair_with(p)
+                refined = pair_with(p - mean)
                 if refined is None:
                     break
+                p = p - mean
                 result = refined
             if result is None:
                 continue
@@ -581,6 +614,379 @@ def _select_setting(matches, L_parent_input, L_child_input):
 
 
 # ---------------------------------------------------------------------------
+# group-subgroup consistent mapping
+# ---------------------------------------------------------------------------
+#
+# The minimum-distortion mapping above chooses the sublattice basis S and
+# the origin p by the distortion alone.  Nothing makes the child's own
+# operations parent operations under that (S, p): a strained twin setting
+# or a shifted origin can pair the atoms marginally better (a pseudo-cubic
+# parent offers many), and then only part of the child group survives as
+# exact parent operations.  When that happens the mapping is redone in the
+# settings where it does (SymmetryModeAnalysis._consistent_mapping).
+
+# largest displacement accepted for one atom of a pairing (Angstrom)
+_MAX_PAIR_DISTANCE = 1.8
+
+# a displacement field counts as invariant under an operation when
+# |u(g x) - R u(x)| stays under this (Angstrom): the child is idealized by
+# spglib, so a symmetric pairing is symmetric to machine precision, while a
+# pairing that breaks the symmetry does so by an interatomic distance
+_FIELD_INVARIANT = 1e-6
+
+
+class _MappingRejected(Exception):
+    """The minimum-distortion mapping is not a group-subgroup setting; the
+    message says why (it goes into the NOTE of the redone mapping)."""
+
+
+def _smith_diagonal(A):
+    """(U, D, V), integer, with U A V = D diagonal and U, V unimodular.
+
+    The divisibility chain of the Smith normal form is not needed here (only
+    the solution set of a congruence system is), so the reduction stops as
+    soon as the matrix is diagonal; the nonzero entries come first."""
+    D = [[int(v) for v in row] for row in np.asarray(A)]
+    m, n = len(D), len(D[0])
+    U = [[int(i == j) for j in range(m)] for i in range(m)]
+    V = [[int(i == j) for j in range(n)] for i in range(n)]
+    for t in range(min(m, n)):
+        while True:
+            entries = [(abs(D[i][j]), i, j) for i in range(t, m)
+                       for j in range(t, n) if D[i][j]]
+            if not entries:
+                return np.array(U), np.array(D), np.array(V)
+            _, i0, j0 = min(entries)
+            D[t], D[i0] = D[i0], D[t]
+            U[t], U[i0] = U[i0], U[t]
+            for row in D:
+                row[t], row[j0] = row[j0], row[t]
+            for row in V:
+                row[t], row[j0] = row[j0], row[t]
+            pivot = D[t][t]
+            clean = True
+            for i in range(t + 1, m):
+                q = D[i][t] // pivot
+                if q:
+                    D[i] = [a - q * b for a, b in zip(D[i], D[t])]
+                    U[i] = [a - q * b for a, b in zip(U[i], U[t])]
+                clean = clean and D[i][t] == 0
+            for j in range(t + 1, n):
+                q = D[t][j] // pivot
+                if q:
+                    for row in D:
+                        row[j] -= q * row[t]
+                    for row in V:
+                        row[j] -= q * row[t]
+                clean = clean and D[t][j] == 0
+            if clean:
+                break
+    return np.array(U), np.array(D), np.array(V)
+
+
+def _origin_solutions(rotations, rhs):
+    """Every origin x (mod Z^3) with (I - W_k) x = rhs_k (mod Z^3) for all k.
+
+    Returns ``(solutions, free, residual)``: the particular solutions (one
+    per coset of the discrete solution set, polar components zero), the
+    free (polar) directions as integer columns, and the largest violation
+    of the compatibility conditions (nonzero when the translation parts of
+    the child operations cannot be matched by any origin)."""
+    A = np.vstack([np.eye(3, dtype=np.int64) - np.asarray(W, dtype=np.int64)
+                   for W in rotations])
+    c = np.concatenate([np.asarray(r, dtype=float) for r in rhs])
+    U, D, V = _smith_diagonal(A)
+    Uc = U.astype(float) @ c
+    diagonal = [int(D[k][k]) for k in range(3)]
+    rank = sum(1 for d in diagonal if d != 0)
+    tail = Uc[rank:]
+    residual = float(np.max(np.abs(tail - np.rint(tail)))) if len(tail) else 0.0
+    choices = [
+        [(Uc[k] + j) / diagonal[k] for j in range(abs(diagonal[k]))]
+        for k in range(rank)
+    ]
+    solutions = []
+    for combo in product(*choices):
+        y = np.zeros(3)
+        y[:rank] = combo
+        solutions.append((V.astype(float) @ y) % 1.0)
+    return solutions, V[:, rank:].astype(float), residual
+
+
+def _conjugated_child_operations(algebra, S, child_ops):
+    """The child operations carried into the parent primitive setting by the
+    sublattice basis S (child fractional x -> parent fractional S^T x):
+    ``[(i, W, w0)]`` with W = S^T R S^-T the rotation of parent operation i
+    and w0 = S^T tau the translation part before the origin shift, or None
+    when some child rotation is not a parent rotation (S does not carry the
+    child point group)."""
+    S = np.asarray(S, dtype=float)
+    S_inv = np.linalg.inv(S)
+    index = {
+        np.asarray(W, dtype=np.int64).tobytes(): i
+        for i, W in enumerate(algebra.rotations)
+    }
+    result = []
+    for R, tau in zip(child_ops["rotations"], child_ops["translations"]):
+        W = S.T @ np.asarray(R, dtype=float) @ S_inv.T
+        W_int = np.rint(W).astype(np.int64)
+        if not np.allclose(W, W_int, atol=1e-6):
+            return None
+        i = index.get(W_int.tobytes())
+        if i is None:
+            return None
+        result.append((i, W_int.astype(float), S.T @ np.asarray(tau, dtype=float)))
+    return result
+
+
+def _reference_cell(parent_positions, parent_numbers, parent_orbits, S):
+    """Parent atoms repeated over Z^3 / (rows of S): the strain-free
+    reference of the child cell (positions in parent primitive fractional
+    coordinates, atomic numbers, parent orbit ids)."""
+    ref_frac, ref_z, ref_orbit = [], [], []
+    for x, z, orbit in zip(parent_positions, parent_numbers, parent_orbits):
+        for t in _translation_reps(S):
+            ref_frac.append(np.asarray(x, dtype=float) + t)
+            ref_z.append(int(z))
+            ref_orbit.append(orbit)
+    return np.array(ref_frac), np.array(ref_z), ref_orbit
+
+
+def _operation_permutations(points, numbers, operations, S, tol):
+    """Per operation (W, w): the index of the image W x_j + w of every point
+    (same species, modulo the rows of S), as an array of shape (n_ops, n);
+    None when some image is not one of the points."""
+    S = np.asarray(S, dtype=float)
+    S_inv = np.linalg.inv(S)
+    same = numbers[:, None] == numbers[None, :]
+    permutations = []
+    for W, w in operations:
+        image = points @ np.asarray(W, dtype=float).T + w
+        d = image[:, None, :] - points[None, :, :]
+        d = d - np.rint(d @ S_inv) @ S
+        hit = np.all(np.abs(d) < tol, axis=2) & same
+        if not np.all(hit.sum(axis=1) == 1):
+            return None
+        permutations.append(np.argmax(hit, axis=1))
+    return np.array(permutations)
+
+
+def _minimum_image(d, S, L_parent):
+    """Shortest lattice images (rows of S) of the fractional difference
+    vectors d (..., 3) in the parent metric: (vectors, lengths in A)."""
+    S = np.asarray(S, dtype=float)
+    d = d - np.rint(d @ np.linalg.inv(S)) @ S
+    shifts = np.array(list(product((-1, 0, 1), repeat=3)), dtype=float) @ S
+    trial = d[..., None, :] + shifts
+    lengths = np.linalg.norm(trial @ L_parent, axis=-1)
+    best = np.argmin(lengths, axis=-1)
+    vectors = np.take_along_axis(trial, best[..., None, None], axis=-2)[..., 0, :]
+    return vectors, np.take_along_axis(lengths, best[..., None], axis=-1)[..., 0]
+
+
+def _pair_by_assignment(ref_frac, ref_z, child_par, child_z, S, L_parent):
+    """Minimum total squared distortion pairing (optimal assignment per
+    species, minimum image over the rows of S): ``(total, u_frac)`` with
+    u_frac indexed like the reference, or None when some atom moves farther
+    than _MAX_PAIR_DISTANCE."""
+    from scipy.optimize import linear_sum_assignment
+
+    u = np.zeros((len(ref_frac), 3))
+    total = 0.0
+    for z in np.unique(ref_z):
+        rows = np.where(child_z == z)[0]
+        cols = np.where(ref_z == z)[0]
+        if len(rows) != len(cols):
+            return None
+        vectors, lengths = _minimum_image(
+            child_par[rows][:, None, :] - ref_frac[cols][None, :, :], S, L_parent
+        )
+        r_index, c_index = linear_sum_assignment(lengths**2)
+        if np.max(lengths[r_index, c_index]) > _MAX_PAIR_DISTANCE:
+            return None
+        u[cols[c_index]] = vectors[r_index, c_index]
+        total += float(np.sum(lengths[r_index, c_index] ** 2))
+    return total, u
+
+
+def _pair_equivariantly(ref_frac, ref_z, child_par, child_z, S, L_parent,
+                        rotations, ref_perm, child_perm):
+    """Pairing that commutes with the child operations, orbit by orbit: an
+    orbit representative of the reference takes the nearest unused child
+    atom with the same stabilizer, and the rest of the orbit follows by
+    symmetry, so the displacement field is invariant by construction.  A
+    child atom sitting half a lattice vector from its site is rejected (its
+    site symmetry would not fix the displacement itself, only modulo the
+    lattice).  Returns ``(total, u_frac)`` or None."""
+    n = len(ref_frac)
+    representatives = []
+    seen = set()
+    for j in range(n):
+        if j in seen:
+            continue
+        seen |= set(int(v) for v in ref_perm[:, j])
+        representatives.append(j)
+    ref_stab = [frozenset(np.nonzero(ref_perm[:, j] == j)[0]) for j in range(n)]
+    child_stab = [frozenset(np.nonzero(child_perm[:, c] == c)[0])
+                  for c in range(n)]
+    options = []
+    for j in representatives:
+        candidates = [c for c in range(n)
+                      if child_z[c] == ref_z[j] and child_stab[c] == ref_stab[j]]
+        if not candidates:
+            return None
+        vectors, lengths = _minimum_image(
+            child_par[candidates] - ref_frac[j], S, L_parent
+        )
+        for c, u, length in zip(candidates, vectors, lengths):
+            if length > _MAX_PAIR_DISTANCE:
+                continue
+            if any(not np.allclose(rotations[k] @ u, u, atol=1e-6)
+                   for k in ref_stab[j]):
+                continue
+            options.append((float(length), j, c, u))
+    options.sort(key=lambda item: item[0])
+    u_frac = np.zeros((n, 3))
+    paired = np.full(n, -1)
+    used = np.zeros(n, dtype=bool)
+    done = set()
+    for _, j, c, u in options:
+        if j in done:
+            continue
+        targets_ref = ref_perm[:, j]
+        targets_child = child_perm[:, c]
+        if np.any(used[targets_child]):
+            continue
+        for k, W in enumerate(rotations):
+            u_frac[targets_ref[k]] = W @ u
+            paired[targets_ref[k]] = targets_child[k]
+        used[targets_child] = True
+        done.add(j)
+    if len(done) != len(representatives) or np.any(paired < 0):
+        return None
+    return float(np.sum(np.linalg.norm(u_frac @ L_parent, axis=1) ** 2)), u_frac
+
+
+def _field_violation(u_frac, rotations, ref_perm, L_parent):
+    """Largest |u(g x) - R_g u(x)| (A) over the reference atoms of the
+    child cell and the operations (rotations + atom permutations)."""
+    worst = 0.0
+    for W, perm in zip(rotations, ref_perm):
+        difference = u_frac[perm] - u_frac @ np.asarray(W, dtype=float).T
+        worst = max(worst, float(np.max(np.linalg.norm(
+            difference @ L_parent, axis=1))))
+    return worst
+
+
+def _consistent_pairing(ref_frac, ref_z, child_cell, child_z, S, L_parent,
+                        base, polar, rotations, ref_perm, child_perm):
+    """Best symmetry-consistent pairing for one origin class: ``(total,
+    u_frac, origin)`` or None.
+
+    ``child_cell`` are the child atoms in parent primitive fractional
+    coordinates before the origin shift, ``base`` the exact origin of the
+    class and ``polar`` the Cartesian projector onto its free (polar)
+    directions (None for a non-polar child).  At every trial origin the
+    optimal assignment is kept when its field is invariant under the child
+    operations, otherwise the orbit-wise pairing is used.  Along polar
+    directions the trial origins put the first child atom of every species
+    level with each reference atom of its species (through the lattice
+    image whose non-polar remainder is shortest: in a skew basis a lattice
+    vector is not orthogonal to the polar directions), and each is refined
+    twice by the polar part of the mean displacement (the AMPLIMODES
+    minimum-distortion origin)."""
+
+    def pair(origin):
+        child_par = child_cell + origin
+        result = _pair_by_assignment(ref_frac, ref_z, child_par, child_z, S,
+                                     L_parent)
+        if result is not None and _field_violation(
+                result[1], rotations, ref_perm, L_parent) <= _FIELD_INVARIANT:
+            return result
+        return _pair_equivariantly(ref_frac, ref_z, child_par, child_z, S,
+                                   L_parent, rotations, ref_perm, child_perm)
+
+    if polar is None:
+        result = pair(base)
+        return None if result is None else (result[0], result[1], base)
+
+    L_inv = np.linalg.inv(L_parent)
+    S_inv = np.linalg.inv(S)
+    images = np.array(list(product((-1, 0, 1), repeat=3)), dtype=float) @ S
+
+    def polar_part(delta):
+        return (polar @ (delta @ L_parent)) @ L_inv
+
+    starts = []
+    seen = set()
+    anchors = {}
+    for index, z in enumerate(child_z):
+        anchors.setdefault(int(z), index)
+    for z, anchor in anchors.items():
+        for x in ref_frac[ref_z == z]:
+            delta = x - (child_cell[anchor] + base)
+            delta = delta - np.rint(delta @ S_inv) @ S
+            cartesian = (delta + images) @ L_parent
+            along = cartesian @ polar
+            k = int(np.argmin(np.linalg.norm(cartesian - along, axis=1)))
+            start = base + along[k] @ L_inv
+            key = tuple(np.round(start % 1.0, 6) % 1.0)
+            if key not in seen:
+                seen.add(key)
+                starts.append(start)
+    best = None
+    for origin in starts:
+        result = pair(origin)
+        for step in range(3):
+            if result is None:
+                break
+            if best is None or result[0] < best[0] - 1e-12:
+                best = (result[0], result[1], origin)
+            if step == 2:
+                break
+            shift = polar_part(np.mean(result[1], axis=0))
+            if np.linalg.norm(shift @ L_parent) < 1e-10:
+                break
+            refined = pair(origin - shift)
+            if refined is None:
+                break
+            origin = origin - shift
+            result = refined
+    return best
+
+
+def _wyckoff_conflict(ref_z, child_z, ref_perm, child_perm):
+    """(operation position, Z, reference sites fixed, child atoms fixed) for
+    the first operation that fixes a different number of sites of one
+    species in the reference and in the child, or None.  Any such conflict
+    rules out a pairing that commutes with the operations."""
+    n = len(ref_z)
+    for k in range(len(ref_perm)):
+        ref_fixed = ref_perm[k] == np.arange(n)
+        child_fixed = child_perm[k] == np.arange(n)
+        for z in sorted(set(int(v) for v in ref_z)):
+            n_ref = int(np.sum(ref_fixed & (ref_z == z)))
+            n_child = int(np.sum(child_fixed & (child_z == z)))
+            if n_ref != n_child:
+                return k, z, n_ref, n_child
+    return None
+
+
+def _point_operation_name(W) -> str:
+    """Kind of a point operation from its (integer) matrix: '2-fold
+    rotation', 'mirror', 'inversion', ..."""
+    W = np.asarray(W, dtype=float)
+    det = int(round(np.linalg.det(W)))
+    trace = int(round(np.trace(W)))
+    if det > 0:
+        return {3: "identity", -1: "2-fold rotation", 0: "3-fold rotation",
+                1: "4-fold rotation", 2: "6-fold rotation"}.get(trace, "rotation")
+    return {-3: "inversion", 1: "mirror", 0: "-3 rotoinversion",
+            -1: "-4 rotoinversion", -2: "-6 rotoinversion"}.get(
+                trace, "rotoinversion")
+
+
+# ---------------------------------------------------------------------------
 # the analysis
 # ---------------------------------------------------------------------------
 
@@ -628,6 +1034,10 @@ class SymmetryModeAnalysis:
             files orient them (``setting_rotation``, the residual rotation
             in degrees, None when the input orientation could not be
             recovered; ``equivalent_settings``, how many settings tied).
+        mapping_note: None, or the NOTE (printed by the command with the
+            cell relation) that the minimum-distortion mapping was not a
+            group-subgroup setting and the atoms were re-paired in a
+            setting in which every child operation is a parent operation.
         core_size: Multiplication of the invariant-core analysis cell; its
             atoms are ``ref_frac`` (``n_atoms`` of them) with atomic
             numbers ``ref_z`` and Cartesian displacements ``u_cart``.
@@ -636,7 +1046,10 @@ class SymmetryModeAnalysis:
         stars: The parent k stars folding to the child Gamma point, one
             dict per star with ``kname``, ``kvec`` (primitive basis) and
             ``kind`` (``"tabulated"`` or ``"computed"``).
-        modes: One entry per parent irrep with a nonzero number of modes,
+        modes: One entry per parent irrep with a nonzero number of modes
+            (a complex-type irrep and its conjugate form one entry, the
+            physically irreducible pair, ``irrep_name`` joining both labels
+            as in ``GM3+GM4+``; a pseudoreal irrep keeps its single name),
             carrying ``kname``, ``kvec``, ``irrep_name``, ``dim`` (number
             of independent modes), ``amplitude`` (Angstrom),
             ``projected_u`` (the irrep-projected displacement field on the
@@ -649,8 +1062,11 @@ class SymmetryModeAnalysis:
 
     Raises:
         SystemExit: The child cell is not an integer multiple of the parent
-            cell, the child cannot be mapped onto the parent, or an
-            internal consistency check (mode completeness) fails.
+            cell, the child cannot be mapped onto the parent (no sublattice
+            setting carries the child point group, the translation parts
+            of the child operations fit no origin, a Wyckoff conflict, or no
+            symmetry-consistent pairing within 1.8 A), or an internal
+            consistency check (mode completeness) fails.
 
     Example:
         >>> from crystod import group
@@ -736,6 +1152,7 @@ class SymmetryModeAnalysis:
             None if child_rotation is None else L_child @ child_rotation
         )
         candidates = _sublattice_candidates(self.L_parent, L_child, self.size)
+        self._sublattice_bases = candidates
         matches = []
         for S in candidates:
             result = _match_atoms(
@@ -764,7 +1181,11 @@ class SymmetryModeAnalysis:
         self._build_core_cell()
 
         self.op_tables = self._op_tables()
-        self.subgroup_members = self._find_subgroup_members()
+        self.mapping_note = None
+        try:
+            self.subgroup_members = self._find_subgroup_members()
+        except _MappingRejected as rejected:
+            self.subgroup_members = self._consistent_mapping(str(rejected))
         self._remove_acoustic_offset()
         self.stars = self._folding_stars()
         self.modes = self._decompose()
@@ -801,6 +1222,10 @@ class SymmetryModeAnalysis:
         self.core_child_frac = self.ref_frac + self.core_u_frac
         self.mapping.u_frac = self.mapping.u_frac - shift_frac
         self.mapping.child_frac = self.mapping.child_frac - shift_frac
+        # the child atoms moved with the origin: keep the printed origin
+        # shift that of the stored positions (a polar shift commutes with
+        # every member, so the members stay as they are)
+        self.mapping.p = np.asarray(self.mapping.p, dtype=float) - shift_frac
 
     def _build_core_cell(self):
         """Reference atoms and displacements on the invariant-core cell."""
@@ -893,50 +1318,33 @@ class SymmetryModeAnalysis:
 
     # -- subgroup elements: parent operations preserving the child structure
     def _find_subgroup_members(self):
-        """Parent operations that survive in the child, selected adaptively.
+        """Parent operations that survive in the child.
 
         Every (operation, translation) candidate gets a mismatch distance:
         the worst atom-to-nearest-partner distance of the transformed child
-        structure.  Genuine members of H sit at the numerical-noise level of
-        the standardized child, while broken operations sit at the scale of
-        the symmetry-BREAKING part of the distortion — which can be far
-        smaller than any fixed cutoff (pseudo-symmetric structures whose
-        breaking component is ~0.001 A while the fully symmetric component
-        is large) or far larger (strong tilts).  A fixed threshold therefore
-        cannot work; instead, the child's own space group fixes how many
-        members MUST survive, and the threshold is placed at that point of
-        the sorted mismatch spectrum after checking the gap is clean.
+        structure.  The child is idealized by spglib, so in a group-subgroup
+        setting its own operations are parent operations that leave the
+        mapped structure invariant to machine precision (_EXACT_MISMATCH),
+        however small the symmetry-breaking part of the distortion is
+        (pseudo-symmetric structures break their other operations by as
+        little as ~0.001 A, strong tilts by far more): the members are the
+        exact operations, and the child's own space group fixes how many
+        there must be at least.
+
+        The minimum-distortion mapping is accepted only when it passes three
+        checks: at least that many exact operations, every child operation
+        (carried over by the sublattice basis and the origin) among them,
+        and a displacement field invariant under them to machine precision
+        (_FIELD_INVARIANT; an atom pairing can break the symmetry of an
+        invariant structure by exchanging atoms).  None of them depends on
+        --tolerance.  Otherwise _MappingRejected is raised and the mapping
+        is redone in a group-subgroup setting (_consistent_mapping).
 
         The search runs on the child (T_H) cell; translations are the
         representatives of Z^3 / T_H."""
         import spglib
 
-        algebra = self.algebra
-        S = self.mapping.S
-        S_inv = np.linalg.inv(S)
-        reps = _translation_reps(S)
-        positions = self.mapping.ref_frac + self.mapping.u_frac
-        numbers = self.mapping.child_z
-        candidates = []
-        for i in range(algebra.n_ops):
-            W = algebra.rotations[i]
-            v = np.array(algebra.translations[i], dtype=float) / DEN
-            for t in reps:
-                worst = 0.0
-                for x, z in zip(positions, numbers):
-                    image = W @ x + v + t
-                    best = None
-                    for y, zz in zip(positions, numbers):
-                        if zz != z:
-                            continue
-                        d = image - y
-                        d = d - np.rint(d @ S_inv) @ S
-                        dist = np.linalg.norm(d @ self.L_parent)
-                        if best is None or dist < best:
-                            best = dist
-                    worst = max(worst, best)
-                candidates.append(((i, np.asarray(t, dtype=np.int64)), worst))
-        candidates.sort(key=lambda entry: entry[1])
+        candidates = self._operation_mismatches()
 
         # expected factor-group order of the child on its own (T_H) cell --
         # a LOWER bound only.  Displacements are measured in the strain-free
@@ -949,24 +1357,354 @@ class SymmetryModeAnalysis:
         # every one of the 16 parent operations exactly while spglib reads
         # the child as Fmmm, 8).  Whenever at least `expected` operations
         # sit at the numerical-noise level, they all survive.
-        child_ops = spglib.get_symmetry(self.child_prim, symprec=1e-5)
-        expected = len(child_ops["rotations"])
-        if expected >= len(candidates):
-            return [entry[0] for entry in candidates]
-        exact = sum(1 for _, worst in candidates if worst < _EXACT_MISMATCH)
-        if exact >= expected:
-            self.strain_only_operations = exact - expected
-            return [entry[0] for entry in candidates[:exact]]
-        low = candidates[expected - 1][1]
-        high = candidates[expected][1]
-        if high < 2.0 * low + 1e-6:
-            raise SystemExit(
-                "ERROR: cannot separate the surviving from the broken parent "
-                f"operations (mismatch gap {low:.2e} .. {high:.2e} A); the "
-                "child symmetry is ambiguous at this precision -- try a "
-                "different --tolerance."
+        self._child_ops = spglib.get_symmetry(self.child_prim, symprec=1e-5)
+        expected = len(self._child_ops["rotations"])
+        exact = [entry[0] for entry in candidates if entry[1] < _EXACT_MISMATCH]
+        if len(exact) < min(expected, len(candidates)):
+            verb = "is a parent operation" if len(exact) == 1 else (
+                "are parent operations")
+            raise _MappingRejected(
+                f"only {len(exact)} of the {expected} operations of the child "
+                f"{verb} in it; the next one is broken by "
+                f"{candidates[len(exact)][1]:.2e} A"
             )
-        return [entry[0] for entry in candidates[:expected]]
+        # the count alone is not enough: exact strain-only operations could
+        # make it up while a child operation is missing (a twin setting)
+        conjugated = _conjugated_child_operations(
+            self.algebra, self.mapping.S, self._child_ops
+        )
+        if conjugated is None:
+            raise _MappingRejected(
+                "its sublattice basis does not carry the point group of the "
+                "child onto parent rotations"
+            )
+        own = self._child_operation_members(conjugated, self.mapping)
+        if own is None:
+            raise _MappingRejected(
+                "the translation parts of the child operations are not those "
+                "of parent operations at its origin"
+            )
+        listed = {(i, tuple(int(v) for v in t)) for i, t in exact}
+        for (i, t), (_, W, _) in zip(own, conjugated):
+            if (i, tuple(int(v) for v in t)) not in listed:
+                kind = _point_operation_name(W)
+                article = "an" if kind[0] in "aeiou" else "a"
+                raise _MappingRejected(
+                    f"{article} {kind} of the child is not an exact parent "
+                    "operation in it"
+                )
+        # a symmetric pairing of the (idealized) child is symmetric to
+        # machine precision; one that exchanges atoms breaks the symmetry
+        # by about an interatomic distance, however weak the distortion
+        violation = self._member_field_violation(exact)
+        if violation > _FIELD_INVARIANT:
+            raise _MappingRejected(
+                "its atom pairing breaks the child symmetry by "
+                f"{violation:.2e} A"
+            )
+        if expected < len(candidates):
+            self.strain_only_operations = len(exact) - expected
+        return exact
+
+    def _child_operation_members(self, conjugated, mapping):
+        """The child operations ``[(i, W, w0)]`` (_conjugated_child_operations)
+        as members (i, t) on the T_H cell of ``mapping`` -- t is the lattice
+        part w0 + (I - W) p - v_i, as a representative of Z^3 / T_H -- or
+        None when some of these is not a lattice vector (the origin p does
+        not make that child operation a parent operation)."""
+        identity = np.eye(3)
+        S_inv = np.linalg.inv(np.asarray(mapping.S, dtype=float))
+        cosets = {
+            tuple(np.round((np.asarray(t, dtype=float) @ S_inv) % 1.0, 6) % 1.0): t
+            for t in _translation_reps(mapping.S)
+        }
+        p = np.asarray(mapping.p, dtype=float)
+        members = []
+        for i, W, w0 in conjugated:
+            T = (w0 + (identity - W) @ p
+                 - np.array(self.algebra.translations[i], dtype=float) / DEN)
+            T_int = np.rint(T)
+            key = tuple(np.round((T_int @ S_inv) % 1.0, 6) % 1.0)
+            if not np.allclose(T, T_int, atol=1e-5) or key not in cosets:
+                return None
+            members.append((i, np.asarray(cosets[key], dtype=np.int64)))
+        return members
+
+    def _operation_mismatches(self):
+        """Sorted ``((i, t), worst)`` over the parent operations (i, t) on the
+        child (T_H) cell: the worst atom-to-nearest-partner distance (A) of
+        the transformed child structure of the current mapping."""
+        algebra = self.algebra
+        S = np.asarray(self.mapping.S, dtype=float)
+        S_inv = np.linalg.inv(S)
+        reps = _translation_reps(self.mapping.S)
+        positions = self.mapping.ref_frac + self.mapping.u_frac
+        numbers = np.asarray(self.mapping.child_z)
+        other_species = numbers[:, None] != numbers[None, :]
+        candidates = []
+        for i in range(algebra.n_ops):
+            W = np.asarray(algebra.rotations[i], dtype=float)
+            v = np.array(algebra.translations[i], dtype=float) / DEN
+            moved = positions @ W.T + v
+            for t in reps:
+                d = (moved + t)[:, None, :] - positions[None, :, :]
+                d = d - np.rint(d @ S_inv) @ S
+                distances = np.linalg.norm(d @ self.L_parent, axis=-1)
+                distances[other_species] = np.inf
+                worst = float(np.max(np.min(distances, axis=1)))
+                candidates.append(((i, np.asarray(t, dtype=np.int64)), worst))
+        candidates.sort(key=lambda entry: entry[1])
+        return candidates
+
+    def _member_field_violation(self, members):
+        """Largest |u(g x) - R_g u(x)| (A) over the core-cell atoms and the
+        (i, t) members: zero when the displacement field is invariant under
+        them, an interatomic distance when the atom pairing breaks them."""
+        if not members:
+            return 0.0
+        n_t = len(self.reps_core)
+        S_core_inv = np.linalg.inv(np.asarray(self.S_core, dtype=float))
+        # integer labels of the core-lattice cosets: x S_core^-1 has the
+        # denominator det S_core = n_t
+        def labels(vectors):
+            k = np.rint(vectors @ S_core_inv * n_t).astype(np.int64) % n_t
+            return (k[..., 0] * n_t + k[..., 1]) * n_t + k[..., 2]
+
+        reps = np.asarray(self.reps_core, dtype=float)
+        rep_labels = labels(reps)
+        order = np.argsort(rep_labels)
+        sorted_labels = rep_labels[order]
+        u = self.u_cart.reshape(self.n_parent, n_t, 3)
+        worst = 0.0
+        for i, t in members:
+            img, tau, R = self.op_tables[i]
+            W = np.asarray(self.algebra.rotations[i], dtype=float)
+            shift = (tau[:, None, :] + (reps @ W.T)[None, :, :]
+                     + np.asarray(t, dtype=float))
+            wanted = labels(shift)
+            position = np.minimum(np.searchsorted(sorted_labels, wanted), n_t - 1)
+            if not np.array_equal(sorted_labels[position], wanted):
+                return np.inf
+            target = order[position]
+            difference = u[img[:, None], target] - u @ R.T
+            worst = max(worst, float(np.max(np.linalg.norm(difference, axis=-1))))
+        return worst
+
+    # -- the group-subgroup consistent mapping
+    def _consistent_mapping(self, reason):
+        """Redo the atom mapping in a group-subgroup setting; returns the
+        subgroup members.
+
+        The child operations (spglib, on the idealized child cell) are
+        carried into the parent primitive setting through every candidate
+        sublattice basis S; a basis qualifies when each child rotation
+        becomes a parent rotation, W = S^T R S^-T.  The origin is solved
+        exactly from the translation parts, (I - W) x = v_W - S^T tau
+        (mod Z^3), one solution per coset of the solution set (Smith normal
+        form); the polar directions stay free and are fixed by putting the
+        first child atom of every species level with each reference atom of
+        its species, then refined to the minimum-distortion origin.  At
+        each origin the atoms are paired by the optimal assignment, which is
+        accepted only when its displacement field is invariant under the
+        child operations; otherwise they are paired orbit by orbit
+        (_pair_equivariantly).  The least total distortion wins (ties: the
+        orientation rule of _select_setting).  The members are the child
+        operations themselves, plus every further parent operation that
+        leaves both the mapped structure and the displacement field
+        invariant (the strain-only part of a ferroelastic symmetry
+        lowering); a final check requires the structure and the field to be
+        invariant under every member to machine precision
+        (_FIELD_INVARIANT)."""
+        algebra = self.algebra
+        child_ops = self._child_ops
+        expected = len(child_ops["rotations"])
+        _, child_positions, child_numbers = self.child_prim
+        child_positions = np.asarray(child_positions, dtype=float)
+        child_z = np.array([int(z) for z in child_numbers])
+        identity = np.eye(3)
+        found = []  # the best mapping per sublattice basis
+        conflicts = []
+        n_embedding = n_compatible = n_unpaired = 0
+        for S_int in self._sublattice_bases:
+            conjugated = _conjugated_child_operations(algebra, S_int, child_ops)
+            if conjugated is None:
+                continue
+            n_embedding += 1
+            rotations = [W for _, W, _ in conjugated]
+            origins, free, residual = _origin_solutions(
+                rotations,
+                [np.array(algebra.translations[i], dtype=float) / DEN - w0
+                 for i, _, w0 in conjugated],
+            )
+            if residual > 1e-5:
+                continue
+            n_compatible += 1
+            S = np.asarray(S_int, dtype=float)
+            ref_frac, ref_z, ref_orbit = _reference_cell(
+                self.parent_positions, self.parent_numbers, self.parent_orbits, S
+            )
+            child_cell = child_positions @ S
+            polar = None
+            if free.shape[1]:
+                Q, _ = np.linalg.qr(self.L_parent.T @ free)
+                polar = Q @ Q.T  # Cartesian projector onto the free directions
+            best_here = None
+            for base in origins:
+                operations = [(W, w0 + (identity - W) @ base)
+                              for _, W, w0 in conjugated]
+                ref_perm = _operation_permutations(ref_frac, ref_z, operations,
+                                                   S, 1e-6)
+                child_perm = _operation_permutations(child_cell + base, child_z,
+                                                     operations, S, 1e-4)
+                if ref_perm is None or child_perm is None:
+                    n_unpaired += 1
+                    continue
+                conflict = _wyckoff_conflict(ref_z, child_z, ref_perm, child_perm)
+                if conflict is not None:
+                    k, z, n_ref, n_child = conflict
+                    conflicts.append((rotations[k], z, n_ref, n_child))
+                    continue
+                best = _consistent_pairing(
+                    ref_frac, ref_z, child_cell, child_z, S, self.L_parent,
+                    base, polar, rotations, ref_perm, child_perm,
+                )
+                if best is None:
+                    n_unpaired += 1
+                    continue
+                if best_here is None or best[0] < best_here[0] - 1e-12:
+                    best_here = best
+            if best_here is not None:
+                total, u, origin = best_here
+                # integer components exactly integer (printed modulo 1)
+                origin = np.where(np.abs(origin - np.rint(origin)) < 1e-9,
+                                  np.rint(origin), origin)
+                found.append((
+                    total,
+                    MappingResult(S_int, origin, ref_frac, list(ref_orbit),
+                                  ref_frac + u, [int(z) for z in ref_z], u),
+                    conjugated,
+                ))
+        if not found:
+            raise SystemExit(self._mapping_failure(
+                reason, n_embedding, n_compatible, n_unpaired, conflicts
+            ))
+
+        mapping, rotation, n_tied = _select_setting(
+            [(total, candidate) for total, candidate, _ in found],
+            self.L_parent_input, self.L_child_input,
+        )
+        conjugated = next(c for _, candidate, c in found if candidate is mapping)
+        # the child operations as (i, t) members on the T_H cell
+        members = self._child_operation_members(conjugated, mapping)
+        if members is None:
+            raise SystemExit(
+                "ERROR: broken subgroup-member bookkeeping in the "
+                "group-subgroup consistent mapping (internal bug); please "
+                "report this case."
+            )
+
+        previous = self.mapping
+        self.mapping = mapping
+        self.setting_rotation = rotation
+        self.equivalent_settings = n_tied
+        self.S_core = _invariant_core(mapping.S, algebra.rotations)
+        self.core_size = abs(int(round(np.linalg.det(self.S_core))))
+        self._build_core_cell()
+
+        # parent operations beyond the child's own that leave the mapped
+        # structure and the displacement field exactly invariant: the
+        # strain-only part of the symmetry lowering (cf. the legacy search)
+        mismatches = self._operation_mismatches()
+        worst = {(i, tuple(int(v) for v in t)): value for (i, t), value in mismatches}
+        listed = {(i, tuple(int(v) for v in t)) for i, t in members}
+        for (i, t), value in mismatches:
+            if value >= _EXACT_MISMATCH:
+                break
+            if (i, tuple(int(v) for v in t)) in listed:
+                continue
+            if self._member_field_violation([(i, t)]) <= _FIELD_INVARIANT:
+                members.append((i, t))
+        # the child operations are exact by construction (exact origin,
+        # symmetric pairing): an internal-consistency check, independent of
+        # --tolerance
+        mismatch = max(worst[(i, tuple(int(v) for v in t))] for i, t in members)
+        field = self._member_field_violation(members)
+        if mismatch > _FIELD_INVARIANT or field > _FIELD_INVARIANT:
+            raise SystemExit(
+                "ERROR: the group-subgroup consistent atom mapping leaves a "
+                f"symmetry violation of {max(mismatch, field):.2e} A (structure "
+                f"{mismatch:.2e} A, displacement field {field:.2e} A) "
+                "(internal inconsistency); please report this case."
+            )
+        if len(members) > expected:
+            self.strain_only_operations = len(members) - expected
+
+        u_old = float(np.max(np.linalg.norm(previous.u_frac @ self.L_parent, axis=1)))
+        u_new = float(np.max(np.linalg.norm(mapping.u_frac @ self.L_parent, axis=1)))
+        self.mapping_note = (
+            "NOTE: the minimum-distortion atom mapping is not a group-subgroup "
+            f"setting ({reason}); the atoms were re-paired in a setting in "
+            "which every operation of the child space group "
+            f"{self.child_symbol} is a parent operation (maximum displacement "
+            f"{u_old:.4f} A -> {u_new:.4f} A)."
+        )
+        return members
+
+    def _mapping_failure(self, reason, n_embedding, n_compatible, n_unpaired,
+                         conflicts):
+        """Error message when no group-subgroup consistent mapping exists."""
+        child = f"{self.child_symbol} (No. {self.child_number})"
+        parent = f"{self.parent_symbol} (No. {self.parent_number})"
+        settings = (
+            f"{len(self._sublattice_bases)} sublattice setting(s) of the "
+            f"{self.size}-fold primitive cell within 20% principal strain"
+        )
+        if n_embedding == 0:
+            message = (
+                f"ERROR: the child space group {child} is not a subgroup of "
+                f"the parent {parent} in any of the {settings}: no setting "
+                "carries every point operation of the child onto a parent "
+                "operation.  Check that both files describe the same "
+                "structure type and the cell multiplication (the space groups "
+                "are those spglib finds at --tolerance "
+                f"{self.tolerance} A)."
+            )
+        elif n_compatible == 0:
+            message = (
+                f"ERROR: the child space group {child} is not a subgroup of "
+                f"the parent {parent}: its point group embeds in "
+                f"{n_embedding} of the {settings}, but in none of them does "
+                "an origin shift turn the translation parts of the child "
+                "operations (screw axes, glide planes, centring) into those "
+                "of parent operations, so the parent is not a supergroup of "
+                "the child.  Check the parent structure."
+            )
+        elif conflicts and n_unpaired == 0:
+            W, z, n_ref, n_child = conflicts[0]
+            element = _element_symbol(z)
+            message = (
+                "ERROR: the child is not a displacive distortion of this "
+                f"parent: in each of the {n_compatible} sublattice setting(s) "
+                f"in which {child} is a subgroup of {parent}, the Wyckoff "
+                "splitting disagrees -- e.g. a parent "
+                f"{_point_operation_name(W)} kept by the child fixes "
+                f"{n_ref} {element} site(s) of the reference structure but "
+                f"{n_child} {element} atom(s) of the child, so no atom "
+                "pairing can respect the child symmetry (a different "
+                "structure type or polymorph, or a wrong parent)."
+            )
+        else:
+            message = (
+                f"ERROR: the child space group {child} is a subgroup of the "
+                f"parent {parent} in {n_compatible} sublattice setting(s), "
+                "but no atom pairing consistent with it keeps every atom "
+                f"within {_MAX_PAIR_DISTANCE} A of its parent site (at every "
+                "origin that keeps the child operations parent operations): "
+                "a different polymorph or stacking, a large rigid shift, or "
+                "a wrong parent."
+            )
+        return (f"{message}\n(The minimum-distortion atom mapping is not a "
+                f"group-subgroup setting: {reason}.)")
 
     # -- k stars folding to the child Gamma point
     def _folding_stars(self):
@@ -1086,8 +1824,13 @@ class SymmetryModeAnalysis:
         uhat = np.einsum("as,psm->apm", phases, u)
         return uhat.reshape(-1)
 
-    def _star_to_core(self, arms, block_vector):
-        """Real-space (core cell) displacement field of a star-block vector."""
+    def _star_to_core(self, arms, block_vector, add_conjugate=False):
+        """Real-space (core cell) displacement field of a star-block vector.
+
+        With ``add_conjugate`` the vector is the D part of a D + D* pair on
+        a star without its -k arms; the D* part lives on the -k star and is
+        the complex conjugate field, so the real field is twice the real
+        part."""
         n_t = len(self.reps_core)
         t_matrix = np.asarray(self.reps_core, dtype=float)
         phases = np.exp(
@@ -1095,6 +1838,8 @@ class SymmetryModeAnalysis:
         ) / np.sqrt(n_t)  # (m, n_t)
         blocks = block_vector.reshape(len(arms), self.n_parent, 3)
         field = np.einsum("as,apm->psm", phases, blocks)
+        if add_conjugate:
+            field = 2.0 * field.real + 0j
         if np.max(np.abs(field.imag)) > 1e-6:
             raise SystemExit(
                 "ERROR: non-real projected displacement field (internal bug)."
@@ -1134,6 +1879,12 @@ class SymmetryModeAnalysis:
 
         modes = []
         residual = u.copy()
+        # complex-type irreps enter as their physically irreducible pair
+        # D + D* (one line, label P1P2 / H1HA1); the conjugate characters
+        # of every pair listed so far identify the partner when it comes
+        # up -- on the same star, or on the -k star of a star without its
+        # -k arms -- independently of the labels
+        listed_pairs = []
         for star in self.stars:
             representations = self._star_representations(star)
             if not representations:
@@ -1164,21 +1915,68 @@ class SymmetryModeAnalysis:
             completeness = np.zeros_like(P_H)
             for irrep_name, representation in representations:
                 d_small = representation.dim_small
-                d_tau = representation.dimension
+                # dimension of the complex induced irrep whose matrices are
+                # `blocks` (n_arms x dim_small); `dimension` is twice that
+                # for a doubled (complex- or pseudoreal-type) irrep
+                d_tau = representation.blocks[0].shape[0]
                 # complex isotypic projector P_tau = (d/n_ops) sum_i
                 # delta_a(i)* [row-arm-a blocks of D(i)]
                 P_c = np.zeros_like(P_H)
+                characters = np.zeros((algebra.n_ops, len(arms)),
+                                      dtype=np.complex128)
                 for i in range(algebra.n_ops):
                     diag = np.diagonal(representation.blocks[i])
-                    delta = np.conj(
-                        np.add.reduceat(diag, np.arange(0, d_tau, d_small))
+                    characters[i] = np.add.reduceat(
+                        diag, np.arange(0, d_tau, d_small)
                     )
+                    delta = np.conj(characters[i])
                     P_c += np.repeat(delta, np3)[:, None] * dhats[i]
                 P_c *= d_tau / algebra.n_ops
                 completeness += P_c
+                pair = (representation.doubled
+                        and getattr(representation, "fs_type", "") == "complex")
+                if pair:
+                    # chi(g_i + t) = sum_a characters[i, a] e^{SIGMA 2 pi i
+                    # q_a.t}: the partner D* has the conjugate entries on
+                    # the arms -q_a
+                    own = {
+                        tuple(int(v) % DEN for v in arm): characters[:, a]
+                        for a, arm in enumerate(arms)
+                    }
+                    found = None
+                    for record in listed_pairs:
+                        conjugate = record["conjugate"]
+                        if set(conjugate) == set(own) and all(
+                            np.allclose(own[key], conjugate[key], atol=1e-6)
+                            for key in own
+                        ):
+                            found = record
+                            break
+                    if found is not None:
+                        # already listed through its partner; the label is
+                        # the pair the characters identify (it replaces the
+                        # one from conjugate_partner(), which it normally
+                        # equals)
+                        entry = found["entry"]
+                        if entry is not None:
+                            entry.irrep_name = "".join(
+                                sorted([found["name"], irrep_name])
+                            )
+                        continue
+                    record = {
+                        "name": irrep_name,
+                        "entry": None,
+                        "conjugate": {
+                            tuple(int(v) % DEN for v in -np.asarray(arm)):
+                                np.conj(characters[:, a])
+                            for a, arm in enumerate(arms)
+                        },
+                    }
+                    listed_pairs.append(record)
                 # the real projector of the old dense route: Re chi* over a
                 # real displacement space = (P_tau + conj(P_tau)) / 2, with
-                # conj(P_tau) living on the -k arms
+                # conj(P_tau) living on the -k arms; for a complex-type
+                # irrep the physically irreducible D + D* takes the sum
                 if self_conjugate:
                     swapped = np.zeros_like(P_c)
                     for a in range(len(arms)):
@@ -1191,20 +1989,40 @@ class SymmetryModeAnalysis:
                                     negatives[b] * np3 : (negatives[b] + 1) * np3,
                                 ]
                             )
-                    P = 0.5 * (P_c + swapped)
+                    P = (P_c + swapped) if pair else 0.5 * (P_c + swapped)
+                    dim = int(round(float(np.trace(P @ P_H).real)))
+                    if dim <= 0:
+                        continue
+                    projected_hat = P @ uhat
+                    projected = self._star_to_core(arms, projected_hat)
+                    amplitude = float(np.linalg.norm(projected_hat)) * rescale
                 else:
-                    P = 0.5 * P_c
-                dim = int(round(float(np.trace(P @ P_H).real)))
-                if dim <= 0:
-                    continue
-                projected_hat = P @ uhat
-                projected = self._star_to_core(arms, projected_hat)
+                    # a star without its -k arms carries complex-type irreps
+                    # only; D* (and the conjugate Fourier components of the
+                    # real field) live on the -k star
+                    if not pair:
+                        raise SystemExit(
+                            "ERROR: real-type irrep on a star without its -k "
+                            "arms (internal bug)."
+                        )
+                    dim = int(round(2.0 * float(np.trace(P_c @ P_H).real)))
+                    if dim <= 0:
+                        continue
+                    projected = self._star_to_core(
+                        arms, P_c @ uhat, add_conjugate=True
+                    )
+                    amplitude = float(np.linalg.norm(projected)) * rescale
                 residual = residual - projected.reshape(-1)
-                amplitude = float(np.linalg.norm(projected_hat)) * rescale
-                modes.append(
-                    _ModeEntry(self, star["kname"], star["kvec"], irrep_name,
-                               representation, dim, amplitude, projected)
-                )
+                label = irrep_name
+                if pair:
+                    partner = representation.conjugate_partner()
+                    if partner is not None:
+                        label = "".join(sorted([irrep_name, partner]))
+                entry = _ModeEntry(self, star["kname"], star["kvec"], label,
+                                   representation, dim, amplitude, projected)
+                if pair:
+                    record["entry"] = entry
+                modes.append(entry)
             if not np.allclose(
                 completeness, np.eye(completeness.shape[0]), atol=1e-6
             ):
@@ -1213,9 +2031,13 @@ class SymmetryModeAnalysis:
                     f"{star['kname']} star; please report this case."
                 )
         if np.linalg.norm(residual) > 1e-3 * max(1.0, total):
+            # the mapping stage guarantees a displacement field invariant
+            # under the subgroup, which the modes listed (dim > 0) capture
+            # completely; a residual here is an internal inconsistency
             raise SystemExit(
                 "ERROR: the distortion is not fully captured by the listed "
-                "modes; please report this case."
+                "modes (internal inconsistency of the mode projectors); "
+                "please report this case."
             )
         self.total_distortion = total * rescale
         return modes
@@ -1257,7 +2079,9 @@ class SymmetryModeAnalysis:
             partners.append(partner)
         # preferred basis: the bundled ISO-IR matrices (tabulated arm order,
         # deterministic across spgrep versions).  All-or-nothing per star so
-        # every representation shares one arm ordering.
+        # every representation shares one arm ordering.  A star whose ISO-IR
+        # matrices cannot be realified (SystemExit from _realify) also falls
+        # back on the spgrep basis instead of stopping the analysis.
         if star["names"] is not None:
             try:
                 return [
@@ -1270,7 +2094,7 @@ class SymmetryModeAnalysis:
                     )
                     for index, small in enumerate(smalls)
                 ]
-            except (LookupError, FileNotFoundError, ValueError):
+            except (LookupError, FileNotFoundError, ValueError, SystemExit):
                 pass
         return [
             (
@@ -1357,7 +2181,11 @@ def _element_symbol(z: int) -> str:
 
 
 def main(argv: list[str] | None = None) -> None:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.output_dir is not None and os.path.exists(args.output_dir) \
+            and not os.path.isdir(args.output_dir):
+        parser.error(f"--output-dir {args.output_dir}: exists and is not a directory.")
     analysis = SymmetryModeAnalysis(args.parent, args.child, args.tolerance)
 
     print("\n* Supergroup (parent) structure *")
@@ -1382,6 +2210,8 @@ def main(argv: list[str] | None = None) -> None:
     print(f"origin shift (parent primitive fractional): ("
           + ", ".join(_format_fraction(v % 1.0) for v in mapping.p) + ")")
     print(f"primitive cell multiplication: {analysis.size}")
+    if getattr(analysis, "mapping_note", None):
+        print(textwrap.fill(analysis.mapping_note, width=79))
     rotation = getattr(analysis, "setting_rotation", None)
     if rotation is not None and rotation > 0.5:
         print(
@@ -1408,7 +2238,8 @@ def main(argv: list[str] | None = None) -> None:
             + f"{norm:.4f}"
         )
         print(line)
-    print(f"\nmaximum atomic displacement: {max_u:.4f} A")
+    print("\n* Distortion amplitude *")
+    print(f"maximum atomic displacement: {max_u:.4f} A")
     print(f"total distortion amplitude : {analysis.total_distortion:.4f} A")
     print("(normalized within the primitive cell of the distorted structure)")
     if getattr(analysis, "polar_directions", 0) > 0:
@@ -1421,16 +2252,22 @@ def main(argv: list[str] | None = None) -> None:
         )
 
     table_lines = ["* Symmetry-mode decomposition *"]
-    table_lines.append(
-        f"{'k-vector':<16} {'irrep':<7} {'direction':<12} "
-        f"{'isotropy subgroup':<19} {'dim':<4} amplitude (A)"
-    )
+    rows = []
     for mode in analysis.modes:
         label, info, index = mode.label_info()
-        subgroup = f"{info.number} {info.international_short}"
+        rows.append((mode, label, f"{info.number} {info.international_short}"))
+    # the pair labels of complex-type irreps (GM3+GM4+, K2KA2) and their
+    # directions are longer than the default columns
+    name_width = max([7] + [len(mode.irrep_name) for mode, _, _ in rows])
+    label_width = max([12] + [len(label) for _, label, _ in rows])
+    table_lines.append(
+        f"{'k-vector':<16} {'irrep':<{name_width}} {'direction':<{label_width}} "
+        f"{'isotropy subgroup':<19} {'dim':<4} amplitude (A)"
+    )
+    for mode, label, subgroup in rows:
         table_lines.append(
             f"{_kvector_string(mode.kvec):<16} "
-            f"{mode.irrep_name:<7} {label:<12} {subgroup:<19} "
+            f"{mode.irrep_name:<{name_width}} {label:<{label_width}} {subgroup:<19} "
             f"{mode.dim:<4} {mode.amplitude:.4f}"
         )
     if any(star["kind"] == "computed" for star in analysis.stars):
@@ -1443,10 +2280,12 @@ def main(argv: list[str] | None = None) -> None:
     print("\n" + "\n".join(table_lines))
 
     # the table again as a text file, named by the parent composition
-    table_path = f"sym_mode_{analysis.parent_formula}"
-    with open(table_path, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(table_lines) + "\n")
-    print(f"\nDecomposition table saved to {table_path}")
+    output_lines: list[str] = []
+    if not args.no_files:
+        table_path = _output_path(args.output_dir, f"sym_mode_{analysis.parent_formula}")
+        with open(table_path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(table_lines) + "\n")
+        output_lines.append(f"Decomposition table saved to {table_path}")
 
     print("\n* Normalized mode components (parent primitive fractional, per 1 A) *")
     for mode in analysis.modes:
@@ -1473,14 +2312,31 @@ def main(argv: list[str] | None = None) -> None:
         for part in parts:
             print(f"  {part}")
 
-    _export_mode_vesta_files(analysis, args.parent, conventional=args.conventional)
+    if not args.no_files:
+        output_lines.extend(
+            _export_mode_vesta_files(analysis, args.parent, conventional=args.conventional,
+                                     output_dir=args.output_dir)
+        )
 
     print("\nConventions and validation: AMPLIMODES (Bilbao Crystallographic "
           "Server):")
     print('D. Orobengoa, C. Capillas, M. I. Aroyo and J. M. Perez-Mato,')
     print('"AMPLIMODES: symmetry-mode analysis on the Bilbao Crystallographic')
     print('Server", J. Appl. Cryst. 42, 820-833 (2009).')
+    if output_lines:
+        print("\n* Output files *")
+        for line in output_lines:
+            print(f"  {line}")
     print()
+
+
+def _output_path(output_dir: str | None, filename: str) -> str:
+    """Where an output file goes: the bare name in the current directory
+    (the default), or inside --output-dir, which is created if missing."""
+    if output_dir is None:
+        return filename
+    os.makedirs(output_dir, exist_ok=True)
+    return os.path.join(output_dir, filename)
 
 
 _VESTA_ARROW_LENGTH = 1.5  # A, largest arrow per file (same as --vector)
@@ -1529,11 +2385,17 @@ def _conventional_display_cell(analysis):
 
 
 def _export_mode_vesta_files(analysis, parent_path: str,
-                             conventional: bool = False) -> None:
+                             conventional: bool = False,
+                             output_dir: str | None = None) -> list[str]:
     """Write one VESTA file per activated irrep showing its displacement
     pattern: arrows of the irrep-projected distortion on the parent-derived
     reference structure, in the invariant-core cell (default) or in the
-    parent conventional basis (--conventional, _conv suffix).
+    parent conventional basis (--conventional, _conv suffix), into the
+    current directory or ``output_dir`` (created if missing).
+
+    Returns:
+        The lines describing the written files for the ``* Output files *``
+        block (empty when no irrep is activated).
     """
     from .phonon_vector import write_vesta_with_arrows
 
@@ -1575,7 +2437,7 @@ def _export_mode_vesta_files(analysis, parent_path: str,
         if peak < 1e-10:
             continue
         arrows = arrows_core[atom_source] * (_VESTA_ARROW_LENGTH / peak)
-        filename = f"{parent_base}_{mode.irrep_name}{suffix}.vesta"
+        filename = _output_path(output_dir, f"{parent_base}_{mode.irrep_name}{suffix}.vesta")
         write_vesta_with_arrows(
             filepath=filename,
             lattice=lattice,
@@ -1590,17 +2452,18 @@ def _export_mode_vesta_files(analysis, parent_path: str,
         written.append((filename, mode.amplitude))
 
     if not written:
-        return
-    print(f"\n* Mode displacement VESTA files ({cell_note}) *")
+        return []
+    lines = [f"Mode displacement VESTA files ({cell_note}):"]
     if conventional:
-        print("display cell in parent primitive units (rows):")
+        lines.append("  display cell in parent primitive units (rows):")
         for row in D:
-            print("  (" + ", ".join(str(int(v)) for v in row) + ")")
+            lines.append("    (" + ", ".join(str(int(v)) for v in row) + ")")
     for filename, amplitude in written:
-        print(f"  {filename}  (amplitude {amplitude:.4f} A)")
-    print(f"Arrows are scaled so the largest displacement is "
-          f"{_VESTA_ARROW_LENGTH} A per file; adjust in VESTA via "
-          "Edit > Vectors if needed.")
+        lines.append(f"  {filename}  (amplitude {amplitude:.4f} A)")
+    lines.append(f"Arrows are scaled so the largest displacement is "
+                 f"{_VESTA_ARROW_LENGTH} A per file; adjust in VESTA via "
+                 "Edit > Vectors if needed.")
+    return lines
 
 
 if __name__ == "__main__":

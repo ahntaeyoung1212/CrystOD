@@ -64,8 +64,9 @@ def main(argv: list[str] | None = None) -> None:
 
     from .xdatcar_adp import read_xdatcar
 
-    print(f"Input file : {args.xdatcar}")
-    print("\nReading XDATCAR... (this may take a while)")
+    print("\n* Input *")
+    print(f"  Input file : {args.xdatcar}")
+    print("  Reading XDATCAR... (this may take a while)")
     chem_formula, lattices, all_coordinates = read_xdatcar(args.xdatcar)
 
     n_total = len(all_coordinates)
@@ -88,13 +89,13 @@ def main(argv: list[str] | None = None) -> None:
     parameters = np.array([_lattice_parameters(lattice) for lattice in selected])
     volumes = np.abs(np.linalg.det(selected))
 
-    print("\nTrajectory info:")
+    print("\n* Trajectory info *")
     print(f"  atoms          : {n_atoms}")
     print(f"  composition    : {dict(composition)}")
     print(f"  total steps    : {n_total}")
     print(f"  analyzed steps : {n_steps} (step {args.start_step} .. {args.start_step + n_steps - 1})")
 
-    print("\nTime-averaged cell (mean +/- std):")
+    print("\n* Time-averaged cell (mean +/- std) *")
     labels = ["a (A)", "b (A)", "c (A)", "alpha (deg)", "beta (deg)", "gamma (deg)"]
     for label, values in zip(labels, parameters.T):
         print(f"  {label:<12}: {values.mean():14.6f} +/- {values.std():.6f}")

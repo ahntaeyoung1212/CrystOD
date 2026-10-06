@@ -813,7 +813,8 @@ def main(argv: list[str] | None = None) -> None:
             info,
             bonds,
         )
-        print(f"\nSALC viewer written to {output_path}")
+        print("\n* Output files *")
+        print(f"  SALC viewer written to {output_path}")
     print()
 
 

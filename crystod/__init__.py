@@ -69,7 +69,7 @@ __all__ = [
     "SpaceGroupIrrepAlgebra",
 ]
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 
 _API_DOMAINS = ("salc", "group", "phonon", "bz", "mag", "md", "mol", "xrd", "search")
 

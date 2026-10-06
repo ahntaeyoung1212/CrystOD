@@ -12,7 +12,13 @@ representation), or resolves a user-given direction, and identifies each
 subgroup with spglib (symbol, number, cell size, index, and the basis /
 origin of its conventional cell in the parent convention).  With --kpoint
 in place of --irrep, the enumeration runs over every irrep of one special
-k point and is printed as a single table.
+k point and is printed as a single table.  With --invariants, the invariant
+polynomials of the irrep or of a direct sum (the Landau free-energy terms
+and the lowest coupling term) are listed instead, computed by
+``crystod.invariants``; with --secondary, the secondary order parameters of
+a direction (``crystod.secondary_order_parameter``).  These free-energy
+modes (--invariants, --degree, --order-parameter, --secondary) also report
+the Landau and Lifshitz conditions of every irrep.
 
 This is the offline counterpart of the ISOSUBGROUP tool of the ISOTROPY
 Software Suite (https://iso.byu.edu), and is validated against its output.
@@ -30,6 +36,7 @@ subgroups are convention-independent.
 from __future__ import annotations
 
 import argparse
+import re
 from fractions import Fraction
 
 import numpy as np
@@ -38,6 +45,12 @@ from .spacegroup_product import DEN, SIGMA, SpaceGroupIrrepAlgebra, _format_frac
 
 _PARAMETER_NAMES = "abcdefghijklmnopqrstuvwx"
 
+# an order-parameter component "factor x parameter" (2a, 0.5a, 1/2a, 2*a);
+# the sign is taken off before matching
+_SCALED_PARAMETER = re.compile(
+    r"(\d+/\d+|\d+(?:\.\d*)?|\.\d+)\*?([A-Za-z_][A-Za-z0-9_]*)"
+)
+
 # space-group types that exist as enantiomorphic pairs: the stabilizers of
 # the mirror-image order parameters of one stratum are of partner types, so
 # either member may appear as the representative of the stratum
@@ -45,32 +58,6 @@ ENANTIOMORPHIC_PAIRS = {
     76: 78, 78: 76, 91: 95, 95: 91, 92: 96, 96: 92, 144: 145, 145: 144,
     151: 153, 153: 151, 152: 154, 154: 152, 169: 170, 170: 169, 171: 172,
     172: 171, 178: 179, 179: 178, 180: 181, 181: 180, 212: 213, 213: 212,
-}
-
-# Irrep labels that differ between the tables used by crystod (the ISO-IR
-# 2011 data files, whose labels coincide with the Bilbao/DIRPRO reference
-# set at every maximal k point) and the ISOTROPY/ISOSUBGROUP software at
-# the same k point. Established table-for-table by the ISOSUBGROUP
-# reference sweep (script/validate_isosubgroup.py); multi-label entries
-# mean the corresponding ISOTROPY tables are identical.
-ISOTROPY_LABELS = {
-    (64, "Y"): {"Y1+": "Y3+", "Y1-": "Y3-", "Y2+": "Y4+", "Y2-": "Y4-",
-                "Y3+": "Y1+", "Y3-": "Y1-", "Y4+": "Y2+", "Y4-": "Y2-"},
-    (67, "Y"): {"Y1+": "Y3+/Y4-", "Y1-": "Y3-/Y4+", "Y2+": "Y3-/Y4+",
-                "Y2-": "Y3+/Y4-", "Y3+": "Y1+/Y1-", "Y3-": "Y1+/Y1-",
-                "Y4+": "Y2+/Y2-", "Y4-": "Y2+/Y2-"},
-    (67, "T"): {"T1+": "T3+/T4-", "T1-": "T3-/T4+", "T2+": "T3-/T4+",
-                "T2-": "T3+/T4-", "T3+": "T1/T2", "T3-": "T1/T2",
-                "T4+": "T1/T2", "T4-": "T1/T2"},
-    (68, "Y"): {"Y1+": "Y3-/Y4+", "Y1-": "Y3+/Y4-", "Y2+": "Y3+/Y4-",
-                "Y2-": "Y3-/Y4+", "Y3+": "Y2+/Y2-", "Y3-": "Y2+/Y2-",
-                "Y4+": "Y1+/Y1-", "Y4-": "Y1+/Y1-"},
-    (68, "T"): {"T1": "T2", "T2": "T1"},
-    (108, "P"): {"P3": "P4P4", "P4": "P3P3"},
-    (140, "P"): {"P1": "P2P4", "P2": "P1P3", "P3": "P2P4", "P4": "P1P3"},
-    (141, "X"): {"X1": "X2", "X2": "X1"},
-    (142, "X"): {"X1": "X2", "X2": "X1"},
-    (230, "N"): {"N1": "N2", "N2": "N1"},
 }
 
 
@@ -161,7 +148,7 @@ class InducedRepresentation:
     # -- small irrep matrices matched to the ISO-IR label
     def _small_matrices(self):
         algebra, irrep = self.algebra, self.irrep
-        from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+        from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
 
         try:
             irreps, mapping = get_spacegroup_irreps_from_primitive_symmetry(
@@ -183,10 +170,11 @@ class InducedRepresentation:
         except SystemExit:
             refined = None
         if refined is None:
-            # defensive fallback: identify the tabulated irrep up to an
-            # origin-shift gauge e^(2 pi i k.(W-1)x0) (not expected to be
-            # needed with the ISO-IR tables, whose asymmetric points are
-            # resolved inside _refine_small_characters)
+            # defensive fallback: the same conj+wrap identification as
+            # _refine_small_characters, extended by an origin-shift gauge
+            # e^(2 pi i k.(W-1)x0) (not expected to be needed with the ISO-IR
+            # tables, whose asymmetric points are resolved inside
+            # _refine_small_characters)
             refined = self._match_with_origin_shift(table)
         if refined is None:
             raise SystemExit(
@@ -219,49 +207,77 @@ class InducedRepresentation:
 
     def _match_with_origin_shift(self, table: dict) -> dict | None:
         """Identify the tabulated small irrep among the spgrep candidates up
-        to an origin-shift gauge, returning the candidate's exact (gauge-
-        consistent) characters."""
+        to an origin-shift gauge.
+
+        The tabulated ISO-IR characters and the spgrep candidates are
+        related by the conj+wrap rule of
+        ``SpaceGroupIrrepAlgebra._refine_small_characters``::
+
+            chi_spgrep(op) exp(2 pi i k.((W - 1) x0))
+                = conj(chi_table(op)) exp(2 pi i k.delta_op)
+
+        where ``delta_op`` is the wrapped-away lattice translation and
+        ``x0`` an origin shift on the 1/8 grid (``x0 = 0`` first, where the
+        rule reduces to ``_refine_small_characters``).  For each shift only
+        a unique matching candidate is accepted.  A match found only at
+        ``x0 != 0`` is accepted with a warning (``warnings.warn``) naming the
+        shift and the label, since an origin shift can map the characters
+        of one irrep onto those of another.
+
+        Args:
+            table: Tabulated ISO-IR small characters ``{op_index: chi}``.
+
+        Returns:
+            The matched candidate's exact (gauge-consistent) spgrep
+            characters, or ``None`` when no shift gives a unique match.
+        """
         algebra = self.algebra
+        k_int = np.asarray(self.k)
         k = np.asarray(self.k, dtype=float) / DEN
         try:
-            candidates = algebra.computed_irreps_at(np.asarray(self.k))
+            candidates = algebra.computed_irreps_at(k_int)
         except SystemExit:
             return None
         candidates = [c for c in candidates if set(c["chi"]) == set(table)]
         if not candidates:
             return None
+        reference = {
+            op: np.conj(value) * algebra._wrap_phase(k_int, op)
+            for op, value in table.items()
+        }
         shifts = [
             np.array([x1, x2, x3]) / 8.0
             for x1 in range(8)
             for x2 in range(8)
             for x3 in range(8)
         ]
-        for conjugate in (False, True):
-            reference = (
-                {op: np.conj(v) for op, v in table.items()} if conjugate else table
-            )
-            for x0 in shifts:
-                matched = []
-                for candidate in candidates:
-                    chi = candidate["chi"]
-                    ok = True
-                    for op, value in reference.items():
-                        W = algebra.rotations[op]
-                        gauge = np.exp(
-                            2j * np.pi * float(k @ ((W - np.eye(3)) @ x0))
-                        )
-                        if abs(chi[op] * gauge - value) > 5e-3:
-                            ok = False
-                            break
-                    if ok:
-                        matched.append(candidate["chi"])
-                if len(matched) == 1:
-                    return {op: complex(v) for op, v in matched[0].items()}
-                if len(matched) == 2 and all(
-                    abs(matched[0][op] - np.conj(matched[1][op])) < 1e-6
-                    for op in matched[0]
-                ):
-                    return {op: complex(v) for op, v in matched[0].items()}
+        for x0 in shifts:
+            matched = []
+            for candidate in candidates:
+                chi = candidate["chi"]
+                ok = True
+                for op, value in reference.items():
+                    W = algebra.rotations[op]
+                    gauge = np.exp(2j * np.pi * float(k @ ((W - np.eye(3)) @ x0)))
+                    if abs(chi[op] * gauge - value) > 5e-3:
+                        ok = False
+                        break
+                if ok:
+                    matched.append(chi)
+            if len(matched) == 1:
+                if np.any(x0):
+                    # an origin shift can turn one irrep's characters into
+                    # another's, so a match away from x0 = 0 is reported
+                    import warnings
+
+                    warnings.warn(
+                        f"{self.irrep.name}: the tabulated characters were "
+                        "matched to a spgrep small irrep only after an origin "
+                        f"shift x0 = ({', '.join(str(Fraction(v).limit_denominator(8)) for v in x0)}); "
+                        "check that the label refers to the intended irrep.",
+                        stacklevel=2,
+                    )
+                return {op: complex(v) for op, v in matched[0].items()}
         return None
 
     def _induce(self, small: dict) -> list[np.ndarray]:
@@ -374,6 +390,12 @@ class InducedRepresentation:
         S = np.zeros((n, n), dtype=np.complex128)
         for _, _, D in self.elements:
             S += np.conj(D) @ A @ D.conj().T
+        if np.linalg.norm(S) < 1e-8 * len(self.elements) * np.linalg.norm(A):
+            raise SystemExit(
+                f"ERROR: could not realify {self.irrep.name} (internal: the "
+                "Frobenius-Schur indicator says real type, but the averaged "
+                "intertwiner vanishes)."
+            )
         c_matrix = S @ np.conj(S)
         c = c_matrix[0, 0]
         if not np.allclose(c_matrix, c * np.eye(n), atol=1e-6 * max(1, abs(c))) or c.real <= 0:
@@ -403,6 +425,11 @@ class InducedRepresentation:
         if len(basis) < n:
             raise SystemExit(f"ERROR: could not realify {self.irrep.name}.")
         T = np.column_stack(basis)
+        if not np.allclose(T.conj().T @ T, np.eye(n), atol=1e-6):
+            raise SystemExit(
+                f"ERROR: could not realify {self.irrep.name} (the real basis "
+                "is not unitary)."
+            )
         T_inv = np.linalg.inv(T)
         new_elements = []
         for i, t, matrix in self.elements:
@@ -549,6 +576,11 @@ class InducedRepresentation:
         """
         return self.elements
 
+    @property
+    def rep_cache(self) -> _RepCache:
+        """The element matrices as arrays (built on first use, then kept)."""
+        return _rep_cache(self)
+
 
 class _ComputedIrrepInfo:
     """Shim irrep record for a representation at a non-tabulated k point."""
@@ -623,19 +655,16 @@ class ComputedInducedRepresentation(InducedRepresentation):
         versions.  Raises LookupError when the entry cannot be used (the
         caller falls back to the spgrep-basis construction).
         """
-        import re
-
-        from .isoir import load_isoir_irreps
+        from .isoir import load_isoir_irreps, minus_k_base
 
         minus = False
         base = name
-        match = re.match(r"^([A-Z]+)A(\d.*)$", name)
-        if match and not any(
-            ir.label == name for ir in load_isoir_irreps(algebra.sg_type.number)
-        ):
-            # 'A'-suffixed name: the tabulated entry sits at the -k star
+        tabulated_base = minus_k_base(name, algebra.sg_type.number)
+        if tabulated_base is not None:
+            # the -k partner of a tabulated star (PA1, LE1, DU6): the
+            # tabulated entry sits at the -k star
             minus = True
-            base = match.group(1) + match.group(2)
+            base = tabulated_base
         entries = [
             ir
             for ir in load_isoir_irreps(algebra.sg_type.number)
@@ -690,6 +719,16 @@ class ComputedInducedRepresentation(InducedRepresentation):
             v_conv = M @ (np.array(algebra.translations[i], dtype=float) / DEN)
             dt = v_conv - entry.translations[j]
             phases = np.exp(2j * np.pi * karms_conv @ (dt + entry.irtrans[j]))
+            if entry.small_dim > 1 and len(phases) > 1:
+                # Several arms with a multi-dimensional small irrep: the
+                # bundled matrices carry six digits, which is not enough for
+                # the realification of some of these stars (DT of the
+                # hexagonal groups), so the spgrep basis is kept for all of
+                # them (the callers fall back on LookupError).
+                raise LookupError(
+                    f"ISO-IR matrices of {name} are not used for a "
+                    "multi-arm star with a multi-dimensional small irrep"
+                )
             block = phases[:, None] * entry.matrices[j]
             # ISO-IR phase convention exp(+2 pi i k.t) is the conjugate of
             # the spgrep convention this machinery uses throughout
@@ -754,8 +793,31 @@ class CoupledRepresentation:
     """
 
     def __init__(self, algebra: SpaceGroupIrrepAlgebra, irrep_labels: list[str]):
+        self._assemble(
+            algebra, [InducedRepresentation(algebra, label) for label in irrep_labels]
+        )
+
+    @classmethod
+    def from_parts(cls, algebra: SpaceGroupIrrepAlgebra, parts: list):
+        """Direct sum of already-built representations.
+
+        Args:
+            algebra: The ``SpaceGroupIrrepAlgebra`` the parts were built
+                from.
+            parts: ``InducedRepresentation`` objects (or anything with
+                ``elements``, ``dimension``, ``grid_n`` and ``label``).
+
+        Returns:
+            A ``CoupledRepresentation`` identical to the one built from the
+            parts' labels (``InducedRepresentation`` is deterministic).
+        """
+        coupled = cls.__new__(cls)
+        coupled._assemble(algebra, list(parts))
+        return coupled
+
+    def _assemble(self, algebra: SpaceGroupIrrepAlgebra, parts: list) -> None:
         self.algebra = algebra
-        self.parts = [InducedRepresentation(algebra, label) for label in irrep_labels]
+        self.parts = parts
         self.dims = [part.dimension for part in self.parts]
         self.dimension = sum(self.dims)
         self.name = " + ".join(part.label for part in self.parts)
@@ -788,6 +850,83 @@ class CoupledRepresentation:
             The ``elements`` list of ``(i, t, matrix)`` triples.
         """
         return self.elements
+
+    @property
+    def rep_cache(self) -> _RepCache:
+        """The element matrices as arrays (built on first use, then kept)."""
+        return _rep_cache(self)
+
+
+class _RepCache:
+    """The element matrices of one real representation as arrays.
+
+    Built once per representation (``rep_cache`` of ``InducedRepresentation``
+    and ``CoupledRepresentation``) and shared by the fast stratum
+    enumeration, the orbit and the stabilizer computations.
+
+    Attributes:
+        elements: The ``(i, t, matrix)`` list the arrays were built from.
+        E: All element matrices, shape ``(G, n, n)``, in ``elements`` order.
+        distinct: Index (into ``E``) of the first element of every distinct
+            matrix, in order of first occurrence.
+        Ed: ``E[distinct]``.
+        n: The dimension of the representation.
+    """
+
+    def __init__(self, elements):
+        self.elements = elements
+        self.E = np.array([matrix for _, _, matrix in elements], dtype=float)
+        self.n = self.E.shape[1]
+        seen: dict[bytes, int] = {}
+        for g, matrix in enumerate(self.E):
+            seen.setdefault(_projector_key(matrix), g)
+        self.distinct = np.array(sorted(seen.values()), dtype=np.int64)
+        self.Ed = self.E[self.distinct]
+
+    def fixes(self, basis: np.ndarray, distinct: bool = False) -> np.ndarray:
+        """Mask of the elements fixing every column of ``basis`` (1e-6)."""
+        E = self.Ed if distinct else self.E
+        D = np.einsum("gab,br->gar", E, basis) - basis[None]
+        return np.max(np.abs(D), axis=(1, 2)) < 1e-6
+
+    def stabilizer_mask(self, projector: np.ndarray) -> np.ndarray:
+        """``np.allclose(matrix @ projector, projector, atol=1e-6)`` for
+        every element (the test of ``IsotropyAnalyzer.stabilizer_of``)."""
+        tolerance = 1e-6 + 1e-5 * np.abs(projector)
+        return np.all(
+            np.abs(self.E @ projector - projector[None]) <= tolerance[None],
+            axis=(1, 2),
+        )
+
+    def vector_stabilizer_mask(self, vector: np.ndarray) -> np.ndarray:
+        """``np.allclose(matrix @ vector, vector, atol=1e-6)`` for every
+        element."""
+        tolerance = 1e-6 + 1e-5 * np.abs(vector)
+        return np.all(np.abs(self.E @ vector - vector[None]) <= tolerance[None], axis=1)
+
+    def orbit(self, projector: np.ndarray) -> dict[bytes, np.ndarray]:
+        """The distinct images ``g P g^T`` (key -> projector), in the order
+        of the elements."""
+        images = np.einsum("gab,bc,gdc->gad", self.Ed, projector, self.Ed)
+        orbit: dict[bytes, np.ndarray] = {}
+        for image in images:
+            orbit.setdefault(_projector_key(image), image)
+        return orbit
+
+
+def _rep_cache(representation, elements=None) -> _RepCache:
+    """The ``_RepCache`` of a representation, built on first use and kept
+    on the object (rebuilt when its ``elements`` list was replaced)."""
+    if elements is None:
+        elements = representation.image_elements()
+    cache = getattr(representation, "_rep_cache_data", None)
+    if cache is None or cache.elements is not elements or len(cache.E) != len(elements):
+        cache = _RepCache(elements)
+        try:
+            representation._rep_cache_data = cache
+        except AttributeError:  # an object without attribute storage
+            pass
+    return cache
 
 
 def _block_diag(blocks: list[np.ndarray]) -> np.ndarray:
@@ -932,7 +1071,7 @@ class IsotropyAnalyzer:
         return _nullspace(np.vstack(stack))
 
     # -- enumerate strata (order-parameter direction types)
-    def enumerate_directions(self):
+    def enumerate_directions(self, method: str = "fast"):
         """Enumerate the order-parameter direction types (strata).
 
         Seeds the search with the fixed spaces of every group element and
@@ -942,12 +1081,115 @@ class IsotropyAnalyzer:
         listing of ``crystod-group --parent`` without
         ``--order-parameter``.
 
+        The default enumerator intersects every new subspace with the seeds
+        only (every member of the closure is an intersection of seeds),
+        with batched SVDs over the cached element matrices
+        (``representation.rep_cache``); the strata are then visited in the
+        order in which the pairwise closure discovers them, so that the
+        result, including the order and the representative of every
+        stratum, equals that of the pairwise closure (``method="legacy"``,
+        kept for comparison).
+
+        Args:
+            method: ``"fast"`` (default) or ``"legacy"`` (the original
+                pairwise closure, slower by a factor of 5-50 on large
+                representations).
+
         Returns:
             A list of ``(projector, members)`` pairs, one per stratum, with
             the orthogonal projector onto the subspace of the stratum and
             the ``(i, t)`` elements of its stabilizer (the isotropy
             subgroup).
+
+        Raises:
+            ValueError: An unknown ``method``.
         """
+        if method == "legacy":
+            return self._enumerate_directions_legacy()
+        if method != "fast":
+            raise ValueError(f'unknown method "{method}" (use "fast" or "legacy")')
+        cache = _rep_cache(self.representation, self.elements)
+        n = cache.n
+        eye = np.eye(n)
+        Ed = cache.Ed
+        # seed: fixed spaces of every distinct element (the identity gives
+        # the full space first), as orthonormal bases
+        keys: list[bytes] = []
+        bases: list[np.ndarray] = []
+        index: dict[bytes, int] = {}
+        complements = []
+        _, sing, vh = np.linalg.svd(Ed - eye[None])
+        ranks = np.sum(sing > 1e-8, axis=1)
+        for g in range(len(Ed)):
+            basis = vh[g, ranks[g]:].T
+            if basis.shape[1] == 0:
+                continue
+            projector = basis @ basis.T
+            key = _projector_key(projector)
+            if key not in index:
+                index[key] = len(keys)
+                keys.append(key)
+                bases.append(basis)
+                complements.append(eye - projector)
+        key = _projector_key(eye)
+        if key not in index:
+            index[key] = len(keys)
+            keys.append(key)
+            bases.append(eye.copy())
+        n_seeds = len(keys)
+        # closure: intersect every new subspace with every seed
+        IQ = np.array(complements) if complements else np.zeros((0, n, n))
+        frontier = list(range(n_seeds))
+        while frontier and len(IQ):
+            new = []
+            for u in frontier:
+                basis = bases[u]
+                r = basis.shape[1]
+                A = np.einsum("sab,br->sar", IQ, basis)
+                _, sing, vh = np.linalg.svd(A)
+                rank = np.sum(sing > 1e-8, axis=1)
+                for j in np.nonzero((rank > 0) & (rank < r))[0]:
+                    meet = _orth_columns(basis @ vh[j, rank[j]:].T)
+                    if meet.shape[1] == 0:
+                        continue
+                    key = _projector_key(meet @ meet.T)
+                    if key not in index:
+                        index[key] = len(keys)
+                        keys.append(key)
+                        bases.append(meet)
+                        new.append(index[key])
+            frontier = new
+        order = _pairwise_closure_order(bases, n_seeds)
+
+        # keep isotropy subspaces: V == Fix(Stab(V)); dedupe by group orbit
+        strata = []
+        used: set[bytes] = set()
+        for u in order:
+            if keys[u] in used:
+                continue
+            basis = bases[u]
+            mask = cache.fixes(basis, distinct=True)
+            stack = (Ed[mask] - eye[None]).reshape(-1, n)
+            sing = np.linalg.svd(stack, compute_uv=False)
+            if n - int(np.sum(sing > 1e-8)) != basis.shape[1]:
+                continue
+            orbit = cache.orbit(basis @ basis.T)
+            if used.intersection(orbit):
+                continue
+            used.update(orbit)
+            best = min(
+                orbit.values(),
+                key=lambda P: _label_rank(self._direction_pattern(P)[0]),
+            )
+            members = [
+                (self.elements[g][0], self.elements[g][1])
+                for g in np.nonzero(cache.stabilizer_mask(best))[0]
+            ]
+            strata.append((best, members))
+        return strata
+
+    def _enumerate_directions_legacy(self):
+        """The original pairwise-closure enumerator (``method="legacy"``)."""
         n = self.representation.dimension
         seen: dict[bytes, np.ndarray] = {}
 
@@ -1007,7 +1249,7 @@ class IsotropyAnalyzer:
             used |= orbit_keys
             best = min(
                 orbit_projectors,
-                key=lambda P: _label_rank(self.direction_label(P)[0]),
+                key=lambda P: _label_rank(self._direction_pattern(P)[0]),
             )
             strata.append((best, self.stabilizer_of(best)))
         return strata
@@ -1219,21 +1461,32 @@ class IsotropyAnalyzer:
             ``(label, generic)``: the ISOTROPY-style pattern such as
             ``"(a,a,0)"`` (``;`` separates star arms, ``,`` components
             within one arm; coupled runs give ``"X3-(a,b) X2-(c,d)"``) and
-            a generic order-parameter vector inside the stratum.
+            a generic order-parameter vector inside the stratum: its
+            stabilizer is the group of elements fixing the whole subspace,
+            and for coupled irreps the part of every irrep is generic in
+            the same sense for that irrep's share of the subspace (the
+            ``(d;d;e)`` part of ``L1+(a;a;b) L1-(d;d;e)`` has no extra
+            symmetry of its own).  The label depends on the subspace only,
+            never on the vector.
+
+        Raises:
+            RuntimeError: No trial vector is generic (an internal error).
         """
+        label, rows = self._direction_pattern(projector, letter_offset)
+        return label, self._generic_vector(rows)
+
+    def _direction_pattern(
+        self, projector: np.ndarray, letter_offset: int = 0
+    ) -> tuple[str, list[np.ndarray]]:
+        """The direction label of a stratum and the orthonormal RREF rows
+        of its subspace it is built from (``direction_label`` without the
+        representative vector)."""
         basis = _orth_basis(projector)
         n_free = basis.shape[1]
         # RREF + integer prettification (same style as the molecular SALCs)
         from .molecular_salc import _pretty_coefficients, _rref_orthogonal
 
         rows = _rref_orthogonal([basis[:, j] for j in range(n_free)])
-        generic = np.zeros(self.representation.dimension)
-        magnitudes = [1.0, 0.6180339887, 0.4142135624, 0.2928932188,
-                      0.2360679775, 0.1926, 0.1573, 0.1235,
-                      0.1044, 0.0862, 0.0715, 0.0593] + [
-                      0.05 * float(np.exp(-0.4811 * j)) for j in range(12)]
-        for j, row in enumerate(rows):
-            generic = generic + magnitudes[j] * np.asarray(row)
         pretty_rows = []
         for row in rows:
             coefficients, _ = _pretty_coefficients(np.asarray(row))
@@ -1289,10 +1542,64 @@ class IsotropyAnalyzer:
                 piece = components[start : start + part.dimension]
                 chunks.append(f"{part.label}({arm_join(piece, part.arm_chunks)})")
                 start += part.dimension
-            return " ".join(chunks), generic
+            return " ".join(chunks), rows
         return (
             "(" + arm_join(components, self.representation.arm_chunks) + ")",
-            generic,
+            rows,
+        )
+
+    def _generic_vector(self, rows: list[np.ndarray]) -> np.ndarray:
+        """A representative of the stratum spanned by ``rows`` that is
+        generic as a whole and in every irrep part.
+
+        ``sum_j m_j rows[j]`` for the first magnitude set ``m`` of
+        ``_generic_magnitude_sets`` that passes the test: the stabilizer of
+        the vector equals the pointwise stabilizer of the subspace, and for
+        every part of a coupled representation the stabilizer of its slice
+        (under that part's block of the matrices) equals the pointwise
+        stabilizer of the part's slice of the subspace.  The tolerances are
+        those of the stabilizer tests of the callers.
+        """
+        n = self.representation.dimension
+        if not rows:
+            return np.zeros(n)
+        R = np.array(rows, dtype=float)
+        stack = getattr(self, "_matrix_stack", None)
+        if stack is None or stack.shape[0] != len(self.elements):
+            stack = np.array([matrix for _, _, matrix in self.elements], dtype=float)
+            self._matrix_stack = stack
+        if isinstance(self.representation, CoupledRepresentation):
+            bounds = np.cumsum([0] + list(self.representation.dims))
+            slices = [(0, n)] + [
+                (int(bounds[j]), int(bounds[j + 1]))
+                for j in range(len(self.representation.dims))
+            ]
+        else:
+            slices = [(0, n)]
+
+        def fixed(block, target):
+            # per element: np.allclose(matrix @ target, target, atol=1e-6)
+            return np.all(
+                np.abs(block @ target - target) <= 1e-6 + 1e-5 * np.abs(target),
+                axis=tuple(range(1, 1 + target.ndim)),
+            )
+
+        pointwise = [fixed(stack[:, a:b, a:b], R[:, a:b].T) for a, b in slices]
+        for magnitudes in _generic_magnitude_sets(len(rows)):
+            generic = np.asarray(magnitudes) @ R
+            if all(
+                np.array_equal(fixed(stack[:, a:b, a:b], generic[a:b]), target)
+                for (a, b), target in zip(slices, pointwise)
+            ):
+                return generic
+        name = (
+            self.representation.name
+            if isinstance(self.representation, CoupledRepresentation)
+            else self.representation.label
+        )
+        raise RuntimeError(
+            "internal error: no generic representative found for a "
+            f"{len(rows)}-parameter stratum of {name}; please report this case."
         )
 
     def resolve_direction(self, tokens: list[str]) -> np.ndarray:
@@ -1300,17 +1607,21 @@ class IsotropyAnalyzer:
 
         Args:
             tokens: One token per component, e.g. ``["0", "0", "a"]`` or
-                ``["a", "a", "0"]``; letters are free parameters (equal
+                ``["a", "-a", "0"]``; letters are free parameters (equal
                 letters mean equal components), numbers and fractions are
-                taken literally, a leading ``-`` flips the sign.
+                taken literally, a leading ``-`` flips the sign, and an
+                exact rational factor scales a parameter (``2a``,
+                ``-0.5a``, ``1/2a``).
 
         Returns:
             A representative order-parameter vector of length
             ``dimension``.
 
         Raises:
-            SystemExit: Wrong number of components, or an all-zero order
-                parameter.
+            SystemExit: Wrong number of components, an all-zero order
+                parameter, or a parameter factor that is a rounded decimal
+                (``0.282a``: the tables print irrational factors to three
+                digits, and the rounded value is a different direction).
         """
         n = self.representation.dimension
         if len(tokens) != n:
@@ -1324,11 +1635,10 @@ class IsotropyAnalyzer:
                 f"{name} (dim {n})."
             )
         values = np.zeros(n)
-        symbol_values: dict[str, float] = {}
-        magnitudes = [1.0, 0.6180339887, 0.4142135624, 0.2928932188,
-                      0.2360679775, 0.1926, 0.1573, 0.1235]
+        symbol_slots: list[tuple[int, float, str]] = []
         for slot, token in enumerate(tokens):
             token = token.strip()
+            component = token
             sign = 1.0
             if token.startswith("-"):
                 sign, token = -1.0, token[1:]
@@ -1339,9 +1649,30 @@ class IsotropyAnalyzer:
                 continue
             except ValueError:
                 pass
-            if token not in symbol_values:
-                symbol_values[token] = magnitudes[len(symbol_values) % len(magnitudes)]
-            values[slot] = sign * symbol_values[token]
+            scaled = _SCALED_PARAMETER.fullmatch(token)
+            if scaled is not None:
+                factor = Fraction(scaled.group(1))
+                if factor.limit_denominator(24) != factor:
+                    raise SystemExit(
+                        f"ERROR: order-parameter component {component!r}: the "
+                        f"factor {scaled.group(1)} is not an exact fraction. "
+                        "The tables print irrational factors rounded to three "
+                        "digits, and the rounded direction has a different "
+                        "isotropy subgroup; read that entry from the listing "
+                        "without --order-parameter."
+                    )
+                sign *= float(factor)
+                token = scaled.group(2)
+            symbol_slots.append((slot, sign, token))
+        # one distinct magnitude per parameter, in order of appearance: the
+        # first eight are the historical values; the list used to wrap after
+        # eight, so a ninth parameter equalled the first (16 letters for L3 of
+        # F-43c gave C2 instead of P1)
+        symbols = list(dict.fromkeys(token for _, _, token in symbol_slots))
+        if symbols:
+            magnitudes = next(_generic_magnitude_sets(len(symbols)))
+            for slot, sign, token in symbol_slots:
+                values[slot] = sign * magnitudes[symbols.index(token)]
         if not np.any(values):
             raise SystemExit("ERROR: the order parameter must not be zero.")
         return values
@@ -1349,7 +1680,9 @@ class IsotropyAnalyzer:
 
 def _realify_matrix_set(matrices: dict) -> dict | None:
     """Similarity-transform a set of unitary matrices to real form, when a
-    real form exists (real-type rep); returns None otherwise."""
+    real form exists (real-type rep); returns None otherwise (complex or
+    pseudoreal type: the averaged antilinear intertwiner vanishes or is
+    not a real structure), and the caller keeps the complex matrices."""
     keys = list(matrices)
     if all(np.allclose(np.asarray(matrices[key]).imag, 0, atol=1e-8) for key in keys):
         return {key: np.asarray(matrices[key]).real.copy() for key in keys}
@@ -1360,6 +1693,12 @@ def _realify_matrix_set(matrices: dict) -> dict | None:
     for key in keys:
         D = np.asarray(matrices[key])
         S += np.conj(D) @ A @ D.conj().T
+    # Schur: S vanishes for a complex-type rep (D and D* inequivalent), so
+    # what the average returns there is rounding noise (~1e-15); it would
+    # pass the absolute tolerance of the scalar test below and be
+    # normalized to an O(1) garbage S_bar
+    if np.linalg.norm(S) < 1e-8 * len(keys) * np.linalg.norm(A):
+        return None
     c_matrix = S @ np.conj(S)
     c = c_matrix[0, 0]
     if not np.allclose(c_matrix, c * np.eye(n), atol=1e-6 * max(1, abs(c))) or c.real <= 0:
@@ -1383,6 +1722,11 @@ def _realify_matrix_set(matrices: dict) -> dict | None:
     if len(basis) < n:
         return None
     T = np.column_stack(basis)
+    # J-fixed vectors have real mutual inner products, so the real
+    # Gram-Schmidt above gives a unitary T whenever J is a genuine real
+    # structure; anything else is not a real form (and may be singular)
+    if not np.allclose(T.conj().T @ T, np.eye(n), atol=1e-6):
+        return None
     T_inv = np.linalg.inv(T)
     result = {}
     for key in keys:
@@ -1413,9 +1757,102 @@ def _realify_matrix_set(matrices: dict) -> dict | None:
     return result
 
 
+# magnitudes of the representative vector of a stratum, one per RREF row.
+# The first set is the historical one; it is kept wherever it is generic,
+# so the vectors (and every table built from them) do not move.  It is not
+# safe everywhere: 0.4142.../sqrt(2) == 0.2928..., so the rows (1,1,0)/sqrt2
+# and (0,0,1) give 0.2929 (1,1,1).
+_LEGACY_MAGNITUDES = [
+    1.0, 0.6180339887, 0.4142135624, 0.2928932188,
+    0.2360679775, 0.1926, 0.1573, 0.1235,
+    0.1044, 0.0862, 0.0715, 0.0593,
+] + [0.05 * float(np.exp(-0.4811 * j)) for j in range(12)]
+
+
+def _generic_magnitude_sets(count: int):
+    """Magnitude sets tried, in order, for a representative of ``count``
+    free parameters: the legacy set (when long enough), then
+    ``1 / (1 + j / x)`` for transcendental ``x`` (pi, e, 1/ln 2, pi^2).
+    The fallbacks have no algebraic relation among themselves (distinct
+    poles in ``x``), so no ratio or signed sum of them can match the
+    algebraic coefficients of the rows and matrices exactly; they stay
+    above 0.02 for up to 48 parameters, well clear of the 1e-6 tolerance."""
+    if count <= len(_LEGACY_MAGNITUDES):
+        yield _LEGACY_MAGNITUDES[:count]
+    for x in (np.pi, np.e, 1.0 / np.log(2.0), np.pi**2):
+        yield [1.0 / (1.0 + j / x) for j in range(count)]
+
+
 def _orth_basis(projector: np.ndarray) -> np.ndarray:
     values, vectors = np.linalg.eigh((projector + projector.T.conj()) / 2)
     return np.real_if_close(vectors[:, values > 0.5])
+
+
+def _orth_columns(basis: np.ndarray) -> np.ndarray:
+    """Orthonormal basis of the column span (SVD, tolerance 1e-8)."""
+    if basis.shape[1] == 0:
+        return basis
+    u, sing, _ = np.linalg.svd(basis, full_matrices=False)
+    return u[:, sing > 1e-8]
+
+
+def _pairwise_closure_order(bases: list[np.ndarray], n_seeds: int) -> list[int]:
+    """The order in which the pairwise closure discovers the subspaces.
+
+    ``bases`` is the complete intersection closure (orthonormal columns),
+    with the seeds first.  The original enumerator added, round by round,
+    the intersection of every frontier subspace with every subspace seen
+    so far (in insertion order); its insertion order fixes the order and
+    the representative choice of the strata.  The closure is a lattice
+    under intersection, so the meet of two members is the largest member
+    contained in both: with ``down[p]`` the bit set of the members
+    contained in ``p`` (bits sorted by decreasing dimension), the meet is
+    the lowest set bit of ``down[p] & down[q]``, which replays the
+    original loop without a single SVD.
+
+    Returns:
+        The indices of ``bases`` in discovery order.
+    """
+    m = len(bases)
+    dims = np.array([basis.shape[1] for basis in bases])
+    flat = np.array([(basis @ basis.T).ravel() for basis in bases])
+    # u is contained in p  <=>  tr(P_u P_p) == dim u
+    contain = np.abs(dims[:, None] - flat @ flat.T) < 1e-6  # [u, p]
+    perm = np.argsort(-dims, kind="stable")
+    down = contain[perm, :].T  # [p, bit]
+    n_bits = ((m + 63) // 64) * 64
+    padded = np.zeros((m, n_bits), dtype=bool)
+    padded[:, :m] = down
+    words = np.ascontiguousarray(
+        np.packbits(padded, axis=1, bitorder="little")
+    ).view(np.uint64)
+    seen = list(range(n_seeds))
+    in_seen = np.zeros(m, dtype=bool)
+    in_seen[:n_seeds] = True
+    frontier = list(seen)
+    one = np.uint64(1)
+    while frontier:
+        new = []
+        for p in frontier:
+            meets = words[p][None, :] & words[np.array(seen)]
+            nonzero = meets != 0
+            found = nonzero.any(axis=1)
+            word_index = np.argmax(nonzero, axis=1)[found]
+            word = meets[np.nonzero(found)[0], word_index]
+            lowest = word & (~word + one)
+            _, exponent = np.frexp(lowest.astype(np.float64))
+            result = perm[word_index * 64 + exponent - 1]
+            result = result[~in_seen[result]]
+            if len(result):
+                _, first = np.unique(result, return_index=True)
+                for r in result[np.sort(first)]:
+                    in_seen[r] = True
+                    seen.append(int(r))
+                    new.append(int(r))
+        frontier = new
+    if len(seen) != m:  # the closure was not complete: keep the given order
+        return list(range(m))
+    return seen
 
 
 def _projector_key(projector: np.ndarray) -> bytes:
@@ -1458,6 +1895,15 @@ def format_subgroup_line(analyzer, label, info, size, index) -> str:
 def _direction_results(analyzer: IsotropyAnalyzer, letter_offset: int = 0):
     """(index, n_free, label, info, size) per direction type, sorted; for a
     coupled representation only the directions condensing every irrep."""
+    return [record[:5] for record in _direction_records(analyzer, letter_offset)]
+
+
+def _direction_records(analyzer: IsotropyAnalyzer, letter_offset: int = 0):
+    """The rows of ``_direction_results`` with the data behind them:
+    ``(index, n_free, label, info, size, extra)``, where ``extra`` holds the
+    ``projector`` and ``generic`` vector of the stratum, its exact
+    stabilizer ``members`` and the ``subgroup`` tuple of ``subgroup_of``
+    (``info, size, index, B, rotations, translations, lattice``)."""
     representation = analyzer.representation
     coupled = isinstance(representation, CoupledRepresentation)
     results = []
@@ -1474,14 +1920,21 @@ def _direction_results(analyzer: IsotropyAnalyzer, letter_offset: int = 0):
                 for j in range(len(representation.dims))
             ):
                 continue
+        cache = _rep_cache(representation, analyzer.elements)
         exact_members = [
-            (i, t)
-            for i, t, matrix in analyzer.elements
-            if np.allclose(matrix @ generic, generic, atol=1e-6)
+            (analyzer.elements[g][0], analyzer.elements[g][1])
+            for g in np.nonzero(cache.vector_stabilizer_mask(generic))[0]
         ]
-        info, size, index, B, *_ = analyzer.subgroup_of(exact_members)
+        subgroup = analyzer.subgroup_of(exact_members)
+        info, size, index = subgroup[:3]
         n_free = _orth_basis(projector).shape[1]
-        results.append((index, n_free, label, info, size))
+        extra = {
+            "projector": projector,
+            "generic": generic,
+            "members": exact_members,
+            "subgroup": subgroup,
+        }
+        results.append((index, n_free, label, info, size, extra))
     results.sort(key=lambda r: (r[1], r[0], r[3].number))
     return results
 
@@ -1734,26 +2187,93 @@ def _report_kpoint(parent: str, kpoint: list[str]) -> None:
     print("* Order parameter directions and isotropy subgroups *")
     _print_direction_table(results)
 
-    mapping = ISOTROPY_LABELS.get((algebra.sg_type.number, kname), {})
-    label_notes = [
-        f"crystod {irrep.name} = ISOTROPY {mapping[irrep.name]}"
-        for irrep in algebra.irreps_by_kname[kname]
-        if irrep.name in mapping
-    ]
-    if label_notes:
-        print()
-        print("note: the irrep labels at this k point differ between the ISO-IR")
-        print("data files (used by crystod) and the ISOTROPY/ISOSUBGROUP software:")
-        print(textwrap.fill(
-            f"{'; '.join(label_notes)} (see SUBGROUP/VALIDATION.md).",
-            width=70, break_long_words=False, break_on_hyphens=False,
-        ))
     _enantiomorph_note([info.number for _, _, _, info, _ in results])
     if errors:
         print()
         for label, reason in errors.items():
             print(f"note: {label}: not enumerated ({reason})")
     _print_citation()
+
+
+def _arm_join(piece, arm_chunks) -> str:
+    """Components joined the ISOTROPY way: ',' within an arm, ';' between."""
+    arms, start = [], 0
+    for size in arm_chunks:
+        arms.append(",".join(piece[start : start + size]))
+        start += size
+    return ";".join(arms)
+
+
+def _resolve_stratum(analyzer: IsotropyAnalyzer, tokens: list[str]):
+    """The isotropy subgroup of an ``--order-parameter`` direction:
+    ``(members, info, size, index, B, rotations, translations, lattice)``
+    with the exact stabilizer of the direction as ``members``."""
+    eta = analyzer.resolve_direction(tokens)
+    # the direction may be non-generic in its own fixed space; use the
+    # exact stabilizer of eta itself
+    members = [
+        (i, t)
+        for i, t, matrix in analyzer.elements
+        if np.allclose(matrix @ eta, eta, atol=1e-6)
+    ]
+    return (members, *analyzer.subgroup_of(members))
+
+
+def _print_secondary(analyzer: IsotropyAnalyzer, stratum, max_degree: int) -> None:
+    """The ``--secondary`` table of a resolved direction."""
+    from .secondary_order_parameter import analyze_secondary, format_secondary
+
+    import warnings
+
+    members, info, size, index, B, *_ = stratum
+
+    def show(message, category, *_args, **_kwargs):
+        print(f"WARNING: {message}", flush=True)
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("always", UserWarning)
+            warnings.showwarning = show
+            result = analyze_secondary(
+                analyzer.algebra, analyzer.representation, members, B, max_degree
+            )
+    except ValueError as exc:
+        raise SystemExit(
+            f"ERROR: secondary order parameters: {exc}; lower --degree."
+        ) from None
+    except RuntimeError as exc:
+        raise SystemExit(f"ERROR: secondary order parameters: {exc}") from exc
+    print(format_secondary(
+        result, f"H = {info.international_short} ({info.number}), index {index}",
+        max_degree,
+    ))
+
+
+def _protect_component_values(argv: list[str]) -> list[str]:
+    """Keep the --order-parameter components that start with '-' (-a,
+    -0.5a, -1/2) as values: argparse takes them for options, so a leading
+    space marks them (``_order_parameter_tokens`` strips it).  Every token
+    up to the next ``--option`` is a component."""
+    protected: list[str] = []
+    inside = False
+    for token in argv:
+        if token.startswith("--"):
+            name = token.split("=", 1)[0]
+            inside = len(name) > 3 and "--order-parameter".startswith(name)
+        elif inside and token.startswith("-"):
+            token = " " + token
+        protected.append(token)
+    return protected
+
+
+def _order_parameter_tokens(values: list[str]) -> list[str]:
+    """The components of --order-parameter: separate words, or one string
+    in any of the spellings of the tables ("a -a 0", "a;-a;0", "a,-a,0",
+    "(a;-a;0)") -- ';' and ',' separate components like spaces."""
+    text = " ".join(values)
+    for separator in "();,":
+        text = text.replace(separator, " ")
+    return text.split()
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -1781,11 +2301,58 @@ def main(argv: list[str] | None = None) -> None:
         "--order-parameter",
         nargs="+",
         default=None,
-        help='components, e.g. "0 0 a" or "a a 0" (symbols = free parameters).',
+        help='components, e.g. "0 0 a" or "a -a 0" (symbols = free parameters; '
+        'also one string "a -a 0", "a;-a;0" or "a,-a,0").',
     )
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--invariants",
+        action="store_true",
+        help="list the invariant polynomials of the irrep, or of the direct sum "
+        "of several irreps (Landau free-energy terms and coupling terms), up to "
+        "--degree, instead of the isotropy subgroups; with --order-parameter "
+        "also the free energy restricted to that direction.",
+    )
+    parser.add_argument(
+        "--secondary",
+        action="store_true",
+        help="with --order-parameter: list the secondary order parameters "
+        "(irreps with a component fixed by the isotropy subgroup).",
+    )
+    parser.add_argument(
+        "--degree",
+        type=int,
+        default=None,
+        help="highest degree of the invariant polynomials and of the coupling "
+        "terms of --secondary (default 4).",
+    )
+    if argv is None:
+        import sys
+
+        argv = sys.argv[1:]
+    args = parser.parse_args(_protect_component_values(list(argv)))
     if args.kpoint and args.order_parameter:
         parser.error("--order-parameter needs --irrep; it is not used with --kpoint.")
+    if args.degree is not None and not (args.invariants or args.secondary):
+        parser.error("--degree is only used with --invariants or --secondary.")
+    if args.invariants and args.kpoint:
+        parser.error("--invariants needs --irrep; it is not used with --kpoint.")
+    if args.secondary:
+        if args.kpoint:
+            parser.error("--secondary needs --irrep and --order-parameter; it is not "
+                         "used with --kpoint.")
+        if not args.order_parameter:
+            parser.error("--secondary requires --order-parameter (the direction "
+                         "whose isotropy subgroup is analyzed).")
+    if args.invariants or args.secondary:
+        if args.degree is None:
+            args.degree = 4
+        if not 1 <= args.degree <= 12:
+            parser.error("--degree must be between 1 and 12.")
+        if args.secondary and args.degree < 2:
+            parser.error("--secondary needs --degree 2 or higher (a coupling term "
+                         "has degree >= 2).")
+    if args.order_parameter:
+        args.order_parameter = _order_parameter_tokens(args.order_parameter)
 
     import spglib
 
@@ -1811,6 +2378,11 @@ def main(argv: list[str] | None = None) -> None:
     print("* Supergroup *")
     print(f"{algebra.sg_type.international_short} (No. {algebra.sg_type.number})")
     print()
+    # The Landau/Lifshitz lines belong to the free-energy modes only.
+    extended = bool(
+        args.invariants or args.order_parameter or args.secondary
+        or args.degree is not None
+    )
     print("* Irrep *" if not coupled else "* Coupled irreps *")
     for part in parts:
         if part.doubled:
@@ -1825,57 +2397,80 @@ def main(argv: list[str] | None = None) -> None:
         else:
             star_note = ""
         print(f"{part.label}: order parameter dimension {part.dimension}{star_note}")
+        if extended:
+            from .invariants import landau_lifshitz_lines, landau_lifshitz_of_elements
+
+            record = landau_lifshitz_of_elements(part.elements, algebra.rotations)
+            for line in landau_lifshitz_lines(record):
+                print(f"  {line}")
     if coupled:
         print(
             f"coupled order parameter dimension {representation.dimension} "
             f"({' + '.join(str(d) for d in representation.dims)})"
         )
-    label_notes = []
-    for part in parts:
-        mapping = ISOTROPY_LABELS.get((algebra.sg_type.number, part.irrep.kpname))
-        if mapping and part.irrep.name in mapping:
-            label_notes.append(
-                f"crystod {part.irrep.name} = ISOTROPY {mapping[part.irrep.name]}"
-            )
-    if label_notes:
-        print()
-        print("note: the irrep labels at this k point differ between the ISO-IR")
-        print("data files (used by crystod) and the ISOTROPY/ISOSUBGROUP software:")
-        print(f"{'; '.join(label_notes)} (see SUBGROUP/VALIDATION.md).")
     print()
 
+    stratum = None
     if args.order_parameter:
-        eta = analyzer.resolve_direction(args.order_parameter)
-        projector = _projector(eta[:, None])
-        members = analyzer.stabilizer_of(projector)
-        # the direction may be non-generic in its own fixed space; use the
-        # exact stabilizer of eta itself
-        members = [
-            (i, t)
-            for i, t, matrix in analyzer.elements
-            if np.allclose(matrix @ eta, eta, atol=1e-6)
-        ]
-        info, size, index, B, rotations, translations, lattice = analyzer.subgroup_of(members)
-        def arm_join(piece, arm_chunks):
-            arms, start = [], 0
-            for size in arm_chunks:
-                arms.append(",".join(piece[start : start + size]))
-                start += size
-            return ";".join(arms)
-
+        stratum = _resolve_stratum(analyzer, args.order_parameter)
         if coupled:
             chunks, start = [], 0
             for part in parts:
                 piece = args.order_parameter[start : start + part.dimension]
-                chunks.append(f"{part.label}({arm_join(piece, part.arm_chunks)})")
+                chunks.append(f"{part.label}({_arm_join(piece, part.arm_chunks)})")
                 start += part.dimension
             direction = " ".join(chunks)
             header = direction
         else:
             direction = (
-                "(" + arm_join(args.order_parameter, representation.arm_chunks) + ")"
+                "(" + _arm_join(args.order_parameter, representation.arm_chunks) + ")"
             )
             header = f"{irrep_name}{direction}"
+
+    if args.invariants:
+        from .invariants import (
+            INVARIANTS_CITATION,
+            MONOMIAL_WARNING,
+            check_monomial_count,
+            format_invariants,
+            format_restricted,
+            invariants_of_representation,
+            restricted_invariants,
+        )
+
+        try:
+            largest = check_monomial_count([part.dimension for part in parts], args.degree)
+        except ValueError as exc:
+            raise SystemExit(f"ERROR: {str(exc).removesuffix('; lower the degree.')}; "
+                             "lower --degree.") from None
+        if largest > MONOMIAL_WARNING:
+            print(f"WARNING: {largest} monomials in one (multi)degree; this may "
+                  "take long (lower it with --degree).")
+        import warnings
+
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                basis = invariants_of_representation(algebra, representation, args.degree)
+        except RuntimeError as exc:
+            raise SystemExit(f"ERROR: invariant polynomials of {irrep_name}: {exc}") from exc
+        print(format_invariants(basis))
+        if stratum is not None:
+            info = stratum[1]
+            print()
+            print(format_restricted(
+                restricted_invariants(basis, args.order_parameter),
+                f"{direction} [{info.international_short} ({info.number})]",
+            ))
+        if args.secondary:
+            print()
+            _print_secondary(analyzer, stratum, args.degree)
+        print()
+        print(INVARIANTS_CITATION)
+        return
+
+    if args.order_parameter:
+        members, info, size, index, B, rotations, translations, lattice = stratum
         print("* Isotropy subgroup *")
         print(f"{header} -> {info.international_short} (No. {info.number})")
         print(f"cell size {size}, index {index}")
@@ -1891,6 +2486,9 @@ def main(argv: list[str] | None = None) -> None:
             print(f"conventional basis (parent conventional units): {rows}")
             print(f"origin: {origin_text}")
         _enantiomorph_note([info.number])
+        if args.secondary:
+            print()
+            _print_secondary(analyzer, stratum, args.degree)
     else:
         if coupled:
             offset = 0

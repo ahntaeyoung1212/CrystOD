@@ -18,10 +18,13 @@ multiplied by the translation phase exp(+2*pi*i k.t) [ISO-IR convention;
 note spgrep uses exp(-2*pi*i k.t), so spgrep characters are matched
 against the COMPLEX CONJUGATE of the ISO-IR characters].
 
-Used as a labeling fallback for k points that are absent from the
-Bilbao-convention `irreptables` character tables (which contain only the
-maximal k points).  The resulting labels follow the Miller-Love /
-ISOTROPY convention (e.g. T1..T5, DT5, LD3, GP1).
+Every irrep label CrystOD prints comes from these tables (special points,
+lines, planes and the general point).  The labels follow the Miller-Love /
+ISOTROPY convention (e.g. T1..T5, DT5, LD3, GP1); a k point whose star is
+the -k partner of a tabulated one (PA of I-4; the star at the negative
+parameter of a polar line) is named as the ISOTROPY software names it, with
+the complex conjugate irreps (PA1 = conj P1, LE1 = conj LD1; see
+``minus_k_type``).
 
 Data location: the gzip-compressed table ``CIR_data.txt.gz`` is bundled
 inside the crystod package directory itself.  The lookup order is the
@@ -72,6 +75,71 @@ _CENTERING_TRANSLATIONS = {
 }
 
 _KTYPE_RE = re.compile(r"^([A-Z]+)")
+
+
+# In a group without inversion the star of -k can differ from the star of k.
+# ISO-IR tabulates one of the two; the ISOTROPY software names the other by
+# its own letters in the physically irreducible labels (LD1LE1, DT6DU6,
+# GP1GQ1, P1PA1, P1PC1 in its data file data_little.txt): the next letter
+# for LD, DT, SM and GP, the suffix A otherwise, and the suffix C for the
+# types below.  Over all 230 groups these names exist exactly for the k
+# types whose -k lies outside the star (4141 types checked).
+_MINUS_K_LETTERS = {"LD": "LE", "DT": "DU", "SM": "SN", "GP": "GQ"}
+_MINUS_K_EXCEPTIONS = {
+    143: {"P": "PC", "B": "BC", "C": "CC", "D": "DC", "E": "EC"},
+    144: {"P": "PC", "B": "BC", "C": "CC", "D": "DC", "E": "EC"},
+    145: {"P": "PC", "B": "BC", "C": "CC", "D": "DC", "E": "EC"},
+    156: {"D": "DC"},
+    157: {"P": "PC", "C": "CC"},
+    158: {"D": "DC"},
+    159: {"P": "PC", "C": "CC"},
+    174: {"B": "BC", "E": "EC"},
+}
+
+
+def minus_k_type(ktype: str, sgnum: Optional[int] = None) -> str:
+    """ISOTROPY's name of the -k partner of a k-vector type (``P`` ->
+    ``PA``, ``LD`` -> ``LE``, ``P`` -> ``PC`` in P3).
+
+    Meaningful only for a type whose -k lies outside its star; for another
+    type the name returned may be a tabulated type of its own (``ZA`` of
+    P23), and the callers never ask for it."""
+    if sgnum is not None:
+        special = _MINUS_K_EXCEPTIONS.get(int(sgnum), {}).get(ktype)
+        if special is not None:
+            return special
+    return _MINUS_K_LETTERS.get(ktype, ktype + "A")
+
+
+def minus_k_label(label: str, sgnum: Optional[int] = None) -> str:
+    """Name of the -k partner of a k-vector type or irrep: ISOTROPY's
+    partner letters on the type (``P1`` -> ``PA1``, ``DT6`` -> ``DU6``).
+    The partner irrep with that name is the complex conjugate of the
+    tabulated one."""
+    return _KTYPE_RE.sub(lambda match: minus_k_type(match.group(1), sgnum), label)
+
+
+def minus_k_base(label: str, sgnum: int) -> Optional[str]:
+    """The tabulated label whose -k partner ``label`` names (``LE1`` ->
+    ``LD1``), or None when ``label`` is not such a name in this group."""
+    match = _KTYPE_RE.match(label)
+    if match is None:
+        return None
+    prefix = match.group(1)
+    types = {ir.ktype for ir in load_isoir_irreps(int(sgnum), "cir")}
+    if prefix in types:
+        return None
+    for ktype in sorted(types):
+        if minus_k_type(ktype, sgnum) == prefix:
+            return ktype + label[len(prefix):]
+    return None
+
+
+def _parameter_key(params) -> tuple:
+    """Order of line or plane parameters: the canonical value is the
+    smallest, the positive one first among values of equal size."""
+    q = np.round(np.asarray(params, dtype=float), 7) + 0.0
+    return (round(float(q @ q), 12), tuple(-q))
 
 
 @dataclass
@@ -132,57 +200,88 @@ class IsoIrrep:
                 )
         return k
 
+    def _arm_parametrization(self, arm: int):
+        """``(const, parameter indices, A, pinv(A))`` of an arm, with
+        ``arm_k(arm, params) = const + A @ params[indices]``; ``A`` is None
+        for a special point."""
+        cache = self.__dict__.setdefault("_arm_cache", {})
+        if arm not in cache:
+            kv = self.kvecs[arm]
+            const = np.array([kv[0][j] / kv[0][3] for j in range(3)], dtype=float)
+            index, columns = [], []
+            for p in range(3):
+                c = kv[p + 1]
+                if c[3] != 0 and any(c[j] != 0 for j in range(3)):
+                    index.append(p)
+                    columns.append([c[j] / c[3] for j in range(3)])
+            if columns:
+                A = np.array(columns, dtype=float).T
+                cache[arm] = (const, index, A, np.linalg.pinv(A))
+            else:
+                cache[arm] = (const, index, None, None)
+        return cache[arm]
+
     def match_k(self, k, atol: float = 1e-6) -> Optional[tuple[int, np.ndarray]]:
         """Find (arm, params) with arm_k(arm, params) == k modulo the
         reciprocal lattice of the (possibly centered) crystal lattice.
 
-        `k` is in conventional fractional reciprocal coordinates.  Offsets
-        G are tried in order of increasing norm so that, when possible,
-        the parameters describe `k` itself rather than a translated copy
-        (the small-irrep phases are only correct for the untranslated
-        parametrization in non-symmorphic groups).
+        `k` is in conventional fractional reciprocal coordinates.
+
+        On a line or plane the same k is reached with several parameter
+        values: through another arm (``(0,-1/2,0)`` is the arm ``(0,a,0)`` at
+        ``a = -1/2`` and the arm ``(0,-a,0)`` at ``a = 1/2``) and through a
+        reciprocal lattice vector.  The irrep an ISO-IR label names depends
+        on the parameter value (DT3 at ``-a`` is DT4 at ``a`` in F-43m), so
+        one value has to be singled out.  The parameters returned are the
+        smallest ones, and among those of equal size the positive ones
+        (the largest in lexicographic order).  The choice is a property of
+        the star: every arm of one star gets the same parameters, and k and
+        k + G do as well, so that a label does not depend on which arm or
+        which copy of k the caller works with.
         """
         k = np.asarray(k, dtype=float)
-        offsets = sorted(
-            (
-                (gx, gy, gz)
-                for gx in range(-2, 3)
-                for gy in range(-2, 3)
-                for gz in range(-2, 3)
-            ),
-            key=lambda g: abs(g[0]) + abs(g[1]) + abs(g[2]),
-        )
+        best = None
         for arm in range(self.narms):
-            kv = self.kvecs[arm]
-            const = np.array([kv[0][j] / kv[0][3] for j in range(3)])
-            cols = []
-            for p in range(3):
-                c = kv[p + 1]
-                if c[3] != 0 and any(c[j] != 0 for j in range(3)):
-                    cols.append((p, np.array([c[j] / c[3] for j in range(3)])))
-            A = np.column_stack([c for _, c in cols]) if cols else None
-            for gx, gy, gz in offsets:
-                G = np.array([gx, gy, gz], dtype=float)
-                if not _is_reciprocal_lattice_vector(G, self.centering):
-                    continue
-                rhs = k + G - const
-                if A is None:
-                    if np.allclose(rhs, 0, atol=atol):
-                        return arm, np.zeros(3)
-                    continue
-                sol = np.linalg.lstsq(A, rhs, rcond=None)[0]
-                if np.allclose(A @ sol - rhs, 0, atol=atol):
-                    params = np.zeros(3)
-                    for (p, _), v in zip(cols, sol):
-                        params[p] = v
-                    return arm, params
-        return None
+            const, index, A, A_pinv = self._arm_parametrization(arm)
+            d = k - const
+            if A is None:
+                n = np.rint(d)
+                if np.all(np.abs(d - n) <= atol) and _is_reciprocal_lattice_vector(
+                    n, self.centering
+                ):
+                    return arm, np.zeros(3)
+                continue
+            # A p = d + G for a reciprocal lattice vector G near -d
+            offsets = _reciprocal_offsets_near(self.centering, -np.rint(d))
+            rhs = d + offsets
+            sols = rhs @ A_pinv.T
+            hits = np.all(np.abs(sols @ A.T - rhs) <= atol, axis=1)
+            for sol in sols[hits]:
+                params = np.zeros(3)
+                params[index] = sol
+                key = _parameter_key(params)
+                if best is None or key < best[0]:
+                    best = (key, arm, params)
+        if best is None:
+            return None
+        return best[1], best[2]
 
     def find_operator(self, rotation) -> Optional[int]:
-        for i in range(self.opcount):
-            if np.array_equal(self.rotations[i], rotation):
-                return i
-        return None
+        index = self.__dict__.get("_operator_index")
+        if index is None:
+            index = {}
+            for i in range(self.opcount):
+                index.setdefault(
+                    tuple(int(v) for v in np.asarray(self.rotations[i]).ravel()), i
+                )
+            self.__dict__["_operator_index"] = index
+        rotation = np.asarray(rotation)
+        if rotation.shape != (3, 3):
+            return None
+        try:
+            return index.get(tuple(int(v) for v in rotation.ravel()))
+        except (TypeError, ValueError):
+            return None
 
     def small_character(self, rotation, translation, arm: int, params) -> complex:
         """Character of the small representation at the given arm/params for
@@ -217,6 +316,23 @@ class IsoIrrep:
         if not np.allclose(d, di, atol=1e-6):
             return False
         return _is_reciprocal_lattice_vector(di, self.centering)
+
+
+_INTEGER_BOX = np.array(
+    [(gx, gy, gz) for gx in range(-3, 4) for gy in range(-3, 4) for gz in range(-3, 4)],
+    dtype=float,
+)
+
+
+def _reciprocal_offsets_near(centering: str, base) -> np.ndarray:
+    """Reciprocal lattice vectors of the centered lattice (conventional
+    reciprocal basis) within three units of the integer vector ``base``."""
+    offsets = np.asarray(base, dtype=float) + _INTEGER_BOX
+    keep = np.ones(len(offsets), dtype=bool)
+    for t in _CENTERING_TRANSLATIONS[centering]:
+        s = offsets @ np.asarray(t, dtype=float)
+        keep &= np.abs(s - np.rint(s)) < 1e-9
+    return offsets[keep]
 
 
 def _is_reciprocal_lattice_vector(G, centering: str) -> bool:
@@ -589,11 +705,14 @@ class IsoIRLabeler:
             conv.append((R_c, t_c))
         return conv
 
-    def kpoint_name(self, k_primitive) -> Optional[str]:
+    def kpoint_name(self, k_primitive, minus_k: bool = True) -> Optional[str]:
         """Most specific ISO-IR k-vector type label containing a k point.
 
         Args:
             k_primitive: k vector in the primitive reciprocal basis.
+            minus_k: Name a point whose -k partner is tabulated more
+                specifically by the partner's name (``"PA"``, see
+                ``minus_k_type``).
 
         Returns:
             The type label with the fewest free parameters, e.g. ``"T"``
@@ -601,12 +720,49 @@ class IsoIRLabeler:
             matches.
         """
         k_conv = self.conventional_k(k_primitive)
-        best = None
-        for ir in self.irreps:
-            if ir.match_k(k_conv) is not None:
-                if best is None or ir.num_free_params < best.num_free_params:
-                    best = ir
-        return best.ktype if best is not None else None
+        best = self._most_specific_type(k_conv)
+        if minus_k:
+            # a point of a -k star that is not tabulated (PA of I-4) lies on
+            # a tabulated line; the point itself is the partner of the
+            # tabulated one
+            partner = self._most_specific_type(-k_conv)
+            if partner is not None and (best is None or partner[0] < best[0]):
+                return minus_k_type(partner[1], self.sgnum)
+        return best[1] if best is not None else None
+
+    def _most_specific_type(self, k_conv):
+        """``(number of free parameters, k-type)`` of the most specific
+        tabulated k-vector type containing k (the partner name on the -k
+        side of a line or plane, see ``_minus_side``), or None."""
+        families = self._matched_families(k_conv)
+        if not families:
+            return None
+        ktype, family = families[0]
+        if self._minus_side(ktype, family, k_conv) is not None:
+            ktype = minus_k_type(ktype, self.sgnum)
+        return family[0][0].num_free_params, ktype
+
+    def _minus_side(self, ktype, family, k_conv):
+        """The family at -k when k is the -k partner of the star there.
+
+        On a line, a plane or the general point whose -k lies outside the
+        star (a polar line such as LD of P4), k and -k are both on the
+        tabulated type, at parameters p and -p.  The star with the
+        canonical parameter (``_parameter_key``: the positive one) keeps the
+        tabulated name; the other one is its -k partner, named as ISOTROPY
+        names it (LE for LD, DU for DT; ``minus_k_type``) with the complex
+        conjugates of the tabulated irreps.  Returns None when k is on the
+        tabulated side or -k is in the star of k.
+        """
+        if family[0][0].num_free_params == 0:
+            return None
+        minus = dict(self._matched_families(-np.asarray(k_conv, dtype=float)))
+        minus_family = minus.get(ktype)
+        if minus_family is None or len(minus_family) != len(family):
+            return None
+        if not _parameter_key(minus_family[0][2]) < _parameter_key(family[0][2]):
+            return None
+        return minus_family
 
     # -- labeling ------------------------------------------------------------
     def label_characters(
@@ -616,6 +772,7 @@ class IsoIRLabeler:
         little_translations,
         spgrep_characters,
         atol: float = 1e-5,
+        minus_k: bool = True,
     ) -> Optional[tuple[dict[int, str], str]]:
         """Match spgrep small-irrep characters against the ISO-IR tables.
 
@@ -628,6 +785,14 @@ class IsoIRLabeler:
                 aligned with the little-group operations and computed with
                 the spgrep phase convention ``exp(-2 pi i k.t)``.
             atol: Tolerance of the character comparison.
+            minus_k: When k has no assignment, label it through -k: the
+                small irreps at k are the complex conjugates of those at
+                -k, and only one star of such a pair is tabulated (P of
+                I-4, not PA).  The labels then carry ISOTROPY's partner
+                name (``"PA1"`` is the conjugate of ``"P1"``).  The -k
+                partner of a line, plane or general point is named that
+                way in any case (``"LE1"`` for the conjugate of ``"LD1"``;
+                ``_minus_side``).
 
         Returns:
             ``({spgrep irrep index: ISO-IR label}, k-type label)``, e.g.
@@ -638,10 +803,31 @@ class IsoIRLabeler:
         conv_ops = self.conventional_operations(
             little_rotations, little_translations
         )
+        conjugates = [np.conj(chi) for chi in spgrep_characters]
         for ktype, family in self._matched_families(k_conv):
+            minus_family = self._minus_side(ktype, family, k_conv)
+            if minus_family is not None:
+                # the -k partner of the star at -k (LE of LD)
+                result = self._try_family(minus_family, conv_ops, conjugates, atol)
+                if result is not None:
+                    return (
+                        {m: minus_k_label(name, self.sgnum)
+                         for m, name in result.items()},
+                        minus_k_type(ktype, self.sgnum),
+                    )
+                continue
             result = self._try_family(family, conv_ops, spgrep_characters, atol)
             if result is not None:
                 return result, ktype
+        if minus_k:
+            for ktype, family in self._matched_families(-k_conv):
+                result = self._try_family(family, conv_ops, conjugates, atol)
+                if result is not None:
+                    return (
+                        {m: minus_k_label(name, self.sgnum)
+                         for m, name in result.items()},
+                        minus_k_type(ktype, self.sgnum),
+                    )
         return None
 
     def decompose_characters(
@@ -655,7 +841,8 @@ class IsoIRLabeler:
         """Decompose a reducible character vector into ISO-IR irreps.
 
         Used for phonopy band sets, whose characters can be reducible under
-        accidental degeneracy.
+        accidental degeneracy.  As in ``label_characters``, the -k partner
+        of a tabulated star gets ISOTROPY's partner names (PA1, LE1).
 
         Args:
             k_primitive: k vector in the primitive reciprocal basis.
@@ -720,19 +907,38 @@ class IsoIRLabeler:
                 break
         if e_index is None:
             return [None] * n_vectors
+        # k itself (the -k partner of the star at -k on a line, see
+        # label_characters), then -k with the conjugate characters
+        candidates = []
         for ktype, family in self._matched_families(k_conv):
+            minus_family = self._minus_side(ktype, family, k_conv)
+            if minus_family is None:
+                candidates.append((ktype, family, False))
+            else:
+                candidates.append((ktype, minus_family, True))
+        candidates += [
+            (ktype, family, True) for ktype, family in self._matched_families(-k_conv)
+        ]
+        for ktype, family, conjugate in candidates:
             iso_chars = self._family_characters_checked(family, conv_ops)
             if iso_chars is None:
                 continue
+            name = minus_k_type(ktype, self.sgnum) if conjugate else ktype
             results: list[Optional[tuple[list[tuple[str, int, int]], str]]] = []
             for reducible in character_vectors:
+                red = np.asarray(reducible, dtype=complex)
                 counts = self._decompose_against(
-                    family, iso_chars, np.asarray(reducible, dtype=complex),
+                    family, iso_chars, np.conj(red) if conjugate else red,
                     e_index, len(conv_ops), atol,
                 )
-                results.append((counts, ktype) if counts is not None else None)
-            # the family validity checks are vector-independent, so per-vector
-            # failures here are numerical; keep them as None entries
+                if counts is not None and conjugate:
+                    counts = [
+                        (minus_k_label(label, self.sgnum), n, dim)
+                        for label, n, dim in counts
+                    ]
+                results.append((counts, name) if counts is not None else None)
+            # the family validity checks are vector-independent, so
+            # per-vector failures here are numerical; keep them as None
             if any(result is not None for result in results):
                 return results
         return [None] * n_vectors
@@ -763,16 +969,28 @@ class IsoIRLabeler:
     def _matched_families(self, k_conv):
         """Candidate irreps whose star contains k, grouped by k-type and
         sorted most specific k type (fewest free parameters) first."""
-        families: dict[str, list[tuple[IsoIrrep, int, np.ndarray]]] = {}
-        for ir in self.irreps:
-            matched = ir.match_k(k_conv)
-            if matched is not None:
-                families.setdefault(ir.ktype, []).append(
-                    (ir, matched[0], matched[1])
-                )
-        return sorted(
-            families.items(), key=lambda item: item[1][0][0].num_free_params
-        )
+        # the search depends on the tables and on k only, and every band of
+        # every atom asks for the same few k points
+        key = (self.sgnum,) + tuple(np.round(np.asarray(k_conv, dtype=float), 10))
+        if key not in _FAMILY_CACHE:
+            if len(_FAMILY_CACHE) >= 4096:
+                _FAMILY_CACHE.clear()
+            families: dict[str, list[tuple[IsoIrrep, int, np.ndarray]]] = {}
+            by_type: dict = {}  # the irreps of one k type share their k vectors
+            for ir in self.irreps:
+                if ir.ktype not in by_type:
+                    by_type[ir.ktype] = (ir.kvecs, ir.match_k(k_conv))
+                kvecs, matched = by_type[ir.ktype]
+                if kvecs is not ir.kvecs and not np.array_equal(kvecs, ir.kvecs):
+                    matched = ir.match_k(k_conv)
+                if matched is not None:
+                    families.setdefault(ir.ktype, []).append(
+                        (ir, matched[0], matched[1])
+                    )
+            _FAMILY_CACHE[key] = sorted(
+                families.items(), key=lambda item: item[1][0][0].num_free_params
+            )
+        return _FAMILY_CACHE[key]
 
     def _family_characters_checked(self, family, conv_ops):
         """ISO-IR character vectors of a family, or None when the family does
@@ -830,27 +1048,502 @@ class IsoIRLabeler:
 # --------------------------------------------------------------- shared helpers
 
 _LABELER_CACHE: dict = {}
+_FAMILY_CACHE: dict = {}
+_NORMALIZER_CACHE: dict = {}
+_OPERATIONS_CACHE: dict = {}
 
 
-def get_cached_labeler(sgnum: int, cell, symprec: float = 1e-5):
-    """Cached IsoIRLabeler for a primitive cell, or None when unavailable.
+# ------------------------------------------------- the ISO-IR frame of a cell
+#
+# An irrep label is only defined relative to a description of the crystal in
+# the ISO-IR standard setting.  The setting leaves a choice: translating the
+# origin by an element of the Euclidean normalizer (Si on Wyckoff 8a or 8b of
+# Fd-3m, Sr or Ti at the origin of Pm-3m) is again a standard setting, and it
+# permutes labels at zone-boundary points (L1+ <-> L2-, R4+ <-> R5-).  spglib
+# returns one of these frames, and which one depends on the cell it is given,
+# so two commands working on different cells of one structure (phonopy's
+# primitive cell, the spglib-standardized primitive cell) would name one
+# irrep differently.  The frame is therefore fixed by these rules:
+#
+# 1. a cell that is already in the ISO-IR setting keeps its own axes and
+#    origin (the user's choice of setting is respected, including the sense
+#    of a polar axis); so does an n1 x n2 x n3 supercell of such a cell
+#    of any size (a non-diagonal supercell falls to rule 2);
+# 2. otherwise the frame is a property of the structure, not of the cell it
+#    came from.  The candidates are spglib's frame and its images under the
+#    Euclidean normalizer: a proper rotation W of the lattice that maps the
+#    group onto itself (the sixfold axis for P-6m2, the twofold axis that
+#    reverses the polar axis of P4), followed by a normalizer translation.
+#    Frames that keep the cell's own origin are preferred when there are
+#    any; among the candidates the one with the lexicographically smallest
+#    list of atomic positions is taken (coordinates compared by their
+#    cluster rank at 0.71, 0.071 and 0.0071 times the symmetry tolerance,
+#    _smallest_structure).  Along a polar axis the origin is free and carries
+#    no information; it is put on an atom of the species with the smallest
+#    atomic number, again by the smallest list;
+# 3. a working cell derived from an input cell (primitive reduction,
+#    standardization) inherits the frame of the input cell through the affine
+#    map between the two.
 
-    ``cell`` is a spglib tuple (lattice, scaled_positions, numbers) of the
-    primitive cell whose symmetry operations feed spgrep.  Returns None when
-    the ISO-IR data files are missing or standardization fails, so callers
-    can fall through to their existing generic labels.
+
+def _dataset_item(dataset, name):
+    return dataset[name] if isinstance(dataset, dict) else getattr(dataset, name)
+
+
+def _iso_table_entry(sgnum: int) -> IsoIrrep:
+    """The ISO-IR block listing every coset representative of the group."""
+    return max(load_isoir_irreps(sgnum, "cir"), key=lambda ir: ir.opcount)
+
+
+def _frame_is_valid(entry: IsoIrrep, rotations, translations, P, origin,
+                    atol: float) -> bool:
+    """Do the operations of a cell become the tabulated ISO-IR operations
+    under x_iso = P x + origin?"""
+    P = np.asarray(P, dtype=float)
+    try:
+        P_inv = np.linalg.inv(P)
+    except np.linalg.LinAlgError:
+        return False
+    found = set()
+    for R, t in zip(rotations, translations):
+        R_c = P @ np.asarray(R, dtype=float) @ P_inv
+        R_int = np.rint(R_c)
+        if not np.allclose(R_c, R_int, atol=1e-6):
+            return False
+        j = entry.find_operator(R_int.astype(int))
+        if j is None:
+            return False
+        t_c = P @ np.asarray(t, dtype=float) + (np.eye(3) - R_int) @ origin
+        if not _is_lattice_translation(
+            t_c - entry.translations[j], entry.centering, atol
+        ):
+            return False
+        found.add(j)
+    return len(found) == entry.opcount
+
+
+def _polar_axes(entry: IsoIrrep) -> np.ndarray:
+    """Conventional axes along which the origin is free: e_i is kept by
+    every rotation of the group (z of P4, x and z of Pm, all of P1)."""
+    identity = np.eye(3, dtype=int)
+    return np.array([
+        all(np.array_equal(np.asarray(R)[:, i], identity[:, i])
+            for R in entry.rotations)
+        for i in range(3)
+    ])
+
+
+def _normalizer_translations(sgnum: int, W=None) -> np.ndarray:
+    """Translations w (on the 1/24 grid, zero along the polar axes) for which
+    x -> W x + w maps the ISO-IR setting of a space group onto itself.
+
+    ``W`` is a rotation in the conventional basis (default: the identity,
+    which gives the origin shifts of the setting).  The result is empty when
+    W is not the linear part of a normalizer element."""
+    W = np.eye(3) if W is None else np.asarray(W, dtype=float)
+    key = (int(sgnum), np.round(W, 6).tobytes())
+    if key not in _NORMALIZER_CACHE:
+        entry = _iso_table_entry(sgnum)
+        polar = _polar_axes(entry)
+        axes = [np.zeros(1) if polar[i] else np.arange(24) / 24.0 for i in range(3)]
+        grid = np.array(np.meshgrid(*axes, indexing="ij")).reshape(3, -1).T
+        centerings = [np.zeros(3)] + [
+            np.array(v) for v in _CENTERING_TRANSLATIONS[entry.centering]
+        ]
+        W_inv = np.linalg.inv(W)
+        keep = np.ones(len(grid), dtype=bool)
+        for R, tau in zip(entry.rotations, entry.translations):
+            # {W|w} {R|tau} {W|w}^-1 = {W R W^-1 | W tau + (1 - W R W^-1) w}
+            image_R = W @ np.asarray(R, dtype=float) @ W_inv
+            image_int = np.rint(image_R)
+            j = (
+                entry.find_operator(image_int.astype(int))
+                if np.allclose(image_R, image_int, atol=1e-6) else None
+            )
+            if j is None:
+                keep[:] = False
+                break
+            image = (
+                W @ np.asarray(tau, dtype=float)
+                + grid @ (np.eye(3) - image_int).T
+                - entry.translations[j]
+            )
+            lattice = np.zeros(len(grid), dtype=bool)
+            for c in centerings:
+                d = image - c
+                lattice |= np.all(np.abs(d - np.rint(d)) < 1e-9, axis=1)
+            keep &= lattice
+        _NORMALIZER_CACHE[key] = grid[keep]
+    return _NORMALIZER_CACHE[key]
+
+
+def _lattice_rotations(P, lattice, centering: str, symprec: float) -> list:
+    """Proper rotations of the crystal lattice, in the conventional basis of
+    the frame ``x_iso = P x + o`` of a cell with the given lattice."""
+    import spglib
+
+    conventional = np.linalg.inv(np.asarray(P, dtype=float)).T @ np.asarray(
+        lattice, dtype=float
+    )
+    points = [np.zeros(3)] + [np.array(v) for v in _CENTERING_TRANSLATIONS[centering]]
+    symmetry = spglib.get_symmetry(
+        (conventional, points, [1] * len(points)), symprec=symprec
+    )
+    if symmetry is None:
+        return [np.eye(3)]
+    seen, result = set(), []
+    for R in _dataset_item(symmetry, "rotations"):
+        R = np.asarray(R, dtype=int)
+        if round(float(np.linalg.det(R))) != 1 or R.tobytes() in seen:
+            continue
+        seen.add(R.tobytes())
+        result.append(R.astype(float))
+    return result or [np.eye(3)]
+
+
+def _smallest_structure(frames, positions, numbers, centering: str,
+                        tolerance: float) -> int:
+    """Index of the frame in which the sorted list of atomic positions of the
+    conventional cell is the smallest (atoms of the species with the
+    smallest type number on the origin, then on low fractions; the type
+    numbers are atomic numbers in the CrystOD commands).
+
+    Coordinates closer than the tolerance count as equal: a coordinate is
+    replaced by the rank of its cluster among the coordinates of all frames,
+    so that the comparison does not depend on how a value such as 0.07465
+    happens to round.  Frames that tie are compared again at one tenth and
+    one hundredth of the level; frames that still tie describe the
+    structure identically within that tolerance.  The levels are 0.71 times
+    powers of ten of the tolerance: coordinates typed with a few decimals
+    differ by multiples of 1e-5, 1e-6, ..., and a level equal to such a gap
+    would leave the decision to floating-point noise."""
+    centerings = [np.zeros(3)] + [
+        np.array(v) for v in _CENTERING_TRANSLATIONS[centering]
+    ]
+    positions = np.asarray(positions, dtype=float)
+    species = np.tile(np.asarray(numbers, dtype=np.int64), len(centerings))
+    coordinates = []
+    for P, origin in frames:
+        x = positions @ np.asarray(P, dtype=float).T + origin
+        x = np.concatenate([x + c for c in centerings])
+        # the wrap at 1 uses the first level too: a gap of exactly one
+        # decimal unit between two atoms must not straddle it
+        coordinates.append(x - np.floor(x + 0.71 * tolerance))
+    alive = list(range(len(frames)))
+    for level in (0.71 * tolerance, 0.071 * tolerance, 0.0071 * tolerance):
+        if len(alive) == 1:
+            break
+        values = np.sort(np.concatenate([coordinates[i].ravel() for i in alive]))
+        rank = np.concatenate(
+            [[0], np.cumsum(np.diff(values) > level * (1.0 + 1e-9))]
+        )
+        keys = []
+        for i in alive:
+            index = rank[np.searchsorted(values, coordinates[i])]
+            rows = np.unique(np.column_stack([species, index]), axis=0)
+            keys.append(rows.ravel().tolist())
+        smallest = min(keys)
+        alive = [i for i, key in zip(alive, keys) if key == smallest]
+    return alive[0]
+
+
+def _cell_operations(sgnum: int, cell, symprec: float):
+    """``(rotations, translations, P, origin)``: every operation of the
+    crystal in the basis of the given cell, and spglib's frame
+    ``x_iso = P x + origin`` of the cell; None when spglib and the ISO-IR
+    table do not describe the same group.
+
+    spglib lists only the operations that keep the lattice of the cell, so a
+    supercell loses some (a 2x1x1 cell of a cubic crystal keeps 16 of the 48
+    rotations) and gains pure translations.  The list returned here is the
+    ISO-IR table carried back through spglib's frame instead; a rotation
+    need not be an integer matrix in the basis of a supercell.  The lattice
+    translations of the crystal come last, as operations with the identity
+    rotation, so that a frame is valid only when it also has the lattice of
+    the crystal."""
+    key = (int(sgnum), float(symprec)) + _cell_key(cell)
+    if key not in _OPERATIONS_CACHE:
+        if len(_OPERATIONS_CACHE) >= 64:
+            _OPERATIONS_CACHE.clear()
+        _OPERATIONS_CACHE[key] = _cell_operations_uncached(sgnum, cell, symprec)
+    return _OPERATIONS_CACHE[key]
+
+
+def _cell_operations_uncached(sgnum: int, cell, symprec: float):
+    import spglib
+
+    try:
+        dataset = spglib.get_symmetry_dataset(
+            cell, symprec=symprec, hall_number=iso_hall_number(sgnum)
+        )
+        symmetry = spglib.get_symmetry(cell, symprec=symprec)
+    except Exception:  # spglib raises its own SpglibError family
+        return None
+    if (
+        dataset is None or symmetry is None
+        or _dataset_item(dataset, "number") != sgnum
+    ):
+        return None
+    P = np.asarray(_dataset_item(dataset, "transformation_matrix"), dtype=float)
+    origin = np.asarray(_dataset_item(dataset, "origin_shift"), dtype=float)
+    entry = _iso_table_entry(sgnum)
+    atol = max(1e-4, 10.0 * float(symprec))
+    P_inv = np.linalg.inv(P)
+    # the operations spglib lists for the cell must be tabulated ones
+    for R, t in zip(
+        _dataset_item(symmetry, "rotations"), _dataset_item(symmetry, "translations")
+    ):
+        R_c = P @ np.asarray(R, dtype=float) @ P_inv
+        R_int = np.rint(R_c)
+        j = (
+            entry.find_operator(R_int.astype(int))
+            if np.allclose(R_c, R_int, atol=1e-6) else None
+        )
+        if j is None:
+            return None
+        t_c = P @ np.asarray(t, dtype=float) + (np.eye(3) - R_int) @ origin
+        if not _is_lattice_translation(
+            t_c - entry.translations[j], entry.centering, atol
+        ):
+            return None
+    rotations, translations = [], []
+    for R, t in zip(entry.rotations, entry.translations):
+        R = np.asarray(R, dtype=float)
+        rotations.append(P_inv @ R @ P)
+        translations.append(P_inv @ (R @ origin + np.asarray(t, dtype=float) - origin))
+    lattice_vectors = list(np.eye(3)) + [
+        np.array(v) for v in _CENTERING_TRANSLATIONS[entry.centering]
+    ]
+    for v in lattice_vectors:
+        rotations.append(np.eye(3))
+        translations.append(P_inv @ v)
+    return rotations, translations, P, origin
+
+
+def _frame_matches(entry: IsoIrrep, operations, P, origin, atol: float) -> bool:
+    """Is ``x_iso = P x + origin`` an ISO-IR frame of the crystal: the
+    tabulated operations on the lattice of the crystal (not a sublattice or
+    a superlattice of it)?"""
+    rotations, translations, P_spglib, _ = operations
+    try:
+        volume = abs(np.linalg.det(np.asarray(P, dtype=float) @ np.linalg.inv(P_spglib)))
+    except np.linalg.LinAlgError:
+        return False
+    if abs(volume - 1.0) > 1e-6:
+        return False
+    return _frame_is_valid(entry, rotations, translations, P, origin, atol)
+
+
+def canonical_iso_frame(sgnum: int, cell, symprec: float = 1e-5):
+    """The ISO-IR frame ``(P, origin_shift)`` of a cell, by rules 1 and 2.
+
+    Args:
+        sgnum: Space-group number (1-230).
+        cell: spglib tuple ``(lattice, scaled_positions, numbers)``.
+        symprec: Symmetry tolerance for spglib.
+
+    Returns:
+        ``(P, origin_shift)`` with ``x_iso = P x + origin_shift``, or
+        ``None`` when spglib or the ISO-IR data cannot provide a frame.
     """
     lattice, positions, numbers = cell
-    key = (
-        int(sgnum),
-        float(symprec),
+    operations = _cell_operations(sgnum, cell, symprec)
+    if operations is None:
+        return None
+    P, origin = operations[2], operations[3]
+    entry = _iso_table_entry(sgnum)
+    atol = max(1e-4, 10.0 * float(symprec))
+    zero = np.zeros(3)
+
+    # rule 1: the cell's own axes and origin, for a conventional cell, its
+    # primitive cell in the standard centring, or an n1 x n2 x n3 supercell
+    # of either.  n_i is read from the lattice: the i-th cell vector is n_i
+    # times a primitive lattice vector (the edges of both unit cells are
+    # primitive).
+    units = [np.eye(3)]
+    if entry.centering != "P":
+        from phonopy.structure.cells import get_primitive_matrix_by_centring
+
+        units.append(
+            np.array(get_primitive_matrix_by_centring(entry.centering), dtype=float)
+        )
+    content = np.linalg.inv(units[-1]) @ P  # columns: cell vectors, primitive basis
+    if np.allclose(content, np.rint(content), atol=1e-5):
+        multiples = np.gcd.reduce(np.abs(np.rint(content).astype(np.int64)), axis=0)
+        if np.all(multiples >= 1):
+            for unit in units:
+                P0 = unit @ np.diag(multiples.astype(float))
+                if _frame_matches(entry, operations, P0, zero, atol):
+                    return P0, zero
+
+    # rule 2: the images of spglib's frame under the Euclidean normalizer
+    lattice_rotations = _lattice_rotations(P, lattice, entry.centering, symprec)
+    candidates = [
+        (W @ P, zero) for W in lattice_rotations
+        if _frame_matches(entry, operations, W @ P, zero, atol)
+    ]
+    if not candidates:
+        # no frame keeps the cell's own origin; a rotation of the group
+        # itself gives an equivalent frame, so one W per coset is enough
+        group = {
+            tuple(int(v) for v in np.asarray(R).ravel()) for R in entry.rotations
+        }
+        cosets = []
+        for W in lattice_rotations:
+            if any(
+                tuple(int(v) for v in np.rint(W @ np.linalg.inv(V)).ravel()) in group
+                for V in cosets
+            ):
+                continue
+            shifts = _normalizer_translations(sgnum, W)
+            if len(shifts) == 0:
+                continue
+            cosets.append(W)
+            candidates.extend((W @ P, W @ origin + shift) for shift in shifts)
+    polar = _polar_axes(entry)
+    if polar.any():
+        # the free origin along the polar axes: on an atom of the species
+        # with the smallest type number (the atomic number in the CrystOD
+        # commands; any of its copies under the centring translations)
+        numbers = np.asarray(numbers)
+        lightest = np.asarray(positions, dtype=float)[numbers == numbers.min()]
+        centerings = [np.zeros(3)] + [
+            np.array(v) for v in _CENTERING_TRANSLATIONS[entry.centering]
+        ]
+        anchored = []
+        for P_c, origin_c in candidates:
+            seen = set()  # the atoms of a supercell repeat the same positions
+            for x in lightest @ P_c.T + origin_c:
+                for c in centerings:
+                    offset = (x + c)[polar]
+                    reduced = np.round(offset - np.floor(offset + 1e-7), 6)
+                    key = tuple(np.where(reduced >= 1.0, 0.0, reduced))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    shifted = np.array(origin_c, dtype=float)
+                    shifted[polar] -= offset
+                    anchored.append((P_c, shifted))
+        candidates = anchored
+    if candidates:
+        P_c, origin_c = candidates[_smallest_structure(
+            candidates, positions, numbers, entry.centering, float(symprec)
+        )]
+        if _frame_matches(entry, operations, P_c, origin_c, atol):
+            return P_c, origin_c - np.floor(origin_c + 1e-9)
+    return P, origin
+
+
+def _affine_map_between_cells(input_cell, work_cell, symprec: float):
+    """``(A, b)`` with ``x_input = A x_work + b`` for two cells of one
+    structure, or None.
+
+    Two relations are recognized: the working cell shares the Cartesian
+    frame and origin of the input cell (phonopy's primitive cell), or it is
+    the spglib standardization of the input cell (idealized frame, origin
+    shift).  The map is accepted only when it sends every atom of the working
+    cell onto an atom of the same species of the input cell."""
+    import spglib
+
+    L_in, X_in, Z_in = (np.asarray(a) for a in input_cell)
+    L_w, X_w, Z_w = (np.asarray(a) for a in work_cell)
+    L_in = L_in.astype(float)
+    L_w = L_w.astype(float)
+    tolerance = max(1e-3, 10.0 * float(symprec))  # Angstrom
+
+    def maps_onto(A, b) -> bool:
+        if not np.isfinite(A).all() or abs(np.linalg.det(A)) < 1e-8:
+            return False
+        for x, z in zip(X_w, Z_w):
+            image = A @ np.asarray(x, dtype=float) + b
+            same = X_in[Z_in == z]
+            if len(same) == 0:
+                return False
+            d = image - same
+            d = d - np.rint(d)
+            if np.min(np.linalg.norm(d @ L_in, axis=1)) > tolerance:
+                return False
+        return True
+
+    candidates = [((L_w @ np.linalg.inv(L_in)).T, np.zeros(3))]
+    try:
+        dataset = spglib.get_symmetry_dataset(input_cell, symprec=symprec)
+        T = np.asarray(_dataset_item(dataset, "transformation_matrix"), dtype=float)
+        shift = np.asarray(_dataset_item(dataset, "origin_shift"), dtype=float)
+        L_std = np.asarray(_dataset_item(dataset, "std_lattice"), dtype=float)
+        T_inv = np.linalg.inv(T)
+        candidates.append((T_inv @ (L_w @ np.linalg.inv(L_std)).T, -T_inv @ shift))
+    except Exception:
+        pass
+    for A, b in candidates:
+        if maps_onto(A, b):
+            return A, b
+    return None
+
+
+def iso_frame_for_derived_cell(sgnum: int, input_cell, work_cell,
+                               symprec: float = 1e-5):
+    """ISO-IR frame of a working cell inherited from its input cell (rule 3).
+
+    Returns ``(P, origin_shift)`` for the working cell, or ``None`` when the
+    relation between the two cells cannot be established or the inherited
+    frame does not reproduce the tabulated operations.
+    """
+    frame = canonical_iso_frame(sgnum, input_cell, symprec)
+    relation = _affine_map_between_cells(input_cell, work_cell, symprec)
+    if frame is None or relation is None:
+        return None
+    P_in, origin_in = frame
+    A, b = relation
+    P = P_in @ A
+    origin = P_in @ b + origin_in
+    operations = _cell_operations(sgnum, work_cell, symprec)
+    if operations is None or not _frame_matches(
+        _iso_table_entry(sgnum), operations, P, origin,
+        max(1e-4, 10.0 * float(symprec)),
+    ):
+        return None
+    return P, origin
+
+
+def _cell_key(cell) -> tuple:
+    lattice, positions, numbers = cell
+    return (
         np.asarray(lattice, dtype=float).round(10).tobytes(),
         np.asarray(positions, dtype=float).round(10).tobytes(),
         np.asarray(numbers, dtype=int).tobytes(),
     )
+
+
+def get_cached_labeler(sgnum: int, cell, symprec: float = 1e-5, input_cell=None):
+    """Cached IsoIRLabeler for a primitive cell, or None when unavailable.
+
+    ``cell`` is a spglib tuple (lattice, scaled_positions, numbers) of the
+    primitive cell whose symmetry operations feed spgrep.  ``input_cell`` is
+    the cell the user gave when ``cell`` was derived from it (primitive
+    reduction or standardization): the labels then refer to the ISO-IR frame
+    of the input cell, so every command names an irrep of one structure the
+    same way whatever cell it works on.  Returns None when the ISO-IR data
+    files are missing or standardization fails, so callers can fall through
+    to their existing generic labels.
+    """
+    key = (int(sgnum), float(symprec)) + _cell_key(cell)
+    if input_cell is not None:
+        key += _cell_key(input_cell)
     if key not in _LABELER_CACHE:
         try:
-            _LABELER_CACHE[key] = IsoIRLabeler(sgnum, cell=cell, symprec=symprec)
+            frame = None
+            if input_cell is not None:
+                frame = iso_frame_for_derived_cell(sgnum, input_cell, cell, symprec)
+            if frame is None:
+                frame = canonical_iso_frame(sgnum, cell, symprec)
+            if frame is None:
+                labeler = IsoIRLabeler(sgnum, cell=cell, symprec=symprec)
+            else:
+                labeler = IsoIRLabeler(
+                    sgnum, transformation_matrix=frame[0], origin_shift=frame[1]
+                )
+            _LABELER_CACHE[key] = labeler
         except Exception:
             _LABELER_CACHE[key] = None
     return _LABELER_CACHE[key]
@@ -864,6 +1557,8 @@ def get_isoir_label_map(
     little_rotations,
     little_translations,
     spgrep_characters,
+    input_cell=None,
+    minus_k: bool = True,
 ) -> Optional[tuple[dict[int, str], str]]:
     """Label spgrep small irreps at a k point with ISO-IR labels.
 
@@ -885,32 +1580,97 @@ def get_isoir_label_map(
         spgrep_characters: One character vector per spgrep irrep, aligned
             with the little-group operations (phase convention
             ``exp(-2 pi i k.t)``).
+        input_cell: The cell the user gave, when ``cell`` was derived from
+            it; the labels then refer to the ISO-IR frame of that cell (see
+            ``get_cached_labeler``).
+        minus_k: Label a k point without a tabulated star through its -k
+            partner, with ISOTROPY's partner names (see
+            ``IsoIRLabeler.label_characters``).
 
     Returns:
         ``({spgrep irrep index: label}, k-type label)`` such as
         ``({0: "Q1"}, "Q")``, or ``None`` when the ISO-IR data are
         unavailable or no consistent assignment exists.
     """
-    labeler = get_cached_labeler(sgnum, cell, symprec)
+    labeler = get_cached_labeler(sgnum, cell, symprec, input_cell)
     if labeler is None:
         return None
     try:
         return labeler.label_characters(
-            kpoint, little_rotations, little_translations, spgrep_characters
+            kpoint, little_rotations, little_translations, spgrep_characters,
+            minus_k=minus_k,
         )
     except Exception:
         return None
 
 
-def get_isoir_kpoint_name(sgnum: int, cell, symprec: float, kpoint) -> Optional[str]:
-    """Most specific ISO-IR k-vector type label for a k point, or None."""
-    labeler = get_cached_labeler(sgnum, cell, symprec)
+def get_isoir_kpoint_name(sgnum: int, cell, symprec: float, kpoint,
+                          input_cell=None, minus_k: bool = True) -> Optional[str]:
+    """Most specific ISO-IR k-vector type label for a k point, or None.
+
+    With ``minus_k``, a point whose -k partner is the tabulated one is named
+    by ISOTROPY's partner name (``"PA"``; ``minus_k_type``)."""
+    labeler = get_cached_labeler(sgnum, cell, symprec, input_cell)
     if labeler is None:
         return None
     try:
-        return labeler.kpoint_name(kpoint)
+        return labeler.kpoint_name(kpoint, minus_k=minus_k)
     except Exception:
         return None
+
+
+def special_points_in_frame(names, kpoints, labeler, canonical=None):
+    """The tabulated special points of a list, named in the frame of the
+    labels.
+
+    The lists of special points are built from the tables through spglib's
+    standardized basis, while the labels refer to the ISO-IR frame of the
+    input cell (``get_cached_labeler``).  The two differ by an element of
+    the normalizer when the input is not in the ISO-IR setting, and that
+    element can turn the tabulated point H into the -k partner of H or into
+    another tabulated point.  This returns the same list with every point
+    named by the labeller, and with a point that is the 'A' partner of a
+    tabulated type replaced by the tabulated point itself (-k), so that the
+    names in the list are the letters of the labels printed at each point.
+
+    Args:
+        names: k-point names of the list.
+        kpoints: Their coordinates in the primitive reciprocal basis.
+        labeler: The ``IsoIRLabeler`` of the cell, or ``None``.
+        canonical: Function applied to the coordinates of a replaced point
+            (the snapping convention of the caller); default: none.
+
+    Returns:
+        ``(names, kpoints)``; the input lists themselves when there is no
+        labeller or the renaming is not one-to-one.
+    """
+    if labeler is None:
+        return names, kpoints
+    tabulated = list(names)
+    new_names, new_points = [], []
+    for name, k in zip(names, kpoints):
+        try:
+            found = labeler.kpoint_name(k)
+        except Exception:
+            found = None
+        point = k
+        if found is None:
+            found = name
+        elif found not in tabulated:
+            partners = [
+                t for t in tabulated if minus_k_label(t, labeler.sgnum) == found
+            ]
+            if not partners:
+                return names, kpoints
+            found = partners[0]
+            point = [-float(v) + 0.0 for v in k]
+            if canonical is not None:
+                point = canonical(point)
+        new_names.append(found)
+        new_points.append(point)
+    if len(set(new_names)) != len(new_names):
+        return names, kpoints
+    return new_names, new_points
 
 
 def get_isoir_band_decomposition(
@@ -921,14 +1681,16 @@ def get_isoir_band_decomposition(
     little_rotations,
     little_translations,
     reducible_characters,
+    input_cell=None,
 ) -> Optional[tuple[list[tuple[str, int, int]], str]]:
     """Decompose one reducible character vector into ISO-IR irreps.
 
-    Fallback for phonopy band sets (whose characters can be reducible under
-    accidental degeneracy).  Returns ([(label, multiplicity, dim), ...],
-    k-type label) or None.  Never raises.
+    The labelling route of phonopy band sets (whose characters can be
+    reducible under accidental degeneracy); a k point tabulated only through
+    its -k partner gets 'A' labels, as in ``label_characters``.  Returns
+    ([(label, multiplicity, dim), ...], k-type label) or None.  Never raises.
     """
-    labeler = get_cached_labeler(sgnum, cell, symprec)
+    labeler = get_cached_labeler(sgnum, cell, symprec, input_cell)
     if labeler is None:
         return None
     try:
@@ -947,14 +1709,16 @@ def get_isoir_band_decompositions(
     little_rotations,
     little_translations,
     character_vectors,
+    input_cell=None,
 ) -> list[Optional[tuple[list[tuple[str, int, int]], str]]]:
     """Decompose several reducible character vectors at one k point.
 
     Batch version of get_isoir_band_decomposition: the candidate-family
-    search is done once for all vectors (phonopy band sets share the q).
-    Returns one entry per vector.  Never raises.
+    search is done once for all vectors (phonopy band sets share the q);
+    'A' labels at a k point tabulated only through -k as there.  Returns
+    one entry per vector.  Never raises.
     """
-    labeler = get_cached_labeler(sgnum, cell, symprec)
+    labeler = get_cached_labeler(sgnum, cell, symprec, input_cell)
     if labeler is None:
         return [None] * len(character_vectors)
     try:

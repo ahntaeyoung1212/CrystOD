@@ -133,7 +133,7 @@ def read_xdatcar(path: str) -> tuple[list[str], list[NDArray[np.float64]], NDArr
     Example:
         >>> from crystod import md
         >>> symbols, lattices, frames = md.read_xdatcar("XDATCAR")
-        >>> frames.shape          # example/30_xdatcar2adp: ScF3, 4x4x4 cell, NpT
+        >>> frames.shape          # example/38_xdatcar2adp: ScF3, 4x4x4 cell, NpT
         (4001, 256, 3)
         >>> symbols[0], symbols[-1], lattices[0].shape
         ('Sc', 'F', (3, 3))
@@ -402,13 +402,14 @@ def main(argv: list[str] | None = None) -> None:
     if supercell_size.shape != (3,):
         raise SystemExit('ERROR: --dim requires three integers, e.g. --dim "4 4 4".')
 
-    print(f"Supercell size : {supercell_size.tolist()}")
-    print(f"Start step     : {args.start_step}")
-    print(f"Input file     : {args.xdatcar}")
-    print(f"Output file    : {args.output}")
+    print("\n* Input *")
+    print(f"  Supercell size : {supercell_size.tolist()}")
+    print(f"  Start step     : {args.start_step}")
+    print(f"  Input file     : {args.xdatcar}")
+    print(f"  Output file    : {args.output}")
 
     # Step 1: read XDATCAR
-    print("\nReading XDATCAR... (this may take a while)")
+    print("  Reading XDATCAR... (this may take a while)")
     chem_formula, lattices, all_coordinates = read_xdatcar(args.xdatcar)
 
     if args.start_step >= len(all_coordinates):
@@ -422,7 +423,7 @@ def main(argv: list[str] | None = None) -> None:
     lattice_vec_unit = lattice_vec_super / supercell_size[:, np.newaxis]
 
     composition = Counter(chem_formula)
-    print("\nSupercell info:")
+    print("\n* Supercell info *")
     print(f"  atoms          : {n_atoms_super}")
     print(f"  composition    : {dict(composition)}")
     print(f"  analyzed steps : {n_steps}")
@@ -458,8 +459,8 @@ def main(argv: list[str] | None = None) -> None:
                 remaining_indices.remove(index)
         grouped_indices.append(group)
 
-    print(f"\nNumber of unit-cell sites (groups): {len(grouped_indices)}")
-    print(f"Expected replicas per group       : {int(np.prod(supercell_size))}")
+    print(f"  Number of unit-cell sites (groups): {len(grouped_indices)}")
+    print(f"  Expected replicas per group       : {int(np.prod(supercell_size))}")
 
     # Step 5: averaged unit-cell coordinate of each group
     group_unitcell_coords = []
@@ -491,13 +492,14 @@ def main(argv: list[str] | None = None) -> None:
     translations = np.array(dataset["translations"])
     equivalent_atoms = np.array(dataset["equivalent_atoms"])
 
-    print(f"\nSpace group: {spacegroup} (No. {spacegroup_number})")
-    print(f"Atoms in unit cell   : {len(group_unitcell_coords)}")
-    print(f"Symmetry operations  : {len(rotations)}")
+    print("\n* Time-averaged unit cell *")
+    print(f"  Space group: {spacegroup} (No. {spacegroup_number})")
+    print(f"  Atoms in unit cell   : {len(group_unitcell_coords)}")
+    print(f"  Symmetry operations  : {len(rotations)}")
 
     wyckoff_ids_sorted = sorted(set(equivalent_atoms))
     wyckoff_to_cif_index = {wid: i for i, wid in enumerate(wyckoff_ids_sorted)}
-    print(f"Asymmetric-unit sites: {len(wyckoff_ids_sorted)}")
+    print(f"  Asymmetric-unit sites: {len(wyckoff_ids_sorted)}")
 
     asym_sites = []
     for cif_index, wyckoff_id in enumerate(wyckoff_ids_sorted):
@@ -513,14 +515,14 @@ def main(argv: list[str] | None = None) -> None:
             }
         )
         print(
-            f"  {asym_sites[-1]['label']}: mult={multiplicity}, "
+            f"    {asym_sites[-1]['label']}: mult={multiplicity}, "
             f"coords=({coords[0]:.5f}, {coords[1]:.5f}, {coords[2]:.5f})"
         )
 
     # ADP constraints per Wyckoff position
     wyckoff_constraints = {}
     wyckoff_projectors = {}
-    print("\nADP constraints per Wyckoff position:")
+    print("\n* ADP constraints per Wyckoff position *")
     for wyckoff_id in wyckoff_ids_sorted:
         coords = group_unitcell_coords[wyckoff_id]
         site_operations = get_site_symmetry_operations(coords, rotations, translations, args.symprec)
@@ -551,7 +553,8 @@ def main(argv: list[str] | None = None) -> None:
             all_atom_group_ids.append(group_index)
     all_atom_cart_coords = np.array(all_atom_cart_coords)
     all_atom_group_ids = np.array(all_atom_group_ids)
-    print(f"\nCoordinate unwrapping done: {len(all_atom_cart_coords)} atoms x {n_steps} steps")
+    print("\n* Trajectory unwrapping *")
+    print(f"  Coordinate unwrapping done: {len(all_atom_cart_coords)} atoms x {n_steps} steps")
 
     # Step 10: map every atom onto its Wyckoff representative
     all_atom_wyckoff_ids = []
@@ -599,7 +602,8 @@ def main(argv: list[str] | None = None) -> None:
 
     # Step 12: ADP tensors
     wyckoff_averaged_u_cryst = {}
-    print(f"\n{'Site':<10} {'Ueq (A^2)':<12} {'Constraint':<35}")
+    print("\n* Atomic displacement parameters *")
+    print(f"{'Site':<10} {'Ueq (A^2)':<12} {'Constraint':<35}")
     print("-" * 60)
     for wyckoff_id in wyckoff_ids_sorted:
         displacements_all = wyckoff_displacements[wyckoff_id]
@@ -680,8 +684,8 @@ def main(argv: list[str] | None = None) -> None:
     with open(args.output, "w") as fp:
         fp.write("\n".join(cif))
 
-    print(f"\nSaved: {args.output}")
-    print(f"Asymmetric-unit sites: {len(wyckoff_ids_sorted)}")
+    print("\n* Output files *")
+    print(f"  Saved: {args.output}")
 
 
 if __name__ == "__main__":

@@ -522,6 +522,7 @@ def main(argv: list[str] | None = None) -> None:
                 cursor += len(segment)
         plot_lattice = input_lattice
         title = f"First Brillouin zone: {os.path.basename(args.poscar)}"
+        print("\n* Band path *")
         print(f"Manual band path with {len(segments)} segment(s).")
     else:
         segments, label_segments, primitive_lattice, sg_symbol, sg_number = get_seekpath_kpath(
@@ -530,13 +531,14 @@ def main(argv: list[str] | None = None) -> None:
         plot_lattice = primitive_lattice
         title = f"First Brillouin zone: {os.path.basename(args.poscar)} — {sg_symbol} (#{sg_number})"
 
+        print("\n* Structure *")
         print(f"Space group: {sg_symbol} (#{sg_number})")
         if not np.allclose(primitive_lattice, input_lattice, atol=1e-4):
             print(
                 "NOTE: the input cell differs from the seekpath standardized primitive cell;\n"
                 "      the BZ and k-path are drawn for the standardized primitive cell."
             )
-        print("\nRecommended k-path (seekpath):")
+        print("\n* Recommended k-path (seekpath) *")
         seen: set[str] = set()
         for labels, segment in zip(label_segments, segments):
             for label, coords in zip(labels, segment):
@@ -546,7 +548,7 @@ def main(argv: list[str] | None = None) -> None:
                         f"  {label:<8s} ({coords[0]: .4f}, {coords[1]: .4f}, {coords[2]: .4f})"
                     )
         path_text = "   ".join("-".join(labels) for labels in label_segments)
-        print(f"\nPath: {path_text}")
+        print(f"  Path: {path_text}")
 
     # Koiso convention: reciprocal lattice without the 2*pi factor.
     rec_lat = np.linalg.inv(plot_lattice).T
@@ -557,7 +559,8 @@ def main(argv: list[str] | None = None) -> None:
     if output is None:
         output = f"BZ_{os.path.basename(args.poscar)}.html"
     write_html(traces, output, title)
-    print(f"\nWrote Brillouin-zone visualization: {output}")
+    print("\n* Output files *")
+    print(f"  Wrote Brillouin-zone visualization: {output}")
 
 
 if __name__ == "__main__":

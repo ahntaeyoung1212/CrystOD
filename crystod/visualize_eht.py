@@ -34,6 +34,7 @@ from .visualize_pyscf import (
     _WINDOW_ABOVE_LUMO,
     _WINDOW_BELOW_HOMO,
     _canonical_split,
+    _quiet_orbital_basis,
 )
 
 # STO probe radii (bohr) for the drawn lobe signs, as in the PySCF viewer:
@@ -197,21 +198,22 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
     )
     described = ("crystal" if column == "mo"
                  else f"{diagram.formula[column]} sublattice")
-    print(f" * Extended-Hueckel levels for the SALC viewer: {described} "
-          f"(fragments {diagram.formula['left']} | {diagram.formula['right']}) *")
-    print("   full-electron STO basis, point charges "
+    print("\n* Extended-Hueckel levels *")
+    print(f"  SALC viewer levels: {described} "
+          f"(fragments {diagram.formula['left']} | {diagram.formula['right']})")
+    print("  full-electron STO basis, point charges "
           + " ".join(f"{element}{diagram.oxidation[element]:+g}"
                      for element in dict.fromkeys(diagram.symbols))
           + f", {int(diagram.electrons)} electrons per cell")
     # the same Hamiltonian --diagram warns about, so the same caution
-    print("   CAUTION: extended Hueckel is non-self-consistent -- the "
-          "symmetry (irrep labels,\n"
-          "   which states may mix) is rigorous, but the level ORDER can be "
-          "qualitatively\n"
-          "   wrong and takes the compositions with it; cross-check with "
-          "--visualize --pyscf\n"
-          "   wherever PySCF runs (see 'crystod --help' for --basis element "
-          "coverage).")
+    caution = ("  CAUTION: extended Hueckel is non-self-consistent -- the "
+               "symmetry (irrep labels,\n"
+               "  which states may mix) is rigorous, but the level ORDER can be "
+               "qualitatively\n"
+               "  wrong and takes the compositions with it; cross-check with "
+               "--visualize --pyscf\n"
+               "  wherever PySCF runs (see 'crystod --help' for --basis element "
+               "coverage).")
 
     kpoints = diagram.special_kpoints()
     records = []
@@ -220,7 +222,7 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
         records.append({"name": name, "kpoint": kpoint, "levels": levels})
     note = ("one shared extended-Hueckel Hamiltonian: fragment and "
             "crystal columns on one energy reference")
-    print(f"   {note}")
+    print(f"  {note}")
 
     # --valence-only: same criterion as the PySCF viewer (shells whose
     # occupied fragment bands sit >12 eV below the crystal VBM)
@@ -241,11 +243,12 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
                         deepest[key] = max(deepest.get(key, -1e30), lv.energy)
         semicore = {key for key, top in deepest.items() if top < vbm - 12.0}
         if semicore:
-            print("   --valence-only: semicore shells "
+            print("  --valence-only: semicore shells "
                   + ", ".join(f"{el} {sh}" for el, sh in sorted(semicore))
                   + " dropped from the drawings (kept in levels they dominate)")
         else:
-            print("   --valence-only: no semicore shells found")
+            print("  --valence-only: no semicore shells found")
+    print(caution)
 
     if kpoint_filter:
         wanted = [r for r in records if r["name"] == kpoint_filter]
@@ -286,9 +289,10 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
         energies = [lv.energy for lv in every]
         view_lo, view_hi = min(energies) - 1.0, max(energies) + 1.0
 
-    orbitals = SymmetryAdaptedOrbitalBasis(cell=cell, symprec=symprec)
+    orbitals = _quiet_orbital_basis(SymmetryAdaptedOrbitalBasis, cell, symprec)
     n_atoms = len(diagram.symbols)
     outputs = []
+    output_lines: list[str] = []
     for record in selected:
         name, kpoint = record["name"], record["kpoint"]
         # per-AO gauge transform into the viewer's atomic gauge (see
@@ -330,7 +334,7 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
                     "atoms": atoms,
                 })
         if not level_modes:
-            print(f"   {name}: no levels inside the window, skipped")
+            output_lines.append(f"{name}: no levels inside the window, skipped")
             continue
         info = {
             "formula": diagram.formula["left"] + diagram.formula["right"],
@@ -369,10 +373,12 @@ def report_and_write(cell, *, sublattice, bonds, real_coefficient,
             basis_heading="extended-Hueckel levels (click to show)",
         )
         outputs.append(page_path)
-        print(f"   {name}: {len(levels)} levels "
-              f"({len(level_modes)} partners) -> {page_path}")
+        output_lines.append(f"{name}: {len(levels)} levels "
+                            f"({len(level_modes)} partners) -> {page_path}")
     if outputs:
-        print("SALC viewer pages written: " + ", ".join(outputs))
+        print("\n* Output files *")
+        for line in output_lines:
+            print(f"  {line}")
     else:
         raise SystemExit(
             f"ERROR: no levels inside the energy window "

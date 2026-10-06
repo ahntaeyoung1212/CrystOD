@@ -486,21 +486,21 @@ def cif2poscar_main(argv: list[str] | None = None) -> None:
         output = args.cell[: -len(".cif")]
     else:
         output = f"{args.cell}_POSCAR"
-    if os.path.exists(output):
-        print(f"NOTE: overwriting existing {output}")
+    overwritten = os.path.exists(output)
     with open(output, "w") as handle:
         handle.write("\n".join(poscar_lines(lattice_matrix, positions, atomic_numbers)))
 
     cell_kind = "conventional" if args.conventional else "primitive"
     symbol = str(field("international")).replace("_", "")
-    print("\n* CIF -> POSCAR *")
+    print("\n* Structure *")
     print(f"input      : {args.cell}")
-    print(f"output     : {output}")
     print(
         f"space group: {symbol} (No. {int(field('number'))}), "
         f"tolerance {args.tolerance}"
     )
-    print(f"{cell_kind} cell, {len(atomic_numbers)} atoms\n")
+    print(f"{cell_kind} cell, {len(atomic_numbers)} atoms")
+    print("\n* Output files *")
+    print(f"  POSCAR written to: {output}" + (" (existing file overwritten)" if overwritten else ""))
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -519,28 +519,33 @@ def main(argv: list[str] | None = None) -> None:
         structure = Structure.from_file(args.cell)
     except Exception as exc:
         raise SystemExit(f"ERROR: could not read {args.cell} as a structure: {exc}")
+    # a POSCAR means the cell VASP reads from it (scale line, Cartesian coordinates)
+    from .vasp_io import poscar_structure
+
+    structure = poscar_structure(structure, args.cell)
 
     title = os.path.basename(args.cell)
     lines, info = bilbao_cif_lines(structure, args.tolerance, title)
 
     output = args.output or f"{args.cell}.cif"
-    if os.path.exists(output):
-        print(f"NOTE: overwriting existing {output}")
+    overwritten = os.path.exists(output)
     with open(output, "w") as handle:
         handle.write("\n".join(lines))
 
-    print("\n* POSCAR -> Bilbao-style CIF *")
+    print("\n* Structure *")
     print(f"input      : {args.cell}")
-    print(f"output     : {output}")
     print(
         f"space group: {info['symbol']} (No. {info['number']}), "
         f"tolerance {args.tolerance}"
     )
     print(
         f"{info['n_operations']} symmetry operations, "
-        f"{info['n_sites']} independent sites\n"
+        f"{info['n_sites']} independent sites"
     )
     _warn_if_symmetrized(structure, args.tolerance, info)
+    print("\n* Output files *")
+    print(f"  Bilbao-style CIF written to: {output}"
+          + (" (existing file overwritten)" if overwritten else ""))
 
 
 def _warn_if_symmetrized(structure, tolerance: float, info: dict) -> None:
@@ -579,7 +584,7 @@ def _warn_if_symmetrized(structure, tolerance: float, info: dict) -> None:
         f"{str(symbol).replace('_', '')} (No. {int(number)}). The CIF holds "
         "the SYMMETRIZED\n         structure, so any distortion below "
         f"{tolerance} A has been averaged away. Pass a\n"
-        "         smaller --tolerance to keep it.\n"
+        "         smaller --tolerance to keep it."
     )
 
 

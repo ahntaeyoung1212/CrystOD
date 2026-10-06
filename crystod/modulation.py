@@ -27,6 +27,7 @@ from .spglib_compat import ensure_spglib_compat
 ensure_spglib_compat()
 
 from .symmetry_adapted_modes import NonPrimitiveCellError, solve_symmetry_adapted_modes
+from .vasp_io import read_poscar_cell
 
 
 class MyHelpFormatter(
@@ -75,6 +76,13 @@ def build_parser() -> ArgumentParser:
         "--readfc",
         action="store_true",
         help="Read FORCE_CONSTANTS instead of FORCE_SETS.",
+    )
+    parser.add_argument(
+        "--nac",
+        action="store_true",
+        help="Apply the non-analytical term correction: BORN (next to the cell "
+        "file or in the current directory), or the NAC parameters of --yaml. "
+        "Without it neither is read.",
     )
     parser.add_argument(
         "--qpoint",
@@ -288,6 +296,7 @@ def load_phonon(
     cell_path: str | None = None,
     dim: str | list[int] | None = None,
     readfc: bool = False,
+    nac: bool = False,
 ) -> tuple[object, str, str]:
     """Build the phonopy object of a modulation run.
 
@@ -295,13 +304,20 @@ def load_phonon(
     next to FORCE_SETS/FORCE_CONSTANTS) is used. Returns the object, a short
     label naming the input files, and a note describing where the supercell
     came from -- which the caller prints, so that an inferred supercell is
-    never silent.
+    never silent. The non-analytical term correction is applied only with
+    ``nac`` (``--nac``): BORN in the current directory or next to the cell
+    file, or the NAC parameters of the yaml (else BORN); the note then says
+    so.
     """
+    from .phonon_irreps import check_nac_loaded, nac_load_options, yaml_nac_source
+
     if yaml_path is not None:
         path = Path(yaml_path)
         if not path.exists():
             raise SystemExit(f"ERROR: '{path}' does not exist.")
-        return phonopy.load(str(path)), str(path), ""
+        phonon = phonopy.load(str(path), **nac_load_options(nac, yaml=True))
+        source = yaml_nac_source(str(path)) if nac else ""
+        return phonon, str(path), check_nac_loaded(phonon, nac, source) or ""
 
     if cell_path is None:
         raise SystemExit("ERROR: either a phonopy yaml or a unit-cell file is required.")
@@ -309,6 +325,9 @@ def load_phonon(
     if not cell.exists():
         raise SystemExit(f"ERROR: '{cell}' does not exist.")
 
+    nac_options = nac_load_options(
+        nac, born_dirs=[".", str(cell.parent)] if cell.parent != Path(".") else ["."]
+    )
     force_name = "FORCE_CONSTANTS" if readfc else "FORCE_SETS"
     force_path = Path(force_name)
     if not force_path.exists() and cell.parent != Path("."):
@@ -349,9 +368,7 @@ def load_phonon(
                 note = f"Supercell {shape} read from {candidate}."
                 break
         if diagonal is None:
-            from phonopy.interface.vasp import read_vasp
-
-            unitcell = read_vasp(str(cell))
+            unitcell = read_poscar_cell(str(cell))
             n_unit = len(unitcell.scaled_positions)
             n_super = _supercell_atom_count(force_path, readfc)
             if not n_super or n_unit <= 0 or n_super % n_unit:
@@ -375,9 +392,10 @@ def load_phonon(
             # --subgroup --modulate prints --modulation commands that have to
             # reproduce its own structures exactly
             primitive_matrix="auto",
-            unitcell_filename=str(cell),
+            unitcell=read_poscar_cell(str(cell)),
             force_sets_filename=None if readfc else str(force_path),
             force_constants_filename=str(force_path) if readfc else None,
+            **nac_options,
         )
     except (ValueError, RuntimeError, IndexError, KeyError) as exc:
         # phonopy reports every one of these as a bare traceback, and the
@@ -408,6 +426,9 @@ def load_phonon(
         f"{len(phonon.unitcell)}-atom input cell (primitive_matrix auto)."
     )
     note = f"{note} {primitive_note}" if note else primitive_note
+    nac_note = check_nac_loaded(phonon, nac, nac_options.get("born_filename", "BORN"))
+    if nac_note:
+        note = f"{note}\n{nac_note}"
     return phonon, f"{cell} + {force_path.name}", note
 
 
@@ -491,7 +512,10 @@ class SymmetryAdaptedModulation:
 
     Args:
         yaml_path: A ``phonopy_params.yaml`` (``.xz`` accepted) to load the
-            phonopy object from; ignored when ``phonon`` is given.
+            phonopy object from, without the non-analytical term correction
+            (neither the yaml's NAC parameters nor a BORN file are read; pass
+            a ``phonon`` loaded with ``is_nac=True`` for NAC); ignored when
+            ``phonon`` is given.
         qpoint: Fractional coordinates of q in the reciprocal basis of
             ``phonon.primitive`` (required).
         symprec: Symmetry tolerance of the spglib/spgrep analysis.
@@ -564,7 +588,7 @@ class SymmetryAdaptedModulation:
         if phonon is None:
             if yaml_path is None:
                 raise ValueError("either yaml_path or phonon is required.")
-            phonon = phonopy.load(yaml_path)
+            phonon = phonopy.load(yaml_path, is_nac=False)
         self.phonon = phonon
 
         # One solver for --modulation and --vector: phonopy's dynamical matrix
@@ -620,10 +644,11 @@ class SymmetryAdaptedModulation:
     def get_q_label(self) -> str:
         """Short q label for file names.
 
-        The ISO-IR name (e.g. ``'X'``) when q lies in the star of a tabulated
-        special point; else the ISO-IR k-vector type of q (e.g. ``'DT'``); else
-        ``'q_<coordinates>'``, which is also used when ``keep_q_coords`` is
-        set. Computed once and cached.
+        The ISO-IR k-vector type of q in the frame of the labels: the name
+        of its star at a special point (e.g. ``'X'``), else the type of q
+        (e.g. ``'DT'``); else ``'q_<coordinates>'``. With ``keep_q_coords``
+        only a point in the star of a tabulated special point keeps its name,
+        any other q gets ``'q_<coordinates>'``. Computed once and cached.
 
         Returns:
             The label string.
@@ -634,32 +659,40 @@ class SymmetryAdaptedModulation:
                 from phonopy.structure.cells import get_primitive_matrix_by_centring
 
                 from .irreptables_compat import load_irreptables
-                from .phonon_irreps import find_star_representative, get_irt_special_points
+                from .phonon_irreps import (
+                    _special_points_in_label_frame,
+                    find_star_representative,
+                )
                 from .runtime_compat import get_symmetry_dataset
 
                 irrep_table_cls, _ = load_irreptables()
                 dataset = get_symmetry_dataset(self.phonon.primitive_symmetry)
-                irt_table = irrep_table_cls(dataset["number"], spinor=False)
-                prim_mat = get_primitive_matrix_by_centring(dataset["international"][0])
-                q_names, q_list = get_irt_special_points(irt_table, prim_mat)
-                representative = find_star_representative(
-                    self.qpoint, dataset["rotations"], q_names, q_list
-                )
-                if representative is not None:
-                    label = representative[0]
-                elif not self.keep_q_coords:
-                    # non-special q: fall back to the ISO-IR k-vector type
+                isoir_name = None
+                if not self.keep_q_coords:
+                    # the ISO-IR k-vector type in the frame of the labels
                     from .isoir import get_isoir_kpoint_name
 
                     primitive = self.phonon.primitive
+                    unitcell = self.phonon.unitcell
                     isoir_name = get_isoir_kpoint_name(
                         dataset["number"],
                         (primitive.cell, primitive.scaled_positions, primitive.numbers),
                         self.phonon.primitive_symmetry.tolerance,
                         self.qpoint,
+                        input_cell=(unitcell.cell, unitcell.scaled_positions,
+                                    unitcell.numbers),
                     )
-                    if isoir_name is not None:
-                        label = isoir_name
+                if isoir_name is not None:
+                    label = isoir_name
+                else:
+                    irt_table = irrep_table_cls(dataset["number"], spinor=False)
+                    prim_mat = get_primitive_matrix_by_centring(dataset["international"][0])
+                    representative = find_star_representative(
+                        self.qpoint, dataset["rotations"],
+                        *_special_points_in_label_frame(self.phonon, irt_table, prim_mat),
+                    )
+                    if representative is not None:
+                        label = representative[0]
             except Exception:
                 pass
             self._q_label = label
@@ -671,15 +704,28 @@ class SymmetryAdaptedModulation:
         Mode numbers are 1-based, as ``--mode`` of ``crystod-phonon
         --modulation`` expects them.
         """
+        print("\n".join(self.format_mode_table()))
+
+    def format_mode_table(self) -> list[str]:
+        """The lines :meth:`print_mode_info` prints: the title
+        ``"Phonon modes at q = ..."``, the column header, a rule and one row
+        per mode (1-based mode number, frequency in THz, irrep, degeneracy).
+
+        Returns:
+            The lines, without trailing newlines.
+        """
         labels = self.get_mode_labels()
-        print(f"Phonon modes at q = {self.qpoint}")
-        print(f"{'Mode':>5s}  {'Freq (THz)':>12s}  {'Irrep':>12s}  {'Degeneracy':>11s}")
-        print("-" * 50)
+        lines = [
+            f"Phonon modes at q = {self.qpoint}",
+            f"{'Mode':>5s}  {'Freq (THz)':>12s}  {'Irrep':>12s}  {'Degeneracy':>11s}",
+            "-" * 50,
+        ]
         for mode_index, info in enumerate(self.mode_info):
-            print(
+            lines.append(
                 f"{mode_index + 1:5d}  {float(info['frequency_THz']):12.4f}  "
                 f"{labels[mode_index]:>12s}  {int(info['degeneracy']):11d}"
             )
+        return lines
 
     @staticmethod
     def get_commensurate_supercell_sizes(qpoint: list[float] | NDArray[np.float64]) -> NDArray[np.int_]:
@@ -832,20 +878,26 @@ class SymmetryAdaptedModulation:
             Dict with ``"international"`` (short symbol), ``"number"`` and
             ``"hall"`` (Hall symbol).
         """
-        cell = (
-            atoms.cell.array,
-            atoms.get_scaled_positions(),
-            atoms.numbers,
-        )
-        dataset = SymmetryDatasetAdapter(spglib.get_symmetry_dataset(cell, symprec=symprec))
-        info = {
-            "international": dataset.international,
-            "number": dataset.number,
-            "hall": dataset.hall,
-        }
+        info = _symmetry_info(atoms, symprec)
         print(f"Space group: {info['international']} (#{info['number']})")
         print(f"Hall symbol: {info['hall']}")
         return info
+
+
+def _symmetry_info(atoms: Atoms, symprec: float) -> dict[str, str | int]:
+    """The dict :meth:`SymmetryAdaptedModulation.analyze_symmetry` returns,
+    without printing."""
+    cell = (
+        atoms.cell.array,
+        atoms.get_scaled_positions(),
+        atoms.numbers,
+    )
+    dataset = SymmetryDatasetAdapter(spglib.get_symmetry_dataset(cell, symprec=symprec))
+    return {
+        "international": dataset.international,
+        "number": dataset.number,
+        "hall": dataset.hall,
+    }
 
 
 def _normalize_amplitudes(mode_indices: list[int], amplitudes: list[float]) -> list[float]:
@@ -1363,7 +1415,8 @@ def _load_modulation_with_report(
     keep_q_coords: bool = False,
 ) -> SymmetryAdaptedModulation:
     """Build the modulation at q and print the mode table and the star of q."""
-    print(f"Loading '{source_label}' at q = {qpoint}...")
+    print("\n* Selected Q point *")
+    print(f"  Loading '{source_label}' at q = {qpoint}...")
     try:
         modulation = SymmetryAdaptedModulation(
             phonon=phonon,
@@ -1384,12 +1437,13 @@ def _load_modulation_with_report(
             "       smaller --tolerance, or symmetrize the structure before the "
             "force calculation."
         ) from None
-    print()
-    modulation.print_mode_info()
+    table = modulation.format_mode_table()
+    print(f"\n* {table[0]} *")
+    print("\n".join(table[1:]))
 
     from .star_of_k import print_star_of_k
 
-    print("\nStar of q (arms related by the space-group rotations):")
+    print("\n* Star of q (arms related by the space-group rotations) *")
     print_star_of_k(
         rotations=modulation.vibrations.rotations,
         translations=modulation.vibrations.translations,
@@ -1407,25 +1461,27 @@ def main(argv: list[str] | None = None) -> None:
     # with neither, the documented phonopy_params.yaml default applies (and the
     # structure route is the fallback when that file is absent).
     if args.yaml_path is not None:
-        phonon, source_label, source_note = load_phonon(yaml_path=args.yaml_path)
+        phonon, source_label, source_note = load_phonon(yaml_path=args.yaml_path, nac=args.nac)
     elif args.cell is not None:
         phonon, source_label, source_note = load_phonon(
-            cell_path=args.cell, dim=args.dim, readfc=args.readfc
+            cell_path=args.cell, dim=args.dim, readfc=args.readfc, nac=args.nac
         )
     elif args.dim or args.readfc:
         # --dim/--readfc only mean anything on the structure route; honouring the
         # yaml here would silently ignore them
         phonon, source_label, source_note = load_phonon(
-            cell_path="POSCAR", dim=args.dim, readfc=args.readfc
+            cell_path="POSCAR", dim=args.dim, readfc=args.readfc, nac=args.nac
         )
     elif Path(DEFAULT_PARAMS_YAML).exists():
-        phonon, source_label, source_note = load_phonon(yaml_path=DEFAULT_PARAMS_YAML)
+        phonon, source_label, source_note = load_phonon(yaml_path=DEFAULT_PARAMS_YAML, nac=args.nac)
     else:
         phonon, source_label, source_note = load_phonon(
-            cell_path="POSCAR", dim=args.dim, readfc=args.readfc
+            cell_path="POSCAR", dim=args.dim, readfc=args.readfc, nac=args.nac
         )
     if source_note:
-        print(source_note)
+        print("\n* Phonon source *")
+        for line in source_note.splitlines():
+            print(f"  {line}")
 
     # one explicit --tolerance drives both the symmetry-adapted mode
     # construction and the space group reported for the generated structure
@@ -1478,7 +1534,7 @@ def main(argv: list[str] | None = None) -> None:
     modulation_cache: dict[tuple[float, float, float], SymmetryAdaptedModulation] = {}
     prepared_terms: list[PreparedModulationTerm] = []
 
-    for term_index, term in enumerate(terms, start=1):
+    for term in terms:
         qpoint_key = tuple(float(value) for value in term.qpoint)
         modulation = modulation_cache.get(qpoint_key)
         if modulation is None:
@@ -1486,8 +1542,6 @@ def main(argv: list[str] | None = None) -> None:
                 phonon, source_label, term.qpoint, symprec, args.keep_q_coords
             )
             modulation_cache[qpoint_key] = modulation
-            if term_index != len(terms):
-                print()
 
         for mode_index in term.mode_indices:
             if mode_index < 0 or mode_index >= modulation.n_modes:
@@ -1504,7 +1558,7 @@ def main(argv: list[str] | None = None) -> None:
             )
         )
 
-    print("\nGenerating modulated structure...")
+    print("\n* Modulation *")
     if len(prepared_terms) == 1:
         print(f"  q-point: {prepared_terms[0].modulation.qpoint.tolist()}")
         print(f"  Modes: {[index + 1 for index in prepared_terms[0].mode_indices]}")
@@ -1526,12 +1580,15 @@ def main(argv: list[str] | None = None) -> None:
     else:
         atoms = _build_combined_modulated_structure(prepared_terms)
 
-    print("\nSymmetry of the generated structure:")
-    symmetry = SymmetryAdaptedModulation.analyze_symmetry(atoms, symprec=display_symprec)
+    symmetry = _symmetry_info(atoms, display_symprec)
+    print("\n* Symmetry of the generated structure *")
+    print(f"  Space group: {symmetry['international']} (#{symmetry['number']})")
+    print(f"  Hall symbol: {symmetry['hall']}")
 
     output_path = args.output or _default_output_name(prepared_terms, str(symmetry["international"]))
     ase_write(output_path, atoms, format="vasp", direct=True)
-    print(f"\nModulated structure written to: {output_path}")
+    print("\n* Output files *")
+    print(f"  Modulated structure written to: {output_path}")
 
 
 if __name__ == "__main__":

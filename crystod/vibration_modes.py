@@ -32,10 +32,17 @@ ensure_spglib_compat()
 
 from phonopy.interface.calculator import read_crystal_structure
 from phonopy.structure.atoms import PhonopyAtoms
-from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
 from spgrep.representation import project_to_irrep
 
 IrrepTable, Irrep = load_irreptables()
+
+
+def _snap_if_rational(vector) -> list[float]:
+    """``snap_qpoint`` for the coordinates within 1e-6 of a simple fraction,
+    the value itself for the others: a seekpath point whose coordinates
+    depend on the lattice parameters is not shifted along its line."""
+    return [parse_qpoint_token(float(value)) for value in vector]
 
 
 class MyHelpFormatter(
@@ -66,7 +73,8 @@ def build_parser() -> ArgumentParser:
         "--qpoint",
         nargs="+",
         default=None,
-        help="Either a high-symmetry label such as GM/X/M/R or three primitive reciprocal coordinates.",
+        help="Either an ISO-IR special-point name such as GM/X/M/R or three primitive\n"
+        "reciprocal coordinates.",
     )
     parser.add_argument(
         "--tolerance",
@@ -77,7 +85,14 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--list-qpoints",
         action="store_true",
-        help="Only list available high-symmetry q-points and exit.",
+        help="Only list the ISO-IR special q points (primitive coordinates) and exit.",
+    )
+    parser.add_argument(
+        "--raman-tensor",
+        dest="raman_tensor",
+        action="store_true",
+        help="At Gamma, print the symmetry-allowed Raman tensors of the Raman-active\n"
+        "irreps (Cartesian axes of the input cell).",
     )
     parser.add_argument(
         "--mode-index",
@@ -111,7 +126,16 @@ def build_parser() -> ArgumentParser:
 
 
 class _CoreRepresentation:
-    def __init__(self, cell: PhonopyAtoms, symprec: float = 1e-5, standardize: bool = True):
+    def __init__(
+        self,
+        cell: PhonopyAtoms,
+        symprec: float = 1e-5,
+        standardize: bool = True,
+        input_cell: PhonopyAtoms | None = None,
+    ):
+        # the cell as given: the ISO-IR frame of the irrep labels is taken
+        # from it, not from the standardized cell derived below
+        self.input_cell = cell if input_cell is None else input_cell
         if standardize:
             primitive_lattice, primitive_pos, primitive_numbers = spglib.standardize_cell(
                 cell.totuple(),
@@ -158,6 +182,7 @@ class _CoreRepresentation:
             [self.rotations[index] for index in mapping_little_group],
             [self.translations[index] for index in mapping_little_group],
             [get_character(irrep) for irrep in irreps],
+            input_cell=self.input_cell.totuple(),
         )
         if matched is None:
             return None
@@ -168,6 +193,58 @@ class _CoreRepresentation:
             f"{label_map[index]}({irrep.shape[1]})"
             for index, irrep in enumerate(irreps)
         ]
+
+    def _get_isoir_labeler(self):
+        """The ISO-IR labeller of the labels (that of
+        :meth:`_get_isoir_label_list`), or None."""
+        from .isoir import get_cached_labeler
+
+        return get_cached_labeler(
+            self.spglib_dataset["number"], self.primitive_cell.totuple(),
+            self.symprec, input_cell=self.input_cell.totuple(),
+        )
+
+    def _special_points_in_label_frame(self, names, points):
+        """A list of tabulated special points named in the frame of the
+        labels (``crystod.isoir.special_points_in_frame``): the list a
+        survey loops over and shows."""
+        from .isoir import special_points_in_frame
+
+        return special_points_in_frame(
+            names, points, self._get_isoir_labeler(), canonical=snap_qpoint
+        )
+
+    def _spglib_frame_labeler(self):
+        """An ISO-IR labeller in spglib's own frame of the primitive cell,
+        the frame seekpath and the special-point tables name their points
+        in, or None."""
+        if not hasattr(self, "_spglib_labeler"):
+            from .isoir import IsoIRLabeler
+
+            try:
+                self._spglib_labeler = IsoIRLabeler(
+                    self.spglib_dataset["number"], cell=self.primitive_cell.totuple(),
+                    symprec=self.symprec,
+                )
+            except Exception:
+                self._spglib_labeler = None
+        return self._spglib_labeler
+
+    def _renamed_by_frame(self, qpoint) -> str | None:
+        """The ISO-IR name of q in the frame of the labels when spglib's
+        frame names q differently (an input outside the ISO-IR setting,
+        where the point seekpath calls P can be the PA of the labels), else
+        None."""
+        labeler, spglib_frame = self._get_isoir_labeler(), self._spglib_frame_labeler()
+        if labeler is None or spglib_frame is None:
+            return None
+        try:
+            name = labeler.kpoint_name(qpoint)
+            if name is not None and name != spglib_frame.kpoint_name(qpoint):
+                return name
+        except Exception:
+            pass
+        return None
 
     def get_modified_permutation_rep(
         self,
@@ -245,6 +322,9 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             with an externally built dynamical matrix. Either way the
             analysis, the Bloch phases and the written supercells all use
             ``primitive_cell``.
+        input_cell: The cell whose ISO-IR frame names the irreps, when it is
+            not ``cell`` itself (e.g. the unit cell a phonopy primitive cell
+            was built from); default ``cell``.
 
     Attributes:
         primitive_cell: The primitive cell the analysis runs on.
@@ -276,8 +356,16 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             [space.shape for space in spaces]   # [(1, 12), (2, 12), (3, 12), ...]
     """
 
-    def __init__(self, cell: PhonopyAtoms, symprec: float = 1e-5, standardize: bool = True):
-        super().__init__(cell=cell, symprec=symprec, standardize=standardize)
+    def __init__(
+        self,
+        cell: PhonopyAtoms,
+        symprec: float = 1e-5,
+        standardize: bool = True,
+        input_cell: PhonopyAtoms | None = None,
+    ):
+        super().__init__(
+            cell=cell, symprec=symprec, standardize=standardize, input_cell=input_cell
+        )
         lattice_t = np.transpose(self.primitive_cell.cell)
         lattice_t_inv = np.linalg.inv(lattice_t)
         self.rotations_cartesian = np.array(
@@ -296,6 +384,19 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         accordingly. A warning is issued only when the two cells are not
         related by such a change of basis, in which case the coordinates are
         returned as seekpath gives them.
+
+        seekpath names its points in spglib's standardized frame, while the
+        irrep labels refer to the ISO-IR frame of the input cell; for an
+        input outside the ISO-IR setting the two differ by an element of the
+        normalizer, which can turn seekpath's P into the PA of the labels.
+        A point whose ISO-IR type differs between the two frames is
+        therefore moved to the point that carries its type in the frame of
+        the labels (-k for the -k partner of a tabulated type, else its
+        image under the change of frame), so that ``--qpoint P`` is the
+        point the labels call P. The names stay seekpath's: for a triclinic
+        cell seekpath's letters X, Y, Z, R, T, U, V denote other points than
+        the ISO-IR names of the labels (seekpath's Z of
+        ``1_PPOSCAR_RbBe2F5`` carries ``X1``).
 
         Returns:
             Dict mapping seekpath labels (``"GAMMA"``, ``"R"``, ``"X"``, ...)
@@ -333,17 +434,48 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
                     "transformation.",
                     stacklevel=2,
                 )
-        return point_coords
+        # the labels whose point carries seekpath's ISO-IR type in the frame
+        # of the labels (all of them unless a move below fails): the ones
+        # resolve_qpoint may name coordinates by
+        self._labels_in_frame = set(point_coords)
+        labeler, spglib_frame = self._get_isoir_labeler(), self._spglib_frame_labeler()
+        if labeler is None or spglib_frame is None:
+            return point_coords
+        # k_label = k_spglib Pinv_spglib P_label carries a point onto the one
+        # with the same ISO-IR conventional coordinates in the label frame
+        change = spglib_frame.Pinv @ labeler.P
+        in_frame = {}
+        for label, coords in point_coords.items():
+            in_frame[label] = coords
+            try:
+                wanted = spglib_frame.kpoint_name(coords)
+                if wanted is None or labeler.kpoint_name(coords) == wanted:
+                    continue
+                self._labels_in_frame.discard(label)
+                vector = np.asarray(coords, dtype=float)
+                for candidate in (_snap_if_rational(-vector), _snap_if_rational(vector @ change)):
+                    if labeler.kpoint_name(candidate) == wanted:
+                        in_frame[label] = candidate
+                        self._labels_in_frame.add(label)
+                        break
+            except Exception:
+                continue
+        return in_frame
 
     def resolve_qpoint(self, raw_qpoint: list[str]) -> tuple[str, list[float]]:
         """Resolve ``--qpoint`` tokens into a label and coordinates.
 
         One token is a seekpath label (``GM``, ``G`` and the Greek capital
-        gamma are accepted for ``GAMMA``); three tokens are coordinates in
+        gamma are accepted for ``GAMMA``) of
+        :meth:`get_high_symmetry_qpoints`; three tokens are coordinates in
         the primitive reciprocal basis, fractions such as ``1/3`` allowed.
-        Coordinates are labeled with the special point they coincide with,
-        else with the name of the star arm the space-group rotations map them
-        onto, else with the ISO-IR k-vector type of q, else ``"custom"``.
+        Coordinates of a point of :meth:`get_high_symmetry_qpoints` are
+        labeled with its name there. Other coordinates get, where the frame
+        of the labels names q differently from spglib's frame (an input
+        outside the ISO-IR setting), the ISO-IR name in the frame of the
+        labels (``PA`` above PA labels); else the name of the star arm the
+        space-group rotations map them onto, else the ISO-IR k-vector type
+        of q, else ``"custom"``.
 
         Args:
             raw_qpoint: The tokens, one label or three coordinate strings.
@@ -380,11 +512,23 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             raise ValueError("--qpoint must be either one label or three coordinates.")
 
         qpoint = [parse_qpoint_token(value) for value in raw_qpoint]
+        # a listed point is named as the list names it: its point carries
+        # the ISO-IR type of seekpath's name in the frame of the labels
+        in_frame = getattr(self, "_labels_in_frame", set(qpoint_map))
         matched_label = None
         for label, coords in qpoint_map.items():
-            if np.allclose(qpoint, coords, atol=1e-8):
+            if label in in_frame and np.allclose(qpoint, coords, atol=1e-8):
                 matched_label = label
                 break
+        # else the frame of the labels first where spglib's frame, in which
+        # seekpath names its points, would give q another name
+        if matched_label is None:
+            matched_label = self._renamed_by_frame(qpoint)
+        if matched_label is None:
+            for label, coords in qpoint_map.items():
+                if np.allclose(qpoint, coords, atol=1e-8):
+                    matched_label = label
+                    break
         if matched_label is None:
             # q may be a non-tabulated arm of a special-point star: label it
             # with the name of the arm the space-group rotations map it onto.
@@ -395,14 +539,138 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
                         matched_label = label
                         break
         if matched_label is None:
-            # non-special q: fall back to the ISO-IR k-vector type label
+            # q outside the special-point list (a line, plane or generic q,
+            # or a -k star such as PA): the ISO-IR k-vector type label
             from .isoir import get_isoir_kpoint_name
 
             matched_label = get_isoir_kpoint_name(
                 self.spglib_dataset["number"], self.primitive_cell.totuple(),
-                self.symprec, qpoint,
+                self.symprec, qpoint, input_cell=self.input_cell.totuple(),
             )
         return matched_label or "custom", qpoint
+
+    def get_special_qpoints(self) -> dict[str, list[float]]:
+        """The ISO-IR special q points of the space group, in the frame of the labels.
+
+        ``crystod-phonon --vibration`` lists these points (``--list-qpoints``)
+        and resolves ``--qpoint NAME`` through them: one entry per special
+        point of the ISO-IR tables, named as the irrep labels at it are named
+        (the frame of the labels, ``crystod.isoir.special_points_in_frame``;
+        a point tabulated only through its -k partner is listed at the
+        tabulated point), the set of points ``crystod-phonon --irreps``
+        writes under ``special_points:`` for the same structure. The -k
+        partners (``PA``) and seekpath's extra points (``H_2``) are not
+        listed. The command prints them in the order of seekpath's path
+        (``GM, A, K, H, M, L`` for P6_3mc); this method keeps the table order.
+
+        Returns:
+            Dict mapping ISO-IR names (``"GM"``, ``"A"``, ``"K"``, ...), in the
+            order of the tables, to fractional coordinates in the reciprocal
+            basis of :attr:`primitive_cell`; empty when the tables do not
+            cover the space group.
+        """
+        cached = getattr(self, "_special_qpoints", None)
+        if cached is None:
+            from .phonon_irreps import get_irt_special_points
+
+            cached = {}
+            try:
+                table = IrrepTable(self.spglib_dataset["number"], spinor=False)
+                primitive_matrix = get_primitive_matrix_by_centring(
+                    self.spglib_dataset["international"][0]
+                )
+                names, points = self._special_points_in_label_frame(
+                    *get_irt_special_points(table, primitive_matrix)
+                )
+                cached = {
+                    name: [float(value) + 0.0 for value in point]
+                    for name, point in zip(names, points)
+                }
+            except Exception:
+                cached = {}
+            self._special_qpoints = cached
+        return {name: list(point) for name, point in cached.items()}
+
+    def name_qpoint(self, qpoint) -> str:
+        """The name ``crystod-phonon --vibration`` gives to q point coordinates.
+
+        The ISO-IR name of a point of :meth:`get_special_qpoints`; for another
+        arm of its star (or ``q + G``) the name of the arm the space-group
+        rotations map q onto; else the ISO-IR k-vector type of q in the frame
+        of the labels (``T`` for a symmetry line, ``PA`` for the -k partner
+        of a tabulated point, ``GP`` for a general point); else ``"custom"``.
+
+        Args:
+            qpoint: Fractional coordinates in the primitive reciprocal basis.
+
+        Returns:
+            The name.
+        """
+        points = self.get_special_qpoints()
+        for name, coords in points.items():
+            if np.allclose(qpoint, coords, atol=1e-8):
+                return name
+        arm = find_star_arm(qpoint, self.rotations, list(points.values()))
+        if arm is not None:
+            for name, coords in points.items():
+                if np.allclose(arm[1], coords, atol=1e-8):
+                    return name
+        from .isoir import get_isoir_kpoint_name
+
+        try:
+            name = get_isoir_kpoint_name(
+                self.spglib_dataset["number"], self.primitive_cell.totuple(),
+                self.symprec, list(qpoint), input_cell=self.input_cell.totuple(),
+            )
+        except Exception:
+            name = None
+        return name or "custom"
+
+    def resolve_special_qpoint(self, raw_qpoint: list[str]) -> tuple[str, list[float]]:
+        """Resolve ``--qpoint`` tokens of ``crystod-phonon --vibration``.
+
+        One token is an ISO-IR name of :meth:`get_special_qpoints` (any
+        case); ``GAMMA``, ``G`` and the Greek capital gamma stand for ``GM``,
+        and a seekpath name of :meth:`get_high_symmetry_qpoints` that is not
+        an ISO-IR name of the list (``H_2``) is accepted as an alias of its
+        point. Three tokens are coordinates in the primitive reciprocal basis
+        (fractions such as ``1/3`` allowed), named by :meth:`name_qpoint`.
+        :meth:`resolve_qpoint` keeps the seekpath names for the other
+        commands.
+
+        Args:
+            raw_qpoint: The tokens, one name or three coordinate strings.
+
+        Returns:
+            ``(name, qpoint)`` with ``qpoint`` a list of three floats.
+
+        Raises:
+            ValueError: For an unknown name, or a token count other than one
+                or three.
+        """
+        if len(raw_qpoint) == 1:
+            token = raw_qpoint[0].strip()
+            requested = token.upper()
+            points = self.get_special_qpoints()
+            if requested in points:
+                return requested, list(points[requested])
+            if requested in ("GAMMA", "G", "Γ") and "GM" in points:
+                return "GM", list(points["GM"])
+            try:
+                seekpath_points = self.get_high_symmetry_qpoints()
+            except Exception:
+                seekpath_points = {}
+            if requested in seekpath_points:
+                qpoint = [float(value) for value in seekpath_points[requested]]
+                return self.name_qpoint(qpoint), qpoint
+            available = ", ".join(points) or ", ".join(seekpath_points)
+            raise ValueError(
+                f"Unknown q-point label '{token}'. Available labels: {available}"
+            )
+        if len(raw_qpoint) != 3:
+            raise ValueError("--qpoint must be either one label or three coordinates.")
+        qpoint = [parse_qpoint_token(value) for value in raw_qpoint]
+        return self.name_qpoint(qpoint), qpoint
 
     def get_vibration_rep(self, kpoint: list[float]):
         """Displacement representation of the little group of q.
@@ -508,12 +776,15 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
     ) -> list[str]:
         """ISO-IR labels of the spgrep irreps at q.
 
-        The characters of each spgrep irrep are matched against the ISO-IR
-        table of the space group: directly at a tabulated special point, by
-        conjugation onto the tabulated arm for another arm of its star, and
-        through the general ISO-IR k-vector lookup (Miller-Love labels) for a
-        symmetry line, plane or generic q. An irrep no table matches keeps its
-        generic ``irrep_N(dim)`` label.
+        The ISO-IR labeller (``crystod.isoir``) names the spgrep irreps at
+        any q -- a special point, any arm of its star or copy q + G, a
+        symmetry line, plane or generic q (Miller-Love labels) -- in the
+        ISO-IR frame of the input cell; a q point tabulated only through its
+        -k partner gets the 'A' names of the conjugate irreps (``PA1``).
+        Only where the labeller gives nothing are the characters compared
+        directly with the special-point table (at a tabulated point, or by
+        conjugation onto the tabulated arm for another arm of its star). An
+        irrep neither route names keeps its generic ``irrep_N(dim)`` label.
 
         Args:
             qpoint: Fractional coordinates of q in the primitive reciprocal
@@ -527,14 +798,17 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             dimension).
         """
         generic_labels = [f"irrep_{index + 1}({irrep.shape[1]})" for index, irrep in enumerate(irreps)]
-        self.labels_from_isoir = False
+        # The ISO-IR labeller is the label authority at every q: it compares
+        # in the ISO-IR setting, at the exact translations and with the
+        # conjugate phase convention.  The direct special-point comparison
+        # further down ignores all three and names a physically different
+        # irrep at some points (H/K of the hexagonal groups, P of I4/mcm,
+        # Y/T of Ccce, ...); it is kept only as a fallback.
+        isoir_labels = self._get_isoir_label_list(qpoint, irreps, mapping_little_group)
         try:
             irt_table = IrrepTable(self.spglib_dataset["number"], spinor=False)
         except Exception:
-            return (
-                self._get_isoir_label_list(qpoint, irreps, mapping_little_group)
-                or generic_labels
-            )
+            return isoir_labels or generic_labels
 
         prim_mat = get_primitive_matrix_by_centring(self.spglib_dataset["international"][0])
         irt_irreps = self._get_irt_irreps_at_q(qpoint, irt_table, prim_mat)
@@ -558,13 +832,14 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
                     conjugated = transported
         if not irt_irreps:
             # Not tabulated as a special point (e.g. a symmetry line/plane or
-            # generic q): fall back to the general ISO-IR (ISOTROPY) k-vector
-            # lookup, which covers every k-vector type.  Labels then follow
-            # the Miller-Love convention.
-            return (
-                self._get_isoir_label_list(qpoint, irreps, mapping_little_group)
-                or generic_labels
-            )
+            # generic q): only the general ISO-IR (ISOTROPY) k-vector lookup
+            # covers it.  Labels then follow the Miller-Love convention.
+            return isoir_labels or generic_labels
+        if isoir_labels is not None:
+            # a special point (or another arm of its star): same labeller,
+            # but the flag keeps its meaning "q is not a tabulated point"
+            self.labels_from_isoir = False
+            return isoir_labels
 
         irt_little_rotations = np.array(
             [irt_table.symmetries[index - 1].R for index in irt_irreps[0].characters.keys()]
@@ -595,10 +870,7 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
                 phases.append(conj_phases[position])
             character_phases = np.array(phases, dtype=complex)
         if len(mapping_to_irt) != len(irt_little_rotations):
-            return (
-                self._get_isoir_label_list(qpoint, irreps, mapping_little_group)
-                or generic_labels
-            )
+            return generic_labels
 
         resolved_labels: list[str] = []
         used_irt_labels: set[str] = set()
@@ -834,20 +1106,146 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         ase_write(output_path, atoms, format="vasp", direct=True)
 
 
-def _print_high_symmetry_qpoints(qpoints: dict[str, list[float]]) -> None:
-    print("Available high-symmetry q-points:")
+def format_fraction_vector(qpoint) -> str:
+    """Coordinates as ``(0, 0, 1/2)``: each component as a fraction of
+    denominator at most 24 where it is one (``1/3``, ``-1/2``), else with four
+    decimals.
+
+    Args:
+        qpoint: Three fractional coordinates.
+
+    Returns:
+        The text, e.g. ``"(1/3, 1/3, 0)"``.
+    """
+    parts = []
+    for value in qpoint:
+        value = float(value)
+        fraction = Fraction(value).limit_denominator(24)
+        if abs(float(fraction) - value) < 1e-6:
+            parts.append(str(fraction))
+        else:
+            parts.append(f"{value + 0.0:.4f}")
+    return "(" + ", ".join(parts) + ")"
+
+
+def _in_seekpath_order(
+    vibrations: "SymmetryOnlyVibrations", qpoints: dict[str, list[float]]
+) -> dict[str, list[float]]:
+    """The special q points in the order seekpath lists its points.
+
+    The set, names and coordinates are those of
+    :meth:`SymmetryOnlyVibrations.get_special_qpoints`; only the display
+    order follows seekpath (``GM, A, K, H, M, L`` for P6_3mc). A point that
+    matches no seekpath point (mod G) keeps its table position after the
+    matched ones; the table order is kept when seekpath fails.
+    """
+    import warnings
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            seek_points = list(vibrations.get_high_symmetry_qpoints().values())
+    except Exception:
+        return qpoints
+
+    def rank(item: tuple[int, tuple[str, list[float]]]) -> tuple[int, int]:
+        table_index, (_, coords) = item
+        for seek_index, seek in enumerate(seek_points):
+            delta = np.asarray(coords, dtype=float) - np.asarray(seek, dtype=float)
+            if np.allclose(delta, np.rint(delta), atol=1e-6):
+                return seek_index, table_index
+        return len(seek_points), table_index
+
+    ordered = sorted(enumerate(qpoints.items()), key=rank)
+    return {label: coords for _, (label, coords) in ordered}
+
+
+def _print_qpoint_block(title: str, qpoints: dict[str, list[float]]) -> None:
+    print(f"\n* {title} *")
     for label, coords in qpoints.items():
-        print(f"  {label:8s} {coords}")
+        print(f"  {label:8s} {format_fraction_vector(coords)}")
 
 
-def _print_mode_spaces(basis_spaces: list[NDArray[np.complex128]], irrep_labels: list[str]) -> None:
-    print("Irrep-grouped vibration spaces:")
+def _print_mode_spaces(
+    basis_spaces: list[NDArray[np.complex128]],
+    irrep_labels: list[str],
+    activities: list | None = None,
+    mulliken: dict[str, str] | None = None,
+) -> None:
+    from .phonon_activity import _with_mulliken
+
+    print("\n* Irrep-grouped vibration spaces *")
     for mode_index, (space, irrep_label) in enumerate(zip(basis_spaces, irrep_labels), start=1):
         dim = space.shape[0]
+        activity = ""
+        if activities is not None:
+            activity = f", activity = {'+'.join(activities[mode_index - 1].activity)}"
         print(
-            f"  Mode Space {mode_index:2d}: irrep = {irrep_label}, dimension = {dim}, "
-            f"component numbers = 1..{dim}"
+            f"  Mode Space {mode_index:2d}: irrep = {_with_mulliken(irrep_label, mulliken)}, "
+            f"dimension = {dim}, component numbers = 1..{dim}{activity}"
         )
+    if activities is not None:
+        from .phonon_activity import _activity_summary_parts
+
+        print("\n* Gamma-point activity *")
+        for part in _activity_summary_parts(activities, True, mulliken):
+            print(part)
+        print("  (acoustic: one set per occurrence of the irrep in the vector representation;")
+        print("   without force constants the mode spaces are symmetry-adapted patterns,")
+        print("   not normal modes)")
+
+
+def _print_gamma_extras(vibrations, cell, irrep_labels, args, mulliken=None) -> None:
+    """The Wyckoff-orbit breakdown at Gamma and, with ``--raman-tensor``, the
+    Raman tensors in the axes of the input cell."""
+    from .phonon_activity import (
+        _gamma_irreps,
+        _input_axes_vibrations,
+        _raman_records,
+        format_raman_tensors,
+        format_wyckoff_orbits,
+        wyckoff_orbit_decomposition,
+    )
+
+    lines = format_wyckoff_orbits(
+        wyckoff_orbit_decomposition(vibrations), irrep_labels, mulliken=mulliken
+    )
+    print("\n* Wyckoff-orbit breakdown (Gamma) *")
+    print("\n".join(lines[1:]))
+    if args.raman_tensor:
+        table = _gamma_irreps(_input_axes_vibrations(cell, args.tolerance))
+        lines = format_raman_tensors(_raman_records(table), mulliken=mulliken)
+        print("\n* Raman tensors (Cartesian axes of the input cell) *")
+        print("\n".join(lines[1:]))
+
+
+def _gamma_space_activities(vibrations, qpoint, basis_spaces, irrep_labels) -> list | None:
+    """The activity of every mode space when q is Gamma, else None; None too
+    when the spaces cannot be matched one to one (never expected)."""
+    from .phonon_activity import _is_gamma, mode_space_activities
+
+    if not _is_gamma(qpoint):
+        return None
+    activities = mode_space_activities(vibrations, qpoint)
+    expected = [(re.sub(r"\(\d+\)$", "", label), space.shape[0])
+                for label, space in zip(irrep_labels, basis_spaces)]
+    found = [(record.labels[0], record.dimension) for record in activities]
+    return activities if found == expected else None
+
+
+def _gamma_mulliken(vibrations, qpoint) -> dict[str, str]:
+    """The Mulliken symbols of the Gamma irreps when q is Gamma, else {}."""
+    from .phonon_activity import _is_gamma, mulliken_symbols
+
+    if not _is_gamma(qpoint):
+        return {}
+    try:
+        return mulliken_symbols(vibrations)
+    except Exception as exc:  # the bracket is an annotation; never fail on it
+        import warnings
+
+        warnings.warn(f"no Mulliken symbols: {exc}", stacklevel=2)
+        return {}
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -857,25 +1255,35 @@ def main(argv: list[str] | None = None) -> None:
     cell = read_poscar_or_exit(args.poscar)
     vibrations = SymmetryOnlyVibrations(cell=cell, symprec=args.tolerance)
 
-    qpoint_map = vibrations.get_high_symmetry_qpoints()
-    _print_high_symmetry_qpoints(qpoint_map)
+    _print_qpoint_block(
+        "Q points (primitive)",
+        _in_seekpath_order(vibrations, vibrations.get_special_qpoints()),
+    )
     if args.list_qpoints:
         return
 
     if not args.qpoint:
         raise ValueError("--qpoint is required unless --list-qpoints is used.")
 
-    qpoint_label, qpoint = vibrations.resolve_qpoint(args.qpoint)
-    print(f"\nSelected q-point: {qpoint_label} = {qpoint}")
+    try:
+        qpoint_label, qpoint = vibrations.resolve_special_qpoint(args.qpoint)
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from None
+    if args.raman_tensor and not np.allclose(qpoint, np.rint(qpoint), atol=1e-8):
+        raise SystemExit(
+            f"ERROR: --raman-tensor is defined at Gamma only (--qpoint GM); got "
+            f"{qpoint_label} = {format_fraction_vector(qpoint)}."
+        )
+    _print_qpoint_block("Selected Q point", {qpoint_label: qpoint})
 
     irreps, basis_spaces, irrep_labels = vibrations.describe_mode_spaces(qpoint)
-    print(f"Number of irrep-grouped vibration spaces: {len(basis_spaces)}")
-    _print_mode_spaces(basis_spaces, irrep_labels)
+    activities = _gamma_space_activities(vibrations, qpoint, basis_spaces, irrep_labels)
+    mulliken = _gamma_mulliken(vibrations, qpoint)
+    _print_mode_spaces(basis_spaces, irrep_labels, activities, mulliken)
+    if activities is not None:
+        _print_gamma_extras(vibrations, cell, irrep_labels, args, mulliken)
 
     if args.mode_index is None:
-        print(
-            "\nUse --mode-index and optionally --component-index to inspect a specific basis vector."
-        )
         return
 
     if args.mode_index < 1 or args.mode_index > len(basis_spaces):
@@ -899,7 +1307,8 @@ def main(argv: list[str] | None = None) -> None:
         raise RuntimeError("The symmetry-adapted spaces do not match the projected spaces.")
     mode_vector = adapted_spaces[args.mode_index - 1][args.component_index - 1]
     supercell_size = vibrations.get_supercell_size(qpoint)
-    print(f"\nSelected mode space: {args.mode_index}")
+    print("\n* Selected basis vector *")
+    print(f"Selected mode space: {args.mode_index}")
     print(f"Selected irrep     : {irrep_labels[args.mode_index - 1]}")
     print(f"Selected component : {args.component_index}")
     print(f"Commensurate supercell size: {supercell_size}")
@@ -921,8 +1330,14 @@ def main(argv: list[str] | None = None) -> None:
         )
 
     if args.export_npz:
+        extra = {}
+        if activities is not None:
+            extra["activities"] = np.array(
+                ["+".join(record.activity) for record in activities], dtype=object
+            )
         np.savez(
             args.export_npz,
+            **extra,
             positions=positions,
             displacements=displacements,
             symbols=np.array(symbols, dtype=object),

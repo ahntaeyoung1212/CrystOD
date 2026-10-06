@@ -31,6 +31,7 @@ from .multiplet_energy import (
     _coulomb_hamiltonians,
     _DeterminantSpace,
     _group_action,
+    _projector_scale,
     _s2_matrix,
     _shell_bases,
     real_two_electron_integrals,
@@ -187,7 +188,6 @@ def compute_term_states(character_table, l, shells, ordered_terms,
 
     space = _DeterminantSpace(shell_dims, occupations)
     n_electrons = sum(occupations)
-    order = len(operations)
     class_names = list(character_table["rotation_list"])
 
     sector_cache: dict[int, dict] = {}
@@ -216,14 +216,14 @@ def compute_term_states(character_table, l, shells, ordered_terms,
                 )
             s_iter += 1
 
-        characters = np.asarray(
+        characters = np.atleast_1d(np.asarray(
             character_table["character_table"][irrep], dtype=float
-        )
+        ))
         dim = int(round(characters[class_index["E"]]))
         pg_projector = np.zeros((len(sector), len(sector)))
         for label, gmat in zip(class_labels, cache["group"]):
             pg_projector += characters[class_index[label]] * gmat
-        pg_projector *= dim / order
+        pg_projector *= _projector_scale(characters, class_labels, class_index)
 
         combined = pg_projector @ projector
         combined = (combined + combined.T) / 2

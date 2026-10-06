@@ -10,6 +10,15 @@ sublattice runs name their switched-off atoms ``Va2-``/``Va2+``/``Va4+``
 nor phonopy can parse, so the POSCAR reader here is deliberately
 self-contained and depends on nothing but numpy.
 
+How the numbers of a POSCAR become a cell is decided in ONE place,
+:func:`poscar_geometry`, which follows VASP itself: the scale line (one
+factor, a negative volume, or three factors) applies to the lattice vectors
+and to Cartesian coordinates alike.  :func:`read_poscar` reads through it, and
+so do the two bridges to the libraries the rest of CrystOD reads structures
+with -- :func:`read_poscar_cell` (phonopy) and :func:`poscar_structure`
+(pymatgen), which keep the library's own result wherever it is VASP's and
+correct it where it is not.
+
 Every reader accepts a gzipped file under the same name (``PROCAR.gz``), so an
 archived run needs no unpacking.
 
@@ -154,8 +163,166 @@ class VaspStructure:
         return [parse_va_species(name) for name in self.species]
 
 
+@dataclass
+class PoscarGeometry:
+    """The cell of a POSCAR, resolved as VASP itself resolves it.
+
+    Attributes:
+        lattice: Lattice vectors as rows, in Angstrom (the scale is applied).
+        positions: Fractional coordinates, shape ``(n_atoms, 3)``.
+        counts: Number of atoms per species.
+        cartesian: Whether the file lists Cartesian coordinates.
+        species_line: Index of the species-name line; ``None`` for the VASP 4
+            layout, which has none.
+    """
+
+    lattice: np.ndarray
+    positions: np.ndarray
+    counts: list[int]
+    cartesian: bool
+    species_line: int | None
+
+    def agrees_with(self, lattice, positions, tolerance: float = 1e-10) -> bool:
+        """Whether the cell another parser returned is this one, up to rounding."""
+        lattice = np.asarray(lattice, dtype=float)
+        positions = np.asarray(positions, dtype=float)
+        return bool(
+            lattice.shape == self.lattice.shape
+            and positions.shape == self.positions.shape
+            and np.allclose(lattice, self.lattice, rtol=tolerance, atol=tolerance)
+            and np.allclose(positions, self.positions, rtol=0.0, atol=tolerance))
+
+
+def poscar_geometry(lines: list[str], path: str = "the POSCAR") -> PoscarGeometry:
+    """Lattice and fractional coordinates of a POSCAR, as VASP reads them.
+
+    This is the ONE rule every POSCAR reader of CrystOD follows --
+    :func:`read_poscar` takes its numbers from here, and what phonopy and
+    pymatgen return is checked against it (:func:`read_poscar_cell`,
+    :func:`poscar_structure`) -- so that a file means the same crystal in
+    every command: the crystal VASP computes.  VASP's reading, as the POSCAR
+    page of the VASP wiki specifies it:
+
+    * line 2 holds ONE factor ``s``, or THREE factors ``sx sy sz``, one per
+      Cartesian axis.  A negative ``s`` is the cell VOLUME: the factor is then
+      ``(|s| / |det A|) ** (1/3)``, ``A`` being the lattice as written;
+    * the factor multiplies the lattice vectors AND Cartesian coordinates
+      (their ``x`` components by ``s * sx``, and so on).  Direct coordinates
+      are fractions of the lattice vectors and are left alone;
+    * the coordinates are Cartesian when the first letter of the mode line,
+      after an optional ``Selective dynamics`` line, is one of ``C c K k``.
+
+    The VASP 5 layout (species names on line 6) and the VASP 4 layout (atom
+    counts on line 6) are both accepted.
+
+    Args:
+        lines: The lines of the file.
+        path: The file's name, for the messages.
+
+    Returns:
+        The :class:`PoscarGeometry`.
+
+    Raises:
+        ValueError: The lines are not a POSCAR; the message says what is
+            wrong.
+    """
+    if len(lines) < 8:
+        raise ValueError(f"{path} is too short to be a POSCAR")
+    try:
+        given = []
+        for token in lines[1].split():
+            try:
+                given.append(float(token))
+            except ValueError:
+                break
+        rows = np.array([[float(x) for x in lines[index].split()[:3]]
+                         for index in (2, 3, 4)], dtype=float)
+        if rows.shape != (3, 3):
+            raise ValueError("a lattice vector has fewer than three components")
+        if len(given) == 1:
+            scale = given[0]
+            if scale < 0:
+                if np.linalg.det(rows) == 0:
+                    raise ValueError("the lattice vectors span no volume")
+                scale = (abs(scale) / abs(np.linalg.det(rows))) ** (1.0 / 3.0)
+            factors = np.array([scale, scale, scale], dtype=float)
+        elif len(given) == 3:
+            factors = np.array(given, dtype=float)
+        else:
+            raise ValueError("line 2 must hold one scale factor, or three")
+        if not np.all(np.isfinite(factors)) or np.any(factors == 0.0):
+            raise ValueError("a scale factor is zero or not a number")
+    except (IndexError, ValueError) as error:
+        raise ValueError(f"cannot read the cell of {path} ({error})") from None
+    # one factor per Cartesian component, i.e. per COLUMN of the row vectors
+    lattice = rows * factors
+
+    def integers(text):
+        try:
+            return [int(token) for token in text.split()]
+        except ValueError:
+            return None
+
+    def skip_blank(index):
+        # an empty line before the mode line is passed over
+        while index < len(lines) and not lines[index].strip():
+            index += 1
+        return index
+
+    species_line = None
+    index = 5
+    counts = integers(lines[index])
+    if counts is None:
+        species_line = index
+        index += 1
+        counts = integers(lines[index])
+    if not counts or min(counts) < 0 or sum(counts) == 0:
+        raise ValueError(f"cannot read the atom counts of {path}")
+    index = skip_blank(index + 1)
+    if index < len(lines) and lines[index].strip()[:1] in ("s", "S"):
+        index = skip_blank(index + 1)
+    cartesian = index < len(lines) and lines[index].strip()[:1] in ("c", "C", "k", "K")
+    index += 1
+    total = sum(counts)
+    if len(lines) < index + total:
+        raise ValueError(f"{path} has fewer coordinate lines than atoms")
+    try:
+        numbers = np.array([[float(x) for x in lines[index + row].split()[:3]]
+                            for row in range(total)], dtype=float)
+        if numbers.shape != (total, 3):
+            raise ValueError("a coordinate line has fewer than three numbers")
+        positions = (numbers * factors) @ np.linalg.inv(lattice) if cartesian else numbers
+    except (ValueError, np.linalg.LinAlgError) as error:
+        raise ValueError(f"cannot read the coordinates of {path} ({error})") from None
+    return PoscarGeometry(lattice=lattice, positions=positions, counts=counts,
+                          cartesian=cartesian, species_line=species_line)
+
+
+def _plain_poscar_text(lines: list[str], geometry: PoscarGeometry) -> str:
+    """The POSCAR again, in the one spelling every parser reads as VASP does.
+
+    Scale ``1.0`` and direct coordinates.  The numbers are written with
+    ``repr``, so parsing the text gives the arrays of :func:`poscar_geometry`
+    back bit for bit; the comment, species and counts lines, from which a
+    parser takes the chemical symbols, are the file's own.
+    """
+    def line(row):
+        return "  " + "  ".join(repr(float(value)) for value in row)
+
+    header_end = 6 if geometry.species_line is None else 7
+    out = [lines[0], "1.0"]
+    out.extend(line(row) for row in geometry.lattice)
+    out.extend(lines[5:header_end])
+    out.append("Direct")
+    out.extend(line(row) for row in geometry.positions)
+    return "\n".join(out) + "\n"
+
+
 def read_poscar(path: str) -> VaspStructure:
     """Read a POSCAR/CONTCAR that may carry ``Va`` point-charge species.
+
+    The lattice and the coordinates are those of :func:`poscar_geometry`,
+    VASP's own reading of the scale line and of Cartesian coordinates.
 
     Args:
         path: Path of the file.
@@ -174,14 +341,9 @@ def read_poscar(path: str) -> VaspStructure:
     if len(lines) < 8:
         raise SystemExit(f"ERROR: {path} is too short to be a POSCAR.")
     try:
-        scale = float(lines[1].split()[0])
-        lattice = np.array([[float(x) for x in lines[index].split()[:3]]
-                            for index in (2, 3, 4)], dtype=float)
-    except (IndexError, ValueError) as error:
-        raise SystemExit(f"ERROR: cannot read the cell of {path} ({error}).") from None
-    if scale < 0:
-        scale = (abs(scale) / abs(np.linalg.det(lattice))) ** (1.0 / 3.0)
-    lattice = lattice * scale
+        geometry = poscar_geometry(lines, path)
+    except ValueError as error:
+        raise SystemExit(f"ERROR: {error}.") from None
     species = lines[5].split()
     if not species or species[0][0].isdigit():
         raise SystemExit(
@@ -194,27 +356,88 @@ def read_poscar(path: str) -> VaspStructure:
     if len(counts) != len(species):
         raise SystemExit(
             f"ERROR: {path} lists {len(species)} species but {len(counts)} counts.")
-    index = 7
-    if lines[index].strip()[:1] in "sS":
-        index += 1
-    mode = lines[index].strip()[:1].lower()
-    index += 1
-    total = sum(counts)
-    if len(lines) < index + total:
-        raise SystemExit(f"ERROR: {path} has fewer coordinate lines than atoms.")
-    positions = np.array([[float(x) for x in lines[index + row].split()[:3]]
-                          for row in range(total)], dtype=float)
-    if mode in ("c", "k"):
-        positions = positions @ np.linalg.inv(lattice)
     symbols: list[str] = []
     charges: list[float | None] = []
     for name, count in zip(species, counts):
         charge = parse_va_species(name)
         symbols.extend([name] * count)
         charges.extend([charge] * count)
-    return VaspStructure(comment=lines[0].rstrip(), lattice=lattice, species=species,
-                         counts=counts, symbols=symbols, positions=positions,
-                         charges=charges, path=path)
+    return VaspStructure(comment=lines[0].rstrip(), lattice=geometry.lattice,
+                         species=species, counts=counts, symbols=symbols,
+                         positions=geometry.positions, charges=charges, path=path)
+
+
+def read_poscar_cell(path: str):
+    """The crystal of a POSCAR as ``PhonopyAtoms``, read as VASP reads it.
+
+    phonopy parses the file as it always did, so the chemical symbols and the
+    atom order are its own.  Its cell is kept wherever it agrees with
+    :func:`poscar_geometry` -- every POSCAR in direct coordinates with a
+    positive scale factor, for which the object returned IS phonopy's -- and
+    is VASP's reading otherwise: phonopy 4.3.0 does not apply the scale
+    factor to Cartesian coordinates, takes a negative one (the cell volume)
+    for a factor, and cannot read three of them.
+
+    Args:
+        path: Path of the POSCAR.
+
+    Returns:
+        The ``PhonopyAtoms``.
+
+    Raises:
+        FileNotFoundError: There is no such file (worded as ``phonopy.load``
+            words a missing unit cell).
+    """
+    from phonopy.interface.vasp import read_vasp, read_vasp_from_strings
+
+    if not os.path.isfile(path):
+        raise FileNotFoundError("'%s' could not be found." % path)
+    try:
+        with open(path) as handle:
+            lines = handle.read().splitlines()
+        geometry = poscar_geometry(lines, path)
+    except (OSError, ValueError):
+        # nothing the rule can read: phonopy's own answer, or its own error
+        return read_vasp(path)
+    try:
+        cell = read_vasp(path)
+    except Exception:  # noqa: BLE001 - e.g. float("2.0 0.5 1.25") for three factors
+        cell = None
+    if cell is not None and geometry.agrees_with(cell.cell, cell.scaled_positions):
+        return cell
+    return read_vasp_from_strings(_plain_poscar_text(lines, geometry))
+
+
+def poscar_structure(structure, path: str):
+    """A pymatgen ``Structure`` parsed from a POSCAR, in VASP's reading of it.
+
+    pymatgen applies the scale factor to Cartesian coordinates, but as the
+    number written on line 2: with a negative one (the cell volume) every atom
+    is misplaced (pymatgen-core 2026.5.18).  Wherever the parsed cell differs
+    from :func:`poscar_geometry` it is replaced; direct coordinates never
+    differ.
+
+    Args:
+        structure: What pymatgen parsed from ``path``.
+        path: The file.  One that is not a POSCAR (a CIF, ...) leaves the
+            structure as it is.
+
+    Returns:
+        ``structure`` itself, or a ``Structure`` with the same species and
+        site properties on VASP's lattice and coordinates.
+    """
+    try:
+        with open_vasp_file(path) as handle:
+            geometry = poscar_geometry(handle.read().splitlines(), path)
+    except (OSError, EOFError, ValueError):
+        return structure
+    if (len(structure) != len(geometry.positions)
+            or geometry.agrees_with(structure.lattice.matrix, structure.frac_coords)):
+        return structure
+    from pymatgen.core import Lattice, Structure
+
+    return Structure(Lattice(geometry.lattice), [site.species for site in structure],
+                     geometry.positions, site_properties=structure.site_properties)
 
 
 def format_poscar(comment: str, lattice, species: list[str], counts: list[int],
@@ -480,8 +703,14 @@ def read_outcar(path: str) -> dict:
 
     Returns:
         ``{"nelect", "efermi", "ispin", "nbands", "encut", "functional",
-        "species" (list of :class:`PotcarSpecies`), "va" (list of point-charge
-        dicts), "lorbit"}``; missing entries are ``None`` or empty.
+        "gga", "metagga", "species" (list of :class:`PotcarSpecies`), "va"
+        (list of point-charge dicts), "lorbit", "noncollinear"}``; missing
+        entries are ``None`` or empty (``noncollinear`` is ``True`` for a
+        spinor run, ``LNONCOLLINEAR``/``LSORBIT``, else ``False``).
+        ``"functional"`` is the exchange-correlation tag
+        the eigenvalues belong to: the ``METAGGA`` tag of a meta-GGA run
+        (``"LAK"``, ``"SCAN"``, ``"R2SCAN"``, upper case), otherwise the
+        ``GGA`` tag (``"PE"``; see :data:`GGA_NAMES`).
 
     Raises:
         SystemExit: The file is missing.
@@ -490,8 +719,9 @@ def read_outcar(path: str) -> dict:
     if not resolved:
         raise SystemExit(f"ERROR: no OUTCAR at {path}.")
     facts: dict = {"nelect": None, "efermi": None, "ispin": None, "nbands": None,
-                   "encut": None, "functional": None, "species": [], "va": [],
-                   "lorbit": None}
+                   "encut": None, "functional": None, "gga": None,
+                   "metagga": None, "species": [], "va": [], "lorbit": None,
+                   "noncollinear": False}
     species: list[PotcarSpecies] = []
     current: PotcarSpecies | None = None
     in_configuration = False
@@ -580,6 +810,14 @@ def read_outcar(path: str) -> dict:
                 if match:
                     facts["ispin"] = int(match.group(1))
                 continue
+            # a spinor (vasp_ncl) run: "LNONCOLLINEAR = T" in the parameter
+            # list, or the "LSORBIT = .TRUE." of the INCAR echo
+            if (stripped.startswith(("LNONCOLLINEAR", "LSORBIT"))
+                    and "=" in stripped):
+                value = stripped.split("=", 1)[1].split()
+                if value and value[0].strip(".").upper().startswith("T"):
+                    facts["noncollinear"] = True
+                continue
             if facts["nbands"] is None and "NBANDS=" in stripped:
                 match = re.search(r"NBANDS=\s*(\d+)", stripped)
                 if match:
@@ -595,12 +833,33 @@ def read_outcar(path: str) -> dict:
                 if match:
                     facts["lorbit"] = int(match.group(1))
                 continue
-            if facts["functional"] is None and "GGA     =" in line:
-                facts["functional"] = stripped.split("=", 1)[1].split()[0]
+            if facts["gga"] is None and "GGA     =" in line:
+                facts["gga"] = stripped.split("=", 1)[1].split()[0]
+                continue
+            # VASP 6 writes "METAGGA = LAK    functional components" (and
+            # echoes the INCAR line) and then no GGA line at all; VASP 5
+            # writes "METAGGA=      F    non-selfconsistent MetaGGA calc."
+            # into EVERY run, a flag rather than a functional
+            if (facts["metagga"] is None and stripped.startswith("METAGGA")
+                    and "=" in stripped):
+                tag = re.split(r"[\s;!#]+",
+                               stripped.split("=", 1)[1].strip())[0].upper()
+                if tag not in _METAGGA_UNSET:
+                    facts["metagga"] = tag
                 continue
     flush()
     facts["species"] = species
+    # the eigenvalues of a meta-GGA run are meta-GGA eigenvalues whatever
+    # the GGA line says, so METAGGA wins and GGA is the fallback
+    facts["functional"] = facts["metagga"] or facts["gga"]
     return facts
+
+
+#: ``METAGGA`` values that do not name a functional: VASP 5's flag of a
+#: non-self-consistent meta-GGA energy evaluated on GGA eigenvalues, and the
+#: spellings of "not set".
+_METAGGA_UNSET = {"", "F", "T", "FALSE", "TRUE", ".FALSE.", ".TRUE.", "--",
+                  "NONE"}
 
 
 #: What the ``GGA`` tag of ``OUTCAR`` means, for the method chip.

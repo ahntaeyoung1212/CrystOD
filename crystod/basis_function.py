@@ -7,7 +7,7 @@ import re
 import numpy as np
 from phonopy.phonon.character_table import character_table as all_character_tables
 from phonopy.structure.cells import get_primitive_matrix_by_centring
-from spgrep.core import get_spacegroup_irreps_from_primitive_symmetry
+from .runtime_compat import get_spacegroup_irreps_from_primitive_symmetry
 from spgrep.representation import get_character
 import spglib
 from sympy import Matrix, Poly, Rational, expand, nsimplify, simplify, sqrt, symbols
@@ -150,8 +150,38 @@ def _resolve_space_group_type(space_group_symbol: str) -> dict:
     return matches[0]
 
 
+def _irrep_table_lines(ct: dict) -> list[str]:
+    """Header and rows of a point-group character table (class sizes in
+    parentheses), right-aligned columns."""
+    class_names = list(ct["rotation_list"])
+    class_sizes = [
+        np.asarray(ct["mapping_table"][class_name]).shape[0]
+        for class_name in class_names
+    ]
+    irrep_names = list(ct["character_table"].keys())
+
+    header = ["irrep"] + [f"{name}({size})" for name, size in zip(class_names, class_sizes)]
+    rows = []
+    for irrep_name in irrep_names:
+        characters = ct["character_table"][irrep_name]
+        rows.append(
+            [irrep_name] + [_format_character_value(value) for value in characters]
+        )
+
+    widths = [len(item) for item in header]
+    for row in rows:
+        for idx, item in enumerate(row):
+            widths[idx] = max(widths[idx], len(item))
+
+    lines = []
+    lines.append("  ".join(item.rjust(widths[idx]) for idx, item in enumerate(header)))
+    for row in rows:
+        lines.append("  ".join(item.rjust(widths[idx]) for idx, item in enumerate(row)))
+    return lines
+
+
 def format_irrep_table(point_group: str, ct: dict) -> str:
-    """Character table of a point group as the ``--table`` text block.
+    """Character table of a crystallographic point group as text.
 
     What ``crystod-group --table --pg PG`` prints (and what
     ``--show-irrep-table`` adds to ``--product`` and ``--basis``): one row
@@ -178,40 +208,16 @@ def format_irrep_table(point_group: str, ct: dict) -> str:
            A2     1      1      -1
             E     2     -1       0
     """
-    class_names = list(ct["rotation_list"])
-    class_sizes = [
-        np.asarray(ct["mapping_table"][class_name]).shape[0]
-        for class_name in class_names
-    ]
-    irrep_names = list(ct["character_table"].keys())
+    return _render_blocks([
+        ("Point group", [point_group]),
+        ("IrRep Table", ["table:", *_irrep_table_lines(ct)]),
+    ]) + "\n"
 
-    header = ["irrep"] + [f"{name}({size})" for name, size in zip(class_names, class_sizes)]
-    rows = []
-    for irrep_name in irrep_names:
-        characters = ct["character_table"][irrep_name]
-        rows.append(
-            [irrep_name] + [_format_character_value(value) for value in characters]
-        )
 
-    widths = [len(item) for item in header]
-    for row in rows:
-        for idx, item in enumerate(row):
-            widths[idx] = max(widths[idx], len(item))
-
-    lines = []
-    lines.append("  ".join(item.rjust(widths[idx]) for idx, item in enumerate(header)))
-    for row in rows:
-        lines.append("  ".join(item.rjust(widths[idx]) for idx, item in enumerate(row)))
-
-    return (
-        "\n"
-        "* Point group *\n"
-        f"{point_group}\n\n"
-        "* IrRep Table *\n"
-        "table:\n"
-        + "\n".join(lines)
-        + "\n"
-    )
+def _render_blocks(blocks: list[tuple[str, list[str]]]) -> str:
+    """Join ``(title, lines)`` blocks as ``* title *`` blocks, each preceded
+    by a blank line (the result starts with a newline, no trailing one)."""
+    return "\n".join(f"\n* {title} *\n" + "\n".join(lines) for title, lines in blocks)
 
 
 def _parse_function(raw_expression: str):
@@ -680,9 +686,10 @@ def _resolve_isoir_labels(
     little_primitive_translations: np.ndarray,
     conventional_translations: np.ndarray,
 ):
-    """ISO-IR (Miller-Love) labels for the spgrep irreps at a k point absent
-    from the tabulated ISO-IR special points.  Returns ({irrep index: label},
-    k-type letter) or None; never raises."""
+    """ISO-IR (Miller-Love) labels for the spgrep irreps at any k point
+    (the primary labelling route; a k point tabulated only through its -k
+    partner gets 'A' names).  Returns ({irrep index: label}, k-type letter)
+    or None; never raises."""
     try:
         from .isoir import get_isoir_label_map
 
@@ -729,13 +736,13 @@ def _get_little_group_label(
     return f"{international_short} ({number})"
 
 
-def _format_spacegroup_irrep_table(
+def _spacegroup_irrep_table_lines(
     little_group_label: str,
     operation_labels: list[str],
     generic_labels: list[str],
     display_label_map: dict[str, str],
     irrep_characters_map: dict[str, np.ndarray],
-) -> str:
+) -> list[str]:
     header = ["irrep"] + operation_labels
     rows = []
     for generic_label in generic_labels:
@@ -756,21 +763,22 @@ def _format_spacegroup_irrep_table(
     for row in rows:
         lines.append("  ".join(item.rjust(widths[index]) for index, item in enumerate(row)))
 
-    return (
-        "\n"
-        "* IrRep Table *\n"
-        f"little group: {little_group_label}\n"
-        "table:\n"
-        + "\n".join(lines)
-        + "\n"
-    )
+    return [f"little group: {little_group_label}", "table:", *lines]
 
 
-def _analyze_point_group(
+def _point_group_blocks(
     point_group: str,
     seed_expressions: list,
     show_irrep_table: bool,
-) -> str:
+) -> tuple[list[tuple[str, list[str]]], list[tuple[str, list[str]]]]:
+    """Classify basis functions under a point group.
+
+    Returns:
+        ``(header_blocks, analysis_blocks)``: the ``* Point group *`` block
+        (followed by ``* IrRep Table *`` when ``show_irrep_table``) and the
+        input, closed-space, character, decomposition and irrep-basis
+        blocks, each as ``(title, lines)``.
+    """
     ct = _get_character_table(point_group)
     class_names, rotations, class_sizes, operation_classes = _rotation_classes(ct)
     cartesian_rotations = _cartesianize_rotations(rotations)
@@ -786,40 +794,16 @@ def _analyze_point_group(
     reducible_character = _character_by_class(class_names, class_sizes, rep_matrices)
     multiplicities = decompose_representation(ct, reducible_character)
 
-    outputs: list[str] = []
+    header_blocks = [("Point group", [f"{point_group}"])]
     if show_irrep_table:
-        outputs.append(format_irrep_table(point_group, ct).strip("\n"))
-
-    lines = [
-        "",
-        "* Point group *",
-        f"{point_group}",
-        "",
-        "* Input basis functions *",
-        " " + ", ".join(_format_expression(expr) for expr in seed_expressions),
-        "",
-        "* Closed basis-function space *",
-        f" dimension: {len(basis_expressions)}",
-        f" basis: {_format_expression_list(basis_expressions)}",
-        "",
-        "* Reducible characters *",
-    ]
-    for class_name, character in zip(class_names, reducible_character):
-        lines.append(f"  {class_name}: {_format_character_value(character)}")
+        header_blocks.append(("IrRep Table", ["table:", *_irrep_table_lines(ct)]))
 
     decomposition = " + ".join(
         _format_decomposition_term(key, value)
         for key, value in multiplicities.items()
         if value > 0
     )
-    lines.extend([
-        "",
-        "* Decomposition *",
-        f" {decomposition}",
-        "",
-        "* Irreducible representations for basis functions *",
-    ])
-
+    irrep_lines = []
     for irrep_name, multiplicity in multiplicities.items():
         if multiplicity <= 0:
             continue
@@ -830,10 +814,32 @@ def _analyze_point_group(
             ct=ct,
             irrep_name=irrep_name,
         )
-        lines.append(f"  {irrep_name}: {_format_expression_list(adapted_functions)}")
+        irrep_lines.append(f"  {irrep_name}: {_format_expression_list(adapted_functions)}")
 
-    outputs.append("\n".join(lines).strip("\n"))
-    return "\n\n".join(outputs)
+    analysis_blocks = [
+        ("Input basis functions",
+         [" " + ", ".join(_format_expression(expr) for expr in seed_expressions)]),
+        ("Closed basis-function space",
+         [f" dimension: {len(basis_expressions)}",
+          f" basis: {_format_expression_list(basis_expressions)}"]),
+        ("Reducible characters",
+         [f"  {class_name}: {_format_character_value(character)}"
+          for class_name, character in zip(class_names, reducible_character)]),
+        ("Decomposition", [f" {decomposition}"]),
+        ("Irreducible representations for basis functions", irrep_lines),
+    ]
+    return header_blocks, analysis_blocks
+
+
+def _analyze_point_group(
+    point_group: str,
+    seed_expressions: list,
+    show_irrep_table: bool,
+) -> str:
+    header_blocks, analysis_blocks = _point_group_blocks(
+        point_group, seed_expressions, show_irrep_table
+    )
+    return _render_blocks(header_blocks + analysis_blocks)
 
 
 def _spacegroup_irrep_context(space_group_symbol: str, kpoint: list[float]):
@@ -841,9 +847,10 @@ def _spacegroup_irrep_context(space_group_symbol: str, kpoint: list[float]):
 
     Shared by the --basis/--generate-basis analysis and the --table display:
     builds the group from the ISO-IR table operations, computes the spgrep
-    small irreps at k, resolves the labels (ISO-IR special-point tables at
-    tabulated k, ISO-IR labeler fallback otherwise), and prepares the
-    display strings.
+    small irreps at k, resolves the labels (the ISO-IR labeller at every k,
+    'A' names at a k point tabulated only through -k; the direct comparison
+    with the special-point table only where the labeller gives nothing), and
+    prepares the display strings.
     """
     from types import SimpleNamespace
 
@@ -885,27 +892,31 @@ def _spacegroup_irrep_context(space_group_symbol: str, kpoint: list[float]):
         irt_irreps=irt_irreps,
     )
     isoir_kpoint_name = None
-    if not irt_irreps:
-        # k point absent from the tabulated ISO-IR special points (symmetry
-        # line/plane/general point):
-        # fall back to the ISO-IR (ISOTROPY, Miller-Love) tables
-        isoir_result = _resolve_isoir_labels(
-            sg_type=sg_type,
-            conventional_rotations=conventional_rotations,
-            primitive_matrix=primitive_matrix,
-            kpoint=kpoint,
-            irreps=irreps,
-            mapping_little_group=mapping_little_group,
-            little_primitive_translations=little_primitive_translations,
-            conventional_translations=conventional_translations,
-        )
-        if isoir_result is not None:
-            isoir_label_map, isoir_kpoint_name = isoir_result
-            for index, generic_label in enumerate(generic_labels):
-                if index in isoir_label_map:
-                    display_label_map[generic_label] = (
-                        f"{isoir_label_map[index]}({irreps[index].shape[1]})"
-                    )
+    # The ISO-IR (ISOTROPY, Miller-Love) labeller is the label authority at
+    # every k: it compares at the exact translations and with the conjugate
+    # phase convention, which the direct special-point comparison above
+    # ignores (it names a physically different irrep at some points, e.g.
+    # P of I4/mcm, Y/T of Ccce, X of I4_1/amd, N of Ia-3d).  The direct result
+    # stays only where the labeller gives nothing; a k point absent from the
+    # special-point table (symmetry line/plane/general point) is covered by
+    # the labeller alone.
+    isoir_result = _resolve_isoir_labels(
+        sg_type=sg_type,
+        conventional_rotations=conventional_rotations,
+        primitive_matrix=primitive_matrix,
+        kpoint=kpoint,
+        irreps=irreps,
+        mapping_little_group=mapping_little_group,
+        little_primitive_translations=little_primitive_translations,
+        conventional_translations=conventional_translations,
+    )
+    if isoir_result is not None:
+        isoir_label_map, isoir_kpoint_name = isoir_result
+        for index, generic_label in enumerate(generic_labels):
+            if index in isoir_label_map:
+                display_label_map[generic_label] = (
+                    f"{isoir_label_map[index]}({irreps[index].shape[1]})"
+                )
     little_group_label = _get_little_group_label(little_primitive_rotations, little_primitive_translations)
     kpoint_label = irt_irreps[0].kpname if irt_irreps else isoir_kpoint_name
     formatted_kpoint = _format_kpoint(kpoint)
@@ -988,22 +999,29 @@ def format_spacegroup_table(space_group_symbol: str, kpoint: list[float]) -> str
         "* k-point (primitive) *",
         context.kpoint_line,
     ]
-    table = _format_spacegroup_irrep_table(
+    table = _spacegroup_irrep_table_lines(
         little_group_label=context.little_group_label,
         operation_labels=context.operation_labels,
         generic_labels=context.generic_labels,
         display_label_map=context.display_label_map,
         irrep_characters_map=context.irrep_characters_map,
     )
-    return "\n".join(header) + "\n" + table
+    return "\n".join(header) + "\n" + _render_blocks([("IrRep Table", table)]) + "\n"
 
 
-def _analyze_space_group(
+def _space_group_blocks(
     space_group_symbol: str,
     kpoint: list[float],
     seed_expressions: list,
     show_irrep_table: bool,
-) -> str:
+) -> tuple[list[tuple[str, list[str]]], list[tuple[str, list[str]]]]:
+    """Classify basis functions under the little group of k.
+
+    Returns:
+        ``(header_blocks, analysis_blocks)`` as ``_point_group_blocks``:
+        the space-group, little-group and k-point blocks (and the little-group
+        ``* IrRep Table *`` with ``show_irrep_table``), then the analysis.
+    """
     context = _spacegroup_irrep_context(space_group_symbol, kpoint)
     sg_type = context.sg_type
     irreps = context.irreps
@@ -1032,61 +1050,33 @@ def _analyze_space_group(
     rep_characters = np.array([complex(matrix.trace().evalf()) for matrix in rep_matrices], dtype=np.complex128)
     multiplicities = _decompose_by_operations(rep_characters, irrep_characters_map)
 
-    outputs: list[str] = []
+    operation_labels = [
+        get_seitz_symbol(rotation, primitive_matrix)
+        for rotation in little_primitive_rotations
+    ]
+    header_blocks = [
+        ("Space group", [f"{sg_type.international_short} ({sg_type.number})"]),
+        ("Little group of k", [f"{little_group_label}"]),
+        ("k-point (primitive)", [kpoint_line]),
+    ]
     if show_irrep_table:
-        operation_labels = [
-            get_seitz_symbol(rotation, primitive_matrix)
-            for rotation in little_primitive_rotations
-        ]
-        outputs.append(
-            _format_spacegroup_irrep_table(
+        header_blocks.append((
+            "IrRep Table",
+            _spacegroup_irrep_table_lines(
                 little_group_label=little_group_label,
                 operation_labels=operation_labels,
                 generic_labels=generic_labels,
                 display_label_map=display_label_map,
                 irrep_characters_map=irrep_characters_map,
-            ).strip("\n")
-        )
-
-    lines = [
-        "",
-        "* Space group *",
-        f"{sg_type.international_short} ({sg_type.number})",
-        "",
-        "* Little group of k *",
-        f"{little_group_label}",
-        "",
-        "* k-point (primitive) *",
-        kpoint_line,
-        "",
-        "* Input basis functions *",
-        " " + ", ".join(_format_expression(expr) for expr in seed_expressions),
-        "",
-        "* Closed basis-function space *",
-        f" dimension: {len(basis_expressions)}",
-        f" basis: {_format_expression_list(basis_expressions)}",
-        "",
-        "* Little-group characters *",
-    ]
-    operation_labels = [
-        get_seitz_symbol(rotation, primitive_matrix)
-        for rotation in little_primitive_rotations
-    ]
-    for operation_label, character in zip(operation_labels, rep_characters):
-        lines.append(f"  {operation_label}: {_format_character_value(character)}")
+            ),
+        ))
 
     decomposition = " + ".join(
         _format_decomposition_term(display_label_map[key], value)
         for key, value in multiplicities.items()
         if value > 0
     )
-    lines.extend([
-        "",
-        "* Decomposition *",
-        f" {decomposition}",
-        "",
-        "* Irreducible representations for basis functions *",
-    ])
+    irrep_lines = []
     for irrep_name in generic_labels:
         multiplicity = multiplicities[irrep_name]
         if multiplicity <= 0:
@@ -1097,10 +1087,33 @@ def _analyze_space_group(
             irrep_characters=irrep_characters_map[irrep_name],
             irrep_name=irrep_name,
         )
-        lines.append(f"  {display_label_map[irrep_name]}: {_format_expression_list(adapted_functions)}")
+        irrep_lines.append(f"  {display_label_map[irrep_name]}: {_format_expression_list(adapted_functions)}")
 
-    outputs.append("\n".join(lines).strip("\n"))
-    return "\n\n".join(outputs)
+    analysis_blocks = [
+        ("Input basis functions",
+         [" " + ", ".join(_format_expression(expr) for expr in seed_expressions)]),
+        ("Closed basis-function space",
+         [f" dimension: {len(basis_expressions)}",
+          f" basis: {_format_expression_list(basis_expressions)}"]),
+        ("Little-group characters",
+         [f"  {operation_label}: {_format_character_value(character)}"
+          for operation_label, character in zip(operation_labels, rep_characters)]),
+        ("Decomposition", [f" {decomposition}"]),
+        ("Irreducible representations for basis functions", irrep_lines),
+    ]
+    return header_blocks, analysis_blocks
+
+
+def _analyze_space_group(
+    space_group_symbol: str,
+    kpoint: list[float],
+    seed_expressions: list,
+    show_irrep_table: bool,
+) -> str:
+    header_blocks, analysis_blocks = _space_group_blocks(
+        space_group_symbol, kpoint, seed_expressions, show_irrep_table
+    )
+    return _render_blocks(header_blocks + analysis_blocks)
 
 
 def _format_expression_list(expressions: list) -> str:
@@ -1148,10 +1161,12 @@ def main(argv: list[str] | None = None) -> None:
         if args.kpoint is None:
             # no k-point given: analyze all special k-points of the space group
             names, kpoints = _get_special_kpoints(args.space_group)
-            print("No --kpoint given; analyzing all special k points: " + ", ".join(names))
-            for name, kpoint in zip(names, kpoints):
+            print(_render_blocks([(
+                "Special k points",
+                ["No --kpoint given; analyzing all special k points: " + ", ".join(names)],
+            )]))
+            for kpoint in kpoints:
                 print(_analyze_space_group(args.space_group, kpoint, seed_expressions, args.show_irrep_table))
-                print()
             return
         print(_analyze_space_group(args.space_group, args.kpoint, seed_expressions, args.show_irrep_table))
         return
