@@ -212,7 +212,10 @@ def _print_table(title: str, materials, lines: list[str]) -> None:
         print(" " + line)
     if not materials:
         return
-    print()
+    if lines:
+        # the query block above carries the filters and the count; the
+        # table gets its own block (a bare --get lists it under the title)
+        print("\n * Materials *")
     for line in format_table(materials):
         print(" " + line)
     if any(m.experimental for m in materials):

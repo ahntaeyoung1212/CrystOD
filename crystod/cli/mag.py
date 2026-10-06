@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from .common import CRYSTOD_CITATION, add_cell_argument, banner
+from .common import CRYSTOD_CITATION, add_cell_argument, banner, mark_negative_fractions
 
 desc = """\
 Construct symmetry-adapted spin bases (cluster multipoles / SAMM) for the
@@ -95,7 +95,11 @@ def build_parser() -> ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    if argv is None:
+        import sys
+
+        argv = sys.argv[1:]
+    args = parser.parse_args(mark_negative_fractions(list(argv)))
 
     dispatch_argv = [
         "--poscar",

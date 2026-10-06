@@ -9,6 +9,7 @@ Option conventions (phonopy-aligned):
 
 from __future__ import annotations
 
+import re
 from argparse import Action, ArgumentParser
 from pathlib import Path
 
@@ -181,7 +182,8 @@ def run_example(command: str, name: str, argv: list[str]) -> list[str]:
             print(f"Wrote {path.name} (bundled example input)")
     command_line = " ".join([example.command_line,
                              *(shlex.quote(token) for token in remaining)])
-    print(f"Running: {command_line}\n")
+    # the command's own output opens with a blank line before its first block
+    print(f"Running: {command_line}")
     return [*example.argv, *remaining]
 
 
@@ -215,3 +217,33 @@ def add_output_argument(parser: ArgumentParser, help_text: str) -> None:
         metavar="FILE",
         help=help_text,
     )
+
+
+_NEGATIVE_FRACTION = re.compile(r"-\d+/\d+")
+# the option, or an abbreviation argparse accepts (--kp, --qpo, --qpoint2)
+_KPOINT_OPTION = re.compile(r"--(k|kp|kpo|kpoi|kpoin|kpoint|q|qp|qpo|qpoi|qpoin|qpoint)\d*")
+
+
+def mark_negative_fractions(argv: list[str]) -> list[str]:
+    """Mark the negative fractions among the coordinates of ``--kpoint`` and
+    ``--qpoint`` (``--kpoint -1/3 -1/3 -1/2``) with a leading space.
+
+    argparse takes ``-0.5`` for a number but ``-1/2`` for an option, so the
+    lists of special points, which print negative coordinates for inputs
+    outside the ISO-IR setting, could not be given back as fractions. The
+    leading space makes the token a value; the coordinate parsers
+    (``fractions.Fraction``, ``float``) ignore it. The numbered
+    ``--qpoint1``, ``--qpoint2`` of ``--modulation`` count as well
+    (``crystod-group`` has its own form of this in ``_merge_dash_values``).
+    """
+    marked: list[str] = []
+    inside = False
+    for token in argv:
+        if token.startswith("-") and token[1:2] not in tuple("0123456789."):
+            # an option (no option starts with a digit): only the k-point
+            # options take coordinates
+            inside = bool(_KPOINT_OPTION.fullmatch(token))
+        elif inside and _NEGATIVE_FRACTION.fullmatch(token):
+            token = " " + token
+        marked.append(token)
+    return marked

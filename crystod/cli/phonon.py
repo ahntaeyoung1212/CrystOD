@@ -2,7 +2,7 @@
 
 The phonon modes:
 
-- ``--irreps``     -- phonon irrep labeling;
+- ``--irreps``     -- phonon irrep labeling, IR/Raman activity at Gamma;
 - ``--fatband``    -- element-projected phonon fatbands;
 - ``--lt``         -- longitudinal/transverse-resolved bands;
 - ``--vector``     -- eigenvector VESTA export;
@@ -22,6 +22,7 @@ from .common import (
     add_example_argument,
     add_output_argument,
     banner,
+    mark_negative_fractions,
     run_example,
 )
 
@@ -32,6 +33,8 @@ which needs only the crystal structure.
 
 # Command Examples:
 crystod-phonon --irreps --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --readfc
+crystod-phonon --irreps --dim "4 4 4" -c 221_PPOSCAR_ScF3 --nac   (BORN read only with --nac; dielectric response)
+crystod-phonon --irreps --dim "4 4 4" -c 227_PPOSCAR_Si --raman-tensor
 crystod-phonon --fatband --dim "4 4 4" -c 221_PPOSCAR_ScF3 --nac
 crystod-phonon --lt --dim "4 4 4" -c 221_PPOSCAR_ScF3
 crystod-phonon --vector --dim "4 4 4" -c 227_PPOSCAR_Si --readfc --qpoint GM
@@ -39,6 +42,8 @@ crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5   (list mod
 crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
 crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
 crystod-phonon --vibration -c 221_PPOSCAR_ScF3 --qpoint R
+crystod-phonon --vibration -c 221_PPOSCAR_SrTiO3 --qpoint GM   (IR/Raman/silent activity, Wyckoff orbits)
+crystod-phonon --vibration -c 186_PPOSCAR_ZnO --qpoint GM --raman-tensor
 crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_ScF3   (scan every commensurate q)
 crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --qpoint R --modulate
 crystod-phonon --subgroup --yaml phonopy_params.yaml --qpoint R
@@ -57,7 +62,9 @@ def build_parser() -> ArgumentParser:
     mode.add_argument(
         "--irreps",
         action="store_true",
-        help="Label the phonon modes with space-group irreps (writes phonon_irreps.yaml).",
+        help="Label the phonon modes with space-group irreps, with the IR/Raman/silent/\n"
+        "acoustic activity at Gamma (writes phonon_irreps.yaml); with --nac also the\n"
+        "mode effective charges and the static dielectric tensor.",
     )
     mode.add_argument(
         "--fatband",
@@ -116,8 +123,19 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--nac",
         action="store_true",
-        help="Apply the non-analytical term correction (LO/TO splitting, BORN file) "
-        "in --fatband/--lt mode.",
+        help="Apply the non-analytical term correction (LO/TO splitting) with the\n"
+        "BORN file (or the NAC parameters of --yaml) in --irreps/--fatband/--lt/\n"
+        "--vector/--modulation/--subgroup. Without --nac no BORN file is read.\n"
+        "In --irreps it adds the mode effective charges, the dielectric contribution\n"
+        "of every Gamma set, eps_0, the acoustic sum rule and the LST check.",
+    )
+    parser.add_argument(
+        "--raman-tensor",
+        dest="raman_tensor",
+        action="store_true",
+        help="In --irreps and --vibration --qpoint GM, print the symmetry-allowed\n"
+        "Raman tensors of the Raman-active Gamma irreps (Cartesian axes of the\n"
+        "input cell).",
     )
     parser.add_argument(
         "--element",
@@ -232,7 +250,7 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--list-qpoints",
         action="store_true",
-        help="List available high-symmetry q-points in --vibration mode.",
+        help="List the ISO-IR special q points (primitive coordinates) in --vibration mode.",
     )
     parser.add_argument(
         "--export-npz",
@@ -304,7 +322,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     if argv is None:
         argv = sys.argv[1:]
-    argv = list(argv)
+    argv = mark_negative_fractions(list(argv))
     try:
         args, unknown = parser.parse_known_args(argv)
     except ExampleRequested as request:
@@ -318,6 +336,8 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.band_labels and not args.band:
         parser.error("--band-labels requires --band.")
+    if args.raman_tensor and not (args.irreps or args.vibration):
+        parser.error("--raman-tensor is only used by --irreps and --vibration --qpoint GM.")
 
     # -c carries a sentinel default so --modulation can tell it apart from "not
     # given"; every other mode wants the documented POSCAR default
@@ -336,6 +356,10 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
         if args.all_irreps:
             dispatch_argv.append("--all-irreps")
+        if args.nac:
+            dispatch_argv.append("--nac")
+        if args.raman_tensor:
+            dispatch_argv.append("--raman-tensor")
 
         from ..phonon_irreps import main as phonon_irreps_main
 
@@ -412,6 +436,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.append("--conventional")
         if args.keep_q_coords:
             dispatch_argv.append("--keep-q-coords")
+        if args.nac:
+            dispatch_argv.append("--nac")
         dispatch_argv.extend(["--qpoint", *[str(value) for value in args.qpoint]])
         if args.mode:
             dispatch_argv.extend(["--mode", *[str(value) for value in args.mode]])
@@ -464,6 +490,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
         if args.keep_q_coords:
             dispatch_argv.append("--keep-q-coords")
+        if args.nac:
+            dispatch_argv.append("--nac")
         dispatch_argv.extend(unknown)
 
         from ..modulation import main as modulation_main
@@ -499,6 +527,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--threshold", str(args.threshold)])
         if args.tolerance is not None:
             dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        if args.nac:
+            dispatch_argv.append("--nac")
         if args.modulate:
             dispatch_argv.append("--modulate")
             if args.amplitude:
@@ -510,8 +540,12 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     # --vibration
+    if args.nac:
+        parser.error("--nac is not used by --vibration (it reads no force data).")
     if not args.qpoint and not args.list_qpoints:
         parser.error("--vibration requires --qpoint unless --list-qpoints is used.")
+    if args.raman_tensor and not args.qpoint:
+        parser.error("--raman-tensor requires --qpoint GM in --vibration mode.")
 
     dispatch_argv = ["--poscar", cell]
     if args.qpoint:
@@ -530,6 +564,8 @@ def main(argv: list[str] | None = None) -> None:
         dispatch_argv.extend(["--export-npz", args.export_npz])
     if args.tolerance is not None:
         dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+    if args.raman_tensor:
+        dispatch_argv.append("--raman-tensor")
 
     from ..vibration_modes import main as vibration_main
 

@@ -15,7 +15,7 @@ command that does the job.
 
 from __future__ import annotations
 
-from argparse import ArgumentParser, RawTextHelpFormatter
+from argparse import SUPPRESS, ArgumentParser, RawTextHelpFormatter
 from fractions import Fraction
 
 from .common import (
@@ -24,6 +24,7 @@ from .common import (
     add_example_argument,
     add_output_argument,
     banner,
+    mark_negative_fractions,
     print_crystod_citation,
     require_pyscf_or_exit,
     run_example,
@@ -205,7 +206,8 @@ def build_parser() -> ArgumentParser:
         "three run directories in ANY order, whatever they are named (the\n"
         "crystal run is the one whose POSCAR has no Va species). Each\n"
         "directory's band/ subdirectory is used when it carries a PROCAR of\n"
-        "the special k points. Needs LORBIT=12.\n"
+        "the special k points. Needs LORBIT=12 (the default anchor engine)\n"
+        "or the WAVECARs (--vasp-engine overlap).\n"
         "-c is OPTIONAL here: without it the structure is the crystal run's\n"
         "POSCAR; with it, the analysis setting is the primitive cell of that\n"
         "file and every run is mapped onto it (one origin shift, an atom\n"
@@ -359,6 +361,83 @@ def build_parser() -> ArgumentParser:
         "E - E_VBM with the VBM the highest occupied crystal eigenvalue over\n"
         "all k of the crystal run), efermi, or raw (the crystal run's own\n"
         "G = 0 reference).",
+    )
+    parser.add_argument(
+        "--vasp-engine",
+        choices=("anchor", "overlap"),
+        default=None,
+        help="The engine of --vasp. anchor (default): PROCAR projections, the\n"
+        "fragment columns put on the crystal's scale by site-resolved\n"
+        "deep-level anchors. overlap: all-electron PAW overlaps of the\n"
+        "sublattice and crystal Bloch states from the three WAVECARs -- no\n"
+        "energy alignment at all; frozen-ion parent levels, a sublattice-\n"
+        "orbital COHP for the bond colours, the energy ledger (bare ->\n"
+        "Pauli -> closed-shell mixing -> covalent) and the covalency count;\n"
+        "reads spin-orbit (vasp_ncl) runs too. Writes\n"
+        "CrystOD_<cell>_vasp_overlap.html/.json/.txt. With --vasp-setup it\n"
+        "writes LWAVE = .TRUE. and checks the crystal run's NBANDS.",
+    )
+    parser.add_argument(
+        "--vasp-shells",
+        nargs="+",
+        default=None,
+        metavar="SHELL",
+        help="Active sublattice shells of --vasp-engine overlap, e.g.\n"
+        "Sr-4s Sr-4p Sr-5s Sr-4d Ti-3d Ti-4s Ti-4p O-2s O-2p; auto (default)\n"
+        "= the POTCAR valence shells plus one standard empty shell per\n"
+        "element ((n-1)d for groups 1-2, np for groups 3-12); auto-full =\n"
+        "the occupied levels plus the lowest empty manifold of every cation\n"
+        "(element, l). The chosen shells are printed.",
+    )
+    parser.add_argument(
+        "--vasp-frozen-window",
+        type=float,
+        default=None,
+        metavar="EV",
+        help="Frozen window of --vasp-engine overlap: the crystal levels up to\n"
+        "VBM + EV are reproduced exactly (default 14); the empty active\n"
+        "shells above it come from the bands beyond (disentanglement).",
+    )
+    parser.add_argument(
+        "--vasp-frozen-qmin",
+        type=float,
+        default=None,
+        metavar="Q",
+        help="Window levels of --vasp-engine overlap whose projection on the\n"
+        "active sublattice orbitals is below Q are left to the\n"
+        "disentanglement instead of being frozen (default 0.5).",
+    )
+    parser.add_argument(
+        "--vasp-cache",
+        default=None,
+        metavar="FILE",
+        help="Overlap cache (.npz) of --vasp-engine overlap: written after the\n"
+        "WAVECARs are read, reused when it covers the same runs, and enough\n"
+        "on its own -- with no run directories (no --vasp path, no ./BAND)\n"
+        "the whole analysis runs from FILE.",
+    )
+    parser.add_argument(
+        "--vasp-scalar-reference",
+        default=None,
+        metavar="JSON",
+        help="Spin-orbit runs of --vasp-engine overlap: the results JSON of the\n"
+        "scalar-relativistic runs of the same crystal; every spin-orbit level\n"
+        "and parent then lists the compatible scalar levels.",
+    )
+    parser.add_argument(
+        "--vasp-irrep-json",
+        default=None,
+        metavar="PATTERN",
+        help="IrRep JSON outputs for --vasp-engine overlap: a path with {run}\n"
+        "for the run directory's name (.../irrep_{run}/irrep-output.json),\n"
+        "or a directory holding <run>/irrep-output.json. The levels then\n"
+        "carry IrRep's Bilbao names (-R8) instead of CrystOD's (-R6-).",
+    )
+    parser.add_argument(
+        "--vasp-cross-sphere",
+        choices=("bessel", "projector", "none"),
+        default=None,
+        help=SUPPRESS,
     )
     parser.add_argument(
         "--basis",
@@ -653,11 +732,12 @@ def _kpoint_from_label(
 
     The SALC and hybridization analyses take coordinates only, and when
     ``--kpoint`` is omitted they survey the ISO-IR special points of the
-    space group. The label is looked up in that same table -- the names
-    ``crystod-bz --show-kpoint`` prints -- so ``--kpoint R`` analyzes exactly
-    the point the survey calls R, expressed in the spglib primitive basis
-    the analysis uses (seekpath's labels and basis can differ from it on
-    base-centred cells).
+    space group. The label is looked up in that same list -- the names
+    ``crystod-bz --show-kpoint`` prints, named in the frame of the labels
+    (``CrystalOrbital.get_special_points``) -- so ``--kpoint R`` analyzes
+    exactly the point the survey calls R, expressed in the spglib primitive
+    basis the analysis uses (seekpath's labels and basis can differ from it
+    on base-centred cells).
     """
     import contextlib
     import io
@@ -670,7 +750,7 @@ def _kpoint_from_label(
     # the structure classes announce the primitive-cell conversion on stdout;
     # the analysis that follows prints that line itself, so keep it quiet here
     with contextlib.redirect_stdout(io.StringIO()):
-        names, kpoints = CrystalOrbital(cell, **options).get_irt_special_points()
+        names, kpoints = CrystalOrbital(cell, **options).get_special_points()
     aliases = {"GAMMA": "GM", "G": "GM", "\u0393": "GM"}
     wanted = label.strip().upper()
     wanted = aliases.get(wanted, wanted)
@@ -720,7 +800,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if argv is None:
         argv = sys.argv[1:]
-    argv = list(argv)
+    argv = mark_negative_fractions(list(argv))
 
     # a flag that belongs to a sectioned command -> name that command
     for token in argv:
@@ -1148,6 +1228,42 @@ def main(argv: list[str] | None = None) -> None:
         if args.force and args.vasp_setup is None:
             parser.error("--force is only used with --vasp-setup (it lets it "
                          "overwrite the inputs of a finished run).")
+        # the options of the WAVECAR-overlap engine, and the anchor engine's
+        # own ones, which the overlap engine would otherwise silently ignore
+        overlap_flags = (
+            ("--vasp-shells", args.vasp_shells),
+            ("--vasp-frozen-window", args.vasp_frozen_window is not None),
+            ("--vasp-frozen-qmin", args.vasp_frozen_qmin is not None),
+            ("--vasp-cache", args.vasp_cache),
+            ("--vasp-scalar-reference", args.vasp_scalar_reference),
+            ("--vasp-irrep-json", args.vasp_irrep_json),
+            ("--vasp-cross-sphere", args.vasp_cross_sphere))
+        if args.vasp is None and args.vasp_setup is None:
+            for flag, value in (("--vasp-engine", args.vasp_engine), *overlap_flags):
+                if value:
+                    parser.error(f"{flag} is only used with --vasp (or --vasp-setup).")
+        elif args.vasp_engine != "overlap":
+            for flag, value in overlap_flags:
+                if value:
+                    parser.error(f"{flag} is only used with --vasp-engine overlap.")
+        elif args.vasp_setup is not None:
+            for flag, value in overlap_flags:
+                if value and flag != "--vasp-frozen-window":
+                    parser.error(f"{flag} is only used with --vasp --vasp-engine "
+                                 "overlap (--vasp-setup writes the inputs).")
+        else:
+            for flag, value in (("--vasp-anchor", args.vasp_anchor),
+                                ("--vasp-align", args.vasp_align),
+                                ("--vasp-zero", args.vasp_zero),
+                                ("--vasp-projection-floor",
+                                 args.vasp_projection_floor is not None),
+                                ("--no-align", args.no_align),
+                                ("--electrons", args.electrons is not None),
+                                ("--conventional", args.conventional)):
+                if value:
+                    parser.error(f"{flag} is only used with the anchor engine of "
+                                 "--vasp (--vasp-engine anchor); the overlap engine "
+                                 "aligns nothing and draws no wave-function sketch.")
         if (args.vasp is not None or args.vasp_setup is not None):
             if args.pyscf:
                 parser.error("--vasp and --pyscf are two different quantitative "
@@ -1191,6 +1307,20 @@ def main(argv: list[str] | None = None) -> None:
                 dispatch_argv.extend(["--vasp-mesh", *map(str, args.vasp_mesh)])
             if args.no_align:
                 dispatch_argv.append("--no-align")
+            for flag, value in (("--vasp-engine", args.vasp_engine),
+                                ("--vasp-cache", args.vasp_cache),
+                                ("--vasp-scalar-reference",
+                                 args.vasp_scalar_reference),
+                                ("--vasp-irrep-json", args.vasp_irrep_json),
+                                ("--vasp-cross-sphere", args.vasp_cross_sphere)):
+                if value is not None:
+                    dispatch_argv.extend([flag, value])
+            if args.vasp_shells is not None:
+                dispatch_argv.extend(["--vasp-shells", *args.vasp_shells])
+            for flag, value in (("--vasp-frozen-window", args.vasp_frozen_window),
+                                ("--vasp-frozen-qmin", args.vasp_frozen_qmin)):
+                if value is not None:
+                    dispatch_argv.extend([flag, str(value)])
 
             from ..crystal_orbital_vasp import main as vasp_diagram_main
 
@@ -1253,7 +1383,16 @@ def main(argv: list[str] | None = None) -> None:
                         ("--vasp-align", args.vasp_align),
                         ("--vasp-zero", args.vasp_zero),
                         ("--vasp-projection-floor",
-                         args.vasp_projection_floor is not None)):
+                         args.vasp_projection_floor is not None),
+                        ("--vasp-engine", args.vasp_engine),
+                        ("--vasp-shells", args.vasp_shells),
+                        ("--vasp-frozen-window",
+                         args.vasp_frozen_window is not None),
+                        ("--vasp-frozen-qmin", args.vasp_frozen_qmin is not None),
+                        ("--vasp-cache", args.vasp_cache),
+                        ("--vasp-scalar-reference", args.vasp_scalar_reference),
+                        ("--vasp-irrep-json", args.vasp_irrep_json),
+                        ("--vasp-cross-sphere", args.vasp_cross_sphere)):
         if value:
             parser.error(f"{flag} is only used with --diagram.")
     for flag, value in (("--pyscf", args.pyscf), ("--basis", args.basis),
