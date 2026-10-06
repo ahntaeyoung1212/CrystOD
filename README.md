@@ -1,6 +1,6 @@
 [![PyPI version](https://img.shields.io/pypi/v/CrystOD)](https://pypi.org/project/CrystOD/)
 [![Python](https://img.shields.io/pypi/pyversions/CrystOD)](https://pypi.org/project/CrystOD/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ahntaeyoung1212/CrystOD/blob/main/LICENSE)
 [![Tests](https://img.shields.io/badge/tests-testsuite.py-blue)](https://mochizuki-tus.github.io/CrystOD/contributing.html#running-the-tests)
 [![Docs](https://img.shields.io/badge/docs-mochizuki--tus.github.io%2FCrystOD-blue)](https://mochizuki-tus.github.io/CrystOD/)
 
@@ -44,10 +44,10 @@ lines, planes and general points.
 
 | command | what it gives you |
 |---|---|
-| `crystod` | crystal-orbital / SALC irreps from atomic orbitals, orbital hybridization, crystal-orbital diagrams (extended Hückel, PySCF, or finished VASP runs), band structure, DOS, 3D SALC viewers |
-| `crystod-group` | direct products of point- and space-group irreps, reducible-representation decomposition, ligand-field splitting, polynomial basis functions, coset decompositions, isotropy subgroups, multi-electron terms, POSCAR ↔ CIF, symmetry-mode (AMPLIMODES-style) analysis |
+| `crystod` | crystal-orbital / SALC irreps from atomic orbitals, orbital hybridization, crystal-orbital diagrams (extended Hückel, PySCF, or finished VASP runs — PROCAR projections, or WAVECAR overlaps with no energy alignment and spin-orbit runs included) with dipole selection rules between levels, band structure, DOS, 3D SALC viewers |
+| `crystod-group` | direct products of point- and space-group irreps and their symmetric and antisymmetric squares, Jahn-Teller active modes, reducible-representation decomposition, ligand-field splitting, polynomial basis functions, property-tensor forms (Neumann's principle), coset decompositions, point-group correlation tables, compatibility relations along symmetry lines and the subduction of parent irreps to the Gamma point of an isotropy subgroup, isotropy subgroups, their group-subgroup graph and the reverse lookup of the irreps (or pairs of irreps) giving a subgroup, invariant polynomials and secondary order parameters, multi-electron terms, POSCAR ↔ CIF, symmetry-mode (AMPLIMODES-style) analysis |
 | `crystod-bz` | interactive 3D Brillouin zones, automatic or manual k-paths, supercell (folded) BZs, special k points of any space group |
-| `crystod-phonon` | phonon irrep labeling, element-projected fatbands, longitudinal/transverse bands, eigenvector VESTA export, symmetry-adapted modulations, symmetry-only vibration bases, isotropy subgroups of imaginary modes |
+| `crystod-phonon` | phonon irrep labeling, IR/Raman activity and Raman tensors, dielectric response from Born charges, element-projected fatbands, longitudinal/transverse bands, eigenvector VESTA export, symmetry-adapted modulations, symmetry-only vibration bases, isotropy subgroups of imaginary modes |
 | `crystod-mag` | symmetry-adapted spin bases (cluster multipoles / SAMM) with ready-to-paste VASP `MAGMOM` or Quantum ESPRESSO input |
 | `crystod-md` | atomic displacement parameters (ADPs) and time-averaged cells from an MD trajectory |
 | `crystod-mol` | molecular point groups, molecular SALCs, and MO diagrams from symmetry + overlap (or PySCF) |
@@ -173,15 +173,15 @@ results = crystod.phonon.scan_imaginary_modes(phonon)   # a live phonopy object
 phonopy, spgrep, PySCF and matplotlib load only when a function that needs them is called.
 
 The API reference is at <https://mochizuki-tus.github.io/CrystOD/api/>. Three Jupyter
-notebooks in [`tutorials/`](tutorials/) walk through one workflow each, on the bundled
+notebooks in [`tutorials/`](https://github.com/ahntaeyoung1212/CrystOD/tree/main/tutorials) walk through one workflow each, on the bundled
 example inputs and with the Python API and the command line side by side:
-[`01_phonon_irrep_labeling.ipynb`](tutorials/01_phonon_irrep_labeling.ipynb),
-[`02_isotropy_subgroup_search.ipynb`](tutorials/02_isotropy_subgroup_search.ipynb) and
-[`03_mo_diagram.ipynb`](tutorials/03_mo_diagram.ipynb).
+[`01_phonon_irrep_labeling.ipynb`](https://github.com/ahntaeyoung1212/CrystOD/blob/main/tutorials/01_phonon_irrep_labeling.ipynb),
+[`02_isotropy_subgroup_search.ipynb`](https://github.com/ahntaeyoung1212/CrystOD/blob/main/tutorials/02_isotropy_subgroup_search.ipynb) and
+[`03_mo_diagram.ipynb`](https://github.com/ahntaeyoung1212/CrystOD/blob/main/tutorials/03_mo_diagram.ipynb).
 
 ### MCP server
 
-[`crystod-mcp/`](crystod-mcp/) in this repository packages the same analyses as the tools
+[`crystod-mcp/`](https://github.com/ahntaeyoung1212/CrystOD/tree/main/crystod-mcp) in this repository packages the same analyses as the tools
 of a Model Context Protocol server, so that an LLM client can run CrystOD on local
 structure files; see the
 [crystod-mcp](https://mochizuki-tus.github.io/CrystOD/crystod-mcp.html) page of the
@@ -193,14 +193,14 @@ documentation for the setup.
 python testsuite.py
 ```
 
-Runs the full regression suite (37 sections) against the data in `example/`; a section
-can be run alone with `python testsuite.py 27`. The `--pyscf` checks are skipped when
+Runs the full regression suite (45 sections) against the data in `example/`; a section
+can be run alone with `python testsuite.py 35`. The `--pyscf` checks are skipped when
 PySCF is not installed. GitHub Actions runs the suite on every push
-([test.yml](.github/workflows/test.yml)) and `ruff` ([lint.yml](.github/workflows/lint.yml)).
+([test.yml](https://github.com/ahntaeyoung1212/CrystOD/blob/main/.github/workflows/test.yml)) and `ruff` ([lint.yml](https://github.com/ahntaeyoung1212/CrystOD/blob/main/.github/workflows/lint.yml)).
 
 ## Contributing
 
-Bug reports, questions and pull requests are welcome; [CONTRIBUTING.md](CONTRIBUTING.md)
+Bug reports, questions and pull requests are welcome; [CONTRIBUTING.md](https://github.com/ahntaeyoung1212/CrystOD/blob/main/CONTRIBUTING.md)
 describes the development setup, the code style and the pull-request process.
 
 ## Data sources and acknowledgements
@@ -244,4 +244,4 @@ If you use CrystOD in your research, please cite:
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
+MIT License — see [LICENSE](https://github.com/ahntaeyoung1212/CrystOD/blob/main/LICENSE).

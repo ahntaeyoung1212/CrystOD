@@ -4,19 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CrystOD"
-version = "0.3.6"
+version = "0.4.3"
 authors = [
   {name = "Yasuhide Mochizuki"},
-  {name = "Hiroki Koiso"},
+  {email = "mochizuki@rs.tus.ac.jp"},
 ]
 maintainers = [
   {name = "Yasuhide Mochizuki", email = "mochizuki@rs.tus.ac.jp"},
 ]
-description = "Symmetry analysis toolkit for crystal orbital diagrams (SALC), space-group irreps, phonon irreps and modulations."
+description = "The offline symmetry lab for crystals and molecules: crystal-orbital and SALC irreps, space-group irrep products, isotropy subgroups, phonon irreps, symmetry-adapted modulations, molecular point groups and MO diagrams -- from a POSCAR or an XYZ file."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = [
   "crystallography",
   "space group",
@@ -28,34 +28,87 @@ keywords = [
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
+  "Environment :: Console",
   "Intended Audience :: Science/Research",
+  "Intended Audience :: Education",
+  "Natural Language :: English",
+  # Linux and macOS are where CrystOD is developed and tested. Windows is
+  # untested, and the optional [quantum] extra cannot be installed there at
+  # all: pyscf publishes no Windows wheel and its own documentation directs
+  # Windows users to the Windows Subsystem for Linux, which the Linux
+  # classifier already covers
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS :: MacOS X",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering :: Chemistry",
   "Topic :: Scientific/Engineering :: Physics",
-  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Visualization",
 ]
+# Lower bounds are the versions below which CrystOD provably breaks, each
+# traced to the API that sets it (a floor is not a claim that every older
+# combination was tested -- the verified configuration is the one in the
+# development environment, which is far newer).
 dependencies = [
-  "phonopy",
-  "spglib",
-  "spgrep",
-  "ase",
-  "numpy",
-  "scipy",
-  "sympy",
-  "pandas",
-  "matplotlib",
-  "seekpath",
-  "pymatgen",
-  "pyscf",
+  "phonopy>=2.9",        # phonopy.phonon.character_table (2.9.0)
+  "spglib>=2.4",         # get_spacegroup_type_from_symmetry (2.0); 2.4 is what
+                         # isotropy_subgroup.py itself warns it wants
+  "spgrep>=0.3.1",       # get_spacegroup_spinor_irreps_from_primitive_symmetry
+  "ase>=3.21",           # io.write(format="vasp") defaults to the VASP 5 format
+  "numpy>=1.21",         # numpy.typing.NDArray
+  "scipy>=1.11",         # no API floor; oldest series still maintained
+  "sympy>=1.10",         # matrices.normalforms.hermite_normal_form
+  "pandas>=2.2.2",       # first release without the numpy<2 cap
+  "matplotlib>=3.9",     # first series built against numpy 2
+  "seekpath>=2.0",       # no API floor; first Python-3-only series
+  "pymatgen>=2025.1.9",  # first release requiring the monty that its own
+                         # Structure.from_file/Molecule.from_file need
+  "requests>=2.0",       # crystod-search's HTTP client (Materials Project API);
+                         # no API floor within 2.x, and pymatgen needs a newer one
 ]
 
 [project.optional-dependencies]
+# PySCF (~500 MB with its dependencies) is needed ONLY by the quantitative
+# engines -- crystod --diagram/--band/--dos/--visualize --pyscf and
+# crystod-mol --diagram --pyscf.  Everything else (SALC irreps, extended
+# Hueckel diagrams, group theory, phonon irreps, modulations, spin bases,
+# Brillouin zones, molecular SALCs) runs without it, so it is an extra:
+#   pip install "CrystOD[quantum]"
+# A --pyscf run without it stops with a one-line ERROR naming that command.
+quantum = [
+  # upper bound, not a floor: pyscf 2.14.0 rewrote pbc.scf.khf.get_occ as
+  # `if 0 < nocc < nmo / elif nocc == nmo / else: raise`, so a cell with
+  # ZERO electrons -- what a fully ionized fragment is under a GTH
+  # pseudopotential, e.g. Al(3+) of AlN -- falls into the else branch and
+  # dies with "Failed to assign mo_occ. Nocc (0) > Nmo (52)" (an inequality
+  # that is not even true).  --diagram --pyscf cannot run such a fragment
+  # on 2.14.0; 2.13.1 handles it.  Lift the cap once that is fixed here or
+  # upstream.
+  "pyscf>=2.4,<2.14",    # floor: libxc.nlc_coeff returns ((b, c), fac) pairs
+                         # (2.3), and 2.4 is the first with macOS arm64 binaries
+]
 doc = [
   "sphinx",
   "myst-parser",
   "sphinx-book-theme",
   "sphinx-copybutton",
 ]
+# the docs build imports crystod (sphinx.ext.autodoc for doc/api/), the
+# tutorials are executed with nbconvert, and the test suite is plain Python
+dev = [
+  "CrystOD[quantum,doc]",
+  "ruff",
+  "nbconvert",
+  "ipykernel",
+  "build",
+  "twine",
+]
+all = ["CrystOD[quantum,doc]"]
 
 [project.scripts]
 crystod = "crystod.cli:main"
@@ -65,12 +118,17 @@ crystod-mag = "crystod.cli.mag:main"
 crystod-mol = "crystod.cli.mol:main"
 crystod-phonon = "crystod.cli.phonon:main"
 crystod-group = "crystod.cli.group:main"
+crystod-search = "crystod.cli.search:main"
+crystod-xrd = "crystod.cli.xrd:main"
 
 [tool.setuptools]
-packages = ["crystod", "crystod.cli"]
+packages = ["crystod", "crystod.cli", "crystod.examples"]
 
 [tool.setuptools.package-data]
 crystod = ["CIR_data.txt.gz", "vesta_element_rgb.json"]
+# the inputs behind `--example` (a few POSCAR/XYZ files and one FORCE_SETS,
+# ~100 kB), so the quick start runs right after `pip install`
+"crystod.examples" = ["221_PPOSCAR_*", "FORCE_SETS_*", "XYZ_*.xyz"]
 
 [project.urls]
 Homepage = "https://mochizuki-tus.github.io/CrystOD/"

@@ -50,16 +50,16 @@ The regression suite is `testsuite.py` at the repository root: plain Python, no
 test-runner dependency. Run it from the repository root inside the environment:
 
 ```bash
-python testsuite.py          # all 37 sections
-python testsuite.py 13       # section 13 only
-python testsuite.py 3 33     # sections 3 and 33
+python testsuite.py          # all 45 sections
+python testsuite.py 17       # section 17 only
+python testsuite.py 3 41     # sections 3 and 41
 ```
 
 Each check prints `[PASS]` or `[FAIL]` with its name (and, on failure, the output of
 the command it ran); the run ends with `Total: N passed, M failed` and exits with
 status 1 if anything failed. The suite reads its inputs from `example/` and writes to
 temporary directories, and every individual command has a 900 s timeout. Without
-PySCF the PySCF-dependent checks in sections 3, 6 and 33 are skipped with a `[SKIP]`
+PySCF the PySCF-dependent checks in sections 3, 7 and 41 are skipped with a `[SKIP]`
 line and the rest of the suite still runs; the CI matrix installs `[quantum]`, so
 nothing is skipped there.
 
@@ -77,11 +77,11 @@ The `mcp` job of the Tests workflow runs it on every push.
 **Section numbers.** One number identifies a feature everywhere in the repository:
 section *N* of `testsuite.py` tests it, `example/NN_*/` holds its worked example (the
 inputs, plus a line in `example/README` with the command), and section *N* of the
-command's page in `doc/` documents it (`## 13. Isotropy subgroups (--parent)` in
+command's page in `doc/` documents it (`## 17. Isotropy subgroups (--parent)` in
 `doc/crystod-group.md`, for example). The docstring at the top of `testsuite.py`
-lists all 37 sections grouped by command: 1 library core, 2-6 `crystod`, 7-17
-`crystod-group`, 18-20 `crystod-bz`, 21-27 `crystod-phonon`, 28-29 `crystod-mag`,
-30-31 `crystod-md`, 32-34 `crystod-mol`, 35 Python API, 36 `crystod-xrd`, 37
+lists all 45 sections grouped by command: 1 library core, 2-7 `crystod`, 8-24
+`crystod-group`, 25-27 `crystod-bz`, 28-35 `crystod-phonon`, 36-37 `crystod-mag`,
+38-39 `crystod-md`, 40-42 `crystod-mol`, 43 Python API, 44 `crystod-xrd`, 45
 `crystod-search`. A few sections hold the "extras" of a command (aliases, error
 messages, removed flags) and have no example directory of their own.
 
@@ -127,7 +127,7 @@ tables) are maintained in parallel; change both.
   matplotlib at module level, because the API domain modules load implementation
   modules lazily (PEP 562). `crystod/__init__.py`, the domain modules and any
   `--help` path must stay free of them (`import crystod` plus all nine domains is
-  measured at about 0.09 s and a test in section 35 keeps it that way).
+  measured at about 0.09 s and a test in section 43 keeps it that way).
 
 ## How to add a feature
 
