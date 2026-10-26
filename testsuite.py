@@ -81,22 +81,40 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
                                 subgroups of the imaginary modes)
   -- crystod-mag --
   36. crystod-mag               symmetry-adapted spin bases (cluster multipoles / SAMM)
-  37. crystod-mag               --format qe / --conventional extras
+  37. crystod-mag --classify-only  magnetic space groups (BNS), magnetic point
+                                groups, responses allowed by symmetry and collinear
+                                classes (ferromagnet, conventional AFM, altermagnet
+                                d/g-wave): bcc AFM, AlNi3, rutile TiO2, MnO2, Cr2O3,
+                                NiO-type NaCl, La2CuO4, --classify-only, MPG symbols
+                                of all 1651 MSGs
+  38. crystod-mag               --format qe / --conventional extras
   -- crystod-md --
-  38. crystod-md --adp          ADPs from an MD XDATCAR trajectory
-  39. crystod-md                --adp / --summary extras
+  39. crystod-md --adp          ADPs from an MD XDATCAR trajectory
+  40. crystod-md --project      mode projection of an MD trajectory (synthetic
+                                R4+/M3+ trajectories, a --modulation structure
+                                and AMPLIMODES, NpT ScF3, sum rule)
+  41. crystod-md                --adp / --summary extras
   -- crystod-mol --
-  40. crystod-mol               molecular point groups and molecular SALCs
-  41. crystod-mol --diagram     MO diagram from symmetry + overlap (extended Hueckel)
-  42. crystod-mol               --align / --show-matrix / --visualize / error extras
+  42. crystod-mol               molecular point groups and molecular SALCs
+  43. crystod-mol --diagram     MO diagram from symmetry + overlap (extended Hueckel)
+  44. crystod-mol               --align / --show-matrix / --visualize / error extras
   -- Python API --
-  43. crystod.salc/group/phonon/bz/mag/md/mol/xrd/search  library API (import
+  45. crystod.salc/group/phonon/bz/mag/md/mol/xrd/search  library API (import
                                 hygiene, backward compatibility, API-vs-CLI agreement)
   -- crystod-xrd --
-  44. crystod-xrd               powder X-ray diffraction patterns (pymatgen)
+  46. crystod-xrd               powder X-ray diffraction patterns (pymatgen)
+  47. crystod-xrd --parent      neutron patterns; superlattice reflections of a child
+                                indexed on the parent, k points and irreps
   -- crystod-search --
-  45. crystod-search            Materials Project search and POSCAR download (offline stub)
+  48. crystod-search            Materials Project search and POSCAR download (offline stub)
                                 (CRYSTOD_LIVE_MP=1 adds one live search)
+  -- crystod (main command), continued --
+  49. crystod --extract-irrep   band irreps of one VASP run from its WAVECAR (the small
+                                real runs of example/03_hybridization/vasp_wavecar:
+                                SrTiO3 scalar, ISPIN = 2, spin-orbit, and InP with
+                                spin-orbit coupling; CRYSTOD_VASP_TESTDATA=<dir of the
+                                VASP runs> adds the consistency checks on
+                                SrTiO3_Pm-3m/BAND and the overlap engine)
 """
 
 from __future__ import annotations
@@ -130,7 +148,7 @@ MODULATION_DIR = os.path.join(ROOT, "example", "33_modulation", "ScF3_Pm-3m")
 MODULATION_STO_DIR = os.path.join(ROOT, "example", "33_modulation", "Sr3Ti2O7_I4mmm")
 PHONON_IRREP_DIR = os.path.join(ROOT, "example", "28_phonon_irrep", "SrTiO3_Pm-3m")
 PHONON_VECTOR_DIR = os.path.join(ROOT, "example", "32_phonon_vector", "Si_Fd-3m")
-XDATCAR_ADP_DIR = os.path.join(ROOT, "example", "38_xdatcar2adp", "ScF3_Pm-3m_NpT_300K")
+XDATCAR_ADP_DIR = os.path.join(ROOT, "example", "39_xdatcar2adp", "ScF3_Pm-3m_NpT_300K")
 PHONON_FATBAND_DIR = os.path.join(ROOT, "example", "30_phonon_fatband", "ScF3_Pm-3m")
 PHONON_LT_DIR = os.path.join(ROOT, "example", "31_phonon_lt", "ScF3_Pm-3m")
 XYZ_DIR = os.path.join(ROOT, "example", "test_XYZs")
@@ -141,7 +159,7 @@ VASP_LAK_FIXTURE = os.path.join(ROOT, "example", "03_hybridization",
                                 "vasp_SrTiO3_LAK")
 VASP_OVERLAP_FIXTURE = os.path.join(ROOT, "example", "03_hybridization",
                                     "vasp_overlap")
-MP_SEARCH_DIR = os.path.join(ROOT, "example", "45_mp_search")
+MP_SEARCH_DIR = os.path.join(ROOT, "example", "48_mp_search")
 MP_FIXTURE = os.path.join(MP_SEARCH_DIR, "mp_summary_Sr-Ti-O.json.gz")
 
 PASS = 0
@@ -310,13 +328,38 @@ def _write_cell_variant(source: str, destination: str, dim=(1, 1, 1),
                                          numbers=numbers[order]))
 
 
+def _write_species_blocks(source: str, destination: str, order) -> None:
+    """Write the crystal in ``source`` as a POSCAR with its atoms in ``order``
+    (indices into the source cell) and one species block per atom, so the
+    species line repeats elements: SrTiO3 (Sr Ti O O O) with order
+    (2, 1, 3, 0, 4) gives ``O Ti O Sr O`` / ``1 1 1 1 1``.  spglib keeps this
+    atom order through standardization, so the atoms of one element are not
+    contiguous in the primitive cell crystod analyses."""
+    from phonopy.interface.calculator import read_crystal_structure
+
+    cell, _ = read_crystal_structure(source, interface_mode="vasp")
+    symbols = [cell.symbols[i] for i in order]
+    lines = [f"{os.path.basename(source)} with repeated species blocks", "   1.0"]
+    lines += ["  " + "  ".join(f"{x:.16f}" for x in row) for row in cell.cell]
+    lines += [" ".join(symbols), " ".join("1" for _ in symbols), "Direct"]
+    lines += ["  " + "  ".join(f"{x:.16f}" for x in cell.scaled_positions[i])
+              for i in order]
+    with open(destination, "w") as handle:
+        handle.write("\n".join(lines) + "\n")
+
+
+# SrTiO3 written as O Ti O Sr O: O at cell indices 0, 2, 4 with Ti and Sr
+# between them
+NONCONTIGUOUS_SrTiO3_ORDER = (2, 1, 3, 0, 4)
+
+
 def _salc_points(out: str) -> list[tuple[str, list[str]]]:
     """(k-point name, letters of every label printed there) of each k point of
     a crystod SALC output, the survey and the single-k form alike."""
     found = re.findall(r"k point \(primitive\):\s+(\S+) \[[^\]]*\]\n"
                        r" little group of k\s*:.*\n irreps\s*:(.*)", out)
-    found += re.findall(r"\* k point \(primitive\) \* \n (\S+) \[[^\]]*\]\n"
-                        r"(?:.*\n)*? \* Atomic Band Irreducible Representations \*\n(.*)", out)
+    found += re.findall(r"\* k point \(primitive\) \*\n (\S+) \[[^\]]*\]\n"
+                        r"(?:.*\n)*?\* Atomic Band Irreducible Representations \*\n(.*)", out)
     return [(name, re.findall(r"\[-?([A-Za-z]+)\d*[+-]?\(\d+\)\]", labels))
             for name, labels in found]
 
@@ -554,6 +597,44 @@ def test_02_salc() -> None:
            and all(len(_salc_points(block)) >= 4 for block in blocks)
            and not wrong, f"{wrong}\n{out}")
 
+    _test_02_noncontiguous_species()
+
+
+def _test_02_noncontiguous_species() -> None:
+    """SALC survey of a POSCAR whose element atoms are not contiguous."""
+    # The permutation characters and the Wyckoff letters / atom count of the
+    # element were taken over the index RANGE from its first to its last atom:
+    # SrTiO3 written as O Ti O Sr O took Ti and Sr in as O, printed O (5) and
+    # the Wyckoff letters of all five atoms, and gave a 15-dimensional O p
+    # content at X (2 X1+ + X2+ + 2 X3- + 3 X5+ + 2 X5-).  The survey must be
+    # the contiguous POSCAR's, line for line
+    x_o_p = "1.0 [X1+(1)] + 1.0 [X2+(1)] + 1.0 [X3-(1)] + 2.0 [X5+(2)] + 1.0 [X5-(2)]"
+    with tempfile.TemporaryDirectory() as tmp:
+        shutil.copy(POSCAR_SrTiO3, os.path.join(tmp, "POSCAR_contiguous"))
+        _write_species_blocks(POSCAR_SrTiO3, os.path.join(tmp, "POSCAR_noncontiguous"),
+                              NONCONTIGUOUS_SrTiO3_ORDER)
+        # absolute paths and the default cwd (ROOT): `python -m crystod` then
+        # imports this tree's crystod, not an editable install elsewhere
+        poscars = [os.path.join(tmp, name)
+                   for name in ("POSCAR_contiguous", "POSCAR_noncontiguous")]
+        for element, orbital in (("O", "p"), ("Ti", "d"), ("Sr", "s")):
+            outputs = [run_cli(["-c", poscar, "--element", element, "--orbital", orbital])
+                       for poscar in poscars]
+            (code_c, out_c), (code_n, out_n) = outputs
+            facts = (element != "O"
+                     or (re.search(r"\(number of atoms\) \*\n O \(3\)\n", out_n)
+                         is not None
+                         and "['c', 'c', 'c']" in out_n
+                         and re.search(r"X \[[^\]]*\]\n.*\n irreps\s*:\s*"
+                                       + re.escape(x_o_p), out_n) is not None))
+            report(f"O Ti O Sr O POSCAR: the {element}_{orbital} survey equals the "
+                   f"contiguous POSCAR's"
+                   + (" (O (3), Wyckoff c c c, 9-dimensional O p at X)"
+                      if element == "O" else ""),
+                   code_c == 0 and code_n == 0 and out_n == out_c
+                   and len(_salc_points(out_n)) == 4 and facts,
+                   out_c + out_n)
+
 
 # ---------------------------------------------------------------- 3. crystod --atomic-orbital
 def test_03_hybridization() -> None:
@@ -587,6 +668,8 @@ def test_03_hybridization() -> None:
     )
     report("separator-less token rejected with a clear message",
            code != 0 and "invalid --atomic-orbital token 'Tid'" in out, out)
+
+    _test_03_noncontiguous_species()
 
     # --diagram: crystal-orbital diagram (full-valence fragments per k point)
     with tempfile.TemporaryDirectory() as tmp:
@@ -1439,10 +1522,45 @@ def test_03_hybridization() -> None:
                and neutral_fill == {"left": 3, "right": 5, "mo": 8}, out)
 
 
+def _test_03_noncontiguous_species() -> None:
+    """--atomic-orbital on a POSCAR whose element atoms are not contiguous."""
+    # The hybridization mode had the same index-range slice as the SALC
+    # survey: with SrTiO3 written as O Ti O Sr O the "O" block held Ti and Sr
+    # too, and O(p) was listed under R5+ and M3-, which O p does not span.
+    # The * Result * blocks must be the contiguous POSCAR's (the Wyckoff line
+    # above them lists every atom in cell order and so differs)
+    with tempfile.TemporaryDirectory() as tmp:
+        shutil.copy(POSCAR_SrTiO3, os.path.join(tmp, "POSCAR_contiguous"))
+        _write_species_blocks(POSCAR_SrTiO3, os.path.join(tmp, "POSCAR_noncontiguous"),
+                              NONCONTIGUOUS_SrTiO3_ORDER)
+        # absolute paths and the default cwd (ROOT), see section 2
+        poscars = [os.path.join(tmp, name)
+                   for name in ("POSCAR_contiguous", "POSCAR_noncontiguous")]
+        for extra in ([], ["--kpoint", "0", "0.5", "0"]):
+            outputs = [run_cli(["-c", poscar, "--atomic-orbital", "Sr_s", "Ti_d", "O_p"]
+                               + extra)
+                       for poscar in poscars]
+            (code_c, out_c), (code_n, out_n) = outputs
+            result_c = out_c.split("* Result *")[-1]
+            result_n = out_n.split("* Result *")[-1]
+            mode = "survey" if not extra else "at X"
+            report(f"O Ti O Sr O POSCAR: --atomic-orbital Sr_s Ti_d O_p {mode} gives the "
+                   f"contiguous POSCAR's * Result *"
+                   + (" (no O(p) under R5+ or M3-)" if not extra else ""),
+                   code_c == 0 and code_n == 0 and "* Result *" in out_n
+                   and result_n == result_c
+                   and "wyckoff letters      : ['c', 'b', 'c', 'a', 'c']" in out_n
+                   and (bool(extra)
+                        or (re.search(r"R5\+\(3\):.*O\(p\)", out_n) is None
+                            and re.search(r"M3-\(1\):.*O\(p\)", out_n) is None
+                            and re.search(r"R4-\(3\):.*O\(p\)", out_n) is not None)),
+                   out_c + out_n)
+
+
 def _vasp_kpoint_block(text: str, name: str) -> str:
     """The report block of one k point of a ``--diagram --vasp`` run."""
-    match = re.search(rf"\n \* k point {re.escape(name)} .*?"
-                      r"(?=\n \* k point |\nCrystal-orbital diagram)", text, re.S)
+    match = re.search(rf"\n\* k point {re.escape(name)} .*?"
+                      r"(?=\n\* k point |\nCrystal-orbital diagram)", text, re.S)
     return match.group(0) if match else ""
 
 
@@ -2475,7 +2593,7 @@ def _test_03_vasp_engine() -> None:
         code, out = run_cli(base + ["--vasp", VASP_FIXTURE, "--kpoint", "GM",
                                     "--output", one_page], cwd=tmp)
         report("--kpoint GM restricts the diagram to one special point",
-               code == 0 and out.count("\n * k point ") == 1
+               code == 0 and out.count("\n* k point ") == 1
                and "* k point GM (0,0,0) *" in out, out)
         window_page = os.path.join(tmp, "window.html")
         code, win = run_cli(base + ["--vasp", VASP_FIXTURE,
@@ -4062,17 +4180,18 @@ def test_04_selection_rules() -> None:
     polarizations in the input-cell axes (rutile in the standard setting,
     with c along x, and rotated 45 degrees about x), and the group theory
     itself through the API (Ag2O, Si, parity rule, the diagram-level
-    ``crystod.salc.dipole_selection_rules``).
+    ``crystod.salc.dipole_selection_rules``), and the Bloch overlaps of the
+    valence f shells (CeO2 Ce 4f - O 2p non-zero, ScF3 levels unchanged).
     """
     print("\n[4] crystod --diagram  dipole selection rules")
     with tempfile.TemporaryDirectory() as tmp:
         html = os.path.join(tmp, "sto.html")
         code, out = run_cli(["-c", POSCAR_SrTiO3, "--diagram", "--co-left", "SrTi",
                              "--co-right", "O3", "--kpoint", "GM", "--output", html])
-        report("SrTiO3 GM: exit 0 and the block ' * Dipole selection rules at GM (0,0,0) *' "
-               "after a blank line, indented like the ' * k point GM *' block",
-               code == 0 and "\n\n * Dipole selection rules at GM (0,0,0) *\n   VBM " in out
-               and "\n * k point GM (0,0,0) *\n" in out, out)
+        report("SrTiO3 GM: exit 0 and the block '* Dipole selection rules at GM (0,0,0) *' "
+               "after a blank line, content indented like the '* k point GM *' block",
+               code == 0 and "\n\n* Dipole selection rules at GM (0,0,0) *\n   VBM " in out
+               and "\n* k point GM (0,0,0) *\n" in out, out)
         report("SrTiO3 GM: VBM O 2p GM5- -> CBM Ti 3d GM5+ allowed (x, y, z), axes of the "
                "input cell",
                re.search(r"\n   VBM GM5- #1 \(-?\d+\.\d\d eV\) -> CBM GM5\+ #1 "
@@ -4315,6 +4434,53 @@ def test_04_selection_rules() -> None:
            "(sqrt(3) 1 0) and perpendicular in-plane (1 -sqrt(3) 0) printed as vectors",
            "ZNOM ('(sqrt(3) 1 0)',) ('(1 -sqrt(3) 0)',) ('z',) ()" in out, out)
 
+    # the valence 4f of the rare earths (Ce, Sm, Gd, Yb, Lu) takes its
+    # inter-site overlaps from the shared STO routine like every other shell;
+    # it used to be zeroed as if it were a compact Pb/Bi core, which left CeO2
+    # with S(Ce 4f, O 2p) = 0 and a purely point-charge 4f.  ScF3 (no f shell)
+    # keeps its levels to the last printed digit.
+    with tempfile.TemporaryDirectory() as tmp:
+        ceo2 = os.path.join(tmp, "POSCAR_CeO2")
+        with open(ceo2, "w") as handle:
+            handle.write("CeO2 fluorite, a = 5.4674 A\n1.0\n"
+                         "0.0 2.733725 2.733725\n2.733725 0.0 2.733725\n"
+                         "2.733725 2.733725 0.0\nCe O\n1 2\nDirect\n"
+                         "0.0 0.0 0.0\n0.75 0.75 0.75\n0.25 0.25 0.25\n")
+        script = (
+            "import numpy as np\n"
+            "from phonopy.interface.calculator import read_crystal_structure\n"
+            "from crystod import salc\n"
+            f"cell, _ = read_crystal_structure({ceo2!r}, interface_mode='vasp')\n"
+            "diagram = salc.CrystalOrbitalDiagram(cell, ['Ce'], ['O2'])\n"
+            "shells = [(o.element, o.shell) for o in diagram.orbitals]\n"
+            "f = [i for i, shell in enumerate(shells) if shell == ('Ce', '4f')]\n"
+            "p = [i for i, shell in enumerate(shells) if shell == ('O', '2p')]\n"
+            "for name, k in (('GM', [0, 0, 0]), ('X', [0.5, 0, 0.5])):\n"
+            "    S = diagram.bloch_overlap(k)\n"
+            "    print('CEF', name, f'{np.abs(S[np.ix_(f, p)]).max():.4f}')\n"
+            "print('CUT', diagram._cutoffs[('Ce', '4f'), ('O', '2p')])\n"
+            "levels, _ = diagram.solve_at([0, 0, 0])\n"
+            "print('GM4F', [level.detail.splitlines()[0] for level in levels['mo']\n"
+            "               if level.irrep == 'GM4-' and abs(level.energy + 11.3) < 0.1])\n"
+            f"cell, _ = read_crystal_structure({POSCAR_ScF3!r}, interface_mode='vasp')\n"
+            "diagram = salc.CrystalOrbitalDiagram(cell, ['Sc'], ['F3'])\n"
+            "for name, k in (('GM', [0, 0, 0]), ('R', [0.5, 0.5, 0.5])):\n"
+            "    levels, _ = diagram.solve_at(k)\n"
+            "    print('SCF3', name, ' '.join(f'{level.irrep}:{level.energy:.4f}'\n"
+            "                                for level in levels['mo'] if level.energy > -40))\n"
+        )
+        code, out = run_python(script)
+    report("CeO2 (fluorite): the valence Ce 4f has inter-site Bloch overlaps with O 2p "
+           "(max |S| 0.0157 at GM, 0.0219 at X; the sigma tail sets an 8 bohr pair cutoff), "
+           "and the Ce 4f GM4- crystal level carries an O 2p admixture",
+           code == 0 and "CEF GM 0.0157" in out and "CEF X 0.0219" in out
+           and "CUT 8.0" in out and "GM4F ['Loewdin: Ce 4f 99.4%, O 2p 0.5%']" in out, out)
+    report("ScF3 (no f shell): the crystal levels at GM and R are unchanged",
+           "SCF3 GM GM3+:-39.8056 GM4-:-19.0717 GM4-:-17.4759 GM5-:-17.4027 GM5+:-8.8213 "
+           "GM3+:-1.5024 GM1+:4.1992 GM4-:5.1196" in out
+           and "SCF3 R R4-:-38.9389 R3+:-19.4582 R1+:-19.3825 R5+:-17.6987 R4+:-17.2960 "
+           "R5+:-8.1833 R1+:-5.2414 R3+:-5.2147 R4-:21.7783" in out, out)
+
 
 # ---------------------------------------------------------------- 5. crystod --star-of-k
 def test_05_star_of_k() -> None:
@@ -4515,13 +4681,195 @@ def test_06_visualize_basis() -> None:
     with tempfile.TemporaryDirectory() as tmp_scan:
         code, out = run_cli(["--visualize", "-c", POSCAR_ScF3, "--element", "Sc",
                              "--orbital", "d"], cwd=tmp_scan)
-        tail = [line.strip() for line in out.split(" * Output files *")[-1].splitlines()
+        tail = [line.strip() for line in out.split("* Output files *")[-1].splitlines()
                 if line.strip()]
         report("basis-viewer scan: one final '* Output files *' block with 4 pages",
-               code == 0 and out.count(" * Output files *") == 1
+               code == 0 and out.count("* Output files *") == 1
                and len(tail) == 4
                and all(line.startswith("Saved 3D visualization to: SALC_221_PPOSCAR_ScF3_Sc_d_")
                        for line in tail), out)
+
+    # Gauge of the drawn SALCs.  get_orbital_basis returns SITE-gauge rows
+    # (Bloch phase exp(2 pi i k.(T + x_a)), the gauge of the permutation
+    # matrices), while the page multiplies each displayed image only by
+    # exp(2 pi i k.T), i.e. it draws ATOMIC-gauge coefficients; the rows
+    # must be multiplied by exp(2 pi i k.x_a) first (visualize_eht does the
+    # same with site_phase).  Check on the drawn field itself: the complex
+    # coefficients handed to _orbital_lobe for every image give the Bloch-cell
+    # vector u_a of each component; every little-group operation {R|t} moves
+    # u_a to atom b (R x_a + t = x_b + L) with the real-orbital rotation of R
+    # and the factor exp(-2 pi i k.L), and the moved partners must lie in the
+    # span of the partners with the irrep's character (error ~1e-15), and
+    # every component must have at least one lobe (the per-component phase
+    # is invisible to the span/trace test; a component whose drawn
+    # coefficients are all imaginary is turned to real, see _site_to_drawn:
+    # without that turn 2 of the 6 Si p X components would be blank).  Before
+    # the fix: Si p X 2.0, TiO2 O p M 1.8, TiO2 Ti d M 2.0 (the drawn SALCs
+    # transformed as another irrep), ZnO Zn d A 2.0; ScF3 F p R (one F
+    # factor i for all three sites, a global phase) was right and stays
+    # byte-identical.  --real-coefficient tests the conjugation closure in the
+    # atomic gauge, where complex conjugation is time reversal: Si p X3/X4
+    # (real type) used to be reported as having no real basis, and ZnO Zn d
+    # at A (all irreps complex type, Frobenius-Schur indicator 0) used to get
+    # "real" site-gauge vectors that are complex functions.
+    with tempfile.TemporaryDirectory() as tmp_gauge:
+        gauge_script = (
+            f"ROOT = {ROOT!r}\nTMP = {tmp_gauge!r}\n"
+            "import contextlib, io, os\n"
+            "import numpy as np\n"
+            "import crystod.visualize_basis as vb\n"
+            "from crystod.runtime_compat import get_character, "
+            "get_spacegroup_irreps_from_primitive_symmetry\n"
+            "TP = os.path.join(ROOT, 'example', 'test_POSCARs')\n"
+            "def run(name, element, orbital, kpoint, *extra):\n"
+            "    calls, seen = [], {}\n"
+            "    lobe, write, show = (vb._orbital_lobe, vb.write_html_visualization,\n"
+            "                         vb._print_salc_coefficients)\n"
+            "    def spy_lobe(center, coefficients, *args, **kwargs):\n"
+            "        result = lobe(center, coefficients, *args, **kwargs)\n"
+            "        calls.append((np.array(center, float), np.array(coefficients, complex),\n"
+            "                      result is not None))\n"
+            "        return result\n"
+            "    def spy_write(**kwargs):\n"
+            "        seen.update(kwargs)\n"
+            "        return write(**kwargs)\n"
+            "    def spy_show(**kwargs):\n"
+            "        seen['printed'] = kwargs['basis_spaces']\n"
+            "        return show(**kwargs)\n"
+            "    vb._orbital_lobe, vb.write_html_visualization = spy_lobe, spy_write\n"
+            "    vb._print_salc_coefficients = spy_show\n"
+            "    text = io.StringIO()\n"
+            "    try:\n"
+            "        with contextlib.redirect_stdout(text):\n"
+            "            vb.main(['--poscar', os.path.join(TP, name), '--element', element,\n"
+            "                     '--orbital', orbital, '--kpoint', kpoint,\n"
+            "                     '--output', os.path.join(TMP, 'page.html'), *extra])\n"
+            "    finally:\n"
+            "        vb._orbital_lobe, vb.write_html_visualization = lobe, write\n"
+            "        vb._print_salc_coefficients = show\n"
+            "    return text.getvalue(), calls, seen\n"
+            "def drawn_error(calls, seen):\n"
+            "    orbitals, spaces, labels = seen['orbitals'], seen['basis_spaces'], seen['basis_labels']\n"
+            "    l, k, atoms = seen['l'], np.asarray(seen['kpoint'], float), list(seen['element_indices'])\n"
+            "    comps = [(s, c) for s, space in enumerate(spaces) for c in range(len(space))]\n"
+            "    per = len(calls) // len(comps)\n"
+            "    lattice = np.array(orbitals.primitive_cell.cell, float)\n"
+            "    x = np.array(orbitals.primitive_cell.scaled_positions, float)\n"
+            "    cells, blank = {}, 0\n"
+            "    for j, comp in enumerate(comps):\n"
+            "        u = np.zeros((len(atoms), 2 * l + 1), complex)\n"
+            "        blank += not any(drawn for _, _, drawn in calls[j * per:(j + 1) * per])\n"
+            "        for center, coefficients, _ in calls[j * per:(j + 1) * per]:\n"
+            "            frac = center @ np.linalg.inv(lattice)\n"
+            "            for slot, atom in enumerate(atoms):\n"
+            "                shift = frac - x[atom]\n"
+            "                if np.allclose(shift, np.rint(shift), atol=1e-5):\n"
+            "                    u[slot] = coefficients * np.exp(-2j * np.pi * (np.rint(shift) @ k))\n"
+            "        cells[comp] = u\n"
+            "    irreps, mapping = get_spacegroup_irreps_from_primitive_symmetry(\n"
+            "        rotations=orbitals.rotations, translations=orbitals.translations, kpoint=list(k))\n"
+            "    with contextlib.redirect_stdout(io.StringIO()):\n"
+            "        names = orbitals.get_irrep_labels(list(k), irreps, mapping)\n"
+            "    chars = {name: np.array(get_character(irrep)) for name, irrep in zip(names, irreps)}\n"
+            "    probe = np.random.default_rng(0).normal(size=(64, 3))\n"
+            "    probe /= np.linalg.norm(probe, axis=1)[:, None]\n"
+            "    worst = 0.0\n"
+            "    for position, index in enumerate(mapping):\n"
+            "        R, t = np.array(orbitals.rotations[index], float), orbitals.translations[index]\n"
+            "        rc = lattice.T @ R @ np.linalg.inv(lattice.T)\n"
+            "        # Y(R^-1 u) = M Y(u): the rotation of the real orbitals of the shell\n"
+            "        M = vb.orbital_angular_values(l, probe @ np.linalg.inv(rc).T) @ np.linalg.pinv(\n"
+            "            vb.orbital_angular_values(l, probe))\n"
+            "        moves = []\n"
+            "        for atom in atoms:\n"
+            "            y = R @ x[atom] + t\n"
+            "            for slot_b, atom_b in enumerate(atoms):\n"
+            "                shift = y - x[atom_b]\n"
+            "                if np.allclose(shift, np.rint(shift), atol=1e-5):\n"
+            "                    moves.append((slot_b, np.exp(-2j * np.pi * (np.rint(shift) @ k))))\n"
+            "                    break\n"
+            "        for s, space in enumerate(spaces):\n"
+            "            basis = np.stack([cells[(s, c)].ravel() for c in range(len(space))], axis=1)\n"
+            "            trace = 0.0\n"
+            "            for c in range(len(space)):\n"
+            "                moved = np.zeros_like(cells[(s, c)])\n"
+            "                for slot, (slot_b, phase) in enumerate(moves):\n"
+            "                    moved[slot_b] = phase * (cells[(s, c)][slot] @ M)\n"
+            "                moved = moved.ravel()\n"
+            "                alpha = np.linalg.lstsq(basis, moved, rcond=None)[0]\n"
+            "                worst = max(worst, np.linalg.norm(moved - basis @ alpha)\n"
+            "                            / np.linalg.norm(moved))\n"
+            "                trace += alpha[c]\n"
+            "            worst = max(worst, abs(trace - chars[labels[s]][position]))\n"
+            "    return worst, blank\n"
+            "for name, element, orbital, kpoint in (\n"
+            "        ('227_PPOSCAR_Si', 'Si', 'p', 'X'), ('136_PPOSCAR_TiO2', 'O', 'p', 'M'),\n"
+            "        ('136_PPOSCAR_TiO2', 'Ti', 'd', 'M'), ('186_PPOSCAR_ZnO', 'Zn', 'd', 'A'),\n"
+            "        ('221_PPOSCAR_ScF3', 'F', 'p', 'R')):\n"
+            "    text, calls, seen = run(name, element, orbital, kpoint)\n"
+            "    error, blank = drawn_error(calls, seen)\n"
+            "    print('DRAWN', name, element, kpoint, error < 1e-10 and blank == 0,\n"
+            "          f'{error:.1e}', f'blank={blank}')\n"
+            "    if name == '227_PPOSCAR_Si':\n"
+            "        orbitals = seen['orbitals']\n"
+            "        rep = orbitals.get_orbital_rep(seen['kpoint'], 'Si', 1)\n"
+            "        labels = orbitals.get_irrep_labels(seen['kpoint'], rep[0], rep[2])\n"
+            "        rows = orbitals.get_orbital_basis(rep[0], rep[1], labels)[0]\n"
+            "        print('PRINTED_SITE_ROWS', all(np.array_equal(a, b)\n"
+            "              for a, b in zip(seen['printed'], rows)) and len(rows) == len(seen['printed']))\n"
+            "        print('GAUGE_NOTE_SI', 'site gauge' in text)\n"
+            "    if name == '221_PPOSCAR_ScF3':\n"
+            "        print('GAUGE_NOTE_SCF3_R', 'site gauge' in text)\n"
+            "text, calls, seen = run('227_PPOSCAR_Si', 'Si', 'p', 'X', '--real-coefficient')\n"
+            "imag = max(float(np.max(np.abs(c.imag))) for _, c, _ in calls)\n"
+            "error, blank = drawn_error(calls, seen)\n"
+            "print('REAL_SI', text.count('no real-coefficient basis'), imag < 1e-10,\n"
+            "      error < 1e-10 and blank == 0)\n"
+            "text, calls, seen = run('186_PPOSCAR_ZnO', 'Zn', 'd', 'A', '--real-coefficient')\n"
+            "print('REAL_ZNO_A', text.count('no real-coefficient basis'))\n"
+            "for name, element, orbital, kpoint, *extra in (\n"
+            "        ('136_PPOSCAR_TiO2', 'Ti', 'd', 'GM'), ('136_PPOSCAR_TiO2', 'O', 'p', 'GM'),\n"
+            "        ('136_PPOSCAR_TiO2', 'O', 'p', 'GM', '--bond', 'Ti', 'O', '3',\n"
+            "         '--real-coefficient'),\n"
+            "        ('221_PPOSCAR_ScF3', 'F', 'p', 'R')):\n"
+            "    text, calls, seen = run(name, element, orbital, kpoint, *extra)\n"
+            "    same = len(seen['printed']) == len(seen['basis_spaces']) and all(\n"
+            "        np.array_equal(a, b) for a, b in zip(seen['printed'], seen['basis_spaces']))\n"
+            "    print('GLOBAL_PHASE', name, element, kpoint, len(extra), same,\n"
+            "          'site gauge' in text)\n"
+        )
+        code, out = run_python(gauge_script)
+    report("SALC viewer draws the atomic-gauge SALC: every little-group operation keeps "
+           "the drawn field in its irrep (Si p X, TiO2 O p M, TiO2 Ti d M, ZnO Zn d A; "
+           "ScF3 F p R unchanged)",
+           code == 0 and out.count("DRAWN ") == 5
+           and all(f"DRAWN {tag} True" in out for tag in (
+               "227_PPOSCAR_Si Si X", "136_PPOSCAR_TiO2 O M", "136_PPOSCAR_TiO2 Ti M",
+               "186_PPOSCAR_ZnO Zn A", "221_PPOSCAR_ScF3 F R")), out)
+    report("SALC viewer still prints the site-gauge rows of get_orbital_basis unchanged, "
+           "with a gauge NOTE only where the atoms' factors differ",
+           "PRINTED_SITE_ROWS True" in out and "GAUGE_NOTE_SI True" in out
+           and "GAUGE_NOTE_SCF3_R False" in out, out)
+    report("--real-coefficient tests the conjugation closure in the atomic gauge: Si p X "
+           "fully real (X3/X4 included), the drawn coefficients real",
+           "REAL_SI 0 True True" in out, out)
+    report("--real-coefficient reports no real basis for the complex-type irreps of ZnO "
+           "Zn d at A (6 spaces)",
+           "REAL_ZNO_A 6" in out, out)
+    # Where Lambda is one common phase for all atoms of the element (always
+    # at GM; ScF3 F p at R, factor i on every F) the gauge changes no
+    # relative phase: the page must draw the printed rows unchanged, i.e. be
+    # the pre-fix page, and no gauge NOTE is printed.  TiO2 Ti d / O p at GM
+    # have components whose first listed atom is printed purely imaginary
+    # (GM5+ of Ti d: Ti1 d_xz -0.7071j, Ti2 d_yz -0.7071); a phase turn on
+    # that atom would move the lobes from Ti2 to Ti1 and away from the
+    # printed coefficients.
+    report("SALC viewer draws the printed rows unchanged where the gauge is a global "
+           "phase (TiO2 Ti d / O p at GM, incl. --bond --real-coefficient; ScF3 F p R)",
+           out.count("GLOBAL_PHASE ") == 4
+           and all(f"GLOBAL_PHASE {tag} True False" in out for tag in (
+               "136_PPOSCAR_TiO2 Ti GM 0", "136_PPOSCAR_TiO2 O GM 0",
+               "136_PPOSCAR_TiO2 O GM 5", "221_PPOSCAR_ScF3 F R 0")), out)
 
 
 # ---------------------------------------------------------------- 7. crystod main command extras
@@ -4767,6 +5115,112 @@ def test_07_main_command() -> None:
            "list names no point G)",
            code == 0 and "* Selected Q point *\n  GM       (0, 0, 0)" in out, out)
 
+    # argument plumbing of the --pyscf modes: --no-chk used to be forwarded
+    # to --band/--dos/--visualize, whose parsers did not know it, and
+    # --sigma/--xrange (documented, and printed by --chk-info's reuse line)
+    # were rejected by crystod itself. The engines' report_and_write are
+    # replaced by recorders, so no SCF runs and PySCF is not needed.
+    nacl = ["-c", POSCAR_NaCl]
+    diagram = ["--diagram", "--pyscf", "--co-left", "Na", "--co-right", "Cl"]
+    cases = {
+        "band --no-chk": nacl + ["--band", "--pyscf", "--no-chk"],
+        "dos --no-chk": nacl + ["--dos", "--pyscf", "--no-chk"],
+        "visualize --no-chk": nacl + ["--visualize", "--pyscf", "--no-chk"],
+        "diagram": nacl + diagram,
+        "diagram --sigma": nacl + diagram + ["--sigma", "0.1"],
+        "visualize --sigma": nacl + ["--visualize", "--pyscf", "--sigma", "0.1"],
+        "dos": nacl + ["--dos", "--pyscf"],
+        "dos --sigma --xrange": nacl + ["--dos", "--pyscf", "--sigma", "0.3",
+                                        "--xrange", "-5", "5"],
+        "band --sigma": nacl + ["--band", "--pyscf", "--sigma", "0.1"],
+        "eht diagram --sigma": nacl + ["--diagram", "--co-left", "Na",
+                                       "--co-right", "Cl", "--sigma", "0.1"],
+        "eht visualize --sigma": nacl + ["--visualize", "--sigma", "0.1"],
+        "diagram --xrange": nacl + diagram + ["--xrange", "-5", "5"],
+        "dos --sigma 0": nacl + ["--dos", "--pyscf", "--sigma", "0"],
+    }
+    code, out = run_python(
+        "import contextlib, importlib, io, json\n"
+        "import crystod.band_pyscf, crystod.dos_pyscf, crystod.visualize_pyscf\n"
+        "import crystod.crystal_orbital_pyscf\n"
+        "cli = importlib.import_module('crystod.cli.main')\n"
+        "record = {}\n"
+        "def recorder(name):\n"
+        "    def fake(cell, **kwargs):\n"
+        "        record.update(engine=name, kwargs=kwargs)\n"
+        "    return fake\n"
+        "for name in ('band_pyscf', 'dos_pyscf', 'visualize_pyscf',\n"
+        "             'crystal_orbital_pyscf'):\n"
+        "    module = importlib.import_module('crystod.' + name)\n"
+        "    module.report_and_write = recorder(name)\n"
+        "cli.require_pyscf_or_exit = lambda *args, **kwargs: None\n"
+        "cli.print_crystod_citation = lambda *args, **kwargs: None\n"
+        "results = {}\n"
+        f"for label, argv in {cases!r}.items():\n"
+        "    record.clear()\n"
+        "    err, code = io.StringIO(), 0\n"
+        "    with contextlib.redirect_stderr(err), \\\n"
+        "            contextlib.redirect_stdout(io.StringIO()):\n"
+        "        try:\n"
+        "            cli.main(argv)\n"
+        "        except SystemExit as exc:\n"
+        "            code = exc.code if isinstance(exc.code, int) else int(\n"
+        "                exc.code is not None)\n"
+        "            if isinstance(exc.code, str):\n"
+        "                err.write(exc.code)\n"
+        "    kwargs = record.get('kwargs', {})\n"
+        "    results[label] = {'code': code, 'engine': record.get('engine'),\n"
+        "                      'err': err.getvalue(),\n"
+        "                      'kw': {key: kwargs[key] for key in ('sigma', 'xrange')\n"
+        "                             if key in kwargs}}\n"
+        "print('RESULTS ' + json.dumps(results))\n")
+    results = {}
+    if code == 0 and "RESULTS " in out:
+        results = json.loads(out.split("RESULTS ", 1)[1].splitlines()[0])
+
+    def reached(label, engine):
+        entry = results.get(label, {})
+        return (entry.get("code") == 0 and entry.get("engine") == engine
+                and "unrecognized" not in entry.get("err", ""))
+
+    def refused(label, *markers):
+        entry = results.get(label, {})
+        text = entry.get("err", "")
+        return (entry.get("code") == 2 and entry.get("engine") is None
+                and "unrecognized" not in text and "Traceback" not in text
+                and all(marker in text for marker in markers))
+
+    detail = json.dumps(results, indent=1) if results else out
+    report("--no-chk reaches --band/--dos/--visualize --pyscf (no 'unrecognized "
+           "arguments: --no-chk')",
+           reached("band --no-chk", "band_pyscf")
+           and reached("dos --no-chk", "dos_pyscf")
+           and reached("visualize --no-chk", "visualize_pyscf"), detail)
+    def forwarded(label):
+        return results.get(label, {}).get("kw", {})
+
+    report("--diagram --pyscf --sigma 0.1 sets the SCF smearing (default stays 0)",
+           reached("diagram --sigma", "crystal_orbital_pyscf")
+           and forwarded("diagram --sigma").get("sigma") == 0.1
+           and forwarded("diagram").get("sigma") == 0.0, detail)
+    report("--visualize --pyscf --sigma 0.1 sets the SCF smearing",
+           reached("visualize --sigma", "visualize_pyscf")
+           and forwarded("visualize --sigma").get("sigma") == 0.1, detail)
+    report("--dos --pyscf --sigma 0.3 --xrange -5 5 set the DOS broadening and "
+           "plot range (defaults stay 0.15 and the whole spectrum)",
+           reached("dos --sigma --xrange", "dos_pyscf")
+           and forwarded("dos --sigma --xrange") == {"sigma": 0.3,
+                                                     "xrange": [-5.0, 5.0]}
+           and forwarded("dos") == {"sigma": 0.15, "xrange": None}, detail)
+    report("--sigma refused cleanly where no engine takes it (--band, the "
+           "extended-Hueckel diagram and viewer, --dos --sigma 0)",
+           refused("band --sigma", "--sigma", "--band")
+           and refused("eht diagram --sigma", "--sigma", "needs --pyscf")
+           and refused("eht visualize --sigma", "--sigma", "--visualize --pyscf")
+           and refused("dos --sigma 0", "--sigma", "positive"), detail)
+    report("--xrange outside --dos refused cleanly",
+           refused("diagram --xrange", "--xrange is only used with --dos"), detail)
+
     if not has_pyscf:
         print("  [SKIP] pyscf not installed: the --basis/--pseudo drift "
               "check and the coverage guards are skipped.")
@@ -4823,6 +5277,8 @@ def test_07_main_command() -> None:
            and "Traceback" not in out
            and "La-Lu" in help_out, out)
 
+    _test_07_noncontiguous_species()
+
     # --chk-info on a checkpoint written by the current code (its params hold
     # no electron count) and on an early-format file that still has one
     try:
@@ -4873,6 +5329,43 @@ def test_07_main_command() -> None:
                code == 0 and "* Output files *" in out
                and "  SCF saved to " in files_block
                and out.count("SCF saved to") == 1, out[-2000:])
+
+
+def _test_07_noncontiguous_species() -> None:
+    """The single-k SALC form on a POSCAR whose element atoms are not
+    contiguous (SrTiO3 written as O Ti O Sr O)."""
+    # The O_p header counted the atoms from the first O to the last (O_p (5),
+    # with the Wyckoff letters of Ti and Sr) and the X content was
+    # 15-dimensional; --visualize, which uses the index list, was right all
+    # along and gives the same atom count
+    x_o_p = "1.0 [X1+(1)] + 1.0 [X2+(1)] + 1.0 [X3-(1)] + 2.0 [X5+(2)] + 1.0 [X5-(2)]"
+    with tempfile.TemporaryDirectory() as tmp:
+        shutil.copy(POSCAR_SrTiO3, os.path.join(tmp, "POSCAR_contiguous"))
+        _write_species_blocks(POSCAR_SrTiO3, os.path.join(tmp, "POSCAR_noncontiguous"),
+                              NONCONTIGUOUS_SrTiO3_ORDER)
+        # absolute paths and the default cwd (ROOT), see section 2
+        poscars = [os.path.join(tmp, name)
+                   for name in ("POSCAR_contiguous", "POSCAR_noncontiguous")]
+        for kpoint in (["X"], ["0", "1/2", "0"], ["1/2", "1/2", "1/2"]):
+            outputs = [run_cli(["-c", poscar, "--element", "O", "--orbital", "p",
+                                "--kpoint"] + kpoint)
+                       for poscar in poscars]
+            (code_c, out_c), (code_n, out_n) = outputs
+            at_x = kpoint != ["1/2", "1/2", "1/2"]
+            report(f"O Ti O Sr O POSCAR: --kpoint {' '.join(kpoint)} O_p equals the "
+                   "contiguous POSCAR's (O_p (3), Wyckoff c c c"
+                   + (", 9-dimensional X content)" if at_x else ")"),
+                   code_c == 0 and code_n == 0 and out_n == out_c
+                   and re.search(r"\(number of atoms\) \*\n O_p \(3\)\n", out_n)
+                   is not None
+                   and "wyckoff letters      : ['c', 'c', 'c']" in out_n
+                   and (not at_x or x_o_p in out_n), out_c + out_n)
+        code, out = run_cli(["-c", poscars[1], "--element", "O", "--orbital",
+                             "p", "--kpoint", "X", "--visualize", "--output",
+                             os.path.join(tmp, "SALC_noncontiguous.html")])
+        report("O Ti O Sr O POSCAR: --visualize counts the same O_p (3)",
+               code == 0 and re.search(r"\(number of atoms\) \*\n O_p \(3\)\n", out)
+               is not None, out)
 
 
 
@@ -5303,11 +5796,15 @@ def test_10_decompose_irrep() -> None:
     report("3m with characters 3 0 1 exit 0", code == 0, out)
     report("3 0 1 in 3m -> A1 + E", "1(A1)" in out and "1(E)" in out and "(A2)" not in out, out)
 
+    # the F p orbitals of ScF3 at Gamma (3 sites x vector); the vector used
+    # here before (9 0 1 3 -1 -3 0 5 1 3) was no representation's character
+    # and only passed while --decompose rounded anything into an answer
     code, out = run_group(
         ["--decompose", "--point-group", "m-3m",
-         "--characters", "9", "0", "1", "3", "-1", "-3", "0", "5", "1", "3"]
+         "--characters", "9", "0", "-1", "1", "-3", "-9", "-1", "0", "3", "1"]
     )
-    report("m-3m Gamma-point ScF3-like rep exit 0", code == 0, out)
+    report("m-3m Gamma-point ScF3 F-p rep -> 2(T1u) + 1(T2u)",
+           code == 0 and "2(T1u) + 1(T2u)" in out, out)
 
     code, out = run_group(["--decompose", "--point-group", "xyz", "--characters", "1"])
     report("unknown point group rejected cleanly",
@@ -5343,6 +5840,24 @@ def test_10_decompose_irrep() -> None:
     report("point group 1 (scalar characters) -> 3(A)",
            code == 0 and "3(A)" in out and "Traceback" not in out, out)
 
+    # a vector that is not the character of a representation is refused,
+    # not rounded into some decomposition: 2 0 1 in 3m used to print
+    # 1(A1) + 1(E) (dimension 3), 0 0 2 = A1 - A2 used to print 1(A1)
+    code, out = run_group(["--decompose", "--point-group", "3m",
+                           "--characters", "2", "0", "1"])
+    report("non-integer multiplicities (2 0 1 in 3m) refused with an ERROR, "
+           "not a dimension-3 A1 + E",
+           code != 0 and "ERROR: the characters 2 0 1 are not those of a "
+           "representation of 3m (classes 1E, 2C3, 3sgv)" in out
+           and "non-integer multiplicities A1 0.833, A2 -0.167, E 0.667" in out
+           and "1(A1) + 1(E) has the characters 3 0 1, not 2 0 1" in out
+           and "* Result *" not in out and "Traceback" not in out, out)
+    code, out = run_group(["--decompose", "--point-group", "3m",
+                           "--characters", "0", "0", "2"])
+    report("negative multiplicity (0 0 2 = A1 - A2 in 3m) refused with an ERROR",
+           code != 0 and "negative multiplicities A2 -1" in out
+           and "* Result *" not in out and "Traceback" not in out, out)
+
     from phonopy.phonon.character_table import character_table as all_tables
 
     from crystod.decompose_irrep import decompose, get_character_table, irrep_character_rows
@@ -5357,6 +5872,34 @@ def test_10_decompose_irrep() -> None:
                 failures.append(f"{point_group} {name}: {counts}")
     report("every irrep row of the 32 point groups reduces to itself once",
            len(all_tables) == 32 and not failures, "\n".join(failures))
+
+    # the representation check: no false alarm on genuine representations
+    # (every irrep, every s..i orbital representation of the 32 groups),
+    # and an alarm on half an irrep character
+    try:
+        from crystod.decompose_irrep import representation_problem
+    except ImportError as error:
+        report("representation_problem is importable", False, str(error))
+    else:
+        from crystod.ligand_field import get_orbital_characters
+
+        false_alarms, missed = [], []
+        for point_group in all_tables:
+            table = get_character_table(point_group)
+            for name, row in irrep_character_rows(table).items():
+                if representation_problem(list(row), table) is not None:
+                    false_alarms.append(f"{point_group} {name}")
+                if representation_problem(list(row / 2), table) is None:
+                    missed.append(f"{point_group} {name}/2")
+            for orbital in "spdfghi":
+                chi = list(get_orbital_characters(orbital, table).values())
+                if representation_problem(chi, table) is not None:
+                    false_alarms.append(f"{point_group} {orbital} orbitals")
+        report("representation check: the irreps and the s..i orbital "
+               "representations of the 32 groups pass, every half irrep "
+               "character fails",
+               not false_alarms and not missed,
+               "\n".join(false_alarms + missed))
 
 
 # ---------------------------------------------------------------- 11. crystod-group --ligand-field
@@ -5494,6 +6037,10 @@ def test_12_basis_function() -> None:
     )
     report("F-centred Fd-3m DT line labeled via ISO-IR",
            code == 0 and "DT1(1)" in out and "DT5(2)" in out, out)
+    # the 4_1 screw of the DT little group carries the Bloch phase
+    # exp(-2 pi i k.t); acting with the rotation part alone left DT1 empty
+    report("Fd-3m DT line: Bloch phases included, decomposition complete",
+           "DT1(1): [y]" in out and "DT5(2): [x, z]" in out and ": []" not in out, out)
 
     code, out = run_group(["--basis", "x*Ry - y*Rx", "--point-group", "m-3m"])
     report("toroidal x*Ry - y*Rx -> T1u", code == 0 and "T1u" in out, out)
@@ -5512,6 +6059,76 @@ def test_12_basis_function() -> None:
     report("--basis --show-irrep-table: one * Point group * block",
            code == 0 and out.startswith("\n* Point group *")
            and out.count("* Point group *") == 1 and "T1u" in out, out)
+
+    # complex-type irreps: the printed function belongs to the printed label
+    # in the active convention of --table and the SALC path (P4 at GM: GM3,
+    # 4^+_001 character -i, gets x + i y, printed "-Ix + y"; the substitution
+    # f(R r) used to print the conjugate partner x - i y)
+    code, out = run_group(["--basis", "x", "y", "z", "--sg", "P4",
+                           "--kpoint", "0", "0", "0"])
+    report("P4 GM: GM3 -> -Ix + y (x + i y), GM4 -> Ix + y",
+           code == 0 and "GM3(1): [-Ix + y]" in out and "GM4(1): [Ix + y]" in out, out)
+    code_table, table = run_group(["--table", "--sg", "P4", "--kpoint", "0", "0", "0"])
+    import sympy
+    sx, sy, sz = sympy.symbols("x y z")
+    table_lines = table.splitlines()
+    header_index = next((index for index, line in enumerate(table_lines)
+                         if line.split()[:1] == ["irrep"]), None)
+    eigen_ok = code_table == 0 and header_index is not None
+    eigen_detail = []
+    if eigen_ok:
+        column = table_lines[header_index].split().index("4^+_001")
+        for label in ("GM3(1)", "GM4(1)"):
+            row = next(line for line in table_lines if f"= {label}" in line)
+            # row: irrep_n(1) = GMn(1)  chars...; header: irrep  1 2_001 ...
+            character = complex(row.split("=", 1)[1].split()[column])
+            match = re.search(re.escape(label) + r": \[(.*)\]", out)
+            text = re.sub(r"(I|\d)\s*([xyz])", r"\1*\2", match.group(1)) if match else "0"
+            function = sympy.sympify(text, locals={"x": sx, "y": sy, "z": sz})
+            # active 4^+_001: (O f)(r) = f(R^-1 r), R^-1 (x, y, z) = (y, -x, z)
+            rotated = function.subs({sx: sy, sy: -sx}, simultaneous=True)
+            ratio = sympy.simplify(rotated / function) if function != 0 else None
+            eigen_detail.append(f"{label}: {function} -> eigenvalue {ratio}, table {character}")
+            eigen_ok = eigen_ok and ratio is not None and ratio.is_number and \
+                abs(complex(ratio) - character) < 1e-9
+    report("P4 GM: eigenvalue of the printed function under 4^+_001 = --table character",
+           eigen_ok, "\n".join(eigen_detail) + "\n" + out + table)
+    code, out = run_group(["--basis", "x", "y", "z", "--sg", "P3",
+                           "--kpoint", "0", "0", "0"])
+    report("P3 GM: GM2 -> -Ix + y, as the SALC GM2 = (p_x + i p_y)/sqrt2",
+           code == 0 and "GM2(1): [-Ix + y]" in out and "GM3(1): [Ix + y]" in out, out)
+
+    # non-symmorphic zone-boundary points: the Bloch phases of the screw and
+    # glide translations form no representation of the little group, so the
+    # polynomials cannot be classified (rotation-only action printed only
+    # M5-(2) [x, y] at M of P4_2/mnm, only X1(2) [x, z] at X of Pnma and an
+    # empty decomposition at X of Fd-3m, without a warning)
+    for sg, kpoint, partial in (("P4_2/mnm", ["0.5", "0.5", "0"], "M5-(2): [x, y]"),
+                                ("Pnma", ["0.5", "0", "0"], "X1(2): [x, z]"),
+                                ("Fd-3m", ["0.5", "0", "0.5"], "* Decomposition *")):
+        code, out = run_group(["--basis", "x", "y", "z", "--sg", sg, "--kpoint", *kpoint])
+        report(f"{sg} at {' '.join(kpoint)}: clean ERROR, no incomplete decomposition",
+               code != 0 and "ERROR: polynomial basis functions are not defined" in out
+               and "G.t = 1/2 (mod 1)" in out and partial not in out
+               and "Traceback" not in out, out)
+    code, out = run_group(["--basis", "x", "y", "z", "--sg", "Pnma"])
+    report("no --kpoint, Pnma: GM analyzed, zone-boundary points listed as skipped",
+           code == 0 and out.startswith("\n* Special k points *\n")
+           and "Skipped (non-symmorphic zone-boundary points" in out
+           and "): X, Y, Z, S, T, U, R\n" in out
+           and out.count("* k-point (primitive) *") == 1 and "GM3-(1): [x]" in out, out)
+    # still analyzed: a symmorphic zone boundary (phases 1) and a non-symmorphic
+    # boundary point where (kR - k).t is integral (P2_1 at C: the screw has
+    # the phase -i, which the old rotation-only characters lacked)
+    code, out = run_group(["--basis", "x", "y", "z", "--sg", "Pm-3m",
+                           "--kpoint", "0.5", "0", "0"])
+    report("symmorphic zone boundary (Pm-3m X): X3-(1) [x] + X5-(2) [y, z]",
+           code == 0 and "X3-(1): [x]" in out and "X5-(2): [y, z]" in out, out)
+    code, out = run_group(["--basis", "x", "y", "z", "--sg", "P2_1",
+                           "--kpoint", "0.5", "0.5", "0"])
+    report("P2_1 at C: screw phase included, 1.0 C1(1) [y] + 2.0 C2(1) [x, z]",
+           code == 0 and "1.0 [C1(1)] + 2.0 [C2(1)]" in out
+           and "C1(1): [y]" in out and "C2(1): [x, z]" in out, out)
 
 
 # ---------------------------------------------------------------- 13. crystod-group --tensor
@@ -5802,6 +6419,25 @@ def test_14_generate_basis_function() -> None:
     )
     report("--generate-basis on the DT line labeled via ISO-IR",
            code == 0 and "DT1(1)" in out and "DT5(2)" in out, out)
+
+    # complex-type irreps follow the --table characters (shared with --basis)
+    code, out = run_group(["--generate-basis", "--space-group", "P4",
+                           "--kpoint", "0", "0", "0", "--order", "1"])
+    report("P4 GM order 1: GM3 -> -Ix + y (x + i y), GM4 -> Ix + y",
+           code == 0 and "GM3(1): [-Ix + y]" in out and "GM4(1): [Ix + y]" in out, out)
+    # Bloch phases on the Fd-3m DT line: every irrep line holds its functions
+    code, out = run_group(["--generate-basis", "--space-group", "Fd-3m",
+                           "--kpoint", "0.1", "0", "0.1", "--order", "2"])
+    report("Fd-3m DT order 2: complete with the Bloch phases (no empty irrep line)",
+           code == 0 and "DT1(1): [y^2, x^2 + z^2]" in out and "DT5(2): [xy, yz]" in out
+           and "DT3(1): [xz]" in out and "DT2(1): [-x^2 + z^2]" in out
+           and ": []" not in out, out)
+    # non-symmorphic zone boundary: clean ERROR instead of a partial table
+    code, out = run_group(["--generate-basis", "--space-group", "P4_2/mnm",
+                           "--kpoint", "0.5", "0.5", "0", "--order", "1"])
+    report("P4_2/mnm M: clean ERROR (no partial M5-(2) table)",
+           code != 0 and "ERROR: polynomial basis functions are not defined" in out
+           and "M5-(2)" not in out and "Traceback" not in out, out)
 
 
 # ---------------------------------------------------------------- 15. crystod-group --coset
@@ -6324,6 +6960,21 @@ def test_24_group_command() -> None:
     code, out = run_group(["--decompose", "--pg", "3m", "--characters", "3", "0", "1"])
     report("--decompose 3 0 1 in 3m -> A1 + E",
            code == 0 and "1(A1) + 1(E)" in out, out)
+    # the -4 characters 5 -1 1 (A + 2B + E) given in the wrong class order:
+    # the rounding used to answer 2(A) + 2(E), of dimension 6
+    code, out = run_group(["--decompose", "--pg=-4", "--characters", "5", "1", "-1"])
+    report("--decompose with the characters in the wrong class order is refused "
+           "(5 1 -1 in -4), not rounded to a dimension-6 answer",
+           code != 0 and "not those of a representation of -4" in out
+           and "class order" in out and "2(A) + 2(E)\n" not in out
+           and "* Result *" not in out and "Traceback" not in out, out)
+
+    # --orbital (for --multiplet) names only the shells with Coulomb energies
+    code, out = run_group(["--help"])
+    orbital_help = out.split("\n  --orbital ORBITAL", 1)[-1].split("\n  --", 1)[0]
+    report("--help: --orbital names s, p, d or f (no open-ended s/p/d/f/...)",
+           code == 0 and "(s, p, d or f)" in orbital_help
+           and "s/p/d/f/..." not in orbital_help, orbital_help)
 
     code, out = run_group(["--ligand-field", "d", "--pg", "m-3m"])
     report("--ligand-field d in m-3m -> Eg + T2g",
@@ -6522,6 +7173,81 @@ def test_25_bz() -> None:
         report("label count mismatch rejected cleanly",
                code != 0 and "ERROR" in out and "Traceback" not in out, out)
 
+    # The zone is the Wigner-Seitz cell of the lattice, whatever basis the
+    # lattice is given in: its volume must equal |det B| for a sheared basis
+    # of the cubic lattice and for raw monoclinic cells with beta = 150, 165
+    # degrees (the former 27-point Voronoi block of the unreduced basis gave
+    # 2, 5, 1.16 and 2.34 times the true volume), and lattice noise of 1e-6 A
+    # must not split the cube into 14 faces / 24 corners.
+    code, out = run_python(
+        "import numpy as np\n"
+        "from scipy.spatial import ConvexHull\n"
+        "from crystod import bz\n"
+        "def mono(beta):\n"
+        "    b = np.radians(beta)\n"
+        "    return np.array([[4.0, 0, 0], [0, 5.0, 0], [6 * np.cos(b), 0, 6 * np.sin(b)]])\n"
+        "cubic = 4.06959 * np.eye(3)\n"
+        "cells = [np.array([[1, 2, 0], [0, 1, 0], [0, 0, 1.0]]) @ cubic,\n"
+        "         np.array([[1, 3, 0], [0, 1, 0], [0, 0, 1.0]]) @ cubic,\n"
+        "         mono(150.0), mono(165.0)]\n"
+        "ratios = []\n"
+        "for cell in cells:\n"
+        "    rec = np.linalg.inv(cell).T\n"
+        "    vertices, ridges, facets = bz.get_brillouin_zone_3d(rec)\n"
+        "    ratios.append(ConvexHull(vertices).volume / abs(np.linalg.det(rec)))\n"
+        "print('RATIOS', ' '.join(f'{r:.6f}' for r in ratios))\n"
+        "noise = np.array([[0.3, -0.7, 0.2], [0.5, 0.1, -0.4], [-0.6, 0.8, 0.9]])\n"
+        "rec = np.linalg.inv(cubic + 1e-6 * noise).T\n"
+        "vertices, ridges, facets = bz.get_brillouin_zone_3d(rec)\n"
+        "print('NOISY', len(facets), len(vertices))\n"
+    )
+    ratios = re.search(r"RATIOS (.*)", out)
+    report("BZ volume = |det B| for sheared and monoclinic (beta 150/165) bases",
+           code == 0 and ratios is not None
+           and all(abs(float(r) - 1.0) < 1e-6 for r in ratios.group(1).split()), out)
+    report("cubic cell with 1e-6 A noise gives the cube (6 faces, 8 corners)",
+           code == 0 and "NOISY 6 8" in out, out)
+
+    # manual path on a raw monoclinic cell (beta = 165): the drawn zone has the
+    # volume of the reciprocal cell, and the k path stays in the input basis
+    with tempfile.TemporaryDirectory() as tmp:
+        beta = np.radians(165.0)
+        lattice = np.array([[4.0, 0, 0], [0, 5.0, 0], [6 * np.cos(beta), 0, 6 * np.sin(beta)]])
+        poscar = os.path.join(tmp, "POSCAR_mono165")
+        with open(poscar, "w") as handle:
+            handle.write("monoclinic beta = 165\n1.0\n")
+            for row in lattice:
+                handle.write("  " + " ".join(f"{v:.10f}" for v in row) + "\n")
+            handle.write("Si\n1\nDirect\n0 0 0\n")
+        html = os.path.join(tmp, "BZ_mono165.html")
+        code, out = run_bz(["-c", poscar, "--band", "0 0 0  1/2 0 0  1/2 0 1/2",
+                            "--band-labels", "GM Y A", "--output", html])
+        report("manual path on a raw monoclinic cell exit 0", code == 0, out)
+        if code == 0 and os.path.isfile(html):
+            from scipy.spatial import ConvexHull
+
+            data = _bz_html_traces(html)
+            rec = np.linalg.inv(lattice).T
+            corners = [t for t in data if t.get("mode") == "markers"
+                       and t["marker"]["color"] == "black"][0]
+            volume = ConvexHull(np.c_[corners["x"], corners["y"], corners["z"]]).volume
+            report("monoclinic (beta 165) zone volume = |det B|",
+                   abs(volume / abs(np.linalg.det(rec)) - 1.0) < 1e-6,
+                   f"ratio {volume / abs(np.linalg.det(rec)):.4f}")
+            path = [t for t in data if t.get("mode") == "markers+text"][0]
+            cartesian = np.c_[path["x"], path["y"], path["z"]]
+            report("k path drawn in the input reciprocal basis",
+                   np.allclose(path["customdata"], [[0, 0, 0], [0.5, 0, 0], [0.5, 0, 0.5]])
+                   and np.allclose(cartesian, np.array(path["customdata"]) @ rec),
+                   str(path["customdata"]))
+
+
+def _bz_html_traces(path: str) -> list[dict]:
+    """The Plotly traces written into a crystod-bz HTML page."""
+    text = open(path).read()
+    match = re.search(r"var data = (\[.*?\]);\n", text, re.S)
+    return json.loads(match.group(1)) if match else []
+
 
 # ---------------------------------------------------------------- 26. crystod-bz --trans-mat
 def test_26_bz_supercell() -> None:
@@ -6550,6 +7276,63 @@ def test_26_bz_supercell() -> None:
         )
         report("wrong matrix size rejected cleanly",
                code != 0 and "requires nine numbers" in out and "Traceback" not in out, out)
+
+        # A sheared T of determinant 1 describes the same lattice: the red
+        # supercell zone must be the unit-cell zone (formerly twice its volume)
+        html_shear = os.path.join(tmp, "BZ_shear.html")
+        code, out = run_bz(
+            ["-c", POSCAR_ScF3, "--trans-mat", "1 2 0  0 1 0  0 0 1", "--output", html_shear]
+        )
+        report("sheared trans-mat (det 1) exit 0 with one folded point",
+               code == 0 and "|det T| = 1" in out
+               and "folding onto the supercell Gamma point (1)" in out, out)
+        if code == 0 and os.path.isfile(html_shear):
+            from scipy.spatial import ConvexHull
+
+            red = [t for t in _bz_html_traces(html_shear)
+                   if t.get("mode") == "lines" and t["line"]["color"] == "red"]
+            points = np.array([p for t in red for p in zip(t["x"], t["y"], t["z"])])
+            a = 4.06959  # 221_PPOSCAR_ScF3
+            ratio = ConvexHull(points).volume * a ** 3
+            report("supercell zone of the sheared basis has the volume |det B_s|",
+                   abs(ratio - 1.0) < 1e-4, f"ratio {ratio:.4f}")
+
+        # T must be an integer matrix (T = diag(3/2, 1, 1) printed two points
+        # without Gamma)
+        html_frac = os.path.join(tmp, "BZ_frac.html")
+        code, out = run_bz(
+            ["-c", POSCAR_ScF3, "--trans-mat", "3/2 0 0  0 1 0  0 0 1", "--output", html_frac]
+        )
+        report("non-integer trans-mat rejected cleanly",
+               code != 0 and "ERROR" in out and "integer entries" in out
+               and "3/2" in out and "Traceback" not in out
+               and not os.path.isfile(html_frac), out)
+
+    # library: fractional matrices raise ValueError; the folded points are the
+    # nearest images also for a strongly sheared unit-cell basis
+    code, out = run_python(
+        "import itertools\n"
+        "import numpy as np\n"
+        "from crystod import bz\n"
+        "for call in (lambda: bz.parse_transformation_matrix('1/2 0 0  0 1 0  0 0 1'),\n"
+        "             lambda: bz.get_folded_gamma_points(np.diag([1.5, 1, 1]), np.eye(3))):\n"
+        "    try:\n"
+        "        call()\n"
+        "        print('ACCEPTED')\n"
+        "    except ValueError as exc:\n"
+        "        print('REJECTED', exc)\n"
+        "lattice = np.array([[1, 5, -3], [0, 1, 4], [0, 0, 1.0]]) @ (4.06959 * np.eye(3))\n"
+        "rec = np.linalg.inv(lattice).T\n"
+        "points = bz.get_folded_gamma_points(np.diag([3.0, 3, 3]), rec)\n"
+        "images = np.array(list(itertools.product(range(-8, 9), repeat=3))) @ rec\n"
+        "far = sum(np.linalg.norm(p) > np.linalg.norm(p - images, axis=1).min() + 1e-9\n"
+        "          for p in points)\n"
+        "print('POINTS', len(points), 'NOT_NEAREST', far)\n"
+    )
+    report("library rejects non-integer transformation matrices",
+           code == 0 and out.count("REJECTED") == 2 and "ACCEPTED" not in out, out)
+    report("folded points are nearest images for a sheared unit-cell basis",
+           code == 0 and "POINTS 27 NOT_NEAREST 0" in out, out)
 
 
 # ---------------------------------------------------------------- 27. crystod-bz extras
@@ -6614,7 +7397,7 @@ def test_27_bz_command() -> None:
             report(f"removed {flag} flag points to crystod-bz",
                    code != 0 and "is not a crystod option" in out and "crystod-bz" in out, out)
 
-        # --show-kpoint: special k points of a space group (CDML convention)
+        # --show-kpoint: special k points of a space group (ISO-IR tables)
         code, out = run_bz(["--show-kpoint", "--space-group", "Pnma"])
         report("--show-kpoint Pnma exit 0", code == 0, out)
         report("Pnma primitive k points listed",
@@ -6622,6 +7405,27 @@ def test_27_bz_command() -> None:
                and "X: (1/2, 0, 0)" in out and "R: (1/2, 1/2, 1/2)" in out, out)
         report("Pnma (P lattice) prints no conventional section",
                "(conventional)" not in out, out)
+        report("standard symbol Pnma prints no non-standard-setting NOTE",
+               "NOTE" not in out, out)
+
+        # non-standard setting symbols: the table is that of the ISO-IR
+        # standard setting, so the heading, the centring and the NOTE follow it
+        code, out = run_bz(["--show-kpoint", "--sg", "Pbnm"])
+        report("--show-kpoint Pbnm: Pnma heading + NOTE on the setting",
+               code == 0 and "Pnma (No. 62)" in out and "Pbnm (No. 62)" not in out
+               and "NOTE" in out and "non-standard setting" in out
+               and "X: (1/2, 0, 0)" in out, out)
+        code, out = run_bz(["--show-kpoint", "--sg", "Amam"])
+        primitive_block = out.split("* K points (conventional) *")[0]
+        report("--show-kpoint Amam: Cmcm table with C-centred primitive coordinates",
+               code == 0 and "Cmcm (No. 63)" in out and "NOTE" in out
+               and "Y: (1/2, 1/2, 0)" in primitive_block
+               and "Y: (1, 0, 0)" not in primitive_block
+               and "* K points (conventional) *" in out, out)
+        code, out = run_bz(["--show-kpoint", "--sg", "Bbmm"])
+        report("--show-kpoint Bbmm: Cmcm table, no traceback",
+               code == 0 and "Traceback" not in out and "Cmcm (No. 63)" in out
+               and "NOTE" in out and "T: (1/2, 1/2, 1/2)" in out, out)
 
         code, out = run_bz(["--show-kpoint", "--space-group", "Fm-3m"])
         report("--show-kpoint Fm-3m primitive + conventional",
@@ -6668,6 +7472,10 @@ def test_28_phonon_irrep() -> None:
     if not os.path.isdir(PHONON_IRREP_DIR):
         report("example data found", False, PHONON_IRREP_DIR)
         return
+    import yaml
+
+    from crystod.phonon import read_phonon_irreps
+
     with tempfile.TemporaryDirectory() as tmp:
         # copy inputs so phonon_irreps.yaml in the example folder is not overwritten
         # (--readfc / FORCE_CONSTANTS input is covered by the Si runs in
@@ -6683,11 +7491,61 @@ def test_28_phonon_irrep() -> None:
         report("phonon_irreps.yaml written", os.path.isfile(yaml_path))
         if os.path.isfile(yaml_path):
             text = open(yaml_path).read()
-            report("yaml contains GM point irreps", "GM" in text, text[:500])
-            report("yaml contains R point irreps", "R" in text, text[:500])
+            try:
+                data = read_phonon_irreps(yaml_path)
+            except ValueError as exc:
+                data = {"irreps": [], "error": str(exc)}
+            points = {entry["q_label"]: entry for entry in data["irreps"]}
+            report("phonon_irreps.yaml is YAML: yaml.safe_load and "
+                   "crystod.phonon.read_phonon_irreps give the same dictionary",
+                   yaml.safe_load(text) == data and data.get("space_group") == "Pm-3m"
+                   and data.get("nac") is False, f"{data.get('error')}\n{text[:800]}")
+            report("special_points and irreps name GM, R, X, M with their q positions",
+                   [(p["q_label"], p["q_position"]) for p in data.get("special_points", [])]
+                   == [("GM", [0.0, 0.0, 0.0]), ("R", [0.5, 0.5, 0.5]),
+                       ("X", [0.0, 0.5, 0.0]), ("M", [0.5, 0.5, 0.0])]
+                   and list(points) == ["GM", "R", "X", "M"], text[:800])
+            report("every q point: band_sets with 1-based band_indices covering 1..15 "
+                   "once, irrep_label a list of strings, frequency a float",
+                   bool(points) and all(
+                       sorted(i for s in entry["band_sets"] for i in s["band_indices"])
+                       == list(range(1, 16))
+                       and all(isinstance(s["irrep_label"], list)
+                               and all(isinstance(x, str) for x in s["irrep_label"])
+                               and isinstance(s["frequency"], float)
+                               for s in entry["band_sets"])
+                       for entry in points.values()), text[:1500])
+            report("R: the imaginary R5- triplet is band_indices [1, 2, 3]",
+                   "R" in points and points["R"]["band_sets"][0]["band_indices"] == [1, 2, 3]
+                   and points["R"]["band_sets"][0]["irrep_label"] == ["R5-(3)"]
+                   and points["R"]["band_sets"][0]["frequency"] < 0, text)
             report("default survey has no k-path midpoints",
-                   "path_midpoints:" not in text and "midpoint of" not in text,
+                   "path_midpoints" not in data and "k_path" not in data
+                   and not any("segment" in entry for entry in data["irreps"]),
                    text[:800])
+
+        # -o names the yaml file (it was silently ignored: phonon_irreps.yaml
+        # was written whatever -o said)
+        named_dir = os.path.join(tmp, "named_output")
+        os.makedirs(named_dir)
+        for name in ("221_PPOSCAR_SrTiO3", "FORCE_SETS"):
+            shutil.copy(os.path.join(PHONON_IRREP_DIR, name), named_dir)
+        code, out = run_phonon(
+            ["--irreps", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+             "-o", "SrTiO3_irreps.yaml"],
+            cwd=named_dir,
+        )
+        named_path = os.path.join(named_dir, "SrTiO3_irreps.yaml")
+        try:
+            same_data = (os.path.isfile(yaml_path) and os.path.isfile(named_path)
+                         and read_phonon_irreps(named_path) == read_phonon_irreps(yaml_path))
+        except ValueError:
+            same_data = False
+        report("--irreps -o SrTiO3_irreps.yaml writes that file (the default survey's "
+               "data), not phonon_irreps.yaml",
+               code == 0 and same_data
+               and not os.path.exists(os.path.join(named_dir, "phonon_irreps.yaml"))
+               and "Phonon irreps written to: SrTiO3_irreps.yaml" in out, out)
 
         # --all-irreps: additionally label the seekpath k-path midpoints,
         # written to phonon_irreps_all.yaml so both surveys can coexist
@@ -6703,18 +7561,43 @@ def test_28_phonon_irrep() -> None:
                and "written to: phonon_irreps_all.yaml" in out, out)
         if os.path.isfile(yaml_path):
             report("--all-irreps leaves phonon_irreps.yaml midpoint-free",
-                   "midpoint of" not in open(yaml_path).read())
+                   "path_midpoints" not in read_phonon_irreps(yaml_path))
         if os.path.isfile(all_yaml_path):
             text = open(all_yaml_path).read()
+            try:
+                data = read_phonon_irreps(all_yaml_path)
+            except ValueError as exc:
+                data = {"irreps": [], "error": str(exc)}
+            midpoints = [(p["q_label"], p["segment"]) for p in data.get("path_midpoints", [])]
+            on_lines = {entry["q_label"]: entry for entry in data["irreps"] if "segment" in entry}
             report("--all-irreps yaml contains the seekpath k-path",
-                   "k_path:" in text, text[:800])
+                   data.get("k_path") == "GM-X-M-GM-R-X | R-M",
+                   f"{data.get('error')}\n{text[:800]}")
             report("--all-irreps yaml lists the k-path midpoints (ISO-IR k types)",
-                   "path_midpoints:" in text
-                   and "DT (midpoint of GM-X)" in text
-                   and "T (midpoint of R-M)" in text, text[:1200])
+                   ("DT", "GM-X") in midpoints and ("T", "R-M") in midpoints
+                   and len(midpoints) == 6, text[:1200])
             report("--all-irreps midpoint irreps labeled via ISO-IR",
-                   "segment: GM-X" in text and "DT5(2)" in text
-                   and "T5(2)" in text, text)
+                   on_lines.get("DT", {}).get("segment") == "GM-X"
+                   and ["DT5(2)"] in [s["irrep_label"] for s in on_lines["DT"]["band_sets"]]
+                   and ["T5(2)"] in [s["irrep_label"]
+                                     for s in on_lines.get("T", {}).get("band_sets", [])],
+                   text)
+
+        # a band-set list hung directly under q_label (no band_sets key) is
+        # not YAML; the reader says so instead of returning partial data
+        bad_path = os.path.join(tmp, "not_yaml.yaml")
+        with open(bad_path, "w") as handle:
+            handle.write("space_group: Pm-3m\nirreps:\n- q_label: GM\n"
+                         "  q_position: [0.0, 0.0, 0.0]\n  - # 1 2 3\n"
+                         "    irrep_label: ['GM4-(3)']\n")
+        try:
+            read_phonon_irreps(bad_path)
+            message = ""
+        except ValueError as exc:
+            message = str(exc)
+        report("read_phonon_irreps rejects a file that is not YAML (ValueError)",
+               "is not a YAML file" in message and "crystod-phonon --irreps" in message,
+               message)
 
     # Si (Fd-3m, two origins on the atoms): the irreps are named in the frame
     # with Si on 8a, the same frame SALC and --vibration use; the L-W line (Q)
@@ -6722,11 +7605,15 @@ def test_28_phonon_irrep() -> None:
     # in one frame and the line in the other: Q2, Q1, Q1, Q2, Q1, Q2)
     si_dir = os.path.join(ROOT, "example", "28_phonon_irrep", "Si_Fd-3m")
 
-    def labels_by_point(text: str) -> dict:
+    def labels_by_point(path: str) -> dict:
+        """The irrep labels of the band sets of the first entry of every
+        q_label (a set holding several irreps as one comma-joined string)."""
         found = {}
-        for block in text.split("\n- q_label: ")[1:]:
-            found.setdefault(block.split()[0], re.findall(
-                r"irrep_label: \['([^']+)'\]", block))
+        if not os.path.isfile(path):
+            return found
+        for entry in read_phonon_irreps(path)["irreps"]:
+            found.setdefault(entry["q_label"], [", ".join(s["irrep_label"])
+                                                for s in entry["band_sets"]])
         return found
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -6735,7 +7622,7 @@ def test_28_phonon_irrep() -> None:
         code, out = run_phonon(["--irreps", "--dim", "4 4 4", "-c", "227_PPOSCAR_Si"],
                                cwd=tmp)
         yaml_path = os.path.join(tmp, "phonon_irreps.yaml")
-        found = labels_by_point(open(yaml_path).read()) if os.path.isfile(yaml_path) else {}
+        found = labels_by_point(yaml_path)
         report("Si --irreps: L3+, L2-, L1+, L3- at L and W2, W1, W2 at W",
                code == 0
                and found.get("L") == ["L3+(2)", "L2-(1)", "L1+(1)", "L3-(2)"]
@@ -6743,8 +7630,7 @@ def test_28_phonon_irrep() -> None:
         code, out = run_phonon(["--irreps", "--dim", "4 4 4", "-c", "227_PPOSCAR_Si",
                                 "--all-irreps"], cwd=tmp)
         all_yaml_path = os.path.join(tmp, "phonon_irreps_all.yaml")
-        found = (labels_by_point(open(all_yaml_path).read())
-                 if os.path.isfile(all_yaml_path) else {})
+        found = labels_by_point(all_yaml_path)
         report("Si --all-irreps: Q1, Q2, Q2, Q1, Q2, Q1 on the L-W line, in the frame "
                "of the L and W labels",
                code == 0
@@ -6793,18 +7679,28 @@ def test_29_phonon_activity() -> None:
     irrep_dir = os.path.join(ROOT, "example", "28_phonon_irrep")
     born_path = os.path.join(PHONON_FATBAND_DIR, "BORN")
 
-    def gamma_block(text: str) -> list:
-        """(bands, irrep_label, activity) of every degenerate set at GM."""
-        block = text.split("\n- q_label: GM\n", 1)[1].split("\n\n", 1)[0]
-        return re.findall(
-            r"  - # ([\d ]+)\n    irrep_label: \[([^\]]*)\]\n(?:    mulliken: [^\n]+\n)?"
-            r"    frequency: +\S+\n    activity: \[([^\]]*)\]", block)
+    from crystod.phonon import read_phonon_irreps
 
-    def mulliken_lines(text: str) -> list:
+    def gamma_sets(data) -> list:
+        """The band sets of the GM entry of a read phonon_irreps.yaml, as
+        (bands, irrep_label, set) with bands "1 2 3" and irrep_label
+        "'GM4-(3)'" ("'GM1(1)', 'GM5(2)'" for a set of two irreps)."""
+        if not data:
+            return []
+        entry = next((e for e in data["irreps"] if e["q_label"] == "GM"), {"band_sets": []})
+        return [(" ".join(str(i) for i in s["band_indices"]),
+                 ", ".join(f"'{label}'" for label in s["irrep_label"]), s)
+                for s in entry["band_sets"]]
+
+    def gamma_block(data) -> list:
+        """(bands, irrep_label, activity) of every degenerate set at GM."""
+        return [(bands, labels, ", ".join(s["activity"]))
+                for bands, labels, s in gamma_sets(data) if "activity" in s]
+
+    def mulliken_lines(data) -> list:
         """(bands, irrep_label, mulliken) of every degenerate set at GM."""
-        block = text.split("\n- q_label: GM\n", 1)[1].split("\n\n", 1)[0]
-        return re.findall(r"  - # ([\d ]+)\n    irrep_label: \[([^\]]*)\]\n"
-                          r"    mulliken: ([^\n]+)\n", block)
+        return [(bands, labels, s["mulliken"])
+                for bands, labels, s in gamma_sets(data) if "mulliken" in s]
 
     def strip_activity(text: str) -> str:
         return "".join(line for line in text.splitlines(True)
@@ -6822,44 +7718,50 @@ def test_29_phonon_activity() -> None:
                                    cwd=tmp)
             yaml_path = os.path.join(tmp, "phonon_irreps.yaml")
             text = open(yaml_path).read() if os.path.isfile(yaml_path) else ""
-        return code, out, text
+            try:
+                data = read_phonon_irreps(yaml_path)
+            except (OSError, ValueError):
+                data = None
+        return code, out, text, data
 
     # 1. SrTiO3 Pm-3m: 4 GM4- (one acoustic) + GM5-; GM4- IR, GM5- silent, no Raman
-    code, out, text = irreps_run("SrTiO3_Pm-3m", "221_PPOSCAR_SrTiO3")
+    code, out, text, data = irreps_run("SrTiO3_Pm-3m", "221_PPOSCAR_SrTiO3")
     summary = "GM4- x4 (3 IR, 1 acoustic), GM5- x1 (silent)"
     report("SrTiO3 --irreps exit 0, Gamma summary on the terminal with Mulliken symbols",
            code == 0 and "\n* Gamma-point activity *\nGM4- [T1u] x4 (3 IR, 1 acoustic)\n"
            "GM5- [T2u] x1 (silent)\n" in out, out)
     report("SrTiO3 yaml: a mulliken line after irrep_label in every GM set, nowhere else",
-           mulliken_lines(text) == [("1 2 3", "'GM4-(3)'", "T1u"), ("4 5 6", "'GM4-(3)'", "T1u"),
+           mulliken_lines(data) == [("1 2 3", "'GM4-(3)'", "T1u"), ("4 5 6", "'GM4-(3)'", "T1u"),
                                     ("7 8 9", "'GM4-(3)'", "T1u"),
                                     ("10 11 12", "'GM5-(3)'", "T2u"),
                                     ("13 14 15", "'GM4-(3)'", "T1u")]
            and text.count("    mulliken: ") == 5, text[-1500:])
     report("SrTiO3 Gamma: acoustic GM4-, 3 IR GM4-, silent GM5- (T1u/T2u of m-3m)",
-           gamma_block(text) == [("1 2 3", "'GM4-(3)'", "acoustic"),
+           gamma_block(data) == [("1 2 3", "'GM4-(3)'", "acoustic"),
                                  ("4 5 6", "'GM4-(3)'", "IR"),
                                  ("7 8 9", "'GM4-(3)'", "IR"),
                                  ("10 11 12", "'GM5-(3)'", "silent"),
                                  ("13 14 15", "'GM4-(3)'", "IR")], text[-1500:])
     report("SrTiO3: no Raman-active mode, summary and nac header in the yaml",
-           "Raman" not in text and f"  activity_summary: {summary}" in text
-           and "\nnac: false\n" in text, text[:600])
+           "Raman" not in text and data is not None
+           and data["irreps"][0].get("activity_summary") == summary
+           and data.get("nac") is False, text[:600])
     report("activity lines only in the Gamma block (5 sets)",
-           text.count("    activity: [") == 5, text)
+           text.count("    activity: [") == 5 and data is not None
+           and sum("activity" in s for e in data["irreps"] for s in e["band_sets"]) == 5, text)
     shipped = os.path.join(PHONON_IRREP_DIR, "phonon_irreps.yaml")
     report("SrTiO3 yaml equals the shipped example apart from the added lines",
            os.path.isfile(shipped)
            and strip_activity(text) == strip_activity(open(shipped).read()), text[:800])
 
     # 2. Si Fd-3m: GM5+ Raman only, GM4- acoustic; T2g Raman tensors (Loudon 1964)
-    code, out, text = irreps_run("Si_Fd-3m", "227_PPOSCAR_Si", ("--raman-tensor",))
+    code, out, text, data = irreps_run("Si_Fd-3m", "227_PPOSCAR_Si", ("--raman-tensor",))
     report("Si Gamma: GM4- acoustic, GM5+ Raman only",
            code == 0
-           and gamma_block(text) == [("1 2 3", "'GM4-(3)'", "acoustic"),
+           and gamma_block(data) == [("1 2 3", "'GM4-(3)'", "acoustic"),
                                      ("4 5 6", "'GM5+(3)'", "Raman")]
            and "\n* Gamma-point activity *\nGM4- [T1u] x1 (acoustic)\nGM5+ [T2g] x1 (Raman)\n" in out
-           and mulliken_lines(text) == [("1 2 3", "'GM4-(3)'", "T1u"),
+           and mulliken_lines(data) == [("1 2 3", "'GM4-(3)'", "T1u"),
                                         ("4 5 6", "'GM5+(3)'", "T2g")],
            f"{text[-800:]}\n{out}")
     report("Si --raman-tensor: GM5+ (T2g) = the yz, xz, xy pairs",
@@ -6870,19 +7772,19 @@ def test_29_phonon_activity() -> None:
     # 3. BaTiO3 P4mm: 3 A1 + B1 + 4 E optical; A1 (GM1) and E (GM5) IR and Raman,
     # B1 (GM2) Raman only; the acoustic set is GM1 + GM5 (all at 0 THz by
     # translation invariance)
-    code, out, text = irreps_run("BaTiO3_P4mm", "99_PPOSCAR_BaTiO3", ("--raman-tensor",))
+    code, out, text, data = irreps_run("BaTiO3_P4mm", "99_PPOSCAR_BaTiO3", ("--raman-tensor",))
     report("BaTiO3 --raman-tensor: A1 diag(a,a,0)+diag(0,0,a), B1 diag(a,-a,0), E yz/xz",
            "  GM1 [A1] (2 tensors):  [[a, 0, 0], [0, a, 0], [0, 0, 0]]   "
            "[[0, 0, 0], [0, 0, 0], [0, 0, a]]\n"
            "  GM2 [B1] (1 tensor):  [[a, 0, 0], [0, -a, 0], [0, 0, 0]]\n"
            "  GM5 [E] (2 tensors):  [[0, 0, 0], [0, 0, a], [0, a, 0]]   "
            "[[0, 0, a], [0, 0, 0], [a, 0, 0]]" in out, out)
-    sets = gamma_block(text)
+    sets = gamma_block(data)
     report("BaTiO3 yaml mulliken lines: GM1 = A1, GM2 = B1, GM5 = E, acoustic set A1 + E",
-           ("3 4 5", "'GM1(1)', 'GM5(2)'", "A1 + E") in mulliken_lines(text)
-           and ("10", "'GM2(1)'", "B1") in mulliken_lines(text)
-           and ("1 2", "'GM5(2)'", "E") in mulliken_lines(text)
-           and len(mulliken_lines(text)) == len(sets) == 9, text[-1500:])
+           ("3 4 5", "'GM1(1)', 'GM5(2)'", "A1 + E") in mulliken_lines(data)
+           and ("10", "'GM2(1)'", "B1") in mulliken_lines(data)
+           and ("1 2", "'GM5(2)'", "E") in mulliken_lines(data)
+           and len(mulliken_lines(data)) == len(sets) == 9, text[-1500:])
     report("BaTiO3 Gamma summary: 4 IR+Raman GM5, 3 IR+Raman GM1, GM2 Raman, "
            "acoustic GM1 + GM5",
            code == 0 and "\n* Gamma-point activity *\nGM5 [E] x5 (4 IR+Raman, 1 acoustic)\n"
@@ -6894,14 +7796,14 @@ def test_29_phonon_activity() -> None:
            and ("3 4 5", "'GM1(1)', 'GM5(2)'", "acoustic") in sets, f"{sets}")
 
     # NAC: BORN is read only with --nac (ScF3 + the BORN of example 22)
-    code_a, out_a, plain = irreps_run("ScF3_Pm-3m", "221_PPOSCAR_ScF3")
-    code_b, out_b, with_born = irreps_run("ScF3_Pm-3m", "221_PPOSCAR_ScF3",
-                                          files=(born_path,))
+    code_a, out_a, plain, _ = irreps_run("ScF3_Pm-3m", "221_PPOSCAR_ScF3")
+    code_b, out_b, with_born, _ = irreps_run("ScF3_Pm-3m", "221_PPOSCAR_ScF3",
+                                             files=(born_path,))
     report("--irreps without --nac: a BORN file present changes nothing",
            code_a == 0 and code_b == 0 and plain == with_born and out_a == out_b
            and "NAC" not in out_b, f"{out_a}\n{out_b}")
-    code, out, nac = irreps_run("ScF3_Pm-3m", "221_PPOSCAR_ScF3", ("--nac",),
-                                files=(born_path,))
+    code, out, nac, nac_data = irreps_run("ScF3_Pm-3m", "221_PPOSCAR_ScF3", ("--nac",),
+                                          files=(born_path,))
     report("--irreps --nac reads BORN (terminal note, nac: true in the yaml)",
            code == 0
            and "NAC: Born effective charges and dielectric tensor read from BORN." in out
@@ -6924,6 +7826,17 @@ def test_29_phonon_activity() -> None:
            and "\ndielectric_static: [[" in nac
            and nac.count("    mode_effective_charge: [[") == 4
            and nac.count("    dielectric_contribution: [") == 4, nac[:1500])
+    nac_sets = [s for _, _, s in gamma_sets(nac_data)]
+    report("ScF3 --nac yaml read back: eps tensors 3x3, a 3x3 Z~ and 3 Delta eps per GM "
+           "set, Delta eps of the IR sets summing to eps_0 - eps_inf",
+           nac_data is not None and len(nac_sets) == 4
+           and np.shape(nac_data["dielectric_electronic"]) == (3, 3)
+           and np.shape(nac_data["dielectric_static"]) == (3, 3)
+           and all(np.shape(s["mode_effective_charge"]) == (3, 3)
+                   and np.shape(s["dielectric_contribution"]) == (3,) for s in nac_sets)
+           and abs(sum(s["dielectric_contribution"][0] for s in nac_sets)
+                   - (nac_data["dielectric_static"][0][0]
+                      - nac_data["dielectric_electronic"][0][0])) < 1e-4, nac[:1500])
     probe = (
         "import warnings\n"
         "warnings.simplefilter('ignore')\n"
@@ -6956,7 +7869,7 @@ def test_29_phonon_activity() -> None:
            "  note: 2 imaginary optical band(s) (bands 4 5) contribute with negative sign; "
            "eps_0 is not a static dielectric constant of an unstable structure" in out
            and out.count("  note: ") == 1, out)
-    code, out, _ = irreps_run("ScF3_Pm-3m", "221_PPOSCAR_ScF3", ("--nac",))
+    code, out, _, _ = irreps_run("ScF3_Pm-3m", "221_PPOSCAR_ScF3", ("--nac",))
     report("--irreps --nac without BORN: one-line error",
            code != 0 and "--nac requires a BORN file" in out and "Traceback" not in out, out)
     with tempfile.TemporaryDirectory() as tmp:
@@ -7673,6 +8586,50 @@ def test_33_modulation() -> None:
         )
         report("incommensurate q still previews its mode table",
                code == 0 and "Phonon modes at q" in out, out)
+        code, out = run_phonon(
+            ["--modulation", "--yaml", yaml_path, "--qpoint", "0.15", "0", "0",
+             "--mode", "1"], cwd=tmp
+        )
+        report("incommensurate q: the error names the smallest commensurate "
+               "supercell (20x1x1 for 0.15 = 3/20)",
+               code != 0 and "the smallest commensurate supercell is 20x1x1" in out
+               and "Traceback" not in out, out)
+
+        # --qpoint takes a special-point label, as --vector, --vibration and
+        # --subgroup do (it stopped with "expected 3 arguments"); the label and
+        # its coordinates write the same structure, in --qpointN too
+        code, out = run_phonon(["--modulation", "--yaml", yaml_path, "--qpoint", "R"],
+                               cwd=tmp)
+        report("--modulation --qpoint R: the preview of q = [0.5, 0.5, 0.5]",
+               code == 0 and "at q = [0.5, 0.5, 0.5]" in out
+               and out.count("R4+(3)") == 3 and "expected 3 arguments" not in out, out)
+        written = {}
+        for tag, qpoint_args in (("LABEL", ["--qpoint", "R"]),
+                                 ("COORDS", ["--qpoint", "0.5", "0.5", "0.5"]),
+                                 ("NUMBERED", ["--qpoint1", "R", "--mode1", "1"])):
+            mode_args = [] if tag == "NUMBERED" else ["--mode", "1"]
+            code, out = run_phonon(
+                ["--modulation", "--yaml", yaml_path, *qpoint_args, *mode_args,
+                 "--output", f"MPOSCAR_{tag}"], cwd=tmp)
+            path = os.path.join(tmp, f"MPOSCAR_{tag}")
+            written[tag] = (code, open(path).read() if os.path.isfile(path) else None, out)
+        report("--qpoint R and --qpoint1 R write the structure of --qpoint 0.5 0.5 0.5",
+               all(code == 0 for code, _, _ in written.values())
+               and written["COORDS"][1] is not None
+               and written["LABEL"][1] == written["COORDS"][1] == written["NUMBERED"][1]
+               and "I4/mcm" in written["LABEL"][2],
+               "\n".join(out for _, _, out in written.values()))
+        code, out = run_phonon(["--modulation", "--yaml", yaml_path, "--qpoint", "Q",
+                                "--mode", "1"], cwd=tmp)
+        report("--modulation --qpoint with an unknown label: one-line error listing "
+               "the special points",
+               code != 0 and "Unknown q-point label 'Q'. Available labels: GM, R, X, M" in out
+               and "Traceback" not in out, out)
+        code, out = run_phonon(["--modulation", "--yaml", yaml_path, "--qpoint", "0.5", "0.5"],
+                               cwd=tmp)
+        report("--modulation --qpoint with two values rejected cleanly",
+               code != 0 and "three coordinates or one special-point label" in out
+               and "Traceback" not in out, out)
 
     # Sr3Ti2O7 (I4/mmm): atoms off the inversion centres, two X arms. The mode
     # construction used to crash at (-0.5, 0.5, 0) ("Coupled irrep spaces are
@@ -8072,6 +9029,114 @@ def test_34_vibration() -> None:
         report("commensurate supercell reported", "supercell size" in out, out)
         report("displaced POSCAR written", os.path.isfile(out_poscar))
 
+        # the written POSCAR has one block per species (Sc F / 8 24) holding the
+        # atoms of the exported displacement field; it repeated the species of
+        # every primitive cell (Sc F Sc F ...). --amplitude takes one value.
+        from ase.io import read as ase_read
+
+        grouped = os.path.join(tmp, "POSCAR_R_grouped")
+        npz_path = os.path.join(tmp, "vibration_R.npz")
+        code, out = run_phonon(
+            ["--vibration", "-c", POSCAR_ScF3, "--qpoint", "R", "--mode-index", "3",
+             "--amplitude", "0.2", "--output", grouped, "--export-npz", npz_path])
+        lines = open(grouped).read().splitlines() if os.path.isfile(grouped) else []
+        matched, amplitude_scalar = False, False
+        if len(lines) > 7 and os.path.isfile(npz_path):
+            data = np.load(npz_path, allow_pickle=True)
+            amplitude_scalar = (data["amplitude"].shape == ()
+                                and abs(float(data["amplitude"]) - 0.2) < 1e-12)
+            expected = data["positions"] + 0.2 * data["displacements"]
+            written = ase_read(grouped, format="vasp")
+            inverse = np.linalg.inv(np.asarray(data["supercell_lattice"], dtype=float))
+            symbols = list(data["symbols"])
+            matched = sorted(symbols) == sorted(written.get_chemical_symbols())
+            for symbol, position in zip(symbols, expected):
+                same = [atom.position for atom in written if atom.symbol == symbol]
+                delta = (np.asarray(same) - position) @ inverse
+                delta -= np.rint(delta)
+                matched = matched and float(np.min(np.linalg.norm(
+                    delta @ np.asarray(data["supercell_lattice"], dtype=float), axis=1))) < 1e-6
+        report("--vibration POSCAR: one species block per element (Sc F / 8 24) with the "
+               "atoms of the exported field at --amplitude 0.2 (a scalar in the .npz)",
+               code == 0 and len(lines) > 7 and lines[5].split() == ["Sc", "F"]
+               and lines[6].split() == ["8", "24"] and matched and amplitude_scalar,
+               out + "\n".join(lines[:8]))
+        two_amplitudes = os.path.join(tmp, "POSCAR_two_amplitudes")
+        code, out = run_phonon(
+            ["--vibration", "-c", POSCAR_ScF3, "--qpoint", "R", "--mode-index", "3",
+             "--amplitude", "0.3", "0.2", "--output", two_amplitudes])
+        report("--vibration --amplitude 0.3 0.2: one-line error (one component is written, "
+               "one value), not argparse's 'unrecognized arguments'",
+               code != 0 and "--amplitude takes one value; got 2 (0.3 0.2)" in out
+               and "unrecognized" not in out and "Traceback" not in out
+               and not os.path.exists(two_amplitudes), out)
+
+        # the written structure must be periodic: q = (0.15, 0, 0) wrote a
+        # 6x1x1 cell holding 0.9 of its period; it is refused (as --modulation
+        # refuses it) with the smallest commensurate supercell, and the mode
+        # spaces are still listed without --mode-index; denominators up to 12
+        # (as --modulation): 1/8 was written on a 6x1x1 cell
+        incommensurate = os.path.join(tmp, "POSCAR_q015")
+        code, out = run_phonon(
+            ["--vibration", "-c", POSCAR_ScF3, "--qpoint", "0.15", "0", "0",
+             "--mode-index", "1", "--output", incommensurate])
+        report("--vibration incommensurate q = (0.15, 0, 0) with --mode-index refused, "
+               "naming the 20x1x1 supercell",
+               code != 0 and "is not commensurate with a supercell of at most 12" in out
+               and "the smallest commensurate supercell is 20x1x1" in out
+               and "Mode Space" not in out and "Traceback" not in out
+               and not os.path.exists(incommensurate), out)
+        code, out = run_phonon(["--vibration", "-c", POSCAR_ScF3, "--qpoint", "0.15", "0", "0"])
+        report("--vibration incommensurate q still lists its mode spaces; the CLI keeps "
+               "the primitive-cell note on stdout",
+               code == 0 and "Mode Space  1:" in out
+               and "\n ### Inputed cell was converted into primitive cell. ###\n" in out, out)
+        eighth = os.path.join(tmp, "POSCAR_q_eighth")
+        code, out = run_phonon(
+            ["--vibration", "-c", POSCAR_ScF3, "--qpoint", "1/8", "0", "0",
+             "--mode-index", "1", "--output", eighth])
+        report("--vibration q = (1/8, 0, 0): written on the 8x1x1 supercell",
+               code == 0 and "Commensurate supercell size: (8, 1, 1)" in out
+               and "Supercell atom count: 32" in out and os.path.isfile(eighth), out)
+
+    # library use: the primitive-cell note can be silenced (quiet=True), and
+    # the library function gamma_mode_activities prints nothing; the default
+    # (the commands) keeps it
+    probe = (
+        "import contextlib, io\n"
+        "import numpy as np\n"
+        "from phonopy.structure.atoms import PhonopyAtoms\n"
+        "from crystod import phonon\n"
+        "from crystod.vasp_io import read_poscar_cell\n"
+        f"cell = read_poscar_cell({POSCAR_ScF3!r})\n"
+        "positions = np.asarray(cell.scaled_positions)\n"
+        "double = PhonopyAtoms(\n"
+        "    cell=np.asarray(cell.cell) * np.array([[2.0], [1.0], [1.0]]),\n"
+        "    numbers=list(cell.numbers) * 2,\n"
+        "    scaled_positions=np.vstack([(positions + [shift, 0, 0]) / [2, 1, 1]\n"
+        "                                for shift in (0, 1)]))\n"
+        "calls = (('default', lambda: phonon.SymmetryOnlyVibrations(cell)),\n"
+        "         ('quiet', lambda: phonon.SymmetryOnlyVibrations(cell, quiet=True)),\n"
+        "         ('activities', lambda: phonon.gamma_mode_activities(double)))\n"
+        "for name, call in calls:\n"
+        "    buffer = io.StringIO()\n"
+        "    try:\n"
+        "        with contextlib.redirect_stdout(buffer):\n"
+        "            call()\n"
+        "    except Exception as exc:\n"
+        "        print('STDOUT', name, type(exc).__name__)\n"
+        "        continue\n"
+        "    print('STDOUT', name, repr(buffer.getvalue()))\n"
+    )
+    code, out = run_python(probe)
+    stdout_of = dict(re.findall(r"^STDOUT (\S+) (.*)$", out, re.M))
+    report("SymmetryOnlyVibrations(quiet=True) and gamma_mode_activities(cell) print "
+           "nothing on stdout; the default keeps the note",
+           code == 0
+           and stdout_of.get("default")
+           == repr("\n ### Inputed cell was converted into primitive cell. ###\n")
+           and stdout_of.get("quiet") == "''" and stdout_of.get("activities") == "''", out)
+
     # A written component is the real displacement field of a genuine partner
     # of its irrep space, with the Bloch factor exp(2 pi i q.x_j) of every
     # atom, so it freezes into the isotropy subgroup of its irrep (single arm:
@@ -8349,7 +9414,14 @@ def test_35_phonon_command() -> None:
             yaml_path = os.path.join(tmp, "phonon_irreps.yaml")
             report("phonon_irreps.yaml written", os.path.isfile(yaml_path))
             if os.path.isfile(yaml_path):
-                report("yaml contains GM point irreps", "GM" in open(yaml_path).read())
+                from crystod.phonon import read_phonon_irreps
+
+                try:
+                    points = [e["q_label"] for e in read_phonon_irreps(yaml_path)["irreps"]]
+                except ValueError as exc:
+                    points = [str(exc)]
+                report("yaml contains GM point irreps", points == ["GM", "R", "X", "M"],
+                       f"{points}")
     else:
         report("phonon_irrep example data found", False, PHONON_IRREP_DIR)
 
@@ -8683,8 +9755,15 @@ def test_35_phonon_command() -> None:
                and "Running: crystod-phonon --irreps --dim '4 4 4' -c 221_PPOSCAR_SrTiO3" in out
                and os.path.isfile(os.path.join(tmp, "FORCE_SETS"))
                and os.path.isfile(yaml_path), out)
+        labels_at_r = []
+        if os.path.isfile(yaml_path):
+            from crystod.phonon import read_phonon_irreps
+
+            for entry in read_phonon_irreps(yaml_path)["irreps"]:
+                if entry["q_label"] == "R":
+                    labels_at_r = [s["irrep_label"] for s in entry["band_sets"]]
         report("bundled SrTiO3 example labels the R-point modes (R5-)",
-               os.path.isfile(yaml_path) and "R5-" in open(yaml_path).read(), out)
+               ["R5-(3)"] in labels_at_r, f"{labels_at_r}\n{out}")
 
 # ---------------------------------------------------------------- 36. crystod-mag
 def test_36_spin_basis() -> None:
@@ -8721,6 +9800,13 @@ def test_36_spin_basis() -> None:
         report("R-point exit 0", code == 0, out)
         report("R-point 2x2x2 magnetic supercell and R4+ label",
                "2x2x2" in out and "R4+" in out, out)
+        report("component numbers counted from 1 in the listing and the VESTA names "
+               "(comp1, comp2, comp3; no comp0)",
+               "  component comp1:" in out and "  component comp3:" in out
+               and "comp0" not in out
+               and os.path.isfile(os.path.join(tmp, "POSCAR_AlNi3_spin_R4+_R_comp1.vesta"))
+               and os.path.isfile(os.path.join(tmp, "POSCAR_AlNi3_spin_R4+_R_comp3.vesta"))
+               and not any("comp0" in name for name in os.listdir(tmp)), out)
 
         # a negative fraction is a coordinate, not an option (argparse took
         # -1/2 for one: 'expected at least one argument')
@@ -8749,6 +9835,57 @@ def test_36_spin_basis() -> None:
                out.count("k point (primitive)") >= 4
                and "2.0 [GM4+(3)]" in out and "R4+" in out, out)
 
+        # --tolerance reaches the site matching of the spin representation
+        # (it was 1e-5 in fractional coordinates whatever --tolerance said):
+        # AlNi3 with its Ni ~1e-4 off the 3c sites, found Pm-3m at 1e-2
+        with open(os.path.join(tmp, "POSCAR_AlNi3_off"), "w") as handle:
+            handle.write(
+                "AlNi3, Ni ~1e-4 off the ideal sites\n1.0\n"
+                "3.561084 0 0\n0 3.561084 0\n0 0 3.561084\nAl Ni\n1 3\nDirect\n"
+                "0 0 0\n0.5001 0.4999 0.00005\n0.4999 0.0001 0.5\n0 0.50008 0.49992\n"
+            )
+
+        def table(text: str) -> str:
+            """The summary table: its title, header and rows (up to the notes)."""
+            start = text.find("* Magnetic groups and collinear classes *")
+            if start < 0:
+                return ""
+            return text[start:].split("\n\n")[0]
+
+        code, out = run_mag(["-c", "POSCAR_AlNi3_off", "--element", "Ni", "--qpoint", "GM",
+                             "--tolerance", "1e-2", "--classify-only"], cwd=tmp)
+        code_ideal, out_ideal = run_mag(["-c", "221_PPOSCAR_AlNi3", "--element", "Ni",
+                                         "--qpoint", "GM", "--classify-only"], cwd=tmp)
+        report("--tolerance 1e-2 reaches the site matching: AlNi3 with Ni ~1e-4 off gives "
+               "2 x GM4+(3) + GM5+(3) and the table of the ideal cell, no WARNING",
+               code == 0 and code_ideal == 0 and "Space group: Pm-3m (#221)" in out
+               and "Decomposition: 2 x GM4+(3) + GM5+(3)" in out and "WARNING" not in out
+               and table(out) != "" and table(out) == table(out_ideal), out)
+        code, out = run_mag(["-c", "POSCAR_AlNi3_off", "--element", "Ni",
+                             "--tolerance", "1e-2"], cwd=tmp)
+        report("--tolerance 1e-2 in survey mode: the off-site AlNi3 decomposes as the ideal "
+               "one (2.0 [GM4+(3)], R4+)",
+               code == 0 and "2.0 [GM4+(3)]" in out and "R4+" in out, out)
+
+        # q must fit the magnetic cell: 0.15 = 3/20 gave a 1x1x7 'commensurate'
+        # cell (denominators capped at 12) with a slice of the modulation, a
+        # spurious net moment and the class 'ferrimagnet'
+        code, out = run_mag(["-c", "221_PPOSCAR_AlNi3", "--element", "Ni",
+                             "--qpoint", "0", "0", "0.15", "--classify-only"], cwd=tmp)
+        report("q = (0, 0, 0.15) refused with a one-line ERROR naming the 1x1x20 supercell "
+               "(no 1x1x7 cell, no ferrimagnet)",
+               code != 0
+               and "ERROR: q-point [0.0, 0.0, 0.15] is not commensurate with a magnetic cell "
+               "of at most 12 primitive cells along each axis; the smallest commensurate "
+               "supercell along the primitive axes is 1x1x20." in out
+               and "1x1x7" not in out and "ferrimagnet" not in out and "Traceback" not in out,
+               out)
+        code, out = run_mag(["-c", "221_PPOSCAR_AlNi3", "--element", "Ni",
+                             "--qpoint", "0", "0", "1/4", "--classify-only"], cwd=tmp)
+        report("q = (0, 0, 1/4) keeps its commensurate 1x1x4 cell",
+               code == 0 and "Magnetic (commensurate) supercell: 1x1x4" in out
+               and "ERROR" not in out, out)
+
     # 2-dim irreps with circular complex partners (x + iy, x - iy) must export
     # two ORTHOGONAL real components (x and y), not the same file twice
     poscar_327 = os.path.join(ROOT, "example", "36_spin_basis", "La3Ni2O7_I4mmm", "139_PPOSCAR_La3Ni2O7")
@@ -8769,6 +9906,21 @@ def test_36_spin_basis() -> None:
         if os.path.isfile(x_file) and os.path.isfile(y_file):
             report("x and y partner files differ",
                    open(x_file).read() != open(y_file).read(), out)
+
+        # q != 0 in the lattice gauge (Bloch factor of each site position):
+        # the collinear X arrangements get their direction tags
+        code, out = run_mag(["-c", "139_PPOSCAR_La3Ni2O7", "--element", "Ni",
+                             "--qpoint", "0.5", "0.5", "0", "--conventional",
+                             "--classify-only"], cwd=tmp)
+        flat = [" ".join(line.split()) for line in out.splitlines()]
+        report("La3Ni2O7 X (0.5 0.5 0): X1-(1) along z, X4+(1) along 1m10, type IV, "
+               "no comp tags",
+               code == 0
+               and "X1-(1) [AFM (q != 0)] z C_Acca (68.520) IV mmm1' none "
+               "antiferromagnet (T tau)" in flat
+               and "X4+(1) [AFM (q != 0)] 1m10 C_Accm (66.500) IV mmm1' none "
+               "antiferromagnet (T tau)" in flat
+               and "comp1" not in out, out)
 
     # hexagonal K/H points carry 1/3 coordinates: the labels must not fall
     # back to generic irrep_N names (the old 0.333333-rounding problem)
@@ -8811,9 +9963,741 @@ def test_36_spin_basis() -> None:
                "Y1(1)" in out and "irrep_" not in out, out)
 
 
-# ---------------------------------------------------------------- 37. crystod-mag extras
-def test_37_mag_command() -> None:
-    print("\n[37] crystod-mag (sectioned command: symmetry-adapted spin bases)")
+# ---------------------------------------------------------------- 37. magnetic groups
+def test_37_magnetic_group() -> None:
+    print("\n[37] crystod-mag magnetic space groups, responses and collinear classes")
+    test_dir = os.path.join(ROOT, "example", "test_POSCARs")
+    alni3 = os.path.join(test_dir, "221_PPOSCAR_AlNi3")
+    tio2 = os.path.join(test_dir, "136_PPOSCAR_TiO2")
+    mno2 = os.path.join(test_dir, "58_PPOSCAR_MnO2")
+    cr2o3 = os.path.join(ROOT, "example", "37_magnetic_group", "167_PPOSCAR_Cr2O3")
+    la2cuo4 = os.path.join(ROOT, "example", "36_spin_basis", "La2CuO4_I4mmm",
+                           "139_PPOSCAR_La2CuO4")
+    for path in (alni3, tio2, mno2, cr2o3, la2cuo4, POSCAR_NaCl):
+        if not os.path.isfile(path):
+            report(f"example POSCAR found: {os.path.basename(path)}", False, path)
+            return
+
+    def row(out: str, basis: str, component: str) -> str:
+        """The summary-table row of one basis vector and component."""
+        for line in out.splitlines():
+            if line.startswith(basis) and line[len(basis):].split()[:1] == [component]:
+                return line
+        return ""
+
+    # (a) bcc AFM pair through the API: type IV, translation exchanges the sublattices
+    probe = (
+        "import numpy as np, spglib\n"
+        "from crystod import mag\n"
+        "lattice = np.eye(3) * 2.87\n"
+        "positions = [[0, 0, 0], [0.5, 0.5, 0.5]]\n"
+        "g = mag.magnetic_space_group(lattice, positions, [26, 26], [[0, 0, 1], [0, 0, -1]])\n"
+        "print('MSG', g.uni_number, g.bns_number, g.bns_symbol, g.msg_type, g.type_name,\n"
+        "      g.magnetic_point_group, g.point_group_checked, g.parent_number)\n"
+        "print('RESP', mag.macroscopic_responses(g).summary())\n"
+        "sym = spglib.get_symmetry_dataset((lattice, positions, [26, 26]))\n"
+        "field = np.array([[[0, 0, 1], [0, 0, -1]]], dtype=float)\n"
+        "c = mag.classify_collinear(sym.rotations, sym.translations, positions, [0, 1],\n"
+        "                           np.eye(3, dtype=int), field, lattice)\n"
+        "print('CLASS', c.name, '|', c.short_name)\n"
+        "print('SYMBOL', mag.magnetic_point_group_symbol(\"Pn'ma'\", 3))\n"
+    )
+    code, out = run_python(probe)
+    report("bcc +z/-z: uni 1070 = BNS 128.410 P_I4/mnc, type IV, MPG 4/mmm1' (checked)",
+           code == 0 and "MSG 1070 128.410 P_I4/mnc 4 IV 4/mmm1' True 128" in out, out)
+    report("bcc: nothing time-odd allowed by symmetry in a grey point group",
+           "RESP net magnetization none; linear magnetoelectric effect none; "
+           "piezomagnetism none" in out, out)
+    report("bcc: conventional antiferromagnet, a translation exchanges the sublattices",
+           "CLASS antiferromagnet (conventional: a translation exchanges the "
+           "sublattices, T tau) | antiferromagnet (T tau)" in out, out)
+    report("MPG symbol of Pn'ma' is m'mm'", "SYMBOL m'mm'" in out, out)
+
+    # MPG symbols derived from the BNS symbols of all 1651 magnetic space groups
+    probe = (
+        "import spglib\n"
+        "from crystod.magnetic_group import (bns_symbol, check_point_group_symbol,\n"
+        "                                    magnetic_point_group_symbol)\n"
+        "bad, weak = [], []\n"
+        "for uni in range(1, 1652):\n"
+        "    t = spglib.get_magnetic_spacegroup_type(uni)\n"
+        "    symbol = magnetic_point_group_symbol(bns_symbol(t.bns_number), t.type)\n"
+        "    ops = spglib.get_magnetic_symmetry_from_database(uni)\n"
+        "    if not check_point_group_symbol(symbol, ops['rotations'], ops['time_reversals']):\n"
+        "        bad.append(t.bns_number)\n"
+        "    if t.type == 3 and check_point_group_symbol(symbol.replace(\"'\", '', 1),\n"
+        "                                                ops['rotations'], ops['time_reversals']):\n"
+        "        weak.append(t.bns_number)\n"
+        "print('BAD', len(bad), bad[:5], 'WEAK', len(weak))\n"
+    )
+    code, out = run_python(probe)
+    report("MPG symbol of every one of the 1651 MSGs generates their operations "
+           "(and dropping one prime never does)",
+           code == 0 and "BAD 0 [] WEAK 0" in out, out)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # (b) AlNi3 at Gamma: FM dipole and AFM octupoles
+        code, out = run_mag(["-c", alni3, "--element", "Ni", "--qpoint", "GM"], cwd=tmp)
+        report("AlNi3 GM exit 0", code == 0, out)
+        report("FM dipole z: P4/mm'm' (BNS 123.345, type III), MPG 4/mm'm'",
+               "    magnetic space group: P4/mm'm' (BNS 123.345, type III), 16 operations, "
+               "8 with time reversal\n    magnetic point group: 4/mm'm'\n"
+               "    allowed by symmetry: net magnetization along z; linear magnetoelectric "
+               "effect none; piezomagnetism 3 components\n    collinear order: ferromagnet"
+               in out, out)
+        fm = "GM4+(3) [FM, dipole]"
+        report("FM x and y: the same BNS group 123.345 (other settings), along x / y",
+               "P4/mm'm' (123.345)  III   4/mm'm'  along x" in row(out, fm, "x")
+               and "P4/mm'm' (123.345)  III   4/mm'm'  along y" in row(out, fm, "y"), out)
+        report("FM 111: the rhombohedral R-3m' (166.101), MPG -3m', along [111]",
+               "R-3m' (166.101)     III   -3m'     along [111]" in row(out, fm, "111"), out)
+        afm5 = "GM5+(3) [AFM, octupole]"
+        report("GM5+ octupoles: P4'/mm'm (123.342), net magnetization none, altermagnet d-wave",
+               all("P4'/mm'm (123.342)  III   4'/mm'm  none               altermagnet (d-wave)"
+                   in row(out, afm5, tag) for tag in ("z", "x", "y")), out)
+        report("GM5+ octupole z: spin splitting k_x^2 - k_y^2, degenerate planes [110], [1-10]",
+               "collinear order: altermagnet (d-wave; spin splitting allowed by symmetry "
+               "~ k_x^2 - k_y^2; "
+               "spin-degenerate planes perpendicular to [110], [1-10])" in out, out)
+        afm4 = "GM4+(3) [AFM, octupole]"
+        report("GM4+ octupole z shares the irrep of the dipole: net magnetization allowed "
+               "along z, sublattices of unequal moments (compensated)",
+               "P4/mm'm' (123.345)  III   4/mm'm'  along z            compensated "
+               "(unrelated sublattices)" in row(out, afm4, "z"), out)
+        report("noncollinear 120-degree octupole not classified",
+               row(out, afm4, "111").endswith("noncollinear")
+               and "collinear order: noncollinear (not classified)" in out, out)
+        report("summary block, its note and the PRX reference printed",
+               "\n* Magnetic groups and collinear classes *\nbasis " in out
+               and "class: from the signs of the moments along their common axis only "
+               "(nonrelativistic)." in out
+               and "Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, "
+               "Phys. Rev. X 12, 031042 (2022)." in out, out)
+        report("existing lines and files kept (MAGMOM, VESTA, AFM note)",
+               out.count("MAGMOM =") == 12
+               and os.path.isfile(os.path.join(tmp, "POSCAR_AlNi3_spin_GM5+_octupole_z.vesta"))
+               and "All AFM bases satisfy sum_i S_i = 0" in out, out)
+        probe = (
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from crystod import mag\n"
+            f"result = mag.analyze_spin_basis(read_vasp({alni3!r}), 'Ni', 'GM')\n"
+            "afm = [c for c in result.components if c.kind == 'AFM']\n"
+            "print('PARENTS', sorted({c.group.parent_number for c in afm}),\n"
+            "      len(mag.magnetic_summary_rows(result)))\n"
+        )
+        code, api_out = run_python(probe)
+        report("every AFM octupole MSG is a subgroup type of Pm-3m (parent number <= 221)",
+               code == 0 and "PARENTS [123, 166] 12" in api_out, api_out)
+
+        # --classify-only: the table without listings or files
+        files_before = set(os.listdir(tmp))
+        code, out = run_mag(["-c", tio2, "--element", "Ti", "--qpoint", "GM",
+                             "--classify-only"], cwd=tmp)
+        report("TiO2 --classify-only exit 0", code == 0, out)
+        report("--classify-only: decomposition and table, no listings, no files",
+               "Decomposition: GM3+(1) + 2 x GM5+(2) + GM2+(1)" in out
+               and "* Magnetic groups and collinear classes *" in out
+               and "MAGMOM" not in out and "component z:" not in out
+               and "Output files" not in out and set(os.listdir(tmp)) == files_before, out)
+
+        # (c) rutile TiO2: the RuO2 / MnF2-type d-wave altermagnet
+        code, out = run_mag(["-c", tio2, "--element", "Ti", "--qpoint", "GM"], cwd=tmp)
+        report("TiO2 AFM z: P4_2'/mnm' (BNS 136.499, type III), 16 operations, 8 primed",
+               "magnetic space group: P4_2'/mnm' (BNS 136.499, type III), 16 operations, "
+               "8 with time reversal\n    magnetic point group: 4'/mmm'" in out, out)
+        report("TiO2 AFM z: net magnetization none, ME none, piezomagnetism 2 components",
+               "allowed by symmetry: net magnetization none; linear magnetoelectric effect "
+               "none; piezomagnetism 2 components\n    collinear order: altermagnet" in out, out)
+        report("TiO2 AFM z: d-wave, k_x k_y, degenerate planes perpendicular to [100], [010]",
+               "collinear order: altermagnet (d-wave; spin splitting allowed by symmetry "
+               "~ k_x k_y; "
+               "spin-degenerate planes perpendicular to [100], [010])" in out, out)
+        report("TiO2 GM5+ (two complex copies) gives real FM and AFM bases (no nan)",
+               "nan" not in out and "GM5+(2): dim 2 [FM, dipole]" in out
+               and "Cmm'm' (65.486)" in row(out, "GM5+(2) [AFM, octupole]", "110"), out)
+
+        # MnO2 (Pnnm): the class does not depend on the moment direction, the MSG does
+        code, out = run_mag(["-c", mno2, "--element", "Mn", "--qpoint", "GM",
+                             "--classify-only"], cwd=tmp)
+        report("MnO2 AFM z: Pnnm (58.393, type I), altermagnet d-wave",
+               "Pnnm (58.393)    I     mmm    none               altermagnet (d-wave)"
+               in row(out, "GM1+(1) [AFM, octupole]", "z"), out)
+        report("MnO2 AFM x: Pnn'm' (58.398, type III), net magnetization along y, still d-wave",
+               "Pnn'm' (58.398)  III   mm'm'  along y            altermagnet (d-wave)"
+               in row(out, "GM4+(1) [AFM, octupole]", "x"), out)
+        report("MnO2 FM z: Pn'n'm (58.397), MPG m'm'm, along z",
+               "Pn'n'm (58.397)  III   m'm'm  along z            ferromagnet"
+               in row(out, "GM2+(1) [FM, dipole]", "z"), out)
+
+        # Cr2O3 and hematite orders on the four Cr of R-3c, ordered by height along c
+        probe = (
+            "import numpy as np\n"
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from crystod import mag\n"
+            f"result = mag.analyze_spin_basis(read_vasp({cr2o3!r}), 'Cr', 'GM')\n"
+            "lattice = np.array(read_vasp(" + repr(cr2o3) + ").cell)\n"
+            "heights = (result.site_positions @ lattice)[:, 2]\n"
+            "order = np.argsort(heights)\n"
+            "print('SG', result.space_group, result.space_group_number)\n"
+            "for c in result.components:\n"
+            "    if c.kind == 'FM' or c.tag != 'z':\n"
+            "        continue\n"
+            "    signs = ''.join('+' if s > 0 else '-' for s in c.field[0][order, 2])\n"
+            "    if signs[0] == '-':\n"
+            "        signs = ''.join('+' if s == '-' else '-' for s in signs)\n"
+            "    r = c.responses\n"
+            "    print('ORDER', signs, c.group.bns_symbol, c.group.bns_number, c.group.type_name,\n"
+            "          c.group.magnetic_point_group, r.summary(), '|',\n"
+            "          ' '.join(r.magnetoelectric.independent), '|', c.collinear.short_name)\n"
+        )
+        code, out = run_python(probe)
+        report("Cr2O3 rhombohedral cell read as R-3c (167)", code == 0 and "SG R-3c 167" in out, out)
+        report("Cr2O3 order + - + - along c: R-3'c' (167.106, III), MPG -3'm', "
+               "ME 2 components (alpha11 = alpha22, alpha33), P T antiferromagnet",
+               "ORDER +-+- R-3'c' 167.106 III -3'm' net magnetization none; linear "
+               "magnetoelectric effect 2 components; piezomagnetism none | T11 T33 | "
+               "antiferromagnet (P T)" in out, out)
+        report("hematite order + - - +: R-3c (167.103, type I), g-wave altermagnet",
+               "ORDER +--+ R-3c 167.103 I -3m net magnetization none; linear "
+               "magnetoelectric effect none; piezomagnetism 2 components |  | "
+               "altermagnet (g-wave)" in out, out)
+        report("order + + - -: R-3'c (167.105), antisymmetric ME (1 component)",
+               "ORDER ++-- R-3'c 167.105 III -3'm net magnetization none; linear "
+               "magnetoelectric effect 1 component; piezomagnetism none | T12 |" in out, out)
+
+        # NiO type: Na of rock salt at L, moments along [111]
+        code, out = run_mag(["-c", POSCAR_NaCl, "--element", "Na", "--qpoint", "L",
+                             "--classify-only"], cwd=tmp)
+        report("NiO-type L2+ [111]: R_I-3c (167.108, type IV), T tau antiferromagnet",
+               "R_I-3c (167.108)  IV    -3m1'  none               antiferromagnet (T tau)"
+               in row(out, "L2+(1) [AFM (q != 0)]", "111"), out)
+        report("q != 0 note on the global phase under * Magnetic cell *",
+               "  the magnetic space group refers to the real spin field of the magnetic "
+               "cell (global phase fixed as the VESTA export)" in out, out)
+
+        # La2CuO4 (I4/mmm) at X: a translation exchanges the sublattices
+        code, out = run_mag(["-c", la2cuo4, "--element", "Cu", "--qpoint", "X",
+                             "--classify-only"], cwd=tmp)
+        rows = [line for line in out.splitlines() if line.startswith("X")]
+        report("La2CuO4 X: every basis a conventional antiferromagnet (T tau), type IV",
+               code == 0 and len(rows) == 3
+               and all(line.endswith("antiferromagnet (T tau)") and "  IV  " in line
+                       for line in rows), out)
+
+        # bcc Fe at H: spglib cannot name the x component in the 2x2x2 cell
+        # given; an equivalent basis of the same lattice is identified
+        fe = os.path.join(test_dir, "229_PPOSCAR_Fe")
+        code, out = run_mag(["-c", fe, "--element", "Fe", "--qpoint", "H",
+                             "--classify-only"], cwd=tmp)
+        h_rows = [row(out, "H4+(3) [AFM (q != 0)]", tag) for tag in ("z", "x", "y")]
+        report("Fe H: x row kept and identified like z and y (P_I4/mnc, T tau), "
+               "no spglib warning",
+               code == 0 and all("P_I4/mnc (128.410)  IV" in line
+                                 and line.endswith("antiferromagnet (T tau)")
+                                 for line in h_rows)
+               and "spglib:" not in out, out)
+        report("frames note: standard BNS setting, Cartesian axes of the input cell",
+               "MSG and MPG symbols are in the standard BNS setting; directions are in "
+               "the Cartesian axes of the input cell." in out, out)
+
+        # a group spglib cannot identify keeps its row (operations only)
+        probe = (
+            "import numpy as np, spglib\n"
+            "from crystod import mag\n"
+            "def failing(*args, **kwargs):\n"
+            "    raise RuntimeError('spacegroup search failed')\n"
+            "spglib.get_magnetic_symmetry_dataset = failing\n"
+            "from crystod.magnetic_group import format_magnetic_group, "
+            "format_magnetic_point_group\n"
+            "g = mag.magnetic_space_group(np.eye(3) * 2.87, [[0, 0, 0], [0.5, 0.5, 0.5]],\n"
+            "                             [26, 26], [[0, 0, 1], [0, 0, -1]])\n"
+            "print('ID', g.identified, g.bns_number, g.type_name)\n"
+            "print('MSG', format_magnetic_group(g))\n"
+            "print('MPG', format_magnetic_point_group(g))\n"
+            "print('RESP', mag.macroscopic_responses(g).summary())\n"
+        )
+        code, api_out = run_python(probe)
+        report("unidentified group: operations kept, '-' type, responses computed",
+               code == 0 and "ID False None -" in api_out
+               and "MSG not identified by spglib (32 operations, 16 with time reversal)"
+               in api_out
+               and "MPG not identified (32 elements, 16 with time reversal)" in api_out
+               and "RESP net magnetization none;" in api_out, api_out)
+
+        # 2-dim irreps that spgrep gives in a complex basis: the copies are
+        # aligned through the real form of the irrep and the partners turned
+        # onto symmetry-fixed directions, so FM and AFM separate cleanly
+        def cells(line: str) -> str:
+            return " ".join(line.split())
+
+        code, out = run_mag(["-c", cr2o3, "--element", "Cr", "--qpoint", "GM",
+                             "--classify-only"], cwd=tmp)
+        report("Cr2O3 GM3+: FM dipole along x is C2/c (15.85, type I), along y C2'/c' "
+               "(15.89), in-plane moments along the a axis and perpendicular to it",
+               code == 0
+               and cells(row(out, "GM3+(2) [FM, dipole]", "x"))
+               == "GM3+(2) [FM, dipole] x C2/c (15.85) I 2/m along x ferromagnet"
+               and cells(row(out, "GM3+(2) [FM, dipole]", "y"))
+               == "GM3+(2) [FM, dipole] y C2'/c' (15.89) III 2'/m' in the yz plane ferromagnet",
+               out)
+        report("Cr2O3 GM3+ octupole: hematite-type g-wave altermagnets, monoclinic groups",
+               cells(row(out, "GM3+(2) [AFM, octupole]", "y"))
+               == "GM3+(2) [AFM, octupole] y C2/c (15.85) I 2/m along x altermagnet (g-wave)"
+               and cells(row(out, "GM3+(2) [AFM, octupole]", "x"))
+               == "GM3+(2) [AFM, octupole] x C2'/c' (15.89) III 2'/m' in the yz plane "
+               "altermagnet (g-wave)", out)
+        report("Cr2O3 GM3- (two copies): four monoclinic P T antiferromagnets, no P-1', "
+               "repeated tags made unique (x, y, y_2, x_2)",
+               all(cells(row(out, "GM3-(2) [AFM, quadrupole]", tag)).endswith(
+                   f"{tag} {group} III {mpg} none antiferromagnet (P T)")
+                   for tag, group, mpg in (("x", "C2'/c (15.87)", "2'/m"),
+                                           ("y", "C2/c' (15.88)", "2/m'"),
+                                           ("y_2", "C2'/c (15.87)", "2'/m"),
+                                           ("x_2", "C2/c' (15.88)", "2/m'")))
+               and "P-1'" not in out, out)
+        report("Cr2O3: no separation WARNING, every AFM basis net-zero",
+               "WARNING" not in out and "basis not separated" not in out
+               and "All AFM bases satisfy sum_i S_i = 0" in out, out)
+        probe = (
+            "import numpy as np\n"
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from crystod import mag\n"
+            f"result = mag.analyze_spin_basis(read_vasp({cr2o3!r}), 'Cr', 'GM')\n"
+            "for c in result.components:\n"
+            "    if not c.label.startswith('GM3'):\n"
+            "        continue\n"
+            "    axes = set()\n"
+            "    for rotation, flip in zip(c.group.rotations, c.group.time_reversals):\n"
+            "        proper = rotation * round(np.linalg.det(rotation))\n"
+            "        if abs(np.trace(proper) + 1) < 1e-6:\n"
+            "            values, vectors = np.linalg.eigh(0.5 * (proper + proper.T))\n"
+            "            axis = np.abs(vectors[:, np.argmax(values)])\n"
+            "            axes.add(tuple(float(v) for v in np.round(axis, 6) + 0.0))\n"
+            "    net = np.round(c.net_moment, 6) + 0.0\n"
+            "    print('GM3', c.kind, c.file_tag, net.tolist(), sorted(axes), c.group.n_operations)\n"
+        )
+        code, api_out = run_python(probe)
+        gm3_lines = [line for line in api_out.splitlines() if line.startswith("GM3")]
+        report("Cr2O3 GM3+-: FM nets along x and y, AFM nets zero, two-fold axis along x "
+               "in every group (4 operations)",
+               code == 0 and len(gm3_lines) == 8
+               and "GM3 FM x [4.0, 0.0, 0.0] [(1.0, 0.0, 0.0)] 4" in gm3_lines
+               and "GM3 FM y [0.0, 4.0, 0.0] [(1.0, 0.0, 0.0)] 4" in gm3_lines
+               and all(" [0.0, 0.0, 0.0] [(1.0, 0.0, 0.0)] 4" in line
+                       for line in gm3_lines if " AFM " in line), api_out)
+
+        lufeo3 = os.path.join(ROOT, "example", "36_spin_basis", "LuFeO3_P63cm",
+                              "185_PPOSCAR_LuFeO3")
+        code, out = run_mag(["-c", lufeo3, "--element", "Fe", "--qpoint", "GM"], cwd=tmp)
+        gm56 = [cells(line) for line in out.splitlines() if line.startswith(("GM5(2)", "GM6(2)"))]
+        report("LuFeO3 GM5/GM6 separated: FM dipole along x (Cm'c2_1') and y (Cmc'2_1'), "
+               "no WARNING, every AFM row net-zero",
+               code == 0 and "WARNING" not in out and len(gm56) == 12
+               and "GM6(2) [FM, dipole] x Cm'c2_1' (36.174) III m'm2' along x ferromagnet"
+               in gm56
+               and "GM6(2) [FM, dipole] y Cmc'2_1' (36.175) III mm'2' along y ferromagnet"
+               in gm56
+               and "All AFM bases satisfy sum_i S_i = 0" in out
+               and "P2_1 (4.7)" not in out, out)
+        report("LuFeO3 GM5 in-plane orders: partners with mirror groups Cm'c'2_1 / Cmc2_1",
+               "GM5(2) [AFM, quadrupole] comp1 Cm'c'2_1 (36.176) III m'm'2 along z noncollinear"
+               in gm56
+               and "GM5(2) [AFM, quadrupole] comp2 Cmc2_1 (36.172) I mm2 none noncollinear"
+               in gm56, out)
+        report("LuFeO3: comp<N> note counts from 1",
+               "component: the tag of the listing and of the VESTA file name "
+               "(comp<N>: the N-th basis vector of its space)." in out
+               and "POSCAR_LuFeO3_spin_GM5_quadrupole_comp2.vesta" in out
+               and "comp0" not in out, out)
+
+        # rutile rotated by 30 degrees about z: the same groups and classes,
+        # the spin-splitting form rotated with the cell
+        probe = (
+            "import numpy as np\n"
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from phonopy.structure.atoms import PhonopyAtoms\n"
+            "from crystod import mag\n"
+            f"cell = read_vasp({tio2!r})\n"
+            "t = np.radians(30.0)\n"
+            "turn = np.array([[np.cos(t), -np.sin(t), 0], [np.sin(t), np.cos(t), 0], [0, 0, 1]])\n"
+            "for name, lattice in (('UNROTATED', cell.cell), ('ROTATED', cell.cell @ turn.T)):\n"
+            "    c = PhonopyAtoms(symbols=cell.symbols, scaled_positions=cell.scaled_positions,\n"
+            "                     cell=lattice)\n"
+            "    result = mag.analyze_spin_basis(c, 'Ti', 'GM')\n"
+            "    for r in mag.magnetic_summary_rows(result):\n"
+            "        print(name, r[0], '|', r[2], '|', r[6])\n"
+            "    print(name, 'UNSEPARATED', [x.label for x in result.components\n"
+            "                                if x.kind == 'AFM'\n"
+            "                                and np.linalg.norm(x.net_moment) > 1e-6])\n"
+            "    print(name, 'TEXT', [x.collinear.text() for x in result.components\n"
+            "                         if x.label == 'GM5+(2)' and x.kind == 'AFM'][0])\n"
+        )
+        code, api_out = run_python(probe)
+        unrotated = [line.split(" ", 1)[1] for line in api_out.splitlines()
+                     if line.startswith("UNROTATED") and "TEXT" not in line]
+        rotated = [line.split(" ", 1)[1] for line in api_out.splitlines()
+                   if line.startswith("ROTATED") and "TEXT" not in line]
+        report("rutile rotated by 30 degrees: same MSG numbers and classes per row "
+               "(GM5+ AFM pair Cmm'm' 65.486, d-wave), nothing unseparated",
+               code == 0 and len(unrotated) == 7 and unrotated == rotated
+               and sum("GM5+(2) [AFM, octupole] | Cmm'm' (65.486) | altermagnet (d-wave)"
+                       == line for line in rotated) == 2
+               and "UNSEPARATED []" in rotated, api_out)
+        report("rotated rutile: spin splitting k_x k_y turned by 30 degrees",
+               "ROTATED TEXT altermagnet (d-wave; spin splitting allowed by symmetry ~ "
+               "3 k_x^2 - 2sqrt3 k_x k_y - 3 k_y^2; spin-degenerate planes perpendicular to "
+               "[sqrt3 1 0], [1 -sqrt3 0])" in api_out
+               and "UNROTATED TEXT altermagnet (d-wave; spin splitting allowed by symmetry ~ "
+               "k_x k_y; spin-degenerate planes perpendicular to [100], [010])" in api_out,
+               api_out)
+
+        # trigonal groups in the 312 / 31m settings: the two-fold axis (mirror
+        # normal) lies along Cartesian y = [120], so the partners are x and y
+        rucl3 = os.path.join(test_dir, "151_PPOSCAR_RuCl3")
+        bii3 = os.path.join(test_dir, "162_PPOSCAR_BiI3")
+        code, out = run_mag(["-c", rucl3, "--element", "Ru", "--qpoint", "GM",
+                             "--classify-only"], cwd=tmp)
+        code_i, out_i = run_mag(["-c", bii3, "--element", "I", "--qpoint", "GM",
+                                 "--classify-only"], cwd=tmp)
+        report("P3_112 RuCl3 (Ru) and P-31m BiI3 (I) GM3: FM partners x and y, the "
+               "two-fold axis along y, no WARNING",
+               code == 0 and code_i == 0
+               and cells(row(out, "GM3(2) [FM, dipole]", "x"))
+               == "GM3(2) [FM, dipole] x C2' (5.15) III 2' in the xz plane ferromagnet"
+               and cells(row(out, "GM3(2) [FM, dipole]", "y"))
+               == "GM3(2) [FM, dipole] y C2 (5.13) I 2 along y ferromagnet"
+               and cells(row(out_i, "GM3+(2) [FM, dipole]", "x"))
+               == "GM3+(2) [FM, dipole] x C2'/m' (12.62) III 2'/m' in the xz plane ferromagnet"
+               and cells(row(out_i, "GM3+(2) [FM, dipole]", "y"))
+               == "GM3+(2) [FM, dipole] y C2/m (12.58) I 2/m along y ferromagnet"
+               and "WARNING" not in out + out_i and "sqrt3" not in out + out_i,
+               out + out_i)
+
+        # rotated hexagonal and rhombohedral cells: the partners follow the a
+        # axis of the input cell, whichever equivalent axis spglib calls a
+        probe = (
+            "import numpy as np\n"
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from phonopy.structure.atoms import PhonopyAtoms\n"
+            "from crystod import mag\n"
+            f"for path, element, label, angles in (({lufeo3!r}, 'Fe', 'GM6', (-45, 90)),\n"
+            f"                                     ({cr2o3!r}, 'Cr', 'GM3+', (60,))):\n"
+            "    cell = read_vasp(path)\n"
+            "    for angle in angles:\n"
+            "        t = np.radians(angle)\n"
+            "        turn = np.array([[np.cos(t), -np.sin(t), 0], [np.sin(t), np.cos(t), 0],\n"
+            "                         [0, 0, 1]])\n"
+            "        c = PhonopyAtoms(symbols=cell.symbols, cell=cell.cell @ turn.T,\n"
+            "                         scaled_positions=cell.scaled_positions)\n"
+            "        result = mag.analyze_spin_basis(c, element, 'GM', classify=False)\n"
+            "        a_axis = cell.cell[0] @ turn.T\n"
+            "        reference = np.degrees(np.arctan2(a_axis[1], a_axis[0]))\n"
+            "        if element == 'Cr':\n"
+            "            hexagonal_a = (cell.cell[0] - cell.cell[1]) @ turn.T\n"
+            "            reference = np.degrees(np.arctan2(hexagonal_a[1], hexagonal_a[0]))\n"
+            "        found = sorted(\n"
+            "            round(float((np.degrees(np.arctan2(x.net_moment[1], x.net_moment[0]))\n"
+            "                         - reference) % 180.0), 4) % 180.0\n"
+            "            for x in result.components if x.label.startswith(label + '(')\n"
+            "            and x.kind == 'FM')\n"
+            "        loose = [x.label for x in result.components\n"
+            "                 if x.kind == 'AFM' and np.linalg.norm(x.net_moment) > 1e-6]\n"
+            "        print('ANGLES', label, angle, found, loose)\n"
+        )
+        code, api_out = run_python(probe)
+        report("rotated LuFeO3 (-45, 90 degrees) and Cr2O3 (60 degrees): FM partners "
+               "along the rotated hexagonal a axis and perpendicular to it",
+               code == 0
+               and "ANGLES GM6 -45 [0.0, 90.0] []" in api_out
+               and "ANGLES GM6 90 [0.0, 90.0] []" in api_out
+               and "ANGLES GM3+ 60 [0.0, 90.0] []" in api_out, api_out)
+
+        # one-dimensional complex irreps: each conjugate pair is merged into one
+        # real two-dimensional space under its pair label (the label of
+        # crystod-group --parent), FM and AFM separated
+        ti2ga3 = os.path.join(test_dir, "83_PPOSCAR_Ti2Ga3")
+        code, out = run_mag(["-c", ti2ga3, "--element", "Ti", "--qpoint", "GM",
+                             "--classify-only"], cwd=tmp)
+        report("P4/m Ti2Ga3: GM3+/GM4+ and GM3-/GM4- listed once as the pairs "
+               "GM3+GM4+(2) and GM3-GM4-(2)",
+               code == 0
+               and "Decomposition: GM1+(1) + 2 x GM1-(1) + 2 x GM3+GM4+(2) + GM3-GM4-(2) "
+               "+ GM2+(1) + 2 x GM2-(1)" in out
+               and "  GM3+GM4+(2): dim 2 [FM, dipole]\n  GM3+GM4+(2): dim 2 [AFM, octupole]\n"
+               in out
+               and "GM3+(1)" not in out and "GM4+(1)" not in out, out)
+        report("Ti2Ga3 GM3+GM4+ FM dipole x / y: P2'/m' (10.46), ferromagnet; octupole "
+               "x / y: d-wave altermagnets",
+               all(cells(row(out, "GM3+GM4+(2) [FM, dipole]", tag))
+                   == f"GM3+GM4+(2) [FM, dipole] {tag} P2'/m' (10.46) III 2'/m' in the xy "
+                   "plane ferromagnet" for tag in ("x", "y"))
+               and all(cells(row(out, "GM3+GM4+(2) [AFM, octupole]", tag))
+                       == f"GM3+GM4+(2) [AFM, octupole] {tag} P2'/m' (10.46) III 2'/m' in the "
+                       "xy plane altermagnet (d-wave)" for tag in ("x", "y")), out)
+        report("Ti2Ga3: no WARNING, no unclassified row, the pair note and the AFM sentence",
+               "WARNING" not in out and "not separated" not in out and "nan" not in out
+               and "GM3+GM4+(2): a complex irrep and its conjugate, merged into one real "
+               "space (the physically irreducible representation)." in out
+               and "All AFM bases satisfy sum_i S_i = 0" in out, out)
+        probe = (
+            "import numpy as np\n"
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from crystod import mag\n"
+            f"result = mag.analyze_spin_basis(read_vasp({ti2ga3!r}), 'Ti', 'GM')\n"
+            "print('PAIRS', result.pair_labels)\n"
+            "for c in result.components:\n"
+            "    if c.label == 'GM3+GM4+(2)':\n"
+            "        print('NET', c.kind, c.tag, (np.round(c.net_moment, 6) + 0.0).tolist())\n"
+        )
+        code, api_out = run_python(probe)
+        report("Ti2Ga3 API: pair_labels, FM nets along x and y, AFM nets zero",
+               code == 0 and "PAIRS ['GM3+GM4+(2)', 'GM3-GM4-(2)']" in api_out
+               and "NET FM x [4.0, 0.0, 0.0]" in api_out
+               and "NET FM y [0.0, 4.0, 0.0]" in api_out
+               and "NET AFM x [0.0, 0.0, 0.0]" in api_out
+               and "NET AFM y [0.0, 0.0, 0.0]" in api_out, api_out)
+
+        # the same pairs at the other time-reversal-invariant q points (Z, A
+        # of P4/m): one real two-dimensional space with two different
+        # partners, not two one-dimensional rows with the same real vector
+        code, out = run_mag(["-c", ti2ga3, "--element", "Ti", "--qpoint", "Z",
+                             "--classify-only"], cwd=tmp)
+        report("Ti2Ga3 Z: pairs Z3+Z4+(2) and 2 x Z3-Z4-(2), no Z3+(1)/Z4+(1) rows, "
+               "partners z and z_2 of type IV",
+               code == 0
+               and "Decomposition: 2 x Z1+(1) + Z1-(1) + Z3+Z4+(2) + 2 x Z3-Z4-(2) + "
+               "2 x Z2+(1) + Z2-(1)" in out
+               and "Z3+(1)" not in out and "Z4+(1)" not in out
+               and cells(row(out, "Z3+Z4+(2) [AFM (q != 0)]", "z")).endswith(
+                   "P_b2_1/m (11.56) IV 2/m1' none antiferromagnet (T tau)")
+               and cells(row(out, "Z3+Z4+(2) [AFM (q != 0)]", "z_2")).endswith(
+                   "P_b2_1/m (11.56) IV 2/m1' none antiferromagnet (T tau)")
+               and "Z3+Z4+(2): a complex irrep and its conjugate, merged into one real "
+               "space (the physically irreducible representation)." in out, out)
+        # the lattice gauge at q != 0: a one-dimensional irrep of A keeps the
+        # four-fold axis (the sites of Ti2Ga3 are at general positions in the
+        # plane, where exp(2 pi i q.x_j) differs from site to site)
+        code, out = run_mag(["-c", ti2ga3, "--element", "Ti", "--qpoint", "A",
+                             "--classify-only"], cwd=tmp)
+        report("Ti2Ga3 A: A1-(1) z is I_c4/m (87.80), 4/m1', a T tau antiferromagnet; "
+               "A3+A4+(2) merged",
+               code == 0
+               and cells(row(out, "A1-(1) [AFM (q != 0)]", "z")).endswith(
+                   "I_c4/m (87.80) IV 4/m1' none antiferromagnet (T tau)")
+               and "A3+A4+(2) [AFM (q != 0)]" in out and "A3+(1)" not in out, out)
+        code, out = run_mag(["-c", ti2ga3, "--element", "Ti"], cwd=tmp)
+        report("Ti2Ga3 survey: the pairs counted once under their labels at GM and Z",
+               code == 0 and "2.0 [GM3+GM4+(2)]" in out and "1.0 [GM3-GM4-(2)]" in out
+               and "1.0 [Z3+Z4+(2)]" in out and "[GM3+(1)]" not in out, out)
+
+        # a pair of two-dimensional complex irreps at q != 0 (A5/A6 of P6_3mc
+        # at A): one real four-dimensional space under the pair label of the
+        # decomposition (the basis list kept A5(2), dim 2, complex partners)
+        zno = os.path.join(test_dir, "186_PPOSCAR_ZnO")
+        code, out = run_mag(["-c", zno, "--element", "Zn", "--qpoint", "A",
+                             "--classify-only"], cwd=tmp)
+        report("ZnO A: A5A6(4) listed under its pair label with dim 4 as in the "
+               "decomposition, four rows in the table, no A5(2)",
+               code == 0 and "Decomposition: A2A3(2) + A5A6(4)" in out
+               and "  A5A6(4): dim 4 [AFM (q != 0)]" in out and "A5(2)" not in out
+               and sum(line.startswith("A5A6(4) [AFM (q != 0)]")
+                       for line in out.splitlines()) == 4
+               and "A5A6(4): a complex irrep and its conjugate, merged into one real "
+               "space (the physically irreducible representation)." in out, out)
+        probe = (
+            "import numpy as np\n"
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from crystod import mag\n"
+            f"for path, element in (({zno!r}, 'Zn'),\n"
+            f"                      ({os.path.join(test_dir, '137_PPOSCAR_ZrO2')!r}, 'Zr')):\n"
+            "    r = mag.analyze_spin_basis(read_vasp(path), element, ['1/2', '1/2', '1/2']\n"
+            "                               if element == 'Zr' else 'A', classify=False)\n"
+            "    labels = [(label, len(space)) for label, _, _, space in r.entries]\n"
+            "    real = all(np.abs(np.imag(s)).max() < 1e-12 for _, _, _, s in r.entries)\n"
+            "    orthonormal = all(np.allclose(np.real(s) @ np.real(s).T, np.eye(len(s)),\n"
+            "                                  atol=1e-10) for _, _, _, s in r.entries)\n"
+            "    print('PAIR', element, labels, sum(n for _, n in labels) == 3 * r.n_sites,\n"
+            "          real, orthonormal, [c.tag for c in r.components\n"
+            "                              if c.label in r.pair_labels and '(4)' in c.label])\n"
+        )
+        code, api_out = run_python(probe)
+        report("pairs of two-dimensional irreps at q != 0 (ZnO A5A6, ZrO2 A3A4): real "
+               "orthonormal four-dimensional spaces, dimensions summing to 3N",
+               code == 0
+               and "PAIR Zn [('A2A3(2)', 2), ('A5A6(4)', 4)] True True True" in api_out
+               and "PAIR Zr [('A1(2)', 2), ('A3A4(4)', 4)] True True True "
+               "['1m10', '110', '110', '1m10']" in api_out, api_out)
+
+        # --tolerance in the site matching and the Bloch phases: AlNi3 with its
+        # Ni ~1e-4 off the 3c sites gives at q != 0 the rows of the ideal cell
+        # (the phases are built from the positions symmetrized by the space
+        # group); classify_collinear matches positions within symprec
+        probe = (
+            "import numpy as np, spglib\n"
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from phonopy.structure.atoms import PhonopyAtoms\n"
+            "from crystod import mag\n"
+            f"ideal = read_vasp({alni3!r})\n"
+            "off = PhonopyAtoms(symbols=ideal.symbols, cell=ideal.cell, scaled_positions=[\n"
+            "    [0, 0, 0], [0.5001, 0.4999, 0.00005], [0.4999, 0.0001, 0.5], [0, 0.50008, 0.49992]])\n"
+            "for q in (['0', '1/2', '0'], ['1/2', '1/2', '1/2'], ['0', '0', '1/3']):\n"
+            "    a = mag.magnetic_summary_rows(mag.analyze_spin_basis(ideal, 'Ni', q))\n"
+            "    b = mag.magnetic_summary_rows(mag.analyze_spin_basis(off, 'Ni', q, symprec=1e-2))\n"
+            "    print('ROWS', '/'.join(q), len(a), a == b)\n"
+            "lattice = np.eye(3) * 2.87\n"
+            "positions = [[0, 0, 0], [0.5001, 0.4999, 0.5]]\n"
+            "sym = spglib.get_symmetry_dataset((lattice, positions, [26, 26]), symprec=1e-2)\n"
+            "field = np.array([[[0, 0, 1], [0, 0, -1]]], dtype=float)\n"
+            "for symprec in (None, 1e-2):\n"
+            "    c = mag.classify_collinear(sym.rotations, sym.translations, positions, [0, 1],\n"
+            "                               np.eye(3, dtype=int), field, lattice, symprec=symprec)\n"
+            "    print('CLASS', symprec, c.short_name)\n"
+        )
+        code, api_out = run_python(probe)
+        report("AlNi3 off its ideal sites, symprec 1e-2: the summary rows of the ideal cell "
+               "at X, R and (0, 0, 1/3)",
+               code == 0 and "ROWS 0/1/2/0 9 True" in api_out
+               and "ROWS 1/2/1/2/1/2 9 True" in api_out and "ROWS 0/0/1/3 9 True" in api_out,
+               api_out)
+        report("classify_collinear(symprec=1e-2): bcc pair 1e-4 off is the T tau "
+               "antiferromagnet (the 1e-5 fractional match alone misses the centring)",
+               "CLASS 0.01 antiferromagnet (T tau)" in api_out
+               and "CLASS None " in api_out
+               and "CLASS None antiferromagnet (T tau)" not in api_out, api_out)
+
+        # bad q and bad cells through the API: ValueError with the CLI message
+        probe = (
+            "import numpy as np\n"
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from phonopy.structure.atoms import PhonopyAtoms\n"
+            "from crystod import mag\n"
+            f"cases = (({alni3!r}, 'Ni', ['0', '0', '0.15'], False),\n"
+            f"         ({POSCAR_NaCl!r}, 'Na', ['1/5', '1/7', '0'], True),\n"
+            f"         ({POSCAR_NaCl!r}, 'Na', ['1/5', '1/7', '0'], False))\n"
+            "for path, element, q, conventional in cases:\n"
+            "    try:\n"
+            "        r = mag.analyze_spin_basis(read_vasp(path), element, q,\n"
+            "                                   conventional=conventional, classify=False)\n"
+            "        print('CELL', element, conventional, r.supercell_sizes.tolist())\n"
+            "    except ValueError as exc:\n"
+            "        print('ERROR', element, conventional, exc)\n"
+            "fe = PhonopyAtoms(symbols=['Fe', 'Fe'], cell=np.eye(3) * 2.84,\n"
+            "                  scaled_positions=[[0, 0, 0], [0.5, 0.5, 0.5]])\n"
+            "try:\n"
+            "    mag.analyze_spin_basis(fe, 'Fe', 'GM')\n"
+            "except ValueError as exc:\n"
+            "    print('ERROR', 'Fe', exc)\n"
+        )
+        code, api_out = run_python(probe)
+        report("API: q = (0, 0, 0.15) raises ValueError naming the 1x1x20 supercell",
+               code == 0 and "ERROR Ni False q-point [0.0, 0.0, 0.15] is not commensurate "
+               "with a magnetic cell of at most 12 primitive cells along each axis; the "
+               "smallest commensurate supercell along the primitive axes is 1x1x20." in api_out,
+               api_out)
+        report("API: --conventional checks its own cell (NaCl q = (1/5, 1/7, 0): the "
+               "conventional cell does not fit, the 5x7x1 primitive supercell does)",
+               "ERROR Na True q-point [0.2, 0.142857, 0.0] is not commensurate with a magnetic "
+               "cell of at most 12 conventional cells along each axis; the 5x7x1 primitive "
+               "supercell is commensurate (run without --conventional)." in api_out
+               and "CELL Na False [5, 7, 1]" in api_out, api_out)
+        report("API: a non-primitive cell raises ValueError (not primitive, 2 atoms)",
+               "ERROR Fe the input cell is not primitive (2 atoms, the primitive cell has 1)"
+               in api_out, api_out)
+
+        # a trigonal pair: no symmetry element fixes a direction in the pair
+        # space; the FM dipole partners lie along a and perpendicular to it
+        hgbr = os.path.join(test_dir, "143_PPOSCAR_HgBr")
+        code, out = run_mag(["-c", hgbr, "--element", "Hg", "--qpoint", "GM",
+                             "--classify-only"], cwd=tmp)
+        report("P3 HgBr GM2GM3(2): FM dipole partners x and y (along a and "
+               "perpendicular to it)",
+               code == 0
+               and cells(row(out, "GM2GM3(2) [FM, dipole]", "x")).endswith("ferromagnet")
+               and cells(row(out, "GM2GM3(2) [FM, dipole]", "y")).endswith("ferromagnet")
+               and "comp1" not in out, out)
+        probe = (
+            "import numpy as np\n"
+            "from phonopy.interface.vasp import read_vasp\n"
+            "from phonopy.structure.atoms import PhonopyAtoms\n"
+            "from crystod import mag\n"
+            f"cell = read_vasp({hgbr!r})\n"
+            "t = np.radians(30.0)\n"
+            "turn = np.array([[np.cos(t), -np.sin(t), 0], [np.sin(t), np.cos(t), 0], [0, 0, 1]])\n"
+            "c = PhonopyAtoms(symbols=cell.symbols, cell=cell.cell @ turn.T,\n"
+            "                 scaled_positions=cell.scaled_positions)\n"
+            "r = mag.analyze_spin_basis(c, 'Hg', 'GM', classify=False)\n"
+            "for x in r.components:\n"
+            "    if x.header == 'GM2GM3(2) [FM, dipole]':\n"
+            "        print('NET', x.tag, (np.round(x.net_moment @ turn, 6) + 0.0).tolist())\n"
+        )
+        code, api_out = run_python(probe)
+        report("HgBr turned by 30 degrees: the FM partners turn with the cell",
+               code == 0 and "NET comp1 [3.0, 0.0, 0.0]" in api_out
+               and "NET comp2 [0.0, 3.0, 0.0]" in api_out, api_out)
+
+        # an irrep that occurs more than once in a single moment (monoclinic
+        # P2/m: the moments perpendicular to the two-fold axis) gives one FM
+        # arrangement per axis and net-zero AFM arrangements along the axes
+        mno2_p2m = os.path.join(test_dir, "10_PPOSCAR_MnO2")
+        code, out = run_mag(["-c", mno2_p2m, "--element", "Mn", "--qpoint", "GM",
+                             "--classify-only"], cwd=tmp)
+        gm2 = [cells(line) for line in out.splitlines() if line.startswith("GM2+(1)")]
+        report("P2/m MnO2 GM2+: FM dipoles along x and z (P2'/m'), six net-zero AFM rows "
+               "along x or z, no WARNING",
+               code == 0 and len(gm2) == 8
+               and "GM2+(1) [FM, dipole] x P2'/m' (10.46) III 2'/m' in the xz plane "
+               "ferromagnet" in gm2
+               and "GM2+(1) [FM, dipole] z P2'/m' (10.46) III 2'/m' in the xz plane "
+               "ferromagnet" in gm2
+               and sum(" [AFM, " in line and line.split()[3][0] in "xz" for line in gm2) == 6
+               and "WARNING" not in out and "All AFM bases satisfy sum_i S_i = 0" in out, out)
+
+        # irreps already real and aligned keep their bases exactly (AlNi3)
+        code, out = run_mag(["-c", alni3, "--element", "Ni", "--qpoint", "GM"], cwd=tmp)
+        report("AlNi3 GM bases unchanged (anchor lines of the listing)",
+               code == 0
+               and "    Ni1: S = [ 0.5000, -0.0000, -0.0000]\n"
+               "    Ni2: S = [ 0.5000, -0.0000, -0.0000]\n"
+               "    Ni3: S = [-1.0000, -0.0000, -0.0000]\n    net moment: [0.0, 0.0, 0.0]" in out
+               and "    Ni3: S = [-0.8165,  0.4082, -0.4082]\n" in out
+               and "    MAGMOM = 0 0 0   0.7071 0.7071 0.0000   -0.7071 0.0000 0.7071   "
+               "0.0000 -0.7071 -0.7071\n" in out, out)
+
+        code, out = run_mag(["-c", alni3, "--element", "Ni", "--classify-only"], cwd=tmp)
+        report("--classify-only without --qpoint rejected cleanly",
+               code != 0 and "ERROR: --classify-only needs --qpoint." in out
+               and "Traceback" not in out, out)
+        code, out = run_mag(["-c", alni3, "--element", "Ni", "--qpoint", "ZZ"], cwd=tmp)
+        report("unknown q label: one-line error",
+               code != 0 and "ERROR: Unknown q-point label 'ZZ'" in out
+               and "Traceback" not in out, out)
+
+    # (d) responses of standard magnetic point groups (Birss)
+    probe = (
+        "import numpy as np\n"
+        "from crystod import mag\n"
+        "from crystod.magnetic_group import _closure, _symbol_generators\n"
+        "for symbol in (\"4/mm'm'\", \"4'/mmm'\", \"-3'm'\", \"m'm'm\", \"mmm'\", \"m'm'm'\"):\n"
+        "    group = _closure(_symbol_generators(symbol))\n"
+        "    r = mag.macroscopic_responses([g for g, _ in group], [f for _, f in group])\n"
+        "    print('MPG', symbol, r.magnetization_direction, r.n_magnetoelectric,\n"
+        "          r.n_piezomagnetic, ' '.join(r.magnetoelectric.independent))\n"
+    )
+    code, out = run_python(probe)
+    for expected, what in (
+        ("MPG 4/mm'm' along z 0 3 ", "4/mm'm': M along z, ME forbidden, piezomagnetism 3"),
+        ("MPG 4'/mmm' none 0 2 ", "4'/mmm': no M, no ME, piezomagnetism 2"),
+        ("MPG -3'm' none 2 0 T11 T33", "-3'm': ME alpha11 = alpha22, alpha33; no piezomagnetism"),
+        ("MPG m'm'm along z 0 5 ", "m'm'm: M along z, ME forbidden (unprimed -1), piezo 5"),
+        ("MPG mmm' none 2 0 T12 T21", "mmm': ME alpha12, alpha21 (off-diagonal)"),
+        ("MPG m'm'm' none 3 0 T11 T22 T33", "m'm'm': diagonal ME, three components"),
+    ):
+        report(f"responses {what}", code == 0 and expected in out, out)
+
+
+# ---------------------------------------------------------------- 38. crystod-mag extras
+def test_38_mag_command() -> None:
+    print("\n[38] crystod-mag (sectioned command: symmetry-adapted spin bases)")
     poscar = os.path.join(ROOT, "example", "test_POSCARs", "221_PPOSCAR_AlNi3")
     if not os.path.isfile(poscar):
         report("example POSCAR found", False, poscar)
@@ -8861,6 +10745,26 @@ def test_37_mag_command() -> None:
         code, out = run_mag(["-c", poscar, "--element", "Ni"], cwd=tmp)
         report("survey mode (no --qpoint) exit 0", code == 0, out)
 
+        # a cell that is not primitive (bcc Fe in its two-atom cubic cell):
+        # the survey mode died with a ValueError traceback from spgrep while
+        # --qpoint printed a one-line ERROR; both now print the same ERROR
+        fe_cubic = os.path.join(tmp, "POSCAR_Fe_cubic")
+        with open(fe_cubic, "w") as handle:
+            handle.write("bcc Fe, conventional cubic cell\n1.0\n2.84 0 0\n0 2.84 0\n0 0 2.84\n"
+                         "Fe\n2\nDirect\n0 0 0\n0.5 0.5 0.5\n")
+        code_survey, out_survey = run_mag(["-c", fe_cubic, "--element", "Fe"], cwd=tmp)
+        code_q, out_q = run_mag(["-c", fe_cubic, "--element", "Fe", "--qpoint", "GM"], cwd=tmp)
+        errors = [[line for line in text.splitlines() if line.startswith("ERROR")]
+                  for text in (out_survey, out_q)]
+        report("non-primitive cell: survey and --qpoint modes print the same one-line ERROR "
+               "(not primitive, 2 atoms, primitive cell 1), no traceback",
+               code_survey != 0 and code_q != 0
+               and len(errors[0]) == 1 and errors[0] == errors[1]
+               and errors[0][0].startswith("ERROR: the input cell is not primitive (2 atoms, "
+                                           "the primitive cell has 1); crystod-mag uses the "
+                                           "cell as given")
+               and "Traceback" not in out_survey + out_q, out_survey + out_q)
+
         ceo2 = os.path.join(ROOT, "example", "06_visualized_basis", "CeO2_Fm-3m", "225_PPOSCAR_CeO2")
         if os.path.isfile(ceo2):
             code, out = run_mag(
@@ -8886,9 +10790,194 @@ def test_37_mag_command() -> None:
                code != 0 and "is not a crystod option" in out and "crystod-mag" in out, out)
 
 
-# ---------------------------------------------------------------- 38. crystod-md --adp
-def test_38_xdatcar2adp() -> None:
-    print("\n[38] crystod-md --adp (ScF3 NpT 300K, truncated trajectory)")
+# ---------------------------------------------------------------- 39. crystod-md --adp
+def _adp_supercell_39(cell, sites, dim: int):
+    """Lattice (rows, A) and fractional positions of a dim x dim x dim
+    supercell of ``cell``; atoms ordered by site, then by replica."""
+    replicas = [(i, j, k) for i in range(dim) for j in range(dim) for k in range(dim)]
+    positions = [(np.asarray(site, dtype=float) + replica) / dim
+                 for site in sites for replica in replicas]
+    return dim * np.asarray(cell, dtype=float), positions
+
+
+def _adp_frames_39(lattice, positions, amplitudes, cycles: int = 2):
+    """Frames in which atom n visits the six Cartesian displacements
+    +-amplitudes[n][k] e_k in turn (phase-shifted by n): its time average is
+    positions[n] and its displacement covariance is exactly
+    diag(amplitudes[n]**2) / 3."""
+    inverse = np.linalg.inv(np.asarray(lattice, dtype=float))
+    frames = []
+    for cycle in range(cycles):
+        for t in range(6):
+            frame = []
+            for n, (position, amplitude) in enumerate(zip(positions, amplitudes)):
+                axis, sign = divmod((t + n + cycle) % 6, 2)
+                step = np.zeros(3)
+                step[axis] = (1 - 2 * sign) * amplitude[axis]
+                frame.append((position + step @ inverse) % 1.0)
+            frames.append(frame)
+    return np.array(frames)
+
+
+def _adp_cif_tensors_39(path: str) -> dict:
+    """label -> 3x3 U^ij from the aniso loop (columns U11 U22 U33 U23 U13 U12)."""
+    tensors = {}
+    if not os.path.isfile(path):
+        return tensors
+    text = open(path).read()
+    if "_atom_site_aniso_U_12" not in text:
+        return tensors
+    for line in text.split("_atom_site_aniso_U_12", 1)[1].splitlines():
+        fields = line.split()
+        if len(fields) != 7:
+            continue
+        u11, u22, u33, u23, u13, u12 = (float(value) for value in fields[1:])
+        tensors[fields[0]] = np.array([[u11, u12, u13], [u12, u22, u23], [u13, u23, u33]])
+    return tensors
+
+
+def _adp_cif_ueq_39(u_ij, cell) -> float:
+    """U_eq = tr(L^T N* U N* L) / 3 of CIF U^ij in the cell ``cell`` (rows, A)."""
+    cell = np.asarray(cell, dtype=float)
+    n_star = np.diag(np.linalg.norm(np.linalg.inv(cell).T, axis=1))
+    return float(np.trace(cell.T @ n_star @ u_ij @ n_star @ cell) / 3.0)
+
+
+def _test_39_adp_synthetic() -> None:
+    """Synthetic trajectories with exactly known displacement covariances:
+    the U^ij basis of the site-symmetry projector (body-centred tetragonal
+    primitive cell), U_eq of the written tensor, the Angstrom tolerance of
+    the site symmetry and of the mapping onto the representative site, and
+    the WARNING for atoms that cannot be mapped. The commands run from the
+    repository root (absolute paths), so they exercise this tree's crystod."""
+    print("  -- synthetic trajectories with exact displacement covariances")
+    s = 0.1 * np.sqrt(3.0)
+    # I4/mmm, a = 3, c = 5 A: the primitive cell spglib uses (|a*_3| != |a*_1|)
+    bct = np.array([[-1.5, 1.5, 2.5], [1.5, -1.5, 2.5], [1.5, 1.5, -2.5]])
+    e_star = np.linalg.inv(bct).T
+    e_star /= np.linalg.norm(e_star, axis=1)[:, None]
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, amplitude, u_cart in (
+                ("isotropic U = 0.01 A^2", (s, s, s), np.diag([0.01, 0.01, 0.01])),
+                ("uniaxial U = diag(0.01, 0.01, 0.0225) A^2", (s, s, 1.5 * s),
+                 np.diag([0.01, 0.01, 0.0225]))):
+            lattice, positions = _adp_supercell_39(bct, [[0, 0, 0]], 3)
+            xdatcar = os.path.join(tmp, "XDATCAR_bct")
+            _write_xdatcar_40(xdatcar, lattice, ["Ti"] * len(positions),
+                              _adp_frames_39(lattice, positions, [amplitude] * len(positions)))
+            cif_path = os.path.join(tmp, "ADP_bct.cif")
+            code, out = run_md(["--adp", "--dim", "3", "3", "3", "--xdatcar", xdatcar,
+                                "--output", cif_path])
+            if code != 0 or "I4/mmm (No. 139)" not in out or not os.path.isfile(cif_path):
+                report(f"bct primitive, {name}: I4/mmm and CIF written", False, out)
+                continue
+            u_cif = _adp_cif_tensors_39(cif_path).get("Ti0", np.zeros((3, 3)))
+            u_exact = e_star @ u_cart @ e_star.T
+            deviation = float(np.max(np.abs(u_cif - u_exact)))
+            report(f"bct primitive, {name}: CIF U^ij exact (max dev {deviation:.1e} < 2e-5)",
+                   deviation < 2e-5,
+                   f"CIF   {np.round(u_cif, 5).tolist()}\nexact {np.round(u_exact, 5).tolist()}")
+            ueq_printed = re.search(r"^Ti0\s+([0-9.]+)\s", out, re.M)
+            ueq_printed = float(ueq_printed.group(1)) if ueq_printed else -1.0
+            ueq_cif = _adp_cif_ueq_39(u_cif, lattice / 3)
+            report(f"bct primitive, {name}: printed Ueq {ueq_printed:.6f} = Ueq of the CIF "
+                   f"tensor {ueq_cif:.6f} = tr(U)/3",
+                   abs(ueq_printed - ueq_cif) < 2e-5
+                   and abs(ueq_printed - np.trace(u_cart) / 3) < 2e-6, out)
+            report(f"bct primitive, {name}: constraint text agrees with the CIF "
+                   "(U11=U22, U13=U23; no U13=0)",
+                   "site-symmetry order=16, U11=U22, U13=U23" in out and "U13=0" not in out, out)
+
+        # conventional hexagonal cell (projector unchanged): the 3f site (mmm, a
+        # two-fold axis along a) has U12 = U22/2, which the text must not call 0
+        hexagonal = np.array([[3.0, 0, 0], [-1.5, 1.5 * np.sqrt(3), 0], [0, 0, 5.0]])
+        lattice, positions = _adp_supercell_39(
+            hexagonal, [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0], [0.5, 0.5, 0]], 2)
+        xdatcar = os.path.join(tmp, "XDATCAR_hex")
+        _write_xdatcar_40(xdatcar, lattice, ["Ti"] * 8 + ["O"] * 24,
+                          _adp_frames_39(lattice, positions, [(s, s, s)] * 32))
+        cif_path = os.path.join(tmp, "ADP_hex.cif")
+        code, out = run_md(["--adp", "--dim", "2", "2", "2", "--xdatcar", xdatcar,
+                            "--output", cif_path])
+        u_cif = _adp_cif_tensors_39(cif_path).get("O1") if code == 0 else None
+        report("P6/mmm 3f site: CIF U12 = U22/2 = 0.005 and the text no longer claims U12=0",
+               u_cif is not None and abs(u_cif[0, 1] - 0.005) < 2e-5
+               and "Wyckoff 1 (O): site-symmetry order=8, U13=0, U23=0" in out
+               and "U12=0" not in out
+               and "Wyckoff 0 (Ti): site-symmetry order=24, U11=U22, U13=0, U23=0" in out, out)
+
+        # site-symmetry tolerance in Angstrom: a pair 0.15 A from a mirror plane
+        # of a 10 A cubic cell is two general positions of Pm, not one site on m
+        lattice = 10.0 * np.eye(3)
+        positions = [[0.30, 0.20, 0.015], [0.30, 0.20, -0.015], [0.10, 0.40, 0.0],
+                     [0.70, 0.55, 0.0]]
+        xdatcar = os.path.join(tmp, "XDATCAR_pair")
+        _write_xdatcar_40(xdatcar, lattice, ["Ti", "Ti", "O", "N"],
+                          _adp_frames_39(lattice, positions, [(s, s, s)] * 4))
+        code, out = run_md(["--adp", "--dim", "1", "1", "1", "--grouping-tolerance", "0.01",
+                            "--xdatcar", xdatcar, "--output", os.path.join(tmp, "ADP_pair.cif")])
+        report("mirror pair 0.3 A apart (Pm): site symmetry 1 within --tolerance 0.1 A",
+               code == 0 and "Pm (No. 6)" in out
+               and "Wyckoff 0 (Ti): site-symmetry order=1, no constraint" in out
+               and "Wyckoff 2 (O): site-symmetry order=2, U13=0, U23=0" in out, out)
+        try:
+            import spglib
+
+            from crystod import md
+            symmetry = spglib.get_symmetry((lattice, positions, [1, 1, 2, 3]), symprec=0.1)
+            in_angstrom = md.get_site_symmetry_operations(
+                positions[0], symmetry["rotations"], symmetry["translations"], 0.1,
+                lattice=lattice)
+            legacy = md.get_site_symmetry_operations(
+                positions[0], symmetry["rotations"], symmetry["translations"], 0.1)
+            report("API: get_site_symmetry_operations(lattice=...) compares Angstrom "
+                   "(1 op), without lattice the fractional norm (2 ops)",
+                   len(in_angstrom) == 1 and len(legacy) == 2,
+                   f"{len(in_angstrom)} / {len(legacy)}")
+        except Exception as error:  # noqa: BLE001 - reported as a failure
+            report("API: get_site_symmetry_operations(lattice=...) compares Angstrom", False,
+                   repr(error))
+
+        # mapping onto the representative uses --tolerance (A), not a fixed 0.01
+        # (fractional): fcc a = 3 A with sites 1-3 off by 0.08 A, --tolerance 0.2
+        # (Fm-3m); site 0 has U = 0.01 A^2, sites 1-3 U = 0.02 A^2
+        sites = [[0, 0, 0], [0.08 / 3, 0.5, 0.5], [0.5, 0.08 / 3, 0.5], [0.5, 0.5, 0.08 / 3]]
+        lattice, positions = _adp_supercell_39(3.0 * np.eye(3), sites, 2)
+        amplitudes = [(s, s, s)] * 8 + [(s * np.sqrt(2),) * 3] * 24
+        xdatcar = os.path.join(tmp, "XDATCAR_fcc")
+        _write_xdatcar_40(xdatcar, lattice, ["Ti"] * 32,
+                          _adp_frames_39(lattice, positions, amplitudes))
+        code, out = run_md(["--adp", "--dim", "2", "2", "2", "--tolerance", "0.2",
+                            "--xdatcar", xdatcar, "--output", os.path.join(tmp, "ADP_fcc.cif")])
+        u_cif = (_adp_cif_tensors_39(os.path.join(tmp, "ADP_fcc.cif")).get("Ti0")
+                 if code == 0 else None)
+        report("fcc with sites off by 0.08 A (--tolerance 0.2): all 32 atoms enter U "
+               "(U11 = (0.01 + 3 x 0.02)/4 = 0.0175), no WARNING",
+               u_cif is not None and "Fm-3m" in out and abs(u_cif[0, 0] - 0.0175) < 2e-5
+               and "WARNING" not in out, out)
+
+        # atoms that cannot be mapped are named in a WARNING (forced here for site 1)
+        script = (
+            "from crystod import xdatcar_adp as xa\n"
+            "real = xa._representative_operations\n"
+            "def forced(*args, **kwargs):\n"
+            "    ids = real(*args, **kwargs)\n"
+            "    ids[1] = None\n"
+            "    return ids\n"
+            "xa._representative_operations = forced\n"
+            f"xa.main(['--dim', '2 2 2', '--symprec', '0.2', '--xdatcar', {xdatcar!r},\n"
+            f"         '--output', {os.path.join(tmp, 'ADP_warn.cif')!r}])\n"
+        )
+        code, out = run_python(script)
+        report("unmapped atoms reported by WARNING with 1-based XDATCAR numbers",
+               code == 0 and "WARNING: 8 atom(s) could not be mapped" in out
+               and "(XDATCAR atom numbers, 1-based): 9, 10, 11, 12, 13, 14, 15, 16" in out
+               and "* Atomic displacement parameters *" in out, out)
+
+
+def test_39_xdatcar2adp() -> None:
+    print("\n[39] crystod-md --adp (ScF3 NpT 300K, truncated trajectory)")
+    _test_39_adp_synthetic()
     source = os.path.join(XDATCAR_ADP_DIR, "XDATCAR")
     if not os.path.isfile(source):
         report("example data found", False, source)
@@ -8919,9 +11008,505 @@ def test_38_xdatcar2adp() -> None:
                    text[:600])
 
 
-# ---------------------------------------------------------------- 39. crystod-md extras
-def test_39_md_command() -> None:
-    print("\n[39] crystod-md (sectioned command: MD trajectory -> ADPs / summary)")
+# ---------------------------------------------------------------- 40. crystod-md --project
+def _write_xdatcar_40(path: str, lattice, symbols, frames, species_order=None,
+                      first_configuration: int = 1) -> None:
+    """A fixed-cell XDATCAR (14 decimals), atoms grouped by species in the
+    given order and kept in their array order within a species."""
+    species_order = species_order or list(dict.fromkeys(symbols))
+    order = [i for element in species_order for i, s in enumerate(symbols) if s == element]
+    counts = [sum(1 for s in symbols if s == element) for element in species_order]
+    lines = ["synthetic", "1.0"]
+    lines += ["  " + "  ".join(f"{v:.10f}" for v in row) for row in np.asarray(lattice)]
+    lines += ["  " + "  ".join(species_order), "  " + "  ".join(str(c) for c in counts)]
+    for t, frame in enumerate(frames):
+        lines.append(f"Direct configuration= {first_configuration + t:5d}")
+        lines += ["  " + "  ".join(f"{v:.14f}" for v in frame[i]) for i in order]
+    with open(path, "w") as handle:
+        handle.write("\n".join(lines) + "\n")
+
+
+def test_40_md_projection() -> None:
+    print("\n[40] crystod-md --project (mode projection of an MD trajectory)")
+    from crystod.md_projection import project_trajectory
+    from crystod.star_of_k import read_poscar_or_exit
+    from crystod.vibration_modes import SymmetryOnlyVibrations
+
+    parent = read_poscar_or_exit(POSCAR_ScF3)
+    vibrations = SymmetryOnlyVibrations(parent, standardize=False)
+    dim = (2, 2, 2)
+    q_r, q_m = [0.5, 0.5, 0.5], [0.5, 0.5, 0.0]
+    labels_r = vibrations.describe_mode_spaces(q_r)[2]
+    labels_m = vibrations.describe_mode_spaces(q_m)[2]
+    space_r = labels_r.index("R4+(3)") + 1
+    space_m = labels_m.index("M3+(1)") + 1
+    report("R4+ and M3+ found at R and M of ScF3 (mode spaces 3 and 2)",
+           (space_r, space_m) == (3, 2), f"{labels_r} {labels_m}")
+    row_r = vibrations.get_symmetry_adapted_spaces(q_r)[space_r - 1][0]
+    row_m = vibrations.get_symmetry_adapted_spaces(q_m)[space_m - 1][0]
+    positions, pattern_r, symbols, lattice = vibrations.get_supercell_displacements(q_r, row_r, dim)
+    _, pattern_m, _, _ = vibrations.get_supercell_displacements(q_m, row_m, dim)
+    steps = np.arange(100)
+    amp_r = 0.3 * np.sin(2 * np.pi * steps / 50)
+    amp_m = 0.17 * np.cos(2 * np.pi * steps / 37)
+    inverse = np.linalg.inv(lattice)
+    frames_r = ((positions[None] + amp_r[:, None, None] * pattern_r[None]) @ inverse) % 1.0
+    frames_rm = ((positions[None] + amp_r[:, None, None] * pattern_r[None]
+                  + amp_m[:, None, None] * pattern_m[None]) @ inverse) % 1.0
+    shuffle = np.random.default_rng(38).permutation(len(symbols))
+    symbols_shuffled = [symbols[i] for i in shuffle]
+
+    def others_below(npz_or_projections, keep: set[str], limit: float) -> float:
+        worst = 0.0
+        for columns, values in npz_or_projections:
+            for c, name in enumerate(columns):
+                if name not in keep:
+                    worst = max(worst, float(np.max(np.abs(values[:, c]))))
+        return worst
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # (a) synthetic trajectory: R4+ component 1 frozen with A(t), atoms shuffled,
+        # species written in the reverse order of the parent
+        xdatcar = os.path.join(tmp, "XDATCAR_R4")
+        _write_xdatcar_40(xdatcar, lattice, symbols_shuffled, frames_r[:, shuffle],
+                          species_order=["F", "Sc"])
+        code, out = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "2", "2", "2",
+                            "--xdatcar", xdatcar, "--qpoint", "R", "M", "X", "GM", "--npz",
+                            "-o", "synthetic/MDPROJ_ScF3"], cwd=tmp)
+        report("synthetic R4+ trajectory: --project exit 0", code == 0, out)
+        report("output organised in * ... * blocks",
+               all(f"\n* {title}" in out for title in
+                   ("Input *", "Site matching *", "Q points *",
+                    "Mode projection at R (1/2, 1/2, 1/2) *",
+                    "Pooled components and norm |Q| at R (1/2, 1/2, 1/2) *",
+                    "Sum rule *", "Notes *", "Output files *")), out)
+        report("drift removal stated (mass-weighted centre of mass)",
+               "the mass-weighted centre-of-mass displacement is removed" in out, out)
+        npz_path = os.path.join(tmp, "synthetic", "MDPROJ_ScF3.npz")
+        files_ok = os.path.isfile(npz_path) and all(
+            os.path.isfile(os.path.join(tmp, "synthetic", f"MDPROJ_ScF3_{name}"))
+            for name in ("R.csv", "M.csv", "X.csv", "GM.csv", "hist.pdf"))
+        report("CSV per q, histogram PDF and npz written", files_ok, out)
+        if files_ok:
+            data = np.load(npz_path)
+            r_columns = list(data["labels_R"])
+            target = f"R4+(3)_{space_r}_1"
+            q_target = data["Q_R"][:, r_columns.index(target)]
+            report("Q_R4+,1(t) equals A(t) = 0.3 sin(2 pi t/50) within 1e-6 (atom order shuffled)",
+                   float(np.max(np.abs(q_target - amp_r))) < 1e-6,
+                   f"max error {np.max(np.abs(q_target - amp_r)):.2e}")
+            worst = others_below(
+                [(list(data[f"labels_{tag}"]), data[f"Q_{tag}"]) for tag in ("R", "M", "X", "GM")],
+                {target}, 1e-9)
+            report("every other component at R, M, X, GM below 1e-9", worst < 1e-9,
+                   f"largest {worst:.2e}")
+            report("steps are the configuration numbers (1 .. 100)",
+                   list(data["steps"][[0, -1]]) == [1, 100], str(data["steps"][:3]))
+            header = open(os.path.join(tmp, "synthetic", "MDPROJ_ScF3_R.csv")).readline()
+            report("CSV header: step, then label_space_component columns",
+                   header.startswith("step,R1+(1)_1_1,R3+(2)_2_1,") and target in header, header)
+        report("sinusoid: ratio 2 sqrt(2)/pi = 0.900, kurtosis -1.5, double-peaked shape hint",
+               re.search(r"^R4\+\(3\)\s+3\s+1\s+\S+\s+0\.21213\s+0\.19\d+\s+0\.(899|900)\s+-1\.50\s+\S+\s+"
+                         r"double-peaked \(hint\)", out, re.M) is not None, out)
+        report("one moving and two zero R4+ components: pooled shape 'unequal', no pooled ratio",
+               re.search(r"^R4\+\(3\)\s+3\s+3\s+0\.12247\s+-\s+-\s+-\s+unequal\s", out, re.M)
+               is not None, out)
+        report("sum rule: the frozen pattern carries all of <|u|^2>/N",
+               "fraction covered                           : 100.00 %" in out, out)
+
+        # (a') two order parameters frozen at once (API)
+        result = project_trajectory(parent, dim, symbols_shuffled, [lattice] * 100,
+                                    frames_rm[:, shuffle], qpoints=["R", "M", "X", "GM"])
+        by_name = {p.name: p for p in result.projections}
+        q_r4 = by_name["R"].values[:, by_name["R"].columns.index(f"R4+(3)_{space_r}_1")]
+        q_m3 = by_name["M"].values[:, by_name["M"].columns.index(f"M3+(1)_{space_m}_1")]
+        report("R4+ (0.3 sin) and M3+ (0.17 cos) frozen together: both recovered within 1e-6",
+               np.max(np.abs(q_r4 - amp_r)) < 1e-6 and np.max(np.abs(q_m3 - amp_m)) < 1e-6,
+               f"{np.max(np.abs(q_r4 - amp_r)):.2e} {np.max(np.abs(q_m3 - amp_m)):.2e}")
+        worst = others_below([(p.columns, p.values) for p in result.projections],
+                             {f"R4+(3)_{space_r}_1", f"M3+(1)_{space_m}_1"}, 1e-9)
+        report("... and separated (every other component below 1e-9)", worst < 1e-9,
+               f"largest {worst:.2e}")
+        complete = project_trajectory(parent, dim, symbols_shuffled, [lattice] * 100,
+                                      frames_rm[:, shuffle], qpoints="all")
+        difference = abs(complete.projected_msd - complete.total_msd) / complete.total_msd
+        report("--qpoint all on 2x2x2: 8 of 8 q covered, sum rule exact (< 1e-10)",
+               complete.complete and complete.n_q_covered == 8 and difference < 1e-10,
+               f"{complete.n_q_covered} {difference:.1e}")
+        # (a'') a polar GM4- optical displacement with a fixed centre of mass
+        # (Sc against F, as an MD code keeps it): the mass-weighted drift
+        # removal leaves it whole
+        masses = np.array([parent.masses[list(parent.symbols).index(s)] for s in symbols])
+        polar = np.zeros_like(positions)
+        polar[:, 0] = np.where(np.array(symbols) == "Sc", 0.1, 0.0)
+        polar[np.array(symbols) == "F", 0] = -0.1 * masses[symbols.index("Sc")] / (
+            3.0 * masses[symbols.index("F")])
+        per_cell = float(np.linalg.norm(polar) / np.sqrt(8))
+        frames_polar = ((positions + polar) @ inverse)[None] % 1.0
+        result = project_trajectory(parent, dim, symbols, [lattice], frames_polar, qpoints=["GM"])
+        gm = result.projections[0]
+        gm4 = [c for c, label in enumerate(gm.irreps) if label.startswith("GM4-")]
+        norm_gm4 = float(np.linalg.norm(gm.values[0, gm4]))
+        rest = float(np.max(np.abs(np.delete(gm.values[0], gm4))))
+        report("polar GM4- displacement (fixed centre of mass): GM4- norm = per-cell norm, "
+               "the rest 0", abs(norm_gm4 - per_cell) < 1e-9 and rest < 1e-9,
+               f"{norm_gm4:.6f} {per_cell:.6f} {rest:.1e}")
+
+        # (b) static structure of --modulation (R4+ (a,0,0), amplitude 0.3, 2x2x2)
+        modulated = os.path.join(ROOT, "example", "33_modulation", "ScF3_Pm-3m", "POSCAR_I4mcm_1")
+        lines = open(modulated).read().splitlines()
+        static = os.path.join(tmp, "XDATCAR_static")
+        with open(static, "w") as handle:
+            handle.write("\n".join(lines[:7] + ["Direct configuration=     1"] + lines[8:40]) + "\n")
+        code, out = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "2", "2", "2",
+                            "--xdatcar", static, "--qpoint", "R", "M", "X", "GM", "--npz",
+                            "--no-histogram", "-o", "static"], cwd=tmp)
+        report("static --modulation structure: --project exit 0, no PDF with --no-histogram",
+               code == 0 and not os.path.isfile(os.path.join(tmp, "static_hist.pdf")), out)
+        if code == 0:
+            data = np.load(os.path.join(tmp, "static.npz"))
+            values = {name: data[f"Q_{tag}"][0, c] for tag in ("R", "M", "X", "GM")
+                      for c, name in enumerate(data[f"labels_{tag}"])}
+            nonzero = {name: value for name, value in values.items() if abs(value) > 1e-9}
+            report("Q = 0.3000 on one R4+ component, 0 elsewhere (the --modulation amplitude)",
+                   len(nonzero) == 1 and next(iter(nonzero)).startswith("R4+(3)_")
+                   and abs(abs(next(iter(nonzero.values()))) - 0.3) < 1e-9, str(nonzero))
+        report("one-frame trajectory: shape n/a", re.search(r"0\.30000\s+1\.000\s+-\s+\S+\s+n/a", out)
+               is not None, out)
+        code, out = run_group(["--supergroup-cif", POSCAR_ScF3, "--subgroup-cif", modulated,
+                               "--no-files"], cwd=tmp)
+        report("AMPLIMODES amplitude of the same structure = 0.3 sqrt(2) = 0.4243 (size 2)",
+               code == 0 and re.search(r"R4\+\s+\S+\s+140 I4/mcm\s+1\s+0\.4243", out) is not None
+               and "primitive cell multiplication: 2" in out, out)
+
+        # (c) the ScF3 NpT run (truncated copy of section 39: 293 frames)
+        source = os.path.join(XDATCAR_ADP_DIR, "XDATCAR")
+        if not os.path.isfile(source):
+            report("example data found", False, source)
+            return
+        destination = os.path.join(tmp, "XDATCAR")
+        with open(source) as fin, open(destination, "w") as fout:
+            for line_number, line in enumerate(fin):
+                if line_number >= 77352:
+                    break
+                fout.write(line)
+        code, out = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "4", "4", "4",
+                            "--start-step", "100", "--qpoint", "R", "M"], cwd=tmp)
+        report("NpT ScF3: --project --qpoint R M exit 0", code == 0, out)
+        report("frames and configuration numbers reported",
+               "Frames used     : 193 (step 100 .. 292; configuration 1100 .. 1292)" in out, out)
+        report("each frame's own cell used for the NpT run",
+               "Lattice         : each frame's own cell" in out, out)
+        report("R4+ and M3+ rows with statistics",
+               re.search(r"^R4\+\(3\)\s+3\s+3\s+\S+\s+0\.\d{5}\s+0\.\d{5}\s+0\.\d{3}", out, re.M)
+               is not None
+               and re.search(r"^M3\+\(1\)\s+2\s+1\s+\S+\s+0\.\d{5}", out, re.M) is not None, out)
+        # the shape needs the long window (193 frames hold only 2-3 independent
+        # samples of a tilt); the full file is read once (about 4 s)
+        code, out_full = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "4", "4", "4",
+                                 "--xdatcar", source, "--start-step", "1000", "--qpoint", "R", "M",
+                                 "--irrep", "R4+", "M3+", "--no-histogram", "-o", "full/MDPROJ"],
+                                cwd=tmp)
+        blocks = out_full.split("\n\n")
+        tilt_rows = [row for block in blocks if block.startswith("* Mode projection at ")
+                     for row in block.splitlines()[2:]]
+        pooled = re.search(r"^R4\+\(3\)\s+3\s+3\s+\S+\s+(\S+)\s+\S+\s+\S+\s+single-peaked\s",
+                           out_full, re.M)
+        m3 = [row.split() for row in tilt_rows if row.startswith("M3+(1) ")]
+        report("full 300 K run, frames 1000-4000: every R4+ and M3+ row single-peaked",
+               code == 0 and len(tilt_rows) == 4
+               and all(row.endswith("single-peaked") for row in tilt_rows), out_full)
+        report("Gaussian ratio within 0.75-0.85: pooled R4+ (3 components) and M3+",
+               pooled is not None and 0.75 <= float(pooled.group(1)) <= 0.85
+               and len(m3) == 1 and 0.75 <= float(m3[0][6]) <= 0.85, out_full)
+        code, out_filter = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "4", "4", "4",
+                                   "--start-step", "100", "--qpoint", "R", "M", "1/4", "0", "0",
+                                   "-1/4", "0", "0", "--irrep", "R4+", "M3", "--no-histogram",
+                                   "-o", "filter/MDPROJ"], cwd=tmp)
+        report("--irrep with a name absent at every q (M3): named in a skipped note",
+               code == 0 and "skipped: irrep M3: at none of the requested q points" in out_filter,
+               out_filter)
+        report("q left empty by the filter: 'no irrep of the filter', its -q not called a partner",
+               out_filter.count("no irrep of the filter") == 3
+               and "the -q partner of a projected q" not in out_filter, out_filter)
+        csv_path = os.path.join(tmp, "MDPROJ_ScF3_R.csv")
+        if os.path.isfile(csv_path):
+            rows = open(csv_path).read().splitlines()
+            report("default prefix MDPROJ_ScF3; CSV rows = frames, first step 1100",
+                   len(rows) == 194 and rows[1].startswith("1100,"), rows[0])
+        code, out = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "4", "4", "4",
+                            "--start-step", "100", "--qpoint", "all", "--no-histogram",
+                            "--mean-lattice", "-o", "all/MDPROJ"], cwd=tmp)
+        match = re.search(r"relative difference \(complete basis\)\s+:\s+(\S+)", out)
+        report("--qpoint all: 64 of 64 q covered, sum rule exact (< 1e-8)",
+               code == 0 and "64 of 64 commensurate" in out and match is not None
+               and float(match.group(1)) < 1e-8, out)
+        report("--mean-lattice reported", "time-averaged cell for every frame" in out, out)
+        report("-q partners not projected twice (36 q blocks for 64 q)",
+               out.count("* Mode projection at ") == 36, out)
+
+        # (d) errors
+        code, out = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "2", "4", "4"], cwd=tmp)
+        report("composition mismatch rejected cleanly",
+               code == 1 and "ERROR: the trajectory holds F192 Sc64" in out
+               and "Traceback" not in out, out)
+        code, out = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "4", "4", "4",
+                            "--qpoint", "1/3", "0", "0"], cwd=tmp)
+        report("non-commensurate q rejected cleanly",
+               code == 1 and "not commensurate with --dim 4 4 4" in out
+               and "Traceback" not in out, out)
+        code, out = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "4", "4", "4",
+                            "--qpoint", "R", "--irrep", "M3+"], cwd=tmp)
+        report("irrep absent at the q points rejected cleanly",
+               code == 1 and "no irrep named M3+" in out and "Traceback" not in out, out)
+        code, out = run_md(["--project", "--dim", "4", "4", "4"], cwd=tmp)
+        report("--project without -c rejected cleanly",
+               code != 0 and "requires -c/--cell" in out and "Traceback" not in out, out)
+        code, out = run_md(["--summary", "-c", POSCAR_ScF3, "--qpoint", "R"], cwd=tmp)
+        report("-c with --summary rejected cleanly",
+               code != 0 and "only available with --project" in out and "Traceback" not in out,
+               out)
+        try:
+            project_trajectory(parent, dim, symbols, [lattice * 1.2] * 2, frames_r[:2])
+            report("cell of the wrong size rejected", False)
+        except ValueError as exc:
+            report("cell of the wrong size rejected (ValueError naming both cells)",
+                   "differs from the parent cell" in str(exc), str(exc))
+        far = frames_r[:2].copy()
+        far[:, 5] += 0.2  # 0.4 of a parent lattice vector along each axis
+        try:
+            project_trajectory(parent, dim, symbols, [lattice] * 2, far % 1.0)
+            report("unmatched atom rejected", False)
+        except ValueError as exc:
+            report("atom far from every ideal site rejected (ValueError)",
+                   "atom 6" in str(exc) and "nearest ideal" in str(exc), str(exc))
+        from phonopy.structure.atoms import PhonopyAtoms
+
+        doubled = PhonopyAtoms(
+            symbols=list(parent.symbols) * 2,
+            cell=np.asarray(parent.cell) * [[2], [1], [1]],
+            scaled_positions=np.vstack([
+                (np.asarray(parent.scaled_positions) + [shift, 0, 0]) * [0.5, 1, 1]
+                for shift in (0, 1)]),
+        )
+        try:
+            project_trajectory(doubled, (1, 2, 2), symbols, [lattice] * 2, frames_r[:2])
+            report("non-primitive parent rejected", False)
+        except ValueError as exc:
+            report("non-primitive parent rejected (ValueError)", "primitive" in str(exc), str(exc))
+        code, out = run_python(
+            "from crystod import md\n"
+            "try:\n"
+            "    md.project_trajectory('no_such_POSCAR', (2, 2, 2), [], [], [[[0, 0, 0]]])\n"
+            "except ValueError as exc:\n"
+            "    print('VALUE_ERROR', exc)\n"
+            "print(md.TrajectoryProjection.__name__)\n", cwd=tmp)
+        report("crystod.md.project_trajectory exported; bad input raises ValueError",
+               code == 0 and "VALUE_ERROR" in out and "TrajectoryProjection" in out, out)
+
+        # (e) phonon-eigenvector basis (--yaml), effective frequencies, --star
+        _test_40_eigenvector_basis(tmp, parent, lattice, symbols_shuffled,
+                                   frames_rm[:, shuffle], amp_m, destination, source)
+
+
+def _test_40_eigenvector_basis(tmp, parent, lattice, symbols_shuffled, frames_rm, amp_m,
+                               truncated, full) -> None:
+    """Section 40, part (e): crystod-md --project --yaml / --temperature / --star."""
+    import phonopy
+
+    from crystod.md_projection import project_trajectory
+    from crystod.modulation import SymmetryAdaptedModulation
+
+    yaml_path = os.path.join(MODULATION_DIR, "phonopy_params.yaml")
+    phonon = phonopy.load(yaml_path, is_nac=False)
+    modes_r = SymmetryAdaptedModulation(phonon=phonon, qpoint=[0.5, 0.5, 0.5])
+    masses = np.repeat(np.asarray(phonon.primitive.masses, dtype=float), 3)
+
+    def static_xdatcar(poscar: str, name: str) -> str:
+        lines = open(poscar).read().splitlines()
+        path = os.path.join(tmp, name)
+        with open(path, "w") as handle:
+            handle.write("\n".join(lines[:7] + ["Direct configuration=     1"] + lines[8:40]) + "\n")
+        return path
+
+    def check_static(poscar: str, label: str, expected_mode: int | None) -> None:
+        xdatcar = static_xdatcar(poscar, f"XDATCAR_{label}")
+        code, out = run_md(["--project", "--yaml", yaml_path, "--dim", "2", "2", "2",
+                            "--xdatcar", xdatcar, "--qpoint", "R", "M", "X", "GM", "--npz",
+                            "--no-histogram", "-o", f"eig_{label}"], cwd=tmp)
+        report(f"{label}: --project --yaml exit 0, '* Mode projection at R (1/2, 1/2, 1/2), "
+               "phonon-eigenvector basis *'",
+               code == 0 and "\n* Mode projection at R (1/2, 1/2, 1/2), phonon-eigenvector "
+               "basis *\nmode  irrep   nu_harm (THz)" in out, out)
+        if code != 0:
+            return
+        data = np.load(os.path.join(tmp, f"eig_{label}.npz"))
+        values = {f"{tag}:{name}": data[f"a_{tag}"][0, c] for tag in ("R", "M", "X", "GM")
+                  for c, name in enumerate(data[f"labels_{tag}"])}
+        nonzero = {name: value for name, value in values.items() if abs(value) > 1e-9}
+        report(f"{label}: exactly one mode with a nonzero <a> (an R4+ mode), the rest below 1e-9",
+               len(nonzero) == 1 and next(iter(nonzero)).startswith("R:")
+               and next(iter(nonzero)).endswith("_R4+"), str(nonzero))
+        if len(nonzero) != 1:
+            return
+        name, a_value = next(iter(nonzero.items()))
+        mode = int(name.split(":")[1].split("_")[0])
+        if expected_mode is not None:
+            report(f"{label}: the nonzero mode is mode {expected_mode} of --modulation",
+                   mode == expected_mode, name)
+        # --modulation's amplitude is the per-cell norm of Re(v exp(2 pi i q.R)), v the
+        # eigenvector over sqrt(m) renormalized: A = 0.3 x |sqrt(m) v| per cell
+        vector = modes_r.mode_vectors[mode - 1]
+        weighted = float(np.sqrt(np.sum(masses * np.abs(vector) ** 2)))
+        per_cell = abs(float(a_value)) / np.sqrt(8.0)
+        report(f"{label}: per-cell A = 0.3 |sqrt(m) v| = 0.3 x {weighted:.6f} = "
+               f"{0.3 * weighted:.6f} (got {per_cell:.6f}) within 1e-6",
+               abs(per_cell - 0.3 * weighted) < 1e-6, f"{per_cell:.8f} {0.3 * weighted:.8f}")
+        report(f"{label}: sum rule <a^2> = sum m |u|^2 (one frame, R alone covers it)",
+               "fraction covered                           : 100.00 %" in out, out)
+
+    # (e1) the structure of the example directory, and a fresh --modulation --mode 1
+    stored = os.path.join(MODULATION_DIR, "POSCAR_I4mcm_1")
+    check_static(stored, "POSCAR_I4mcm_1", None)
+    code, out = run_phonon(["--modulation", "--yaml", yaml_path, "--qpoint", "0.5", "0.5", "0.5",
+                            "--mode", "1", "--amplitude", "0.3", "--output", "POSCAR_mode1"],
+                           cwd=tmp)
+    report("--modulation --mode 1 --amplitude 0.3 at R written (I4/mcm)",
+           code == 0 and "I4/mcm" in out, out)
+    if code == 0:
+        check_static(os.path.join(tmp, "POSCAR_mode1"), "modulation_mode1", 1)
+        code, out = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "2", "2", "2", "--xdatcar",
+                            os.path.join(tmp, "XDATCAR_modulation_mode1"), "--qpoint", "R",
+                            "--irrep", "R4+", "--no-histogram", "-o", "sym_mode1"], cwd=tmp)
+        report("... the symmetry-only projection of the same frame: Q = 0.30000 on one R4+ "
+               "component", code == 0 and re.search(r"^R4\+\(3\)\s+3\s+\d\s+-?0\.30000\s+0\.30000",
+                                                    out, re.M) is not None, out)
+
+    # (e2) both bases agree where they must: R4+ occurs once at R and moves F only,
+    # so a = sqrt(m_F) sqrt(N) Q for every partner (truncated NpT run)
+    from crystod.xdatcar_adp import read_xdatcar
+
+    symbols, lattices, frames = read_xdatcar(truncated)
+    eig = project_trajectory(None, (4, 4, 4), symbols, lattices[100:], frames[100:],
+                             qpoints=["R"], phonon=phonon)
+    sym = project_trajectory(parent, (4, 4, 4), symbols, lattices[100:], frames[100:],
+                             qpoints=["R"], irreps=["R4+"])
+    eig_r4 = np.sort([s.rms for s, label in zip(eig.projections[0].statistics,
+                                                eig.projections[0].irreps)
+                      if label == "R4+(3)"])
+    sym_r4 = np.sort([s.rms for s in sym.projections[0].statistics])
+    m_f = float(phonon.primitive.masses[1])
+    report("API without -c (phonon=): R4+ rms a = sqrt(m_F) sqrt(64) rms Q for each partner",
+           eig.basis == "eigenvector" and len(eig_r4) == 3
+           and np.allclose(eig_r4, np.sqrt(m_f) * 8.0 * sym_r4, rtol=1e-9),
+           f"{eig_r4} {np.sqrt(m_f) * 8.0 * sym_r4}")
+    report("CSV/npz column names <mode>_<irrep> (1_R4+ ... 12_R1+)",
+           eig.projections[0].columns[:4] == ["1_R4+", "2_R4+", "3_R4+", "4_R5+"]
+           and eig.projections[0].columns[-1] == "12_R1+", str(eig.projections[0].columns))
+
+    # (e3) exact mass-weighted sum rule over every commensurate q (truncated run)
+    code, out = run_md(["--project", "--yaml", yaml_path, "--dim", "4", "4", "4",
+                        "--xdatcar", truncated, "--start-step", "100", "--qpoint", "all",
+                        "--no-histogram", "-o", "eig_all/MDPROJ"], cwd=tmp)
+    match = re.search(r"relative difference \(complete basis\)\s+:\s+(\S+)", out)
+    report("--yaml --qpoint all: 64 of 64 q, sum <a^2> = <sum m |u|^2> (relative < 1e-8, amu A^2)",
+           code == 0 and "64 of 64 commensurate" in out and "amu A^2" in out
+           and match is not None and float(match.group(1)) < 1e-8,
+           match.group(0) if match else out)
+    report("non-time-reversal-invariant q: modes split into c/s columns (1c, 1s)",
+           re.search(r"^1c\s+DT5\(2\)\s", out, re.M) is not None
+           and re.search(r"^1s\s+DT5\(2\)\s", out, re.M) is not None, out)
+
+    # (e4) effective frequencies of the full 300 K run
+    code, out = run_md(["--project", "--yaml", yaml_path, "--dim", "4", "4", "4",
+                        "--xdatcar", full, "--start-step", "1000", "--qpoint", "R", "M", "GM",
+                        "--temperature", "300", "--npz", "--no-histogram",
+                        "-o", "eig_300K/MDPROJ"], cwd=tmp)
+    report("--temperature 300: exit 0, nu_eff column and Temperature line",
+           code == 0 and "nu_eff (THz)" in out and "Temperature     : 300 K" in out, out)
+    if code == 0:
+        data = np.load(os.path.join(tmp, "eig_300K", "MDPROJ.npz"))
+        harm = {tag: data[f"frequencies_{tag}"] for tag in ("R", "M", "GM")}
+        eff = {tag: data[f"effective_frequencies_{tag}"] for tag in ("R", "M", "GM")}
+        labels = {tag: list(data[f"labels_{tag}"]) for tag in ("R", "M", "GM")}
+        stiff = [(tag, labels[tag][c], harm[tag][c], eff[tag][c]) for tag in harm
+                 for c in range(len(harm[tag])) if harm[tag][c] > 10.0]
+        worst = max(abs(e / h - 1.0) for _, _, h, e in stiff)
+        report(f"stiff modes (nu_harm > 10 THz, {len(stiff)} columns): nu_eff within 25 % "
+               f"(largest deviation {100 * worst:.0f} %)", len(stiff) == 14 and worst < 0.25,
+               str(stiff))
+        r4 = [c for c, name in enumerate(labels["R"]) if name.endswith("_R4+")]
+        m3 = [c for c, name in enumerate(labels["M"]) if name.endswith("_M3+")]
+        mean_square = float(np.mean(data["a_R"][:, r4] ** 2))
+        r4_eff = np.sqrt(0.8314462618 * 300.0 / mean_square) / (2 * np.pi)
+        report(f"soft modes reported: R4+ nu_harm {harm['R'][r4[0]]:.3f}, pooled nu_eff "
+               f"{r4_eff:.3f} THz; M3+ nu_harm {harm['M'][m3[0]]:.3f}, nu_eff "
+               f"{eff['M'][m3[0]]:.3f} THz", len(r4) == 3 and len(m3) == 1
+               and np.isfinite(r4_eff) and np.isfinite(eff["M"][m3[0]]), out)
+        total = float(re.search(r"<sum m \|u\|\^2> \(supercell, drift removed\)\s+:\s+(\S+)",
+                                out).group(1))
+        acoustic = [c for c in range(len(harm["GM"])) if abs(harm["GM"][c]) < 1e-3]
+        weight = float(np.sum(np.mean(data["a_GM"][:, acoustic] ** 2, axis=0)))
+        report("GM acoustic modes (nu_harm 0) carry no weight after the centre-of-mass "
+               f"removal (<a^2> {weight:.1e} < 1e-8 x {total:.1f} amu A^2)",
+               len(acoustic) == 3 and weight < 1e-8 * total, f"{weight:.2e}")
+
+    # (e5) --star: the three M arms; the frozen M3+ arm is found on its arm only
+    xdatcar = os.path.join(tmp, "XDATCAR_RM")
+    _write_xdatcar_40(xdatcar, lattice, symbols_shuffled, frames_rm)
+    for basis, extra in (("symmetry", ["-c", POSCAR_ScF3]), ("eigenvector", ["--yaml", yaml_path])):
+        prefix = f"star_{basis}/MDPROJ"
+        code, out = run_md(["--project", *extra, "--dim", "2", "2", "2", "--xdatcar", xdatcar,
+                            "--qpoint", "M", "--star", "--npz", "--no-histogram", "-o", prefix],
+                           cwd=tmp)
+        names = ["M_0.5_0.5_0", "M_0.5_0_0.5", "M_0_0.5_0.5"]
+        files_ok = code == 0 and all(
+            os.path.isfile(os.path.join(tmp, f"{prefix}_{name}.csv")) for name in names)
+        report(f"--star ({basis} basis): three M arms, distinct file qualifiers {names}",
+               files_ok and out.count("* Mode projection at M ") == 3
+               and "Star            : every arm" in out, out)
+        if not files_ok:
+            continue
+        data = np.load(os.path.join(tmp, f"{prefix}.npz"))
+        key = "Q" if basis == "symmetry" else "a"
+        columns = list(data["labels_M_0.5_0.5_0"])
+        target = next(c for c, name in enumerate(columns) if "M3+" in name)
+        value = data[f"{key}_M_0.5_0.5_0"][:, target]
+        if basis == "eigenvector":
+            # per cell, divided by the mass-weighted norm of the freezing vector
+            # (the frozen M3+ pattern is the M3+ eigen-displacement: M3+ occurs once)
+            mode = int(columns[target].split("_")[0]) - 1
+            freezing = SymmetryAdaptedModulation(
+                phonon=phonon, qpoint=[0.5, 0.5, 0]).mode_vectors[mode]
+            value = value / np.sqrt(8.0) / np.sqrt(np.sum(masses * np.abs(freezing) ** 2))
+        rest = max(float(np.max(np.abs(data[f"{key}_{name}"]))) for name in names[1:])
+        report(f"--star ({basis} basis): M3+ recovered on its arm (0.17 cos within 1e-6 up to "
+               "sign), the other two arms below 1e-9",
+               min(np.max(np.abs(value - amp_m)), np.max(np.abs(value + amp_m))) < 1e-6
+               and rest < 1e-9, f"{np.max(np.abs(np.abs(value) - np.abs(amp_m))):.2e} {rest:.1e}")
+
+    # (e6) errors
+    code, out = run_md(["--project", "-c", POSCAR_ScF3, "--dim", "4", "4", "4",
+                        "--xdatcar", truncated, "--temperature", "300"], cwd=tmp)
+    report("--temperature without --yaml rejected cleanly",
+           code != 0 and "--temperature requires --yaml" in out and "Traceback" not in out, out)
+    wrong = os.path.join(tmp, "POSCAR_wrong")
+    with open(wrong, "w") as handle:
+        handle.write(open(POSCAR_ScF3).read().replace("4.069590", "4.072000"))
+    code, out = run_md(["--project", "-c", wrong, "--yaml", yaml_path, "--dim", "4", "4", "4",
+                        "--xdatcar", truncated, "--qpoint", "R"], cwd=tmp)
+    report("-c that is not the primitive cell of the yaml rejected (ERROR, exit 1)",
+           code == 1 and "ERROR: the -c cell is not the primitive cell of the phonopy yaml" in out
+           and "Traceback" not in out, out)
+    code, out = run_md(["--project", "--yaml", os.path.join(MODULATION_DIR, "phonopy_disp.yaml"),
+                        "--dim", "4", "4", "4", "--xdatcar", truncated, "--qpoint", "R"], cwd=tmp)
+    report("a yaml without force constants rejected (ERROR, exit 1)",
+           code == 1 and "carries no force constants" in out and "Traceback" not in out, out)
+
+
+# ---------------------------------------------------------------- 41. crystod-md extras
+def test_41_md_command() -> None:
+    print("\n[41] crystod-md (sectioned command: MD trajectory -> ADPs / summary)")
 
     def run_md(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.md", args, cwd)
@@ -8942,7 +11527,7 @@ def test_39_md_command() -> None:
         report("example data found", False, source)
         return
     with tempfile.TemporaryDirectory() as tmp:
-        # truncated trajectory (293 frames), as in section 38
+        # truncated trajectory (293 frames), as in section 39
         destination = os.path.join(tmp, "XDATCAR")
         with open(source) as fin, open(destination, "w") as fout:
             for line_number, line in enumerate(fin):
@@ -9019,9 +11604,9 @@ def test_39_md_command() -> None:
                code != 0 and "is not a crystod option" in out and "crystod-md" in out, out)
 
 
-# ---------------------------------------------------------------- 40. crystod-mol
-def test_40_mol() -> None:
-    print("\n[40] crystod-mol (molecular point groups and molecular SALCs)")
+# ---------------------------------------------------------------- 42. crystod-mol
+def test_42_mol() -> None:
+    print("\n[42] crystod-mol (molecular point groups and molecular SALCs)")
 
     def run_mol(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.mol", args, cwd)
@@ -9080,14 +11665,14 @@ def test_40_mol() -> None:
            and "A1: [pz(N1)]" in out and "E: [px(N1), py(N1)]" in out, out)
 
 
-# ------------------------------------------------- 41. crystod-mol --diagram
-def test_41_molod() -> None:
-    print("\n[41] crystod-mol --diagram (MO diagram from symmetry + overlap)")
+# ------------------------------------------------- 43. crystod-mol --diagram
+def test_43_molod() -> None:
+    print("\n[43] crystod-mol --diagram (MO diagram from symmetry + overlap)")
 
     def run_mol(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.mol", args, cwd)
 
-    molod_dir = os.path.join(ROOT, "example", "41_molod")
+    molod_dir = os.path.join(ROOT, "example", "43_molod")
     xyz_nh3 = os.path.join(molod_dir, "XYZ_NH3.xyz")
     xyz_ch4 = os.path.join(molod_dir, "XYZ_CH4.xyz")
     xyz_sf6 = os.path.join(molod_dir, "XYZ_SF6.xyz")
@@ -9179,6 +11764,96 @@ def test_41_molod() -> None:
         report("non-partitioning EHT --ao-left/--ao-right rejected cleanly",
                code != 0 and "does not partition" in out
                and "Traceback" not in out, out)
+
+        # single-center diagrams beyond the s/p main group (fixtures written
+        # here). TiCl4: the double-zeta Ti 3d exponents used to crash the
+        # report (a list formatted with {:.3f}) and the orbital sketches
+        # had only the s/p slots (IndexError on the first d orbital); the
+        # levels must equal the two-fragment run of the same molecule
+        def write_xyz(name, comment, atoms):
+            path = os.path.join(tmp, name)
+            with open(path, "w") as handle:
+                handle.write(f"{len(atoms)}\n{comment}\n")
+                for symbol, x, y, z in atoms:
+                    handle.write(f"{symbol} {x:12.6f} {y:12.6f} {z:12.6f}\n")
+            return path
+
+        def mo_table(text):
+            """(label, energy, occupation) rows of an MO table."""
+            return {
+                (m.group(1), m.group(2), m.group(3))
+                for m in re.finditer(
+                    r"^\s*(\d+[a-z]\w*)(?: x\d+)?\s+(-?\d+\.\d\d)\s+(\d+)\s+\d+%",
+                    text, re.M)
+            }
+
+        tetrahedron = [(1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1)]
+        side = 2.17 / np.sqrt(3.0)
+        xyz_ticl4 = write_xyz(
+            "XYZ_TiCl4.xyz", "TiCl4 (Td, Ti-Cl 2.17 A)",
+            [("Ti", 0.0, 0.0, 0.0)]
+            + [("Cl", side * x, side * y, side * z) for x, y, z in tetrahedron])
+        # (run from the repository root with absolute output paths, so the
+        # checked-out crystod is the one imported)
+        ticl4_html = os.path.join(tmp, "MolOD_XYZ_TiCl4.html")
+        code, out = run_mol(["--diagram", "--xyz", xyz_ticl4,
+                             "--output", ticl4_html])
+        report("TiCl4 single-center --diagram exit 0 (d-block central atom)",
+               code == 0 and "Traceback" not in out, out)
+        report("double-zeta Ti 3d exponents printed with their coefficients",
+               "Ti 3d:  zeta = 4.550 (c = 0.4206) + 1.400 (c = 0.7839) / bohr,"
+               "  H_ii = -10.8 eV" in out, out)
+        report("TiCl4 HOMO 2t1, LUMO 3e, gap 6.54 eV",
+               "HOMO = 2t1 (-13.71 eV), LUMO = 3e (-7.17 eV), gap = 6.54 eV" in out,
+               out)
+        code_f, out_f = run_mol(["--diagram", "--xyz", xyz_ticl4,
+                                 "--ao-left", "Cl4", "--ao-right", "Ti",
+                                 "--output",
+                                 os.path.join(tmp, "ticl4_fragments.html")])
+        single_rows, fragment_rows = mo_table(out), mo_table(out_f)
+        report("TiCl4 single-center levels equal the two-fragment run",
+               code_f == 0 and len(fragment_rows) >= 10
+               and fragment_rows <= single_rows,
+               f"{sorted(single_rows)}\n{sorted(fragment_rows)}\n{out_f}")
+        ticl4_levels = []
+        if os.path.isfile(ticl4_html):
+            with open(ticl4_html) as handle:
+                match = re.search(r"LEVELS = (\[\{.*?\}\]);", handle.read(), re.S)
+            ticl4_levels = json.loads(match.group(1)) if match else []
+        # the Ti 3d column level: one 9-slot entry (atom, s, px, py, pz,
+        # dxy, dyz, dz2, dxz, dx2-y2) per partner, pure d amplitudes
+        d_entries = [
+            entry for level in ticl4_levels
+            if level.get("col") == "center-ao" and level["label"].startswith("3d")
+            for partner in level["orb"] for entry in partner
+        ]
+        report("TiCl4 HTML sketches carry the s/p/d slots (d orbitals drawn)",
+               len(d_entries) >= 5
+               and all(len(entry) == 10 and not any(entry[1:5])
+                       and any(entry[5:10]) for entry in d_entries),
+               str(d_entries))
+
+        # H2Se: the Se 3d core shell gives 2a1 + a2 + b1 + b2 (it used to be
+        # counted as a p shell, a1 + b1 + b2), so the first valence a1 is
+        # 8a1 as in the two-fragment engine
+        half_angle = np.radians(90.6 / 2.0)
+        xyz_h2se = write_xyz(
+            "XYZ_H2Se.xyz", "H2Se (C2v, Se-H 1.46 A, 90.6 deg)",
+            [("Se", 0.0, 0.0, 0.0),
+             ("H", 0.0, 1.46 * np.sin(half_angle), -1.46 * np.cos(half_angle)),
+             ("H", 0.0, -1.46 * np.sin(half_angle), -1.46 * np.cos(half_angle))])
+        code, out = run_mol(["--diagram", "--xyz", xyz_h2se, "--output",
+                             os.path.join(tmp, "MolOD_XYZ_H2Se.html")])
+        report("H2Se core numbering counts the Se 3d core by l (first valence 8a1)",
+               code == 0 and "(8a1)^2 (4b2)^2 (9a1)^2 (4b1)^2" in out
+               and "Se 3d -> a1 + a1 + a2 + b1 + b2" in out, out)
+        code_f, out_f = run_mol(["--diagram", "--xyz", xyz_h2se,
+                                 "--ao-left", "H2", "--ao-right", "Se",
+                                 "--output",
+                                 os.path.join(tmp, "h2se_fragments.html")])
+        report("H2Se single-center numbering equals the two-fragment engine",
+               code_f == 0 and "(8a1)^2 (4b2)^2 (9a1)^2 (4b1)^2" in out_f
+               and mo_table(out_f) <= mo_table(out), out + out_f)
 
         # --pyscf: quantitative diagrams (three SCF runs in one AO space)
         try:
@@ -9295,9 +11970,9 @@ def test_41_molod() -> None:
                out)
 
 
-# ---------------------------------------------------------------- 42. crystod-mol extras
-def test_42_mol_command() -> None:
-    print("\n[42] crystod-mol (extras: --align / --show-matrix / --visualize / errors)")
+# ---------------------------------------------------------------- 44. crystod-mol extras
+def test_44_mol_command() -> None:
+    print("\n[44] crystod-mol (extras: --align / --show-matrix / --visualize / errors)")
 
     def run_mol(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.mol", args, cwd)
@@ -9436,6 +12111,30 @@ def test_42_mol_command() -> None:
                and os.path.isfile(os.path.join(tmp, "XYZ_CH4.xyz"))
                and os.path.isfile(os.path.join(tmp, "MolOD_XYZ_CH4.html")), out)
 
+    # --diagram with a ligand shell of d orbitals (mu4-oxo Cu4O core, Td,
+    # O-Cu 1.92 A; fixture written here): the ligand-SALC block names the
+    # d components in the AO-label order (dxy, dyz, dz2, dxz, dx2-y2)
+    # instead of failing on the p-only name list
+    with tempfile.TemporaryDirectory() as tmp:
+        side = 1.92 / np.sqrt(3.0)
+        xyz_ocu4 = os.path.join(tmp, "XYZ_OCu4.xyz")
+        with open(xyz_ocu4, "w") as handle:
+            handle.write("5\nCu4O core (Td, O-Cu 1.92 A)\n")
+            handle.write(f"O {0.0:12.6f} {0.0:12.6f} {0.0:12.6f}\n")
+            for x, y, z in ((1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1)):
+                handle.write(f"Cu {side * x:12.6f} {side * y:12.6f} {side * z:12.6f}\n")
+        code, out = run_mol(["--diagram", "--xyz", xyz_ocu4, "--center", "O",
+                             "--output", os.path.join(tmp, "MolOD_XYZ_OCu4.html")])
+        report("--diagram with d-shell ligands (Cu4O) exit 0",
+               code == 0 and "Traceback" not in out, out)
+        d_block = out.split("-- 4Cu 3d --\n", 1)[-1].split("\n\n", 1)[0]
+        report("d-shell ligand SALCs printed with d component names",
+               "-- 4Cu 3d --" in out
+               and d_block.startswith("A1: [3dxy(Cu1) - 3dyz(Cu1) + 3dxz(Cu1)")
+               and all(f"{name}: [" in d_block for name in ("E", "T1", "T2"))
+               and "3dz2(Cu" in d_block and "3dx2-y2(Cu" in d_block
+               and "3px(Cu" not in d_block, out)
+
 # ------------------------------------------- 17. crystod-group --parent
 def test_17_isotropy() -> None:
     print("\n[17] crystod-group --parent (isotropy subgroups)")
@@ -9540,6 +12239,117 @@ def test_17_isotropy() -> None:
     report("a rounded factor (0.282a) is refused, not read as a new parameter",
            code != 0 and "not an exact fraction" in out
            and "Traceback" not in out, out)
+
+    # the three CLI defects of the 2026-10-26 HIF sweep (HIF_survey/cli_261026)
+    # (1) --irrep takes the pair labels that --kpoint prints (H1H2, P1PA1,
+    # GM2+GM3+) as aliases of the physically irreducible order parameter
+    code, out = run_group(["--parent", "176", "--irrep", "H1H2", "H3H6"])
+    code2, out2 = run_group(["--parent", "176", "--irrep", "H1", "H3"])
+    report("--irrep H1H2 H3H6 (176) = --irrep H1 H3, byte for byte",
+           code == 0 and out == out2
+           and "H1H2(0,0;a,b) H3H6(0,0;e,f)  6 Pm" in out, out)
+    code, out = run_group(["--parent", "176", "--irrep", "H1H2",
+                           "--order-parameter", "0", "0", "a", "b"])
+    report("--irrep H1H2 --order-parameter 0 0 a b -> P-6",
+           code == 0 and "H1H2(0,0;a,b) -> P-6 (No. 174)" in out, out)
+    code, out = run_group(["--parent", "220", "--irrep", "P1PA1",
+                           "--order-parameter", "0", "a", "0", "b"])
+    report("+-k pair label P1PA1 (220) -> I-4",
+           code == 0 and "P1PA1: order parameter dimension 4" in out
+           and "P1PA1(0,a,0,b) -> I-4 (No. 82)" in out, out)
+    code, out = run_group(["--parent", "200", "--irrep", "GM2+GM3+"])
+    report("signed pair label GM2+GM3+ (200) -> Pmmm",
+           code == 0 and re.search(r"GM2\+GM3\+\(a,b\)\s+47 Pmmm\s+1\s+3", out)
+           is not None, out)
+    code, out = run_group(["--parent", "176", "--irrep", "H1H3"])
+    report("two irreps that are not a pair are refused with the true pair",
+           code != 0 and "H1 and H3 are not a complex-conjugate pair" in out
+           and "the order parameter of H1 is H1H2" in out
+           and "Traceback" not in out, out)
+    # (2) a sum of parameters is read as that sum, not as one new parameter
+    # (230 P1 gave P1 for this C2 direction); rounded factors in a sum and
+    # sums with a number are refused
+    sums = ["2a", "2b", "2c", "2d", "a+b-c-d", "-a+b-c+d", "a+b+c+d", "a-b-c+d"]
+    code, out = run_group(["--parent", "230", "--irrep", "P1",
+                           "--order-parameter", *sums])
+    report("230 P1 (2a,2b,2c,2d;a+b-c-d,...) -> C2, index 96 (was P1)",
+           code == 0 and "-> C2 (No. 5)" in out and "index 96" in out, out)
+    code, out = run_group(["--parent", "230", "--irrep", "P1P2", "--invariants",
+                           "--degree", "2", "--order-parameter", *sums])
+    report("--invariants reads the same sums (restricted: a^2 + b^2 + c^2 + d^2)",
+           code == 0 and "[C2 (5)]:" in out
+           and "degree 2: a^2 + b^2 + c^2 + d^2" in out, out)
+    code, out = run_group(["--parent", "221", "--irrep", "R4+",
+                           "--order-parameter", "a+a", "2a", "a-a"])
+    code2, out2 = run_group(["--parent", "221", "--irrep", "R4+",
+                             "--order-parameter", "a", "-a+b", "b-a"])
+    report("R4+ (a+a,2a,a-a) -> Imma, (a,-a+b,b-a) -> C2/c",
+           code == 0 and "-> Imma (No. 74)" in out
+           and code2 == 0 and "-> C2/c (No. 15)" in out2, out + out2)
+    code, out = run_group(["--parent", "230", "--irrep", "P1", "--order-parameter",
+                           *sums[:4], "-0.4a+0.917b", *sums[5:]])
+    report("a rounded factor inside a sum (-0.4a+0.917b) is refused",
+           code != 0 and "the factor 0.917 is not an exact fraction" in out
+           and "Traceback" not in out, out)
+    code, out = run_group(["--parent", "221", "--irrep", "R4+",
+                           "--order-parameter", "a+1", "a", "0"])
+    report("a number inside a sum (a+1) is refused",
+           code != 0 and "'a+1' cannot be read" in out
+           and "Traceback" not in out, out)
+    # (3) an irrational ratio is not printed as small integers: 214 P had
+    # P2(0,0;4a,3a) for (0,0;1,0.7504), which re-reads to C2 instead of
+    # I2_12_12_1; every printed direction now re-reads to its own subgroup
+    # or is refused
+    code, out = run_group(["--parent", "214", "--kpoint", "P"])
+    report("214 P: no 4a,3a pattern; P2(0,0;a,0.7504a) -> I2_12_12_1",
+           code == 0 and "4a,3a" not in out and "3b,-4b" not in out
+           and re.search(r"P2\(0,0;a,0\.7504a\)\s+24 I2_12_12_1\s+4\s+24", out)
+           is not None, out)
+    code, out = run_group(["--parent", "214", "--irrep", "P2",
+                           "--order-parameter", "0", "0", "a", "0.7504a"])
+    code2, out2 = run_group(["--parent", "214", "--irrep", "P2",
+                             "--order-parameter", "0", "0", "4a", "3a"])
+    report("0.7504a is refused; 4a 3a is the different direction C2 (index 48)",
+           code != 0 and "not an exact fraction" in out
+           and code2 == 0 and "P2(0,0;4a,3a) -> C2 (No. 5)" in out2
+           and "index 48" in out2, out + out2)
+    probe = (
+        "import numpy as np\n"
+        "from crystod.isotropy_subgroup import (IsotropyAnalyzer,\n"
+        "    _direction_records, _format_coefficient, kpoint_irrep_tables)\n"
+        "from crystod.spacegroup_product import SpaceGroupIrrepAlgebra\n"
+        "print('FORMAT', [_format_coefficient(v) for v in\n"
+        "      (0.7504, -0.7504, 0.75, 0.70710678, 2.0, 0.25004)])\n"
+        "def rows_of(analyzer):\n"
+        "    prefix, out = analyzer.representation.label, []\n"
+        "    for index, _, label, info, _, _ in _direction_records(analyzer):\n"
+        "        tokens = label[len(prefix):].strip('()').replace(';', ',').split(',')\n"
+        "        try:\n"
+        "            eta = analyzer.resolve_direction(tokens)\n"
+        "        except SystemExit:\n"
+        "            out.append('refused')\n"
+        "            continue\n"
+        "        members = [(i, t) for i, t, m in analyzer.elements\n"
+        "                   if np.allclose(m @ eta, eta, atol=1e-6)]\n"
+        "        got = analyzer.subgroup_of(members)\n"
+        "        out.append('same' if (got[0].number, got[2]) == (info.number, index)\n"
+        "                   else f'{label}->{got[0].number}')\n"
+        "    return out\n"
+        "for sg, k in (('214', 'P'), ('214', 'H'), ('176', 'H'), ('220', 'P')):\n"
+        "    tables, _ = kpoint_irrep_tables(SpaceGroupIrrepAlgebra(sg), k, rows_of)\n"
+        "    rows = [row for table in tables.values() for row in table]\n"
+        "    bad = [row for row in rows if row not in ('same', 'refused')]\n"
+        "    print('ROUNDTRIP', sg, k, rows.count('same') > 0, bad)\n"
+    )
+    code, out = run_python(probe)
+    report("factors: 0.7504 and -0.7504 keep four digits, 0.75 and 0.707 three",
+           "FORMAT ['0.7504', '-0.7504', '0.75', '0.707', '2', '0.25004']" in out,
+           out)
+    report("every printed direction of 214 P/H, 176 H, 220 P re-reads to its "
+           "own subgroup or is refused",
+           code == 0 and all(f"ROUNDTRIP {sg} {k} True []" in out for sg, k in
+                             (("214", "P"), ("214", "H"), ("176", "H"),
+                              ("220", "P"))), out)
 
     # complex-type irrep at a non-symmorphic zone-boundary point: the
     # physically irreducible doubled form, paired with the conjugate irrep
@@ -11556,6 +14366,38 @@ def test_21_multiplet() -> None:
            code != 0 and "only used with --multiplet" in out
            and "Traceback" not in out, out)
 
+    # g/h/i split in a ligand field, but the Coulomb energies exist for
+    # l <= 3 only: a clean ERROR before any term block (Eg is in the g
+    # splitting of m-3m, so this used to print the terms, then KeyError: 4)
+    for orbital in ("g", "h", "i"):
+        code, out = run_group(["--multiplet", "Eg2", "--pg", "m-3m",
+                               "--orbital", orbital])
+        report(f"--orbital {orbital} refused with an ERROR (energies for l <= 3 "
+               "only), not a KeyError traceback",
+               code != 0 and f"ERROR: orbital '{orbital}' is not supported" in out
+               and "l <= 3" in out and "Choose from: s, p, d, f" in out
+               and "* Term Symbols *" not in out and "KeyError" not in out
+               and "Traceback" not in out, out)
+    code, out = run_group(["--multiplet", "Eg2", "--pg", "m-3m", "--orbital", "x"])
+    report("unknown --orbital lists only the shells with energies (s, p, d, f)",
+           code != 0 and "Choose from: s, p, d, f" in out and "g, h, i" not in out
+           and "Traceback" not in out, out)
+
+    from crystod import group as group_api
+    from crystod.multiplet import _GroupClasses
+
+    oh = group_api.get_character_table("m-3m")
+    eg2 = group_api.parse_config(["Eg2"], _GroupClasses(oh))
+    try:
+        group_api.compute_term_energies(
+            oh, 4, eg2, group_api.shell_terms(_GroupClasses(oh), "Eg", 2))
+        outcome = "no error"
+    except Exception as error:  # noqa: BLE001 -- the type is the check
+        outcome = f"{type(error).__name__}: {error}"
+    report("crystod.group.compute_term_energies(l=4) raises ValueError "
+           "(l <= 3), not KeyError",
+           outcome.startswith("ValueError") and "l <= 3" in outcome, outcome)
+
     # --visualize: exact term eigenstates as an HTML page
     with tempfile.TemporaryDirectory() as tmp:
         code, out = run_group(["--multiplet", "T2g3", "--pg", "m-3m",
@@ -11847,6 +14689,242 @@ def test_22_poscar2cif() -> None:
                code == 0 and "conventional cell, 8 atoms" in out
                and os.path.isfile(os.path.join(tmp, "NaCl_conv")), out)
 
+        # --cif-axis / --cif2poscar --spacegroup-set: the axis settings
+        # (Hall symbols) of the space group, as VESTA's Setting list
+        import numpy as _np
+
+        from crystod.space_group_setting import list_space_group_settings as _settings
+        from crystod.space_group_setting import read_structure_cell as _read_cell
+
+        def _setting_rows(text: str) -> list:
+            return [line.split() for line in text.splitlines()
+                    if re.match(r"\d+ +\S", line)]
+
+        def _in_setting(path: str, hall: int) -> bool:
+            # the file IS in setting `hall`: its symmetry operations are those
+            # of the Hall symbol (translations mod 1).  spglib's own P for
+            # hall_number=hall is only defined up to the normalizer, so
+            # "P = identity" is not a test of this.
+            ds = _spglib.get_symmetry_dataset(_read_cell(path), symprec=0.01)
+            ref = _spglib.get_symmetry_from_database(hall)
+            mine = sorted((tuple(r.ravel()), tuple(_np.round(t % 1 % 1, 4) % 1))
+                          for r, t in zip(ds.rotations, ds.translations))
+            theirs = sorted((tuple(r.ravel()), tuple(_np.round(t % 1 % 1, 4) % 1))
+                            for r, t in zip(ref["rotations"], ref["translations"]))
+            return mine == theirs
+
+        test_pos = os.path.join(ROOT, "example", "test_POSCARs")
+        for name in ("62_PPOSCAR_CaTiO3", "14_PPOSCAR_ZrO2", "227_PPOSCAR_Si",
+                     "167_PPOSCAR_AlF3", "68_PPOSCAR_Sn4Pd"):
+            shutil.copy(os.path.join(test_pos, name), os.path.join(tmp, name))
+        la_cif = os.path.join(tmp, "POSCAR_La3Ni2O7_Cmcm.cif")
+        shutil.copy(os.path.join(ROOT, "example", "23_symmetry_mode",
+                                 "POSCAR_La3Ni2O7_Cmcm.cif"), la_cif)
+        code, out = run_group(["--cif-axis", "-c", la_cif])
+        rows = _setting_rows(out)
+        expected = [("Cmcm", "(a, b, c)", "20.31300 5.60630 5.45710"),
+                    ("Ccmm", "(b, a, -c)", "5.60630 20.31300 5.45710"),
+                    ("Amma", "(c, a, b)", "5.45710 20.31300 5.60630"),
+                    ("Amam", "(-c, b, a)", "5.45710 5.60630 20.31300"),
+                    ("Bbmm", "(b, c, a)", "5.60630 5.45710 20.31300"),
+                    ("Bmmb", "(a, -c, b)", "20.31300 5.45710 5.60630")]
+        got = [(row[1], " ".join(row[2:5]), " ".join(row[5:8])) for row in rows]
+        report("--cif-axis La3Ni2O7 Cmcm: the six settings of VESTA in order, "
+               "lengths permuted (Amam: 5.45710 5.60630 20.31300)",
+               code == 0 and got == expected, out)
+        input_rows = [row[0] for row in rows if "<-" in row]
+        report("--cif-axis: the input's own setting (No. 1, Cmcm) marked '<- input'",
+               input_rows == ["1"] and out.startswith("\n* Structure *\n")
+               and "\n\n* CIF axis settings *\nNo. " in out
+               and "space group: Cmcm (No. 63), tolerance 0.01" in out, out)
+
+        code, out = run_group(["--cif2poscar", "-c", la_cif,
+                               "--spacegroup-set", "Amam"], cwd=tmp)
+        amam = os.path.join(tmp, "POSCAR_La3Ni2O7_Cmcm_Amam")
+        ok = code == 0 and os.path.isfile(amam)
+        lengths = (_np.linalg.norm(_read_cell(amam)[0], axis=1) if ok else [])
+        report("--spacegroup-set Amam writes <input without .cif>_Amam, 48 atoms, "
+               "c = 20.313 A",
+               ok and len(_read_cell(amam)[2]) == 48
+               and abs(lengths[2] - 20.313) < 1e-4
+               and "setting    : Amam (-c, b, a), No. 4 of 6" in out
+               and "transform  : x_Amam = P x_input + p, P rows" in out
+               and "conventional cell (Amam setting), 48 atoms: a = 5.45710, "
+                   "b = 5.60630, c = 20.31300 A" in out
+               and out.rstrip().endswith(f"* Output files *\n  POSCAR written to: {amam}"),
+               out)
+        default_ds = _spglib.get_symmetry_dataset(_read_cell(amam), symprec=0.01) if ok else None
+        report("the Amam POSCAR has the operations of the Amam setting (Hall 301), "
+               "transform (-c, b, a), and is still Cmcm (No. 63)",
+               ok and _in_setting(amam, 301) and default_ds.number == 63
+               and "P rows (0, 0, -1), (0, 1, 0), (1, 0, 0); p = (0, 0, 0)" in out
+               and default_ds.international == "Cmcm", out)
+        reference = open(amam).read() if ok else None
+        same = []
+        for spec in ("4", "-cba", "A m a m"):
+            target = os.path.join(tmp, "Amam_by_spec")
+            code, out = run_group(["--cif2poscar", "-c", la_cif, "--spacegroup-set",
+                                   spec, "--output", target])
+            same.append(code == 0 and open(target).read() == reference)
+        report("--spacegroup-set 4 / -cba / 'A m a m' write the same file as Amam",
+               all(same), str(same))
+        code, out = run_group(["--cif2poscar", "-c", la_cif, "--spacegroup-set", "Pnma"])
+        report("an unknown setting: one-line ERROR listing the six settings",
+               code == 1 and out.strip().startswith("ERROR: no setting Pnma")
+               and len(out.strip().splitlines()) == 1
+               and all(s in out for s in ("Cmcm", "Ccmm", "Amma", "Amam", "Bbmm", "Bmmb"))
+               and "Traceback" not in out, out)
+
+        # a POSCAR input: CaTiO3 Pnma -> Pbnm (c the long axis)
+        cto = os.path.join(tmp, "62_PPOSCAR_CaTiO3")
+        code, out = run_group(["--cif-axis", "-c", cto])
+        rows = _setting_rows(out)
+        halls = [h for h in range(1, 531)
+                 if _spglib.get_spacegroup_type(h).number == 62]
+        report("--cif-axis on a POSCAR (CaTiO3): Pnma Pmnb Pbnm Pcmn Pmcn Pnam "
+               "(spglib's Hall order), input at No. 1",
+               code == 0 and [row[1] for row in rows]
+               == ["Pnma", "Pmnb", "Pbnm", "Pcmn", "Pmcn", "Pnam"]
+               == [_spglib.get_spacegroup_type(h).international_short for h in halls]
+               and [row[0] for row in rows if "<-" in row] == ["1"], out)
+        code, out = run_group(["--cif2poscar", "-c", cto, "--spacegroup-set", "Pbnm"])
+        pbnm = cto + "_Pbnm"
+        ok = code == 0 and os.path.isfile(pbnm)
+        lengths = _np.linalg.norm(_read_cell(pbnm)[0], axis=1) if ok else [0, 0, 0]
+        report("--spacegroup-set Pbnm: <POSCAR>_Pbnm with c the longest axis "
+               "(7.694 A), re-read in the Pbnm setting",
+               ok and abs(lengths[2] - 7.69401) < 1e-4 and lengths[2] == max(lengths)
+               and _in_setting(pbnm, halls[2]), out)
+
+        # monoclinic: the symbol comes from the full symbol, shared symbols
+        zro2 = os.path.join(tmp, "14_PPOSCAR_ZrO2")
+        code, out = run_group(["--cif-axis", "-c", zro2])
+        rows = _setting_rows(out)
+        report("--cif-axis ZrO2 P2_1/c: nine settings b1 ... a3 with their own "
+               "symbols, input b1",
+               code == 0 and [row[1] for row in rows]
+               == ["P2_1/c", "P2_1/n", "P2_1/a", "P2_1/a", "P2_1/n", "P2_1/b",
+                   "P2_1/b", "P2_1/n", "P2_1/c"]
+               and [row[0] for row in rows if "<-" in row] == ["1"]
+               and "P2_1/n (unique axis b, cell choice 2)" in out, out)
+        monoclinic = [[float(v) for v in row[-6:]] if "<-" not in row
+                      else [float(v) for v in row[-8:-2]] for row in rows]
+        non90 = [[k for k in range(3, 6) if abs(r[k] - 90) > 1e-3] for r in monoclinic]
+        report("the monoclinic angle sits in beta (unique axis b), gamma (c), alpha (a)",
+               non90 == [[4]] * 3 + [[5]] * 3 + [[3]] * 3, str(non90))
+        code, out = run_group(["--cif2poscar", "-c", zro2, "--spacegroup-set", "P2_1/n"])
+        report("a shared symbol (P2_1/n): ERROR listing b2, c2, a2 (give the No. "
+               "or the choice)",
+               code == 1 and out.strip().startswith("ERROR:")
+               and all(f"[choice {c}]" in out for c in ("b2", "c2", "a2"))
+               and "give the No. or the choice" in out, out)
+        code, out = run_group(["--cif2poscar", "-c", zro2, "--spacegroup-set", "b2"])
+        b3 = rows[2][-6:] if len(rows) == 9 else []
+        report("cell choice 3 (b3) is the ITA cell a3 = c1, c3 = -a1 - c1 "
+               "(a = 5.41848, c = 6.84461)",
+               b3[:3] == ["5.41848", "5.26846", "6.84461"], str(rows[2:3]))
+        report("--spacegroup-set b2 -> <POSCAR>_P21n_b2 in the b2 setting (Hall 82)",
+               code == 0 and os.path.isfile(zro2 + "_P21n_b2")
+               and _in_setting(zro2 + "_P21n_b2", 82), out)
+
+        # the lengths follow the axes text also where spglib's own
+        # standardization into the Hall setting picks another cell
+        code, out = run_group(["--cif-axis", "-c", os.path.join(test_pos, "18_PPOSCAR_CaCuO2")])
+        code2, out2 = run_group(["--cif-axis", "-c", os.path.join(test_pos, "74_PPOSCAR_CaTiO3")])
+        cacuo2 = [" ".join(row[1:5] + row[5:8]) for row in _setting_rows(out)]
+        imma = [" ".join(row[1:5] + row[5:8]) for row in _setting_rows(out2)]
+        report("--cif-axis lengths follow the axes text: CaCuO2 P2_122_1 (b, c, a), "
+               "CaTiO3 Immb (b, a, -c)",
+               code == 0 and code2 == 0
+               and cacuo2[2] == "P2_122_1 (b, c, a) 11.13507 3.20286 5.46027"
+               and imma[1] == "Immb (b, a, -c) 7.67108 5.47597 5.47655", out + out2)
+        code, out = run_group(["--cif-axis", "-c", la_cif, "--tolerance=-1"])
+        report("--cif-axis --tolerance=-1: one-line ERROR, no crash",
+               code == 1 and out.strip() == "ERROR: --tolerance must be positive (got -1.0)",
+               out)
+
+        # origin choice: Si Fd-3m (primitive input) -> origin choice 2
+        si = os.path.join(tmp, "227_PPOSCAR_Si")
+        code, out = run_group(["--cif2poscar", "-c", si, "--spacegroup-set", "2"])
+        si2 = si + "_Fd-3m_2"
+        ok = code == 0 and os.path.isfile(si2)
+        positions = _read_cell(si2)[1] if ok else _np.zeros((1, 3))
+        eighths = positions * 8
+        report("--spacegroup-set 2 (Si): <POSCAR>_Fd-3m_2 in origin choice 2 "
+               "(Hall 526), Si on odd eighths",
+               ok and len(positions) == 8 and _in_setting(si2, 526)
+               and _np.allclose(eighths, _np.rint(eighths), atol=1e-4)
+               and _np.all(_np.rint(eighths) % 2 == 1), out)
+
+        # rhombohedral: R and H axes (the AlF3 file is the rhombohedral cell)
+        alf3 = os.path.join(tmp, "167_PPOSCAR_AlF3")
+        code, out = run_group(["--cif-axis", "-c", alf3])
+        rows = _setting_rows(out)
+        report("--cif-axis AlF3 R-3c: hexagonal and rhombohedral axes, the "
+               "rhombohedral input marked",
+               code == 0 and "1    R-3c (hexagonal axes)" in out
+               and "2    R-3c (rhombohedral axes)" in out
+               and [row[0] for row in rows if "<-" in row] == ["2"], out)
+        code, out = run_group(["--cif2poscar", "-c", alf3, "--spacegroup-set", "H"])
+        code2, out2 = run_group(["--cif-axis", "-c", alf3 + "_R-3c_H"])
+        report("--spacegroup-set H: 24-atom hexagonal cell that --cif-axis marks "
+               "as the hexagonal setting",
+               code == 0 and "24 atoms" in out and "gamma = 120.0000" in out
+               and [row[0] for row in _setting_rows(out2) if "<-" in row] == ["1"],
+               out + out2)
+        code, out = run_group(["--cif2poscar", "-c", alf3 + "_R-3c_H",
+                               "--spacegroup-set", "R", "--output",
+                               os.path.join(tmp, "AlF3_R")])
+        cell = _read_cell(os.path.join(tmp, "AlF3_R")) if code == 0 else None
+        lat = _np.asarray(cell[0]) if cell else _np.eye(3)
+        lengths = _np.linalg.norm(lat, axis=1)
+        cosines = _np.array([lat[1] @ lat[2], lat[0] @ lat[2], lat[0] @ lat[1]]) / (
+            lengths[0] ** 2)
+        report("hexagonal -> --spacegroup-set R: a = b = c, alpha = beta = gamma "
+               "!= 90, 8 atoms",
+               code == 0 and len(cell[2]) == 8
+               and _np.allclose(lengths, lengths[0], atol=1e-5)
+               and _np.allclose(cosines, cosines[0], atol=1e-5)
+               and abs(cosines[0]) > 0.1 and _in_setting(os.path.join(tmp, "AlF3_R"), 461),
+               out)
+
+        # permutation and origin choice together (Ccce, 12 settings)
+        snpd = os.path.join(tmp, "68_PPOSCAR_Sn4Pd")
+        code, out = run_group(["--cif-axis", "-c", snpd])
+        rows = _setting_rows(out)
+        report("--cif-axis Sn4Pd Ccce: 12 settings, axes and origin choice in "
+               "one text",
+               code == 0 and len(rows) == 12
+               and "Ccce (b, a, -c; origin choice 2)" in out
+               and "Bbeb (a, -c, b; origin choice 1)" in out, out)
+        code, out = run_group(["--cif2poscar", "-c", snpd, "--spacegroup-set", "2ba-c"])
+        report("--spacegroup-set 2ba-c -> <POSCAR>_Ccce_2ba-c (Hall 325)",
+               code == 0 and _in_setting(snpd + "_Ccce_2ba-c", 325), out)
+
+        # a primitive cell is no listed setting
+        code, out = run_group(["--cif-axis", "-c", POSCAR_NaCl])
+        rows = _setting_rows(out)
+        report("--cif-axis on the 2-atom primitive NaCl: Fm-3m once (a = 5.69 A), "
+               "no '<- input', the not-a-listed-setting line",
+               code == 0 and len(rows) == 1 and rows[0][1] == "Fm-3m"
+               and rows[0][5] == "5.69169" and "<-" not in out
+               and "input cell : not the conventional cell of a listed setting" in out,
+               out)
+        table = _settings(_read_cell(POSCAR_NaCl))
+        report("API: list_space_group_settings(NaCl) -> one setting, input_index None",
+               table.number == 225 and len(table.settings) == 1
+               and table.input_index is None, str(table.settings[0].label))
+
+        code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m",
+                               "--spacegroup-set", "Amam"])
+        report("--spacegroup-set outside --cif2poscar rejected cleanly",
+               code == 2 and "only used with --cif2poscar" in out
+               and "Traceback" not in out, out)
+        code, out = run_group(["--cif-axis"])
+        report("--cif-axis without -c rejected cleanly",
+               code == 2 and "--cif-axis requires -c/--cell" in out
+               and "Traceback" not in out, out)
+
     # errors
     code, out = run_group(["--cif2poscar"])
     report("--cif2poscar without -c rejected cleanly",
@@ -11871,6 +14949,33 @@ def test_22_poscar2cif() -> None:
                            "-c", "POSCAR"])
     report("-c outside --poscar2cif rejected cleanly",
            code != 0 and "only used" in out and "Traceback" not in out, out)
+
+
+# a CIF with a partially occupied, mixed Na/K site (sections 23 and 46): the
+# symmetry-mode analysis needs one atom per site and must refuse it cleanly
+_MIXED_SITE_CIF = """data_mixed
+_symmetry_space_group_name_H-M   'P 1'
+_symmetry_Int_Tables_number   1
+_cell_length_a   5.6
+_cell_length_b   5.6
+_cell_length_c   5.6
+_cell_angle_alpha   90
+_cell_angle_beta    90
+_cell_angle_gamma   90
+loop_
+ _symmetry_equiv_pos_as_xyz
+  'x, y, z'
+loop_
+ _atom_site_label
+ _atom_site_type_symbol
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_occupancy
+  Na1  Na  0.0  0.0  0.0  0.5
+  K1   K   0.0  0.0  0.0  0.5
+  Cl1  Cl  0.5  0.5  0.5  1.0
+"""
 
 
 def test_23_symmetry_mode() -> None:
@@ -11914,6 +15019,28 @@ def test_23_symmetry_mode() -> None:
                os.path.isfile(os.path.join(tmp, "sym_mode_SrTiO3"))
                and "R5-" in open(os.path.join(tmp, "sym_mode_SrTiO3")).read(),
                out)
+        # the transformation (P, p) from the parent to the child conventional
+        # setting, printed before the table and saved with it: for this pair
+        # exactly the AMPLIMODES matrix (columns a' = a + b, b' = -a + b,
+        # c' = 2c; origin (1/2, 1/2, 1/2))
+        transformation = (
+            "* Transformation matrix (parent -> child) *\n"
+            "Pm-3m (No. 221) -> I4/mcm (No. 140), conventional settings of the input files\n"
+            "  [     1     1     0 ] [   1/2 ]\n"
+            "  [    -1     1     0 ] [   1/2 ]\n"
+            "  [     0     0     2 ] [   1/2 ]\n"
+        )
+        sym_text = open(os.path.join(tmp, "sym_mode_SrTiO3")).read() \
+            if os.path.isfile(os.path.join(tmp, "sym_mode_SrTiO3")) else ""
+        report("transformation matrix (P, p) of AMPLIMODES printed before the table",
+               transformation in out
+               and out.index("* Transformation matrix") < out.index("* Symmetry-mode decomposition *")
+               and "(a', b', c') = (a, b, c) P" in out
+               and "x_parent = P x_child + p" in out, out)
+        report("sym_mode_SrTiO3 holds the transformation block and the table",
+               sym_text.startswith(transformation)
+               and "* Symmetry-mode decomposition *" in sym_text
+               and sym_text.strip() in out.replace("\r", ""), sym_text)
         default_out = out
 
         # where the files go: --output-dir (created, nested) or --no-files;
@@ -12381,6 +15508,59 @@ def test_23_symmetry_mode() -> None:
         report("R4+ VESTA carries arrow entries (VECTR section)",
                "VECTR" in vesta_text and "VECTT" in vesta_text, vesta_text[:500])
 
+        # the transformation (P, p) through the API: x_parent = P x_child + p
+        # must take every child atom of the INPUT file onto a parent atom of
+        # the input file within the maximum displacement (0.4475 A for
+        # CaTiO3), in the settings of the input files even when the child
+        # file has a shifted origin and permuted axes (then spglib's standard
+        # setting of that file is a different cell, and the "standard" frame
+        # no longer maps the file's own coordinates)
+        probe = (
+            "import numpy as np, warnings\n"
+            "warnings.simplefilter('ignore')\n"
+            "from pymatgen.core import Structure\n"
+            "from crystod.symmetry_mode import SymmetryModeAnalysis\n"
+            "from crystod.vasp_io import poscar_structure\n"
+            f"parent = {os.path.join(example, '221_PPOSCAR_CaTiO3.cif')!r}\n"
+            f"child = {os.path.join(example, '62_PPOSCAR_CaTiO3.cif')!r}\n"
+            "def cell(path):\n"
+            "    s = poscar_structure(Structure.from_file(path), path)\n"
+            "    return np.asarray(s.lattice.matrix), np.asarray(s.frac_coords), [sp.Z for sp in s.species]\n"
+            "def worst(pf, cf, t):\n"
+            "    Lp, xp, zp = cell(pf); Lc, xc, zc = cell(cf); w = 0.0\n"
+            "    for x, z in zip(xc, zc):\n"
+            "        y = t.matrix @ x + t.origin\n"
+            "        w = max(w, min(np.linalg.norm(((y - q + 0.5) % 1 - 0.5) @ Lp)\n"
+            "                       for q, zz in zip(xp, zp) if zz == z))\n"
+            "    return w\n"
+            "a = SymmetryModeAnalysis(parent, child, 0.01)\n"
+            "t = a.setting_transformation()\n"
+            "print('CATIO3', t.frame, round(abs(np.linalg.det(t.matrix)), 6), round(worst(parent, child, t), 4),\n"
+            "      t.matrix.tolist(), t.origin.tolist())\n"
+            "s = Structure.from_file(child)\n"
+            "frac = (s.frac_coords + [0.13, 0.07, 0.21]) % 1.0\n"
+            "perm = [1, 2, 0]\n"
+            "Structure(s.lattice.matrix[perm], s.species, frac[:, perm]).to(filename='POSCAR_shifted', fmt='poscar')\n"
+            "b = SymmetryModeAnalysis(parent, 'POSCAR_shifted', 0.01)\n"
+            "print('SHIFTED', round(worst(parent, 'POSCAR_shifted', b.setting_transformation('input')), 4),\n"
+            "      round(worst(parent, 'POSCAR_shifted', b.setting_transformation('standard')), 4))\n"
+            f"z = SymmetryModeAnalysis({os.path.join(example, '225_PPOSCAR_ZrO2.cif')!r}, "
+            f"{os.path.join(example, '137_PPOSCAR_ZrO2.cif')!r}, 0.01)\n"
+            "tz = z.setting_transformation()\n"
+            "print('ZRO2', round(abs(np.linalg.det(tz.matrix)), 6), tz.lines('Fm-3m', 'P42/nmc')[2])\n"
+        )
+        code, out = run_python(probe, cwd=tmp)
+        catio3 = re.search(r"CATIO3 input 4\.0 (\S+) ", out)
+        report("API: CaTiO3 (P, p) has det 4 and maps every child atom within 0.4475 A",
+               code == 0 and catio3 is not None and float(catio3.group(1)) <= 0.4476, out)
+        shifted = re.search(r"SHIFTED (\S+) (\S+)", out)
+        report("API: a child file with a shifted origin and permuted axes maps in the input "
+               "frame (<= 0.4475 A) but not in spglib's standard frame",
+               shifted is not None and float(shifted.group(1)) <= 0.4476
+               and float(shifted.group(2)) > 1.0, out)
+        report("API: ZrO2 Fm-3m -> P4_2/nmc has fractional entries (det 1/2)",
+               "ZRO2 0.5 " in out and "[   1/2  -1/2     0 ]" in out, out)
+
         # --conventional: mode VESTA files in the parent conventional basis
         code, out = run_group(
             ["--supergroup-cif",
@@ -12645,6 +15825,25 @@ def test_23_symmetry_mode() -> None:
         report("P1 -> 3x1x1: the general point pairs as GP1GQ1 at (1/3,0,0)",
                code == 0 and re.search(r"\(1/3,0,0\)\s+GP1GQ1\s", out)
                is not None and "GPA" not in out, out)
+        # the entry of a pair spanning the k and the -k star names the -k
+        # star (crystod-xrd --parent attaches it to both stars); pairs on a
+        # star that contains -k (FeS2) name none
+        _p1 = _SMA(os.path.join(tmp, "POSCAR_P1_parent"),
+                   os.path.join(tmp, "POSCAR_P1_child"), 0.01)
+        _gp = [m for m in _p1.modes if m.irrep_name == "GP1GQ1"]
+        report("P1 -> 3x1x1: the GP1GQ1 entry on GP (1/3,0,0) names its -k "
+               "star GQ (2/3,0,0) (partner_kname, partner_kvec); the other "
+               "entries and the FeS2 pairs name none",
+               len(_gp) == 1 and _gp[0].kname == "GP"
+               and _gp[0].partner_kname == "GQ"
+               and any(s["kname"] == "GQ"
+                       and _np.allclose(s["kvec"], _gp[0].partner_kvec)
+                       and _np.allclose(s["kvec"], [2 / 3, 0, 0])
+                       for s in _p1.stars)
+               and all(m.partner_kname is None and m.partner_kvec is None
+                       for m in _p1.modes + _fes2.modes if m is not _gp[0]),
+               str([(m.irrep_name, m.kname, m.partner_kname)
+                    for m in _p1.modes]))
 
         # the minimum-distortion atom mapping need not be a group-subgroup
         # setting: for KGeCl3 (P4/mmm pseudo-parent -> Cm, Materials Project
@@ -12766,6 +15965,21 @@ def test_23_symmetry_mode() -> None:
     report("missing structure file rejected cleanly",
            code != 0 and "not found" in out and "Traceback" not in out, out)
 
+    # a partially occupied CIF: an ERROR naming the site instead of the
+    # AttributeError traceback of site.specie
+    with tempfile.TemporaryDirectory() as tmp:
+        with open(os.path.join(tmp, "mixed.cif"), "w", encoding="utf-8") as handle:
+            handle.write(_MIXED_SITE_CIF)
+        for args in (["--supergroup-cif", parent, "--subgroup-cif", "mixed.cif"],
+                     ["--supergroup-cif", "mixed.cif", "--subgroup-cif", child]):
+            code, out = run_group(args + ["--no-files"], cwd=tmp)
+            report(f"partially occupied CIF rejected cleanly "
+                   f"({'child' if args[-1] == 'mixed.cif' else 'parent'})",
+                   code == 1 and "ERROR: mixed.cif has 1 partially occupied or "
+                   "mixed site(s) (first: K:0.5, Na:0.5 at (0.0000, 0.0000, "
+                   "0.0000))" in out and "needs an ordered structure" in out
+                   and "Traceback" not in out, out)
+
     code, out = run_group(["--product", "T2g", "T2g", "--pg", "m-3m",
                            "--subgroup-cif", child])
     report("--subgroup-cif outside --supergroup-cif rejected cleanly",
@@ -12773,9 +15987,9 @@ def test_23_symmetry_mode() -> None:
            and "Traceback" not in out, out)
 
 
-# ---------------------------------------------------------------- 43. Python API
-def test_43_python_api() -> None:
-    print("\n[43] Python API (crystod.salc / group / phonon / bz / mag / md / mol / xrd / search)")
+# ---------------------------------------------------------------- 45. Python API
+def test_45_python_api() -> None:
+    print("\n[45] Python API (crystod.salc / group / phonon / bz / mag / md / mol / xrd / search)")
 
     # import hygiene: plain `import crystod` must not drag in the heavy stack
     probe = (
@@ -13259,6 +16473,49 @@ def test_43_python_api() -> None:
     report("9x9x9 supercell of AlPO4 keeps the frame of the cell (rule 1, no size limit)",
            code == 0 and "SAME True True" in out, out)
 
+    # band irreps of a VASP run (doc/python-api.md, "Band irreps of a VASP run")
+    with tempfile.TemporaryDirectory() as tmp:
+        probe = (
+            "import os\n"
+            "from crystod.salc import (extract_band_irreps, format_band_irreps,\n"
+            "                          write_band_irreps_yaml)\n"
+            f"root = {os.path.join(ROOT, 'example', '03_hybridization', 'vasp_wavecar')!r}\n"
+            "result = extract_band_irreps(os.path.join(root, 'SrTiO3'))\n"
+            "print('K', [k.label for k in result.kpoints])\n"
+            "gm = result.kpoint('GM')\n"
+            "print('GM', [(lv.bands, lv.irrep, lv.mulliken) for lv in gm.levels[4:9]])\n"
+            "print('GAP', round(result.gap, 4))\n"
+            "print('NOTE', result.kpoint('M').levels[-1].note[:52])\n"
+            "x = extract_band_irreps(os.path.join(root, 'SrTiO3'), kpoints=['X', '1/4 1/4 1/4'],\n"
+            "                        zero='efermi', window=(-3, 2))\n"
+            "print('X', [(k.label, k.little_group, [lv.irrep for lv in k.levels])\n"
+            "            for k in x.kpoints])\n"
+            "spin = extract_band_irreps(os.path.join(root, 'SrTiO3_ISPIN2'), kpoints=['X'],\n"
+            "                           spin='up')\n"
+            "print('SPIN', [(k.label, k.spin) for k in spin.kpoints], spin.metallic)\n"
+            "inp = extract_band_irreps(os.path.join(root, 'InP_SOC'), kpoints=['L'])\n"
+            "pair = inp.kpoint('L').levels[3]\n"
+            "print('PAIR', pair.bands, pair.irrep, pair.note, pair.parts)\n"
+            "print('LINES', format_band_irreps(result)[1])\n"
+            f"print('YAML', write_band_irreps_yaml(result, {os.path.join(tmp, 'b.yaml')!r})\n"
+            "      .endswith('b.yaml'))\n"
+        )
+        code, out = run_python(probe)
+    report("crystod.salc.extract_band_irreps: the documented block (labels, Mulliken symbols, "
+           "gap, notes, k-point list, spin channel, time-reversal pair, report lines, YAML)",
+           code == 0 and "K ['GM', 'R', 'X', 'M']" in out
+           and "GM [([8, 9, 10], 'GM4-', 'T1u'), ([11, 12, 13], 'GM5-', 'T2u'), "
+               "([14, 15, 16], 'GM4-', 'T1u'), ([17, 18, 19], 'GM5+', 'T2g'), "
+               "([20, 21], 'GM3+', 'Eg')]" in out
+           and "GAP 1.8051" in out
+           and "NOTE incomplete: the band list ends inside this multiplet" in out
+           and "X [('X', 'P4/mmm (123)', ['X3-', 'X5+', 'X4-', 'X5-', 'X4+']), "
+               "('LD', 'R3m (160)', ['LD3', 'LD2'])]" in out
+           and "SPIN [('X', 'up')] True" in out
+           and "PAIR [7, 8] -L4/-L5 time-reversal pair (-L4 + -L5) [([7], '-L5'), ([8], '-L4')]"
+               in out and "LINES * VASP run *" in out
+           and "YAML True" in out, out)
+
     # domain namespaces expose their advertised names
     probe = (
         "import crystod\n"
@@ -13275,7 +16532,7 @@ def test_43_python_api() -> None:
                               "search")), out)
 
 
-# ---------------------------------------------------------------- 44. crystod-xrd
+# ---------------------------------------------------------------- 46. crystod-xrd
 def _xrd_table(path: str) -> list[tuple]:
     """(h, k, l, mult, d, two_theta, intensity, line) rows of a crystod-xrd table."""
     rows = []
@@ -13287,8 +16544,8 @@ def _xrd_table(path: str) -> list[tuple]:
     return rows
 
 
-def test_44_xrd() -> None:
-    print("\n[44] crystod-xrd (powder X-ray diffraction patterns)")
+def test_46_xrd() -> None:
+    print("\n[46] crystod-xrd (powder X-ray diffraction patterns)")
 
     with tempfile.TemporaryDirectory() as tmp:
         code, out = run_xrd(["-c", POSCAR_ScF3], cwd=tmp)
@@ -13345,6 +16602,16 @@ def test_44_xrd() -> None:
         code, out = run_xrd(["-c", os.path.join(tmp, "missing")], cwd=tmp)
         report("missing POSCAR refused cleanly",
                code != 0 and "No POSCAR" in out and "Traceback" not in out, out)
+        # a partially occupied CIF (a Na/K mixed site) given to --parent: an
+        # ERROR naming the site, not an AttributeError traceback (site.specie)
+        with open(os.path.join(tmp, "mixed.cif"), "w", encoding="utf-8") as handle:
+            handle.write(_MIXED_SITE_CIF)
+        code, out = run_xrd(["--parent", "mixed.cif", "-c", "mixed.cif"], cwd=tmp)
+        report("--parent with a partially occupied CIF refused cleanly (ERROR names the "
+               "mixed site)",
+               code == 1 and "ERROR: mixed.cif has 1 partially occupied or mixed site(s) "
+               "(first: K:0.5, Na:0.5 at (0.0000, 0.0000, 0.0000))" in out
+               and "needs an ordered structure" in out and "Traceback" not in out, out)
 
     with tempfile.TemporaryDirectory() as tmp:
         code, out = run_xrd(["--example"], cwd=tmp)
@@ -13453,9 +16720,460 @@ def test_44_xrd() -> None:
     report("API: four indices with i != -(h + k) are refused", "REFUSED True" in out, out)
 
 
-# ---------------------------------------------------------------- 45. crystod-search
+# ---------------------------------------------------------------- 47. crystod-xrd --parent
+def _superlattice_table(path: str) -> list[dict]:
+    """Rows of a crystod-xrd --parent table as dicts."""
+    from fractions import Fraction
+
+    rows = []
+    for line in open(path, encoding="utf-8"):
+        if line.startswith("#") or not line.strip():
+            continue
+        f = line.rstrip("\n").split(",", 12)
+        shares = {}
+        for part in f[12].split(";"):
+            if part.strip():
+                irrep, share = part.split()
+                shares[irrep] = float(share)
+        rows.append({"two_theta": float(f[0]), "hkl_child": tuple(int(v) for v in f[2:5]),
+                     "mult": int(f[5]), "hkl_parent": tuple(Fraction(v) for v in f[6:9]),
+                     "k": f[9], "I_child": float(f[10]),
+                     "I_parent": float(f[11]) if f[11] else None, "shares": shares})
+    return rows
+
+
+def _numerators(hkl) -> tuple[int, ...]:
+    """(1/2, 1/2, 3/2) -> (1, 1, 3): parent indices times their common denominator."""
+    denominator = 1
+    for value in hkl:
+        denominator = denominator * value.denominator // int(np.gcd(denominator, value.denominator))
+    return tuple(int(value * denominator) for value in hkl)
+
+
+def test_47_xrd_superlattice() -> None:
+    print("\n[47] crystod-xrd --radiation neutron / --parent (superlattice reflections)")
+    modes = os.path.join(ROOT, "example", "23_symmetry_mode")
+
+    # --- neutrons on the plain path: pymatgen NDCalculator, nuclear scattering
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_xrd(["-c", POSCAR_ScF3, "--radiation", "neutron", "--wavelength", "1.5"],
+                            cwd=tmp)
+        report("ScF3 --radiation neutron --wavelength 1.5: exit 0, ND_221_PPOSCAR_ScF3_1.5A.txt/.pdf",
+               code == 0 and os.path.isfile(os.path.join(tmp, "ND_221_PPOSCAR_ScF3_1.5A.txt"))
+               and os.path.isfile(os.path.join(tmp, "ND_221_PPOSCAR_ScF3_1.5A.pdf")), out)
+        report("neutron radiation block names 'neutron, 1.5 A', nuclear scattering only",
+               "neutron, 1.5 A (nuclear scattering only; no magnetic scattering, no "
+               "Debye-Waller factor)" in out and "NDCalculator" in out, out)
+        probe = (
+            "import numpy as np\n"
+            "from pymatgen.analysis.diffraction.neutron import NDCalculator\n"
+            "from crystod import xrd\n"
+            f"s = xrd.load_structure({POSCAR_ScF3!r})\n"
+            "ref = NDCalculator(wavelength=1.5).get_pattern(s, two_theta_range=(10, 120))\n"
+            "rows = [l.split(',') for l in open('ND_221_PPOSCAR_ScF3_1.5A.txt') if l[0] != '#']\n"
+            "tt = np.array([float(r[5]) for r in rows]); inten = np.array([float(r[6]) for r in rows])\n"
+            "print('MATCH', len(rows) == len(ref.x), bool(np.all(np.abs(tt - ref.x) < 1e-4)),\n"
+            "      bool(np.all(np.abs(inten - ref.y) < 1e-4)), {r[7] for r in rows} == {'neutron'})\n"
+        )
+        code, out = run_python(probe, cwd=tmp)
+        report("ScF3 neutron peak list = NDCalculator(1.5).get_pattern (2theta, intensity 1e-4)",
+               code == 0 and "MATCH True True True True" in out, out)
+        for args, message in (
+                (["--radiation", "neutron", "--wavelength", "1.5", "--xraytype", "CuKa"],
+                 "cannot be combined with --radiation neutron"),
+                (["--wavelength", "1.5"], "--wavelength sets the neutron wavelength"),
+                (["--radiation", "neutron"], "needs the wavelength"),
+                (["--radiation", "electron"], "unknown radiation 'electron'")):
+            code, out = run_xrd(["-c", POSCAR_ScF3, *args], cwd=tmp)
+            report(f"refused cleanly: {' '.join(args)}",
+                   code == 1 and "ERROR: " in out and message in out
+                   and "Traceback" not in out, out)
+        code, out = run_xrd(["-c", POSCAR_ScF3, "--radiation", "Neutron", "--wavelength", "1.5",
+                             "--output", "nd_upper"], cwd=tmp)
+        report("--radiation is case-insensitive (Neutron)",
+               code == 0 and "neutron, 1.5 A (nuclear scattering only" in out, out)
+
+    # --- the structure-factor engine reproduces pymatgen for the child alone
+    probe = (
+        "import numpy as np, warnings\n"
+        "warnings.simplefilter('ignore')\n"
+        "from pymatgen.core import Structure\n"
+        "from pymatgen.analysis.diffraction.neutron import NDCalculator\n"
+        "from crystod import xrd\n"
+        f"modes = {modes!r}\n"
+        "def merged(pattern):\n"
+        "    groups = []\n"
+        "    for r in sorted(pattern.reflections, key=lambda r: r.two_theta):\n"
+        "        if groups and abs(groups[-1][0] - r.two_theta) < 1e-5:\n"
+        "            groups[-1][1] += r.intensity\n"
+        "        else:\n"
+        "            groups.append([r.two_theta, r.intensity])\n"
+        "    m = np.array(groups); m[:, 1] *= 100 / m[:, 1].max(); return m\n"
+        "def same(m, x, y):\n"
+        "    keep = y > 1e-6\n"
+        "    x, y = np.asarray(x)[keep], np.asarray(y)[keep]\n"
+        "    return (len(m) == len(x) and bool(np.all(np.abs(m[:, 0] - x) < 1e-5))\n"
+        "            and bool(np.all(np.abs(m[:, 1] - y) <= 1e-6 * np.maximum(y, 1.0))))\n"
+        "for parent, child in (('221_PPOSCAR_SrTiO3.cif', '140_PPOSCAR_SrTiO3.cif'),\n"
+        "                      ('221_PPOSCAR_CaTiO3.cif', '62_PPOSCAR_CaTiO3.cif')):\n"
+        "    p = xrd.superlattice_reflections(f'{modes}/{parent}', f'{modes}/{child}',\n"
+        "                                     xray_type='CuKa1')\n"
+        "    ref = xrd.compute_xrd_pattern(Structure.from_file(f'{modes}/{child}'), 'CuKa1')\n"
+        "    print('XRAY', child, same(merged(p), ref.two_theta, ref.intensity))\n"
+        f"scf3 = {POSCAR_ScF3!r}\n"
+        "p = xrd.superlattice_reflections(scf3, scf3, radiation='neutron', wavelength=1.5)\n"
+        "ref = NDCalculator(wavelength=1.5).get_pattern(xrd.load_structure(scf3), two_theta_range=(10, 120))\n"
+        "print('NEUTRON ScF3', same(merged(p), ref.x, ref.y), len(p.superlattice))\n"
+    )
+    code, out = run_python(probe)
+    report("structure factors: families summed at equal 2theta = pymatgen XRDCalculator "
+           "(140 SrTiO3, 62 CaTiO3, CuKa1, 1e-6 relative)",
+           code == 0 and "XRAY 140_PPOSCAR_SrTiO3.cif True" in out
+           and "XRAY 62_PPOSCAR_CaTiO3.cif True" in out, out)
+    report("structure factors: ScF3 neutron families = NDCalculator (1e-6 relative)",
+           "NEUTRON ScF3 True 0" in out, out)
+
+    # --- SrTiO3 Pm-3m -> I4/mcm: a0a0c- tilt, R5- in the Sr-origin frame
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_xrd(["--parent", os.path.join(modes, "221_PPOSCAR_SrTiO3.cif"),
+                             "-c", os.path.join(modes, "140_PPOSCAR_SrTiO3.cif")], cwd=tmp)
+        prefix = os.path.join(tmp, "XRD_140_PPOSCAR_SrTiO3_vs_221_PPOSCAR_SrTiO3_CuKa")
+        report("SrTiO3 221 -> 140: exit 0, XRD_<child>_vs_<parent>_CuKa.txt and .pdf",
+               code == 0 and os.path.isfile(prefix + ".txt") and os.path.isfile(prefix + ".pdf"),
+               out)
+        report("SrTiO3: * ... * blocks Structures, Radiation, Reflections, by k point, Output files",
+               all(re.search(rf"^\* {block}", out, re.M) for block in (
+                   r"Structures \*", r"Radiation \*", r"Reflections \(60 families, 17 superlattice\)",
+                   r"Superlattice reflections by k point \*", r"Output files \*")), out)
+        report("SrTiO3: cell relation as --supergroup-cif prints it (size 2)",
+               "primitive cell multiplication: 2" in out
+               and "child primitive basis in parent primitive units (rows):" in out, out)
+        rows = _superlattice_table(prefix + ".txt") if code == 0 else []
+        superlattice = [r for r in rows if r["k"] != "GM"]
+        fundamental = [r for r in rows if r["k"] == "GM"]
+        report("SrTiO3: 17 superlattice families, all at R with half-odd parent indices (ooo)/2",
+               len(superlattice) == 17 and all(
+                   r["k"] == "R" and all(v.denominator == 2 for v in r["hkl_parent"])
+                   for r in superlattice), str(superlattice[:3]))
+        report("SrTiO3: one irrep, R5- 100 %, at every superlattice reflection",
+               superlattice and all(r["shares"] == {"R5-": 1.0} and r["I_parent"] is None
+                                    for r in superlattice), str(superlattice[:3]))
+        report("SrTiO3: 43 fundamentals with integer parent indices and I_parent",
+               len(fundamental) == 43 and all(
+                   all(v.denominator == 1 for v in r["hkl_parent"]) and r["I_parent"] is not None
+                   for r in fundamental), str(fundamental[:3]))
+        report("SrTiO3: the strongest child family (1 1 2) x8 = parent (1 0 1), I_parent 100.995",
+               any(r["hkl_child"] == (1, 1, 2) and r["mult"] == 8 and r["I_child"] == 100.0
+                   and abs(r["I_parent"] - 100.995) < 2e-3 for r in fundamental), str(rows[:4]))
+        report("SrTiO3: Glazer a0a0c- rule, R5- extinct at first order for |h| = |k|",
+               "R5- extinct at first order for |h| = |k|: 11 families absent in the child" in out,
+               out)
+        report("SrTiO3: a one-irrep star reads 'all families from R5- (the only irrep of the "
+               "star)' instead of a diagnostic list",
+               "  all families from R5- (the only irrep of the star)" in out
+               and "diagnostic for R5-" not in out, out)
+
+    # --- CaTiO3 Pm-3m -> Pnma (a-a-c+): R4+/R5+, M2+/M3+, X5+
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_xrd(["--parent", os.path.join(modes, "221_PPOSCAR_CaTiO3.cif"),
+                             "-c", os.path.join(modes, "62_PPOSCAR_CaTiO3.cif"),
+                             "--xraytype", "CuKa1", "--output", "cto"], cwd=tmp)
+        rows = _superlattice_table(os.path.join(tmp, "cto.txt")) if code == 0 else []
+        report("CaTiO3 221 -> 62: exit 0, 186 families of which 122 superlattice",
+               code == 0 and len(rows) == 186 and "(186 families, 122 superlattice)" in out, out)
+        by_k = {k: [r for r in rows if r["k"] == k] for k in ("R", "M", "X")}
+        report("CaTiO3: superlattice families at R (41), M (40) and X (41) only",
+               {r["k"] for r in rows} == {"GM", "R", "M", "X"}
+               and [len(by_k[k]) for k in ("R", "M", "X")] == [41, 40, 41], str(rows[:3]))
+
+        def parity(r):
+            return sorted(n % 2 for n in _numerators(r["hkl_parent"]))
+        report("CaTiO3: R families are (o o o)/2, M families (o o e)/2, X families (e e o)/2",
+               all(parity(r) == [1, 1, 1] for r in by_k["R"])
+               and all(parity(r) == [0, 1, 1] for r in by_k["M"])
+               and all(parity(r) == [0, 0, 1] for r in by_k["X"]), str(by_k["M"][:2]))
+        report("CaTiO3: X families are X5+ alone (100 %)",
+               by_k["X"] and all(r["shares"].get("X5+", 0) > 0.9999 for r in by_k["X"]), out)
+        report("CaTiO3: M families are M3+ (>= 99.9 %; M2+, 0.0064 A, below 0.1 %)",
+               by_k["M"] and all(r["shares"]["M3+"] >= 0.999 and r["shares"]["M2+"] < 0.001
+                                 for r in by_k["M"]), str(by_k["M"][:2]))
+        report("CaTiO3: no M family with equal moduli of the two odd indices in the child "
+               "(M3+ extinct at first order for |h| = |l|, all 24 such families absent)",
+               all(len({abs(n) for n in _numerators(r["hkl_parent"]) if n % 2}) == 2
+                   for r in by_k["M"])
+               and "M3+ extinct at first order for |h| = |l|: 24 families absent in the child"
+               in out, out)
+        def moduli(r):
+            return tuple(sorted(abs(n) for n in _numerators(r["hkl_parent"])))
+        r111 = [r for r in by_k["R"] if moduli(r) == (1, 1, 1)]
+        report("CaTiO3: the (1 1 1)/2-type family at 20.05 deg is R5+ (99.1 %), R4+ 0.9 %",
+               len(r111) == 1 and abs(r111[0]["two_theta"] - 20.0533) < 1e-3
+               and abs(r111[0]["shares"]["R5+"] - 0.9907) < 2e-3
+               and abs(r111[0]["shares"]["R4+"] - 0.0093) < 2e-3, str(r111))
+        r333 = [r for r in by_k["R"] if moduli(r) == (3, 3, 3)]
+        report("CaTiO3: the (3 3 3)/2-type family at 62.98 deg: R4+ extinct at first order, "
+               "exact shares R5+ 71.5 %, R4+ 28.5 % (higher-order terms of the large R4+ tilt)",
+               len(r333) == 1 and abs(r333[0]["shares"]["R5+"] - 0.7151) < 5e-3
+               and "R4+ extinct at first order at: (-1 1 1)/2 at 20.05, (-3 3 3)/2 at 62.98, "
+               "(3 1 5)/2 at 71.74, (1 3 7)/2 at 99.88; 11 families absent in the child" in out,
+               str(r333))
+        dominated = sum(1 for r in by_k["R"] if max(r["shares"], key=r["shares"].get) == "R4+")
+        report("CaTiO3: 34 of the 41 R families are R4+-dominated; diagnostic lists for both",
+               dominated == 34 and "diagnostic for R5+: (-1 1 1)/2 at 20.05, (3 1 5)/2 at 71.74, "
+               "(-5 1 5)/2 at 91.98" in out
+               and re.search(r"diagnostic for R4\+: \(1 1 3\)/2 at 38\.48.*and 3 more", out)
+               is not None, f"{dominated} R4+-dominated")
+        report("CaTiO3: child indices in the Pnma cell, none negative ((0 1 1) x4 at 20.05, "
+               "(1 2 1) x8 the strongest)",
+               all(min(r["hkl_child"]) >= 0 for r in rows)
+               and r111 and r111[0]["hkl_child"] == (0, 1, 1)
+               and any(r["hkl_child"] == (1, 2, 1) and r["I_child"] == 100.0 for r in rows),
+               str(rows[:3]))
+        report("CaTiO3: R5+ extinct for h = l and X5+ for h = -l (first order, setting of the "
+               "mapping)",
+               "R5+ extinct at first order for h = l: 11 families absent in the child" in out
+               and "X5+ extinct at first order for h = -l: 12 families absent in the child" in out,
+               out)
+
+        def summary_block(text):
+            return text.split("* Superlattice reflections by k point *")[-1].split(
+                "* Output files *")[0]
+        code1, out1 = run_xrd(["--parent", os.path.join(modes, "221_PPOSCAR_CaTiO3.cif"),
+                               "-c", os.path.join(modes, "62_PPOSCAR_CaTiO3.cif"),
+                               "--xraytype", "CuKa1", "--min-intensity", "1", "--output", "cto1"],
+                              cwd=tmp)
+        rows1 = _superlattice_table(os.path.join(tmp, "cto1.txt")) if code1 == 0 else []
+        report("CaTiO3 --min-intensity 1: the table keeps 71 families (all >= 1), the k-point "
+               "summary is the same as without the filter",
+               code1 == 0 and len(rows1) == 71 and all(r["I_child"] >= 1 for r in rows1)
+               and "(71 families, 29 superlattice)" in out1
+               and "115 families below --min-intensity 1 are not listed in the table" in out1
+               and summary_block(out1) == summary_block(out), out1)
+    probe = (
+        "import warnings; warnings.simplefilter('ignore')\n"
+        "from crystod import xrd\n"
+        f"modes = {modes!r}\n"
+        "p = xrd.superlattice_reflections(f'{modes}/221_PPOSCAR_CaTiO3.cif',\n"
+        "                                 f'{modes}/62_PPOSCAR_CaTiO3.cif', xray_type='CuKa1')\n"
+        "families = [r for r in p.reflections + p.absent if r.kname == 'R']\n"
+        "equal = [r for r in families if any(abs(h) == abs(k) == abs(l) for h, k, l in r.equivalents)]\n"
+        "print('HKK', len(equal), all('R4+' in r.first_order_extinct for r in equal))\n"
+        "print('TYPES', type(p).__name__, type(p.reflections[0]).__name__, type(p.kpoints[0]).__name__)\n"
+        "try:\n"
+        "    xrd.radiation_lines('xray', wavelength=1.5)\n"
+        "except ValueError as exc:\n"
+        "    print('VALUEERROR', 'neutron' in str(exc))\n"
+    )
+    code, out = run_python(probe)
+    report("CaTiO3 (API): every R family with |h| = |k| = |l| has R4+ extinct at first order "
+           "(Glazer a-a- rule)", code == 0 and re.search(r"HKK [1-9]\d* True", out) is not None,
+           out)
+    report("API: SuperlatticePattern / SuperlatticeReflection / KPointSummary; bad radiation "
+           "options raise ValueError",
+           "TYPES SuperlatticePattern SuperlatticeReflection KPointSummary" in out
+           and "VALUEERROR True" in out, out)
+
+    # --- ZrO2 Fm-3m -> P4_2/nmc: centred parent, X point, conventional indices
+    with tempfile.TemporaryDirectory() as tmp:
+        parent = os.path.join(modes, "225_PPOSCAR_ZrO2.cif")
+        child = os.path.join(modes, "137_PPOSCAR_ZrO2.cif")
+        code, out = run_xrd(["--parent", parent, "-c", child, "--output", "zro2"], cwd=tmp)
+        rows = _superlattice_table(os.path.join(tmp, "zro2.txt")) if code == 0 else []
+        fundamental = [r for r in rows if r["k"] == "GM"]
+        superlattice = [r for r in rows if r["k"] != "GM"]
+        report("ZrO2 225 -> 137: parent indices on the conventional F cell (A^-T documented)",
+               code == 0 and "parent indices: conventional cell of Fm-3m, h_conv = h_prim A^-T" in out,
+               out)
+        report("ZrO2: every fundamental has h, k, l all even or all odd (F centring)",
+               len(fundamental) == 23 and all(
+                   len({n % 2 for n in _numerators(r["hkl_parent"])}) == 1
+                   and all(v.denominator == 1 for v in r["hkl_parent"]) for r in fundamental),
+               str(fundamental[:3]))
+        report("ZrO2: 7 superlattice families, all at X of Fm-3m (mixed parity), X2- 100 %",
+               len(superlattice) == 7 and all(
+                   r["k"] == "X" and len({n % 2 for n in _numerators(r["hkl_parent"])}) == 2
+                   and r["shares"] == {"X2-": 1.0} for r in superlattice), str(superlattice[:3]))
+        code, out = run_group(["--supergroup-cif", parent, "--subgroup-cif", child, "--no-files"],
+                              cwd=tmp)
+        report("ZrO2: X2- is the irrep crystod-group --supergroup-cif lists",
+               code == 0 and re.search(r"^\(1/2,0,1/2\)\s+X2-\s", out, re.M) is not None, out)
+
+    # --- no superlattice (BaTiO3 221 -> 99) and a computed star (K2SeO4 SM)
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_xrd(["--parent", os.path.join(modes, "221_PPOSCAR_BaTiO3.cif"),
+                             "-c", os.path.join(modes, "99_PPOSCAR_BaTiO3.cif"),
+                             "--radiation", "neutron", "--wavelength", "1.8"], cwd=tmp)
+        rows = _superlattice_table(
+            os.path.join(tmp, "ND_99_PPOSCAR_BaTiO3_vs_221_PPOSCAR_BaTiO3_1.8A.txt")) if code == 0 else []
+        report("BaTiO3 221 -> 99 (neutron 1.8 A): no superlattice reflections, the fundamental "
+               "table with I_child and I_parent",
+               code == 0 and "no superlattice reflections (the child keeps the parent lattice)" in out
+               and len(rows) == 31 and all(r["k"] == "GM" and r["I_parent"] is not None
+                                           for r in rows), out)
+        code, out = run_xrd(["--parent", os.path.join(modes, "POSCAR_K2SeO4_Pnma.cif"),
+                             "-c", os.path.join(modes, "POSCAR_K2SeO4_Pna21.cif"),
+                             "--xraytype", "CuKa1", "--min-intensity", "0.01", "--output", "k2"],
+                            cwd=tmp)
+        rows = _superlattice_table(os.path.join(tmp, "k2.txt")) if code == 0 else []
+        superlattice = [r for r in rows if r["k"] != "GM"]
+        report("K2SeO4 Pnma -> Pna2_1 (3a superstructure): superlattice families at SM "
+               "(1/3,0,0) only, parent h in thirds, irreps SM2 and SM3",
+               code == 0 and superlattice and all(
+                   r["k"] == "SM" and r["hkl_parent"][0].denominator == 3
+                   and r["hkl_parent"][1].denominator == 1 and r["hkl_parent"][2].denominator == 1
+                   and set(r["shares"]) == {"SM2", "SM3"} for r in superlattice)
+               and "SM (1/3,0,0):" in out and all(r["I_child"] >= 0.01 for r in rows), out)
+        code, out = run_xrd(["--parent", os.path.join(tmp, "missing.cif"), "-c",
+                             os.path.join(modes, "62_PPOSCAR_CaTiO3.cif")], cwd=tmp)
+        report("--parent with a missing file refused cleanly",
+               code == 1 and "ERROR: structure file not found" in out and "Traceback" not in out,
+               out)
+
+    # --- two stars with one name: a 6a modulation of a one-atom cubic parent
+    # (k = 1/6 and 1/3 on the DT line, plus the X harmonic it folds onto)
+    with tempfile.TemporaryDirectory() as tmp:
+        a = 3.0
+        with open(os.path.join(tmp, "POSCAR_Cu_parent"), "w", encoding="utf-8") as handle:
+            handle.write(f"Cu Pm-3m\n1.0\n{a} 0 0\n0 {a} 0\n0 0 {a}\nCu\n1\nDirect\n0 0 0\n")
+        sites = []
+        for n in range(6):
+            ux = 0.10 * np.cos(2 * np.pi * n / 6) + 0.07 * np.cos(2 * np.pi * n / 3 + 0.4)
+            uy = 0.05 * np.sin(2 * np.pi * n / 6 + 0.3)
+            sites.append(f"{n * a + ux:.8f} {uy:.8f} 0\n")
+        with open(os.path.join(tmp, "POSCAR_Cu_child"), "w", encoding="utf-8") as handle:
+            handle.write(f"Cu 6a\n1.0\n{6 * a} 0 0\n0 {a} 0\n0 0 {a}\nCu\n6\nCartesian\n"
+                         + "".join(sites))
+        code, out = run_xrd(["--parent", "POSCAR_Cu_parent", "-c", "POSCAR_Cu_child",
+                             "--radiation", "neutron", "--wavelength", "1.5", "--output", "cu"],
+                            cwd=tmp)
+        rows = _superlattice_table(os.path.join(tmp, "cu.txt")) if code == 0 else []
+        report("Cu 6a: two DT stars, DT (0,1/6,0) with DT1 + DT5 and DT (0,1/3,0) with DT1 "
+               "alone, summarized separately",
+               code == 0 and "DT (0,1/6,0): 103 families; irreps of the star: DT1 (0.1732 A), "
+               "DT5 (0.0866 A)" in out
+               and "DT (0,1/3,0): 106 families; irreps of the star: DT1 (0.1212 A)\n"
+               "  all families from DT1 (the only irrep of the star)" in out, out)
+        report("Cu 6a: the k column tells the two DT stars apart (DT(0,1/6,0), DT(0,1/3,0)), "
+               "each row with one star's irreps only",
+               re.search(r"\(4 0 0\)/3\s+DT\(0,1/3,0\)\s.*DT1 100 %$", out, re.M) is not None
+               and {r["k"] for r in rows} == {"GM", "DT(0 1/6 0)", "DT(0 1/3 0)", "X"}
+               and all(set(r["shares"]) == {"DT1", "DT5"} for r in rows
+                       if r["k"] == "DT(0 1/6 0)")
+               and all(set(r["shares"]) == {"DT1"} for r in rows if r["k"] == "DT(0 1/3 0)"),
+               out)
+        report("Cu 6a: the undistorted X star (harmonic) reads 'higher order'",
+               "X (0,1/2,0): 53 families; irreps of the star: -\n  no irrep of this star "
+               "distorts the child; the intensity comes from higher-order terms" in out
+               and re.search(r"\sX\s+[\d.]+\s+-\s+higher order$", out, re.M) is not None
+               and all(not r["shares"] for r in rows if r["k"] == "X"), out)
+        report("Cu 6a: zero-index extinction rule, DT5 extinct at first order for k = 0",
+               "  DT5 extinct at first order for k = 0: " in out, out)
+
+    # --- a parent without an operation taking k to -k: the stars of k and -k
+    # differ and the complex pair GP1GQ1 spans both.  P1 (Cu, Zn) tripled
+    # along a with a real displacement at k = +-1/3: the GQ families (the
+    # Friedel partners of the GP families) are first order too.  Before the
+    # fix the pair was attached to the GP star only and all GQ families read
+    # "higher order" with "no irrep of this star distorts the child"
+    with tempfile.TemporaryDirectory() as tmp:
+        lattice = np.array([[3.0, 0.0, 0.0], [0.4, 3.3, 0.0], [0.3, 0.5, 3.6]])
+        cu, zn = np.zeros(3), np.array([0.31, 0.27, 0.43])
+
+        def rows_text(frac) -> str:
+            return "".join(" ".join(f"{v:.8f}" for v in row) + "\n" for row in frac)
+
+        with open(os.path.join(tmp, "POSCAR_P1_parent"), "w", encoding="utf-8") as handle:
+            handle.write("CuZn P1\n1.0\n" + rows_text(lattice) + "Cu Zn\n1 1\nDirect\n"
+                         + rows_text([cu, zn]))
+        supercell = lattice * np.array([[3.0], [1.0], [1.0]])
+        sites = []
+        for base, amplitude in ((cu, np.array([0.08, 0.03, -0.02])),
+                                (zn, np.array([-0.05, 0.06, 0.04]))):
+            for n in range(3):
+                cart = (base + np.array([n, 0, 0])) @ lattice \
+                    + amplitude * np.cos(2 * np.pi * n / 3 + 0.3)
+                sites.append(cart @ np.linalg.inv(supercell))
+        with open(os.path.join(tmp, "POSCAR_P1_child"), "w", encoding="utf-8") as handle:
+            handle.write("CuZn P1 3a\n1.0\n" + rows_text(supercell) + "Cu Zn\n3 3\nDirect\n"
+                         + rows_text(sites))
+        code, out = run_xrd(["--parent", "POSCAR_P1_parent", "-c", "POSCAR_P1_child",
+                             "--xraytype", "CuKa1", "--output", "p1"], cwd=tmp)
+        rows = _superlattice_table(os.path.join(tmp, "p1.txt")) if code == 0 else []
+        gp = [r for r in rows if r["k"] == "GP"]
+        gq = [r for r in rows if r["k"] == "GQ"]
+        report("P1 3a (k = +-1/3): 207 GP and 207 GQ families, every one of them first "
+               "order, GP1GQ1 100 % (no 'higher order')",
+               code == 0 and len(gp) == len(gq) == 207
+               and all(r["shares"] == {"GP1GQ1": 1.0} for r in gp + gq)
+               and "higher order" not in out, out)
+        by_parent = {r["hkl_parent"]: r for r in gp}
+        report("P1 3a: every GQ family is the Friedel partner of a GP family of equal "
+               "intensity",
+               bool(gq) and all(
+                   tuple(-v for v in r["hkl_parent"]) in by_parent
+                   and abs(by_parent[tuple(-v for v in r["hkl_parent"])]["I_child"]
+                           - r["I_child"]) < 2e-3 for r in gq), str(gq[:3]))
+        report("P1 3a: both stars list the pair with its one amplitude, and a note says the "
+               "pair spans the star and its -k star",
+               "GP (1/3,0,0): 207 families; irreps of the star: GP1GQ1 (0.1520 A)\n"
+               "  all families from GP1GQ1 (the only irrep of the star)\n"
+               "GQ (2/3,0,0): 207 families; irreps of the star: GP1GQ1 (0.1520 A)\n"
+               "  all families from GP1GQ1 (the only irrep of the star)" in out
+               and "(GP1GQ1: one complex-conjugate pair over the star GP (1/3,0,0) and its -k "
+               "star GQ (2/3,0,0);\n listed under both stars with the one amplitude of the pair)"
+               in out and "no irrep of this star distorts the child" not in out, out)
+
+        # several pairs on a polar line: P4 -> 1x1x3 (LD / LE stars), seeded
+        # random displacements; the shares of every LE family are those of
+        # its Friedel partner on LD
+        probe = (
+            "import warnings; warnings.simplefilter('ignore')\n"
+            "import numpy as np\n"
+            "from crystod import xrd\n"
+            "rng = np.random.default_rng(7)\n"
+            "x, y, z = 0.21, 0.13, 0.17\n"
+            "groups = [('O', [[0, 0, 0]]), ('Na', [[0.5, 0.5, 0.4]]),\n"
+            "          ('H', [[x, y, z], [-x, -y, z], [-y, x, z], [y, -x, z]])]\n"
+            "def write(path, lattice, cells):\n"
+            "    lines = ['P4\\n1.0\\n'] + [' '.join(map(str, row)) + '\\n' for row in lattice]\n"
+            "    lines += [' '.join(g for g, _ in groups) + '\\n',\n"
+            "              ' '.join(str(len(p) * cells) for _, p in groups) + '\\nDirect\\n']\n"
+            "    for _, positions in groups:\n"
+            "        for p in positions:\n"
+            "            for n in range(cells):\n"
+            "                f = (np.array(p, dtype=float) + [0, 0, n]) / [1, 1, cells]\n"
+            "                f = f + rng.normal(scale=0.03, size=3) / np.linalg.norm(lattice, axis=1) * (cells > 1)\n"
+            "                lines.append(' '.join(f'{v % 1.0:.8f}' for v in f) + '\\n')\n"
+            "    open(path, 'w').write(''.join(lines))\n"
+            "write('POSCAR_P4_parent', np.diag([4.0, 4.0, 3.0]), 1)\n"
+            "write('POSCAR_P4_child', np.diag([4.0, 4.0, 9.0]), 3)\n"
+            "p = xrd.superlattice_reflections('POSCAR_P4_parent', 'POSCAR_P4_child', xray_type='CuKa1')\n"
+            "by = {e: r for r in p.reflections for e in r.equivalents}\n"
+            "le = [r for r in p.superlattice if r.kname == 'LE']\n"
+            "def same(r):\n"
+            "    q = by.get(tuple(-v for v in r.hkl_parent))\n"
+            "    a, b = dict(r.contributions), dict(q.contributions) if q else {}\n"
+            "    return (q is not None and q.kname == 'LD' and len(a) == 4 and set(a) == set(b)\n"
+            "            and max(abs(a[i] - b[i]) for i in a) < 1e-9)\n"
+            "print('FRIEDEL', len(le) > 0, all(same(r) for r in le))\n"
+            "s = {k.kname: k for k in p.kpoints}\n"
+            "print('STARS', sorted(s), s['LD'].irreps == s['LE'].irreps,\n"
+            "      sorted(i for i, _ in s['LE'].irreps),\n"
+            "      {o for _, o in s['LD'].shared}, {o for _, o in s['LE'].shared})\n"
+        )
+        code, out = run_python(probe, cwd=tmp)
+        report("P4 1x1x3 (API): the LE families carry the four pairs LD1LE1 ... LD4LE4 with "
+               "the shares of their Friedel partners on LD",
+               code == 0 and "FRIEDEL True True" in out, out)
+        report("P4 1x1x3 (API): both summaries list the same pairs and amplitudes; "
+               "KPointSummary.shared names the other star",
+               "STARS ['LD', 'LE'] True ['LD1LE1', 'LD2LE2', 'LD3LE3', 'LD4LE4'] "
+               "{'LE (0,0,2/3)'} {'LD (0,0,1/3)'}" in out, out)
+
+
+# ---------------------------------------------------------------- 48. crystod-search
 # The Materials Project is never contacted here.  A stub of its
-# materials/summary endpoint serves example/45_mp_search/mp_summary_Sr-Ti-O.json.gz
+# materials/summary endpoint serves example/48_mp_search/mp_summary_Sr-Ti-O.json.gz
 # (recorded from the live API on 2026-09-18) on 127.0.0.1, and every
 # crystod-search run gets MP_API_ENDPOINT pointing at it, a dummy key only the
 # stub accepts, a HOME without a pymatgen settings file (so no real key can leak
@@ -13864,8 +17582,8 @@ def _poscar_structure(path: str):
     return structure, atoms, number, comment
 
 
-def test_45_search() -> None:
-    print("\n[45] crystod-search (Materials Project search and POSCAR download, offline stub)")
+def test_48_search() -> None:
+    print("\n[48] crystod-search (Materials Project search and POSCAR download, offline stub)")
     if not os.path.isfile(MP_FIXTURE):
         report("Materials Project fixture found", False, MP_FIXTURE)
         return
@@ -14081,7 +17799,7 @@ def test_45_search() -> None:
                    and os.listdir(tmp) == [os.path.basename(path)]
                    and "Wrote POSCAR_Sr2TiO4_I4mmm_mp-5532: Sr2TiO4, I4/mmm, 14 atoms" in out, out)
             downloaded = _mp_read(path)
-            report("the file equals the POSCAR a live run wrote (example/45_mp_search)",
+            report("the file equals the POSCAR a live run wrote (example/48_mp_search)",
                    downloaded != "" and downloaded == _mp_read(reference_poscar), downloaded)
             structure, atoms, number, comment = _poscar_structure(path)
             report("the POSCAR holds the conventional cell: Sr2TiO4, 14 atoms, a = b, "
@@ -14135,7 +17853,7 @@ def test_45_search() -> None:
                    and "Wrote PPOSCAR_Sr2TiO4_I4mmm_mp-5532: Sr2TiO4, I4/mmm, 7 atoms" in out
                    and len(atoms) == 7 and number == 139
                    and comment.endswith("(Materials Project, primitive cell)"), out)
-            report("the PPOSCAR equals the one a live run wrote (example/45_mp_search)",
+            report("the PPOSCAR equals the one a live run wrote (example/48_mp_search)",
                    _mp_read(path) != "" and _mp_read(path) == _mp_read(reference_pposcar),
                    _mp_read(path))
             code, out = search(["--get", "mp-5532"], cwd=tmp)
@@ -14392,6 +18110,618 @@ def test_45_search() -> None:
               "to run one)")
 
 
+# ---------------------------------------------------------------- 49. crystod --extract-irrep
+EXTRACT_IRREP_FIXTURE = os.path.join(ROOT, "example", "03_hybridization", "vasp_wavecar")
+
+
+def _ei_blocks(out: str) -> list[str]:
+    """The ``* Title *`` headers of a report, in order."""
+    return [line.strip() for line in out.splitlines()
+            if line.startswith("* ") and line.rstrip().endswith(" *")]
+
+
+def _ei_rows(out: str, title: str) -> list[dict]:
+    """The rows of the ``* Band irreps at TITLE *`` table."""
+    rows, inside = [], False
+    for line in out.splitlines():
+        if line.strip() == f"* Band irreps at {title} *":
+            inside = True
+            continue
+        if inside:
+            if not line.strip():
+                break
+            match = re.match(r"\s*(\d+)\s+(\S+)\s+(-?\d+\.\d{4})\s+(\d+)\s+(.*)$", line)
+            if match:
+                rest = match.group(5)
+                label = re.match(r"(\S+(?: \([^)]*\))?)\s*(.*)$", rest)
+                rows.append({"level": int(match.group(1)), "bands": match.group(2),
+                             "energy": float(match.group(3)), "deg": int(match.group(4)),
+                             "irrep": label.group(1), "note": label.group(2)})
+    return rows
+
+
+def _ei_normalized(result, root: str) -> dict:
+    """``result.to_dict()`` with the paths relative to ``root`` (the expected.json form)."""
+    data = result.to_dict()
+    for key in ("directory", "wavecar", "structure"):
+        data["run"][key] = os.path.relpath(data["run"][key], root)
+    data.pop("crystod_version")
+    return data
+
+
+def _ei_error(name: str, code: int, out: str, needle: str) -> None:
+    """One ERROR line, exit status 1, no traceback."""
+    errors = [line for line in out.splitlines() if line.startswith("ERROR")]
+    report(f"error: {name}",
+           code == 1 and len(errors) == 1 and needle in errors[0] and "Traceback" not in out,
+           out)
+
+
+def test_49_extract_irrep() -> None:
+    """``crystod --extract-irrep``: band irreps of one VASP run, from its WAVECAR.
+
+    Offline: the four small real VASP runs of
+    example/03_hybridization/vasp_wavecar (SrTiO3: scalar 4x4x4 mesh,
+    ISPIN = 2, spin-orbit; InP with spin-orbit coupling: the time-reversal
+    pairs -L4/-L5) against their expected.json, every option and error path,
+    Wigner's time-reversal test and the Va point-charge (sublattice) POSCARs.
+    ``CRYSTOD_VASP_TESTDATA=<dir of the VASP runs>`` adds the live checks on
+    SrTiO3_Pm-3m/BAND (288 k points): the consistency checks with the SALC
+    decompositions, the anchor engine's level table and the overlap engine's
+    labels (SrTiO3_Pm-3m_LAK, crystal and sublattice runs), and the
+    spin-orbit CsPbI3 run.
+    """
+    print("\n[49] crystod --extract-irrep (band irreps of a VASP run from its WAVECAR)")
+    import yaml
+
+    from crystod import extract_irrep as ei
+
+    sto = os.path.join(EXTRACT_IRREP_FIXTURE, "SrTiO3")
+    spin = os.path.join(EXTRACT_IRREP_FIXTURE, "SrTiO3_ISPIN2")
+    soc = os.path.join(EXTRACT_IRREP_FIXTURE, "SrTiO3_SOC")
+    inp = os.path.join(EXTRACT_IRREP_FIXTURE, "InP_SOC")
+    if not all(os.path.isfile(os.path.join(d, "WAVECAR")) for d in (sto, spin, soc, inp)):
+        report("fixture example/03_hybridization/vasp_wavecar present", False,
+               EXTRACT_IRREP_FIXTURE)
+        return
+
+    # ------------------------------------------------------------ default run
+    code, out = run_cli(["--extract-irrep", sto])
+    report("default run on the scalar fixture exits 0", code == 0, out)
+    expected_blocks = ["* VASP run *", "* Space group *", "* Special k points in the WAVECAR *",
+                       "* Band irreps at GM [0, 0, 0] *", "* Band irreps at R [1/2, 1/2, 1/2] *",
+                       "* Band irreps at X [1/2, 0, 0] *", "* Band irreps at M [1/2, 1/2, 0] *",
+                       "* Band edges *"]
+    report("blocks in order: VASP run, Space group, Special k points, one table per special "
+           "point (table order GM R X M), Band edges", _ei_blocks(out) == expected_blocks,
+           "\n".join(_ei_blocks(out)))
+    report("every line ASCII", all(ord(c) < 128 for c in out), out)
+    report("run facts: NBANDS 24, NKPTS 10, ISPIN 1, no spin-orbit, ENCUT 250 eV, E_fermi "
+           "from OUTCAR, VBM over all 10 k points",
+           "NBANDS 24, NKPTS 10, ISPIN 1, spin-orbit no, ENCUT 250 eV" in out
+           and "E_fermi      2.7258 eV (OUTCAR)" in out
+           and "VBM          2.4653 eV (highest occupied eigenvalue over all 10 k points: "
+               "k#9 [1/2, 1/2, 1/4], band 16)" in out
+           and "\n* Space group *\n Pm-3m (221)\n" in out, out)
+    report("special points found on any arm: X stored as (1/2, 0, 0), k#3; little groups",
+           re.search(r"X\s+\[ 0\.5000000,  0\.0000000,  0\.0000000\]\s+k#3\s+P4/mmm \(123\)",
+                     out) is not None
+           and re.search(r"GM\s+\[ 0\.0000000,  0\.0000000,  0\.0000000\]\s+k#1\s+"
+                         r"Pm-3m \(221\)", out) is not None, out)
+    gm = _ei_rows(out, "GM [0, 0, 0]")
+    report("GM table: 11 levels, bands 1-24, O 2p 2 GM4- + GM5-, Ti 3d GM5+ + GM3+, with "
+           "the Mulliken symbols",
+           [r["irrep"] for r in gm] == ["GM1+ (A1g)", "GM1+ (A1g)", "GM3+ (Eg)", "GM4- (T1u)",
+                                        "GM4- (T1u)", "GM5- (T2u)", "GM4- (T1u)", "GM5+ (T2g)",
+                                        "GM3+ (Eg)", "GM3+ (Eg)", "GM1+ (A1g)"]
+           and [r["bands"] for r in gm][4:9] == ["8-10", "11-13", "14-16", "17-19", "20-21"]
+           and sum(r["deg"] for r in gm) == 24
+           and abs(gm[7]["energy"] - 1.8051) < 1e-4, out)
+    m_rows = _ei_rows(out, "M [1/2, 1/2, 0]")
+    report("an incomplete multiplet at the top of the band list is reported, not hidden "
+           "(M band 24)",
+           m_rows and m_rows[-1]["irrep"] == "-" and m_rows[-1]["bands"] == "24"
+           and "incomplete: the band list ends inside this multiplet (multiplicities "
+               "M5+ 0.50)" in m_rows[-1]["note"], out)
+    report("band edges: per k point VBM/CBM with irreps; indirect gap 1.8051 eV",
+           re.search(r"GM\s+k#1\s+-0\.2407\s+GM4- \(T1u\)\s+1\.8051\s+GM5\+ \(T2g\)\s+2\.0458",
+                     out) is not None
+           and "gap 1.8051 eV (indirect) over all 10 k points of the file: VBM at k#9 "
+               "[1/2, 1/2, 1/4] (band 16), CBM at k#1 GM (band 17)" in out, out)
+
+    for case, root in (("scalar", sto), ("ISPIN = 2", spin), ("spin-orbit", soc),
+                       ("InP spin-orbit", inp)):
+        expected = json.load(open(os.path.join(root, "expected.json")))
+        diffs = _overlap_tree_diff(expected, _ei_normalized(ei.extract_band_irreps(root), root),
+                                   tol=1e-6)
+        report(f"{case} fixture reproduces expected.json (labels exact, energies 1e-6)",
+               not diffs, "\n".join(diffs[:15]))
+
+    # ------------------------------------------------------------ k points
+    code, out = run_cli(["--extract-irrep", sto, "--kpoint", "R", "gamma"])
+    report("--kpoint by label (R, then the alias gamma): those tables, in that order",
+           code == 0 and [b for b in _ei_blocks(out) if b.startswith("* Band irreps")]
+           == ["* Band irreps at R [1/2, 1/2, 1/2] *", "* Band irreps at GM [0, 0, 0] *"], out)
+    code, out = run_cli(["--extract-irrep", sto, "--kpoint", "0", "1/2", "0", "1/2,1/2,0"])
+    report("--kpoint by coordinates: (0, 1/2, 0) finds X on another arm (k#3), "
+           "1/2,1/2,0 is M",
+           code == 0 and [b for b in _ei_blocks(out) if b.startswith("* Band irreps")]
+           == ["* Band irreps at X [1/2, 0, 0] *", "* Band irreps at M [1/2, 1/2, 0] *"], out)
+    code, out = run_cli(["--extract-irrep", sto, "--kpoint", "1/4", "1/4", "1/4"])
+    rows = _ei_rows(out, "LD [1/4, 1/4, 1/4]")
+    report("--kpoint on a symmetry line: named by the ISO-IR k label of the little group "
+           "(LD, R3m), LD irreps",
+           code == 0 and "R3m (160)" in out and rows
+           and {r["irrep"] for r in rows} <= {"LD1", "LD2", "LD3"}, out)
+    code, out = run_cli(["--extract-irrep", sto, "--all-kpoints"])
+    labels = re.findall(r"^\s{2}(\S+)\s+\[", out.split("* k points in the WAVECAR *")[-1]
+                        .split("\n\n")[0], re.M)
+    report("--all-kpoints: every k point of the file, special points and lines named "
+           "(GM DT X SM Z M LD S T R)",
+           code == 0 and labels == ["GM", "DT", "X", "SM", "Z", "M", "LD", "S", "T", "R"]
+           and "* Band irreps at T [1/2, 1/2, 1/4] *" in out
+           and "VBM at k#9 T (band 16)" in out, out)
+
+    # ------------------------------------------------------------ energies
+    code_raw, out_raw = run_cli(["--extract-irrep", sto, "--kpoint", "GM", "--zero", "raw"])
+    code_ef, out_ef = run_cli(["--extract-irrep", sto, "--kpoint", "GM", "--zero", "efermi"])
+    raw = _ei_rows(out_raw, "GM [0, 0, 0]")
+    ef = _ei_rows(out_ef, "GM [0, 0, 0]")
+    report("--zero raw / efermi shift every level by the VBM (2.4653) / E_fermi (2.7258)",
+           code_raw == 0 and code_ef == 0 and len(raw) == len(gm) == len(ef)
+           and all(abs(r["energy"] - g["energy"] - 2.465309) < 2e-4 for r, g in zip(raw, gm))
+           and all(abs(r["energy"] - e["energy"] - 2.7258) < 2e-4 for r, e in zip(raw, ef))
+           and "E (raw) (eV)" in out_raw and "E - E_F (eV)" in out_ef, out_raw + out_ef)
+    code, out = run_cli(["--extract-irrep", sto, "--kpoint", "GM", "--window", "-1", "2"])
+    rows = _ei_rows(out, "GM [0, 0, 0]")
+    report("--window -1 2: only the levels inside, level numbers kept (6 7 8)",
+           code == 0 and [r["level"] for r in rows] == [6, 7, 8]
+           and "window       -1 .. 2 eV (E - E_VBM)" in out, out)
+
+    # ------------------------------------------------------------ YAML
+    with tempfile.TemporaryDirectory() as tmp:
+        target = os.path.join(tmp, "irreps.yaml")
+        code, out = run_cli(["--extract-irrep", sto, "-o", target])
+        loaded = yaml.safe_load(open(target)) if os.path.isfile(target) else {}
+        fresh = ei.extract_band_irreps(sto).to_dict()
+        diffs = _overlap_tree_diff(fresh, loaded, tol=0.0)
+        report("-o YAML: written under * Output files *, yaml.safe_load of it equals "
+               "BandIrreps.to_dict() exactly",
+               code == 0 and "* Output files *" in out and not diffs,
+               out + "\n".join(diffs[:15]))
+        level = (loaded.get("irreps") or [{}])[0].get("levels", [{}])[7] if loaded else {}
+        report("YAML layout: metadata, kpoints, per-k levels with bands (1-based), energy, "
+               "degeneracy, irrep, mulliken, note; band edges and gap",
+               list(loaded)[:4] == ["crystod_version", "mode", "run", "space_group"]
+               and level == {"level": 8, "bands": [17, 18, 19], "energy": 1.805069,
+                             "degeneracy": 3, "irrep": "GM5+", "mulliken": "T2g",
+                             "occupation": 0.0, "note": ""}
+               and loaded["gap"]["gap"] == 1.805069
+               and loaded["kpoints"][2]["k_label"] == "X", json.dumps(loaded)[:2000])
+        code, out = run_cli(["--extract-irrep", sto, "--kpoint", "R"], cwd=tmp)
+        report("without -o nothing is written", code == 0 and os.listdir(tmp) == ["irreps.yaml"],
+               str(os.listdir(tmp)))
+
+    # ------------------------------------------------------------ spin
+    code, out = run_cli(["--extract-irrep", spin])
+    titles = [b for b in _ei_blocks(out) if b.startswith("* Band irreps")]
+    report("ISPIN = 2: one table per spin channel (up then down at every k point); metallic",
+           code == 0 and len(titles) == 8
+           and titles[:2] == ["* Band irreps at GM [0, 0, 0], spin up *",
+                              "* Band irreps at GM [0, 0, 0], spin down *"]
+           and "ISPIN 2" in out and "metallic: partially occupied bands" in out
+           and "GM (down)" in out, out)
+    up = _ei_rows(out, "X [1/2, 0, 0], spin up")
+    down = _ei_rows(out, "X [1/2, 0, 0], spin down")
+    report("the two channels differ (exchange splitting of the X4+ conduction level)",
+           up and down and up[12]["irrep"] == down[12]["irrep"] == "X4+"
+           and abs(up[12]["energy"] - down[12]["energy"]) > 0.3, out)
+    code, out = run_cli(["--extract-irrep", spin, "--spin", "down", "--kpoint", "M"])
+    report("--spin down: the spin-down tables only",
+           code == 0 and [b for b in _ei_blocks(out) if b.startswith("* Band irreps")]
+           == ["* Band irreps at M [1/2, 1/2, 0], spin down *"], out)
+    code, out = run_cli(["--extract-irrep", sto, "--spin", "up"])
+    _ei_error("--spin up on an ISPIN = 1 run", code, out, "not spin-polarized")
+
+    # ------------------------------------------------------------ spin-orbit
+    code, out = run_cli(["--extract-irrep", soc, "--kpoint", "GM", "R"])
+    gm = _ei_rows(out, "GM [0, 0, 0]")
+    report("spin-orbit run detected from the WAVECAR: double-valued -K<n><p> names, Ti 3d "
+           "t2g -> -GM8+ + -GM7+, VBM -R8+ at R",
+           code == 0 and "spin-orbit yes (double-valued irreps)" in out
+           and [r["irrep"] for r in gm][11:13] == ["-GM8+", "-GM7+"]
+           and re.search(r"^R\s+k#4\s+0\.0000\s+-R8\+", out, re.M) is not None
+           and "(" not in "".join(r["irrep"] for r in gm), out)
+
+    # ------------------------------------------------------------ time reversal
+    # zincblende InP with spin-orbit coupling: -L4/-L5 at L are complex-conjugate
+    # 1-d irreps held together by time reversal; VASP returns the two bands as
+    # pure states, and the engine names them one by one -- the level stays one
+    code, out = run_cli(["--extract-irrep", inp, "--kpoint", "L"])
+    rows = _ei_rows(out, "L [1/2, 0, 0]")
+    pairs = [r for r in rows if r["irrep"] == "-L4/-L5"]
+    report("time-reversal pair: InP (F-43m, spin-orbit) -L4/-L5 at L is ONE two-fold level "
+           "with its note (bands 7-8 and 13-14), never two 1-fold levels",
+           code == 0 and len(rows) == 8 and sum(r["deg"] for r in rows) == 16
+           and [(r["bands"], r["deg"], r["note"]) for r in pairs]
+           == [("7-8", 2, "time-reversal pair (-L4 + -L5)"),
+               ("13-14", 2, "time-reversal pair (-L4 + -L5)")]
+           and all(r["deg"] == 2 for r in rows), out)
+    report("time-reversal pair: the band-edge row names the level (-L4/-L5), not one band",
+           re.search(r"^L\s+k#2\s+-1\.0127\s+-L4/-L5\s+1\.1031\s+-L6\s", out, re.M)
+           is not None, out)
+    same = True
+    for tol in ("0.0001", "0.01", "0.1"):
+        code, more = run_cli(["--extract-irrep", inp, "--kpoint", "L", "--degeneracy-tol", tol])
+        same = same and code == 0 and _ei_rows(more, "L [1/2, 0, 0]") == rows
+    report("time-reversal pair: the same levels at --degeneracy-tol 0.0001, 0.01 and 0.1",
+           same, more)
+    code, out = run_cli(["--extract-irrep", inp, "--kpoint", "GM", "--degeneracy-tol", "0.2"])
+    rows = _ei_rows(out, "GM [0, 0, 0]")
+    report("accidental degeneracy: --degeneracy-tol 0.2 joins -GM7 and -GM8 (118.5 meV apart) "
+           "into one six-fold level and names the irrep of each band block",
+           code == 0 and rows and rows[1]["bands"] == "3-8" and rows[1]["deg"] == 6
+           and rows[1]["irrep"] == "-GM7/-GM8"
+           and rows[1]["note"] == "accidental degeneracy (-GM7 + -GM8); by band: 3-4 -GM7, "
+                                  "5-8 -GM8 (118.5 meV apart)", out)
+    from crystod.wavecar_irreps import little_group_data
+    zincblende = (5.8686 * np.array([[0.5, 0, 0.5], [0.5, 0.5, 0], [0, 0.5, 0.5]]),
+                  [[0, 0, 0], [0.25, 0.25, 0.25]], [1, 2])
+    perovskite = (3.90798883012252 * np.eye(3),
+                  [[0.5, 0.5, 0.5], [0, 0, 0], [0, 0, 0.5], [0.5, 0, 0], [0, 0.5, 0]],
+                  [1, 2, 3, 3, 3])
+    cases = []
+    for cell, k, spinor_case in ((zincblende, (0.5, 0, 0), True),
+                                 (zincblende, (0.25, 0.25, 0), False),
+                                 (zincblende, (0.25, 0, 0), True),
+                                 (perovskite, (0.1, 0.2, 0.3), True),
+                                 (perovskite, (0.5, 0.5, 0.5), False)):
+        group = little_group_data(*cell, k, spinor=spinor_case)
+        cases.append(ei._time_reversal(group, *cell, 1e-5))
+    report("Wigner's test of time reversal: zincblende -L4<->-L5 (case c) and -L6 alone with "
+           "spin-orbit, DT3<->DT4 along Gamma-X without (the textbook sticking), no "
+           "antiunitary operation on LE; a centrosymmetric spin-orbit general point is doubled "
+           "(case b, Kramers); perovskite R irreps stay alone",
+           cases[0] == {"-L6": ("a", "-L6"), "-L4": ("c", "-L5"), "-L5": ("c", "-L4")}
+           and cases[1] == {"DT1": ("a", "DT1"), "DT2": ("a", "DT2"), "DT3": ("c", "DT4"),
+                            "DT4": ("c", "DT3")}
+           and cases[2] == {} and cases[3] == {"-GP2": ("b", "-GP2")}
+           and cases[4] is not None and all(v[0] == "a" for v in cases[4].values()),
+           str(cases))
+    levels = [{"bands": [band], "energy": energy, "spread": 0.0, "dim": 1,
+               "irreps": [(name, 1)], "label": name, "integral": True,
+               "multiplicities": {name: 1.0}, "leakage": 0.0, "lost": 0.0}
+              for band, energy, name in ((0, 1.0, "A"), (1, 1.0004, "B"), (2, 1.5, "A"))]
+
+    class _Group:
+        names = ["A", "B"]
+
+    merged = ei._regroup(levels, [1.0, 1.0004, 1.5], 1e-3, _Group())
+    report("regrouping: blocks of one degeneracy seed become one A/B level (parts kept), a "
+           "block of another seed stays apart",
+           [(lv["bands"], lv["label"], lv["dim"]) for lv in merged]
+           == [([0, 1], "A/B", 2), ([2], "A", 1)]
+           and merged[0]["parts"] == [([0], "A"), ([1], "B")] and merged[1]["parts"] == []
+           and ei._note(merged[0], 3, 1e-3, {"A": ("a", "A"), "B": ("a", "B")})
+           == "accidental degeneracy (A + B); by band: 1 A, 2 B (0.4 meV apart)"
+           and ei._note(merged[0], 3, 1e-3, {"A": ("c", "B"), "B": ("c", "A")})
+           == "time-reversal pair (A + B)"
+           and ei._note(merged[1], 3, 1e-3, {"A": ("c", "B"), "B": ("c", "A")})
+           == "incomplete: the band list ends inside a time-reversal pair (A needs B)",
+           str(merged))
+
+    # ------------------------------------------------------------ sublattice runs
+    # a Va point-charge species (the sublattice runs of --vasp-setup) is a species
+    # of its own: the run is labelled (phonopy needs element symbols: stand-ins)
+    crystal = ei.extract_band_irreps(sto)
+    reference = [(k.label, [(lv.bands, lv.irrep) for lv in k.levels]) for k in crystal.kpoints]
+    poscar_lines = open(os.path.join(sto, "POSCAR")).read().splitlines()
+    coordinates = [" ".join(line.split()[:3]) for line in poscar_lines[8:13]]
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, species, formula in (("sub1", "Sr Ti Va2-", "SrTi(Va2-)3"),
+                                       ("sub2", "Va2+ Va4+ O", "(Va2+)(Va4+)O3")):
+            run = os.path.join(tmp, name)
+            os.mkdir(run)
+            shutil.copy(os.path.join(sto, "WAVECAR"), run)
+            with open(os.path.join(run, "POSCAR"), "w") as handle:
+                handle.write("\n".join(poscar_lines[:5] + [species, "1 1 3", "Direct"]
+                                        + coordinates) + "\n")
+            code, out = run_cli(["--extract-irrep", run])
+            mine = ei.extract_band_irreps(run)
+            report(f"sublattice POSCAR ({species}): labelled without a traceback, Va in the "
+                   "formula, the same space group, special points and labels as the crystal "
+                   "(the partition into species is the same)",
+                   code == 0 and "Traceback" not in out and f"({formula}, 5 sites" in out
+                   and "\n* Space group *\n Pm-3m (221)\n" in out
+                   and [(k.label, [(lv.bands, lv.irrep) for lv in k.levels])
+                        for k in mine.kpoints] == reference, out)
+
+    # ------------------------------------------------------------ module, API
+    code, out = run_module("crystod.extract_irrep", [sto, "--kpoint", "X"])
+    report("python -m crystod.extract_irrep works on its own",
+           code == 0 and "* Band irreps at X [1/2, 0, 0] *" in out, out)
+    probe = (
+        "import crystod.salc as s\n"
+        f"r = s.extract_band_irreps({sto!r}, kpoints=['M', [0, 0, 0]], window=(-1, 2))\n"
+        "print('TYPE', type(r).__name__, [k.label for k in r.kpoints],\n"
+        "      [lv.irrep for lv in r.kpoints[1].levels], round(r.gap, 4))\n"
+        "print('ALL', 'extract_band_irreps' in s.__all__, 'BandIrreps' in s.__all__)\n"
+        "for bad in (dict(path='/nonexistent'), dict(path=" + repr(sto) + ", zero='fermi'),\n"
+        "            dict(path=" + repr(sto) + ", kpoints=['Q'])):\n"
+        "    try:\n"
+        "        s.extract_band_irreps(**bad)\n"
+        "        print('NOT RAISED', bad)\n"
+        "    except ValueError as exc:\n"
+        "        print('VALUEERROR', str(exc)[:40])\n"
+    )
+    code, out = run_python(probe)
+    report("crystod.salc.extract_band_irreps: BandIrreps, labels and coordinates, window; "
+           "bad input raises ValueError",
+           code == 0 and "TYPE BandIrreps ['M', 'GM'] ['GM5-', 'GM4-', 'GM5+'] 1.8051" in out
+           and "ALL True True" in out and out.count("VALUEERROR") == 3
+           and "NOT RAISED" not in out, out)
+
+    # ------------------------------------------------------------ errors
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_cli(["--extract-irrep", os.path.join(tmp, "nowhere")])
+        _ei_error("no WAVECAR at PATH", code, out, "no WAVECAR at")
+        code, out = run_cli(["--extract-irrep", tmp])
+        _ei_error("a directory without WAVECAR", code, out, "no WAVECAR in")
+        bare = os.path.join(tmp, "bare")
+        os.mkdir(bare)
+        shutil.copy(os.path.join(sto, "WAVECAR"), bare)
+        code, out = run_cli(["--extract-irrep", bare])
+        _ei_error("no POSCAR", code, out, "no POSCAR in")
+        code, out = run_cli(["--extract-irrep", os.path.join(bare, "WAVECAR"), "-c",
+                             os.path.join(sto, "POSCAR")])
+        report("-c names the structure of a run without POSCAR (PATH = the WAVECAR file)",
+               code == 0 and "* Band irreps at GM [0, 0, 0] *" in out, out)
+        code, out = run_cli(["--extract-irrep", sto, "-c", POSCAR_SrTiO3])
+        _ei_error("-c with another lattice", code, out, "is not the cell of")
+        shifted = os.path.join(tmp, "POSCAR_shifted")
+        lines = open(os.path.join(sto, "POSCAR")).read().splitlines()
+        with open(shifted, "w") as handle:
+            for i, line in enumerate(lines):
+                if 8 <= i < 13:
+                    x = [(float(v) + 0.5) % 1.0 for v in line.split()[:3]]
+                    line = " ".join(f"{v:.10f}" for v in x)
+                handle.write(line + "\n")
+        code, out = run_cli(["--extract-irrep", sto, "-c", shifted])
+        _ei_error("-c in another origin than the run's POSCAR", code, out,
+                  "not the same cell and origin")
+        code, out = run_cli(["--extract-irrep", spin, "--kpoint", "1/4", "0", "0"])
+        _ei_error("a requested k point not in the file (the available ones are listed)", code,
+                  out, "special points in the file: GM (k#1), R (k#4), X (k#2), M (k#3)")
+        code, out = run_cli(["--extract-irrep", sto, "--kpoint", "Q"])
+        _ei_error("a label that is not a special point", code, out,
+                  "its special points: GM, R, X, M")
+        # a WAVECAR whose k list holds no special point (a general point)
+        general = os.path.join(tmp, "general")
+        os.mkdir(general)
+        shutil.copy(os.path.join(sto, "POSCAR"), general)
+        lattice = np.array([[3.90798883012252, 0, 0], [0, 3.90798883012252, 0],
+                            [0, 0, 3.90798883012252]])
+        _write_synthetic_wavecar(os.path.join(general, "WAVECAR"), lattice, 60.0,
+                                 [(0.1, 0.2, 0.3)], 4)
+        code, out = run_cli(["--extract-irrep", general])
+        _ei_error("no special point of the space group in the k list", code, out,
+                  "label every k point with --all-kpoints, or pick points with --kpoint")
+        code, out = run_cli(["--extract-irrep", general, "--all-kpoints"])
+        report("--all-kpoints at a general point: trivial little group P1, GP labels",
+               code == 0 and "* Band irreps at GP [1/10, 1/5, 3/10] *" in out
+               and "P1 (1)" in out and "GP1" in out, out)
+        gam = os.path.join(tmp, "gamma")
+        os.mkdir(gam)
+        shutil.copy(os.path.join(sto, "POSCAR"), gam)
+        _write_synthetic_wavecar(os.path.join(gam, "WAVECAR"), lattice, 60.0, [(0, 0, 0)], 4,
+                                 gamma_only=True)
+        code, out = run_cli(["--extract-irrep", gam])
+        _ei_error("gamma-only WAVECAR", code, out, "gamma-only WAVECAR")
+        tag = os.path.join(tmp, "tag")
+        os.mkdir(tag)
+        shutil.copy(os.path.join(sto, "POSCAR"), tag)
+        data = bytearray(open(os.path.join(sto, "WAVECAR"), "rb").read())
+        data[16:24] = np.array([12345.0]).tobytes()
+        open(os.path.join(tag, "WAVECAR"), "wb").write(bytes(data))
+        code, out = run_cli(["--extract-irrep", tag])
+        _ei_error("unknown precision tag", code, out, "unknown WAVECAR precision tag 12345")
+        data[16:24] = np.array([45200.0]).tobytes()
+        open(os.path.join(tag, "WAVECAR"), "wb").write(bytes(data[: len(data) // 2]))
+        code, out = run_cli(["--extract-irrep", tag])
+        _ei_error("truncated WAVECAR", code, out, "is truncated")
+        open(os.path.join(tag, "WAVECAR"), "wb").close()
+        code, out = run_cli(["--extract-irrep", tag])
+        _ei_error("empty WAVECAR", code, out, "is empty or not a WAVECAR")
+
+    # ------------------------------------------------------------ option rules
+    code, out = run_cli(["--extract-irrep", sto, "--diagram", "--co-left", "SrTi",
+                         "--co-right", "O3"])
+    report("--extract-irrep refuses the --diagram mode",
+           code != 0 and "--diagram is not used with --extract-irrep" in out, out)
+    code, out = run_cli(["--extract-irrep", sto, "--vasp-zero", "raw"])
+    report("--vasp-zero points to --zero", code != 0 and "(its energy zero is --zero)" in out,
+           out)
+    code, out = run_cli(["-c", POSCAR_SrTiO3, "--element", "Ti", "--orbital", "d", "--zero",
+                         "vbm"])
+    report("--zero without --extract-irrep is refused",
+           code != 0 and "--zero is only used with --extract-irrep." in out, out)
+    code, out = run_cli(["--extract-irrep", sto, "--kpoint", "GM", "--all-kpoints"])
+    report("--kpoint and --all-kpoints exclude each other",
+           code != 0 and "--kpoint and --all-kpoints exclude each other" in out, out)
+
+    # ------------------------------------------------------------ live (opt-in)
+    data = os.environ.get("CRYSTOD_VASP_TESTDATA")
+    band = os.path.join(data or "", "SrTiO3_Pm-3m", "BAND")
+    if not data or not os.path.isfile(os.path.join(band, "WAVECAR")):
+        print("  [SKIP] live checks on SrTiO3_Pm-3m/BAND (set CRYSTOD_VASP_TESTDATA to the "
+              "directory holding SrTiO3_Pm-3m/BAND, SrTiO3_Pm-3m_LAK and "
+              "CsPbI3_Pm-3m_LAK_SOC).")
+        return
+    _test_49_live(data)
+
+
+def _test_49_live(data: str) -> None:
+    """The consistency checks of --extract-irrep on the SrTiO3 runs (288 k points)."""
+    import time
+    from collections import Counter
+
+    from crystod import extract_irrep as ei
+    from crystod.vasp_io import read_procar
+    from crystod.vasp_wavecar import read_run_structure
+    from crystod.wavecar_irreps import little_group_data
+
+    band = os.path.join(data, "SrTiO3_Pm-3m", "BAND")
+    start = time.time()
+    code, out = run_cli(["--extract-irrep", band])
+    seconds = time.time() - start
+    report(f"live: SrTiO3_Pm-3m/BAND (135 MB, 288 k points) labelled in {seconds:.1f} s (< 60 s)",
+           code == 0 and seconds < 60, out)
+    report("live: GM R X M at their first occurrence, the band-path copies listed",
+           re.search(r"GM\s+\[[^]]*\]\s+k#36\s+Pm-3m \(221\)\s+also k#149", out) is not None
+           and re.search(r"R\s+\[[^]]*\]\s+k#207\s+Pm-3m \(221\)\s+also k#255", out) is not None
+           and re.search(r"X\s+\[[^]]*\]\s+k#69\s+P4/mmm \(123\)\s+also k#254", out) is not None
+           and re.search(r"M\s+\[[^]]*\]\s+k#102\s+P4/mmm \(123\)\s+also k#288", out)
+           is not None
+           and "VBM          2.6042 eV (highest occupied eigenvalue over all 288 k points: "
+               "k#207 R, band 14)" in out, out)
+
+    result = ei.extract_band_irreps(band)
+    structure = read_run_structure(os.path.join(band, "POSCAR"))
+    cell = (np.asarray(structure.lattice), np.asarray(structure.positions),
+            ei._species_numbers(structure.symbols))
+    problems = []
+    for kp in result.kpoints:
+        group = little_group_data(*cell, kp.kpoint)
+        dims = dict(zip(group.names, group.dims))
+        if sum(lv.degeneracy for lv in kp.levels) != result.nbands:
+            problems.append(f"{kp.label}: degeneracies do not add up to NBANDS")
+        for lv in kp.levels:
+            if lv.irrep and lv.degeneracy != sum(dims[n] * c for n, c in lv.irreps):
+                problems.append(f"{kp.label} level {lv.level}: deg != dim")
+            if lv.irrep and "/" in lv.irrep and not any(
+                    text in lv.note for text in ("accidental degeneracy", "time-reversal pair",
+                                                 "doubled by time reversal")):
+                problems.append(f"{kp.label} level {lv.level}: unreported degeneracy")
+            if lv.parts and "/" not in lv.irrep:
+                problems.append(f"{kp.label} level {lv.level}: parts without A/B")
+            if not lv.irrep and result.nbands not in lv.bands:
+                problems.append(f"{kp.label} level {lv.level}: unassigned below the top")
+    report("live (1): at GM R X M the degeneracies add up to NBANDS 32, every complete "
+           "level's degeneracy is its irrep dimension, only the multiplets cut by the top of "
+           "the band list are unassigned (and reported)", not problems, "\n".join(problems))
+
+    def salc(element, orbital):
+        code, text = run_cli(["-c", os.path.join(band, "POSCAR"), "--element", element,
+                              "--orbital", orbital])
+        table = {}
+        for block in text.split("k point (primitive):")[1:]:
+            counter = Counter()
+            irreps = re.search(r"irreps\s*:\s*(.*)", block).group(1)
+            for count, label in re.findall(r"([\d.]+) \[([^\]()]+)\(\d+\)\]", irreps):
+                counter[label] += int(round(float(count)))
+            table[block.split()[0]] = counter
+        return table
+
+    salc_o, salc_ti = salc("O", "p"), salc("Ti", "d")
+    procar = read_procar(os.path.join(band, "PROCAR"), kpoints=[kp.kpoint for kp in
+                                                                 result.kpoints])
+    p_cols = [i for i, n in enumerate(procar.lm) if n in ("py", "pz", "px")]
+    d_cols = [i for i, n in enumerate(procar.lm) if n in ("dxy", "dyz", "dz2", "dxz", "x2-y2")]
+    o_ions = [i for i, s in enumerate(structure.symbols) if s == "O"]
+    ti_ions = [i for i, s in enumerate(structure.symbols) if s == "Ti"]
+    compared = []
+    for kp in result.kpoints:
+        weight = np.abs(procar.phases[kp.index - 1]) ** 2
+        occupied = procar.occupations[kp.index - 1] > 0.5
+        o_p = weight[:, o_ions][:, :, p_cols].sum(axis=(1, 2))
+        ti_d = weight[:, ti_ions][:, :, d_cols].sum(axis=(1, 2))
+        by_band = {b: lv for lv in kp.levels for b in lv.bands}
+        for name, weights, mask, count, reference in (
+                ("O 2p", o_p, occupied, 9, salc_o), ("Ti 3d", ti_d, ~occupied, 5, salc_ti)):
+            bands = sorted(int(b) + 1 for b in np.argsort(-np.where(mask, weights, -1))[:count])
+            levels = {by_band[b].level: by_band[b] for b in bands}
+            got = Counter()
+            for lv in levels.values():
+                for n, c in lv.irreps:
+                    got[n] += c
+            whole = all(set(lv.bands) <= set(bands) for lv in levels.values())
+            compared.append((kp.label, name, bands, whole and got == reference[kp.label]))
+    report("live (2): the nine O 2p and the five Ti 3d bands (PROCAR character) carry exactly "
+           "the SALC decompositions of crystod --element O --orbital p / --element Ti "
+           "--orbital d at GM R X M (Ti 3d eg at R = bands 23-24, above R4-)",
+           len(compared) == 8 and all(ok for *_, ok in compared)
+           and ("R", "Ti 3d", [17, 18, 19, 23, 24], True) in compared, str(compared))
+
+    anchor = os.path.join(data, "SrTiO3_Pm-3m", "CrystOD_BAND_vasp_levels.txt")
+    if os.path.isfile(anchor):
+        rows = []
+        for line in open(anchor):
+            parts = line.split()
+            if len(parts) >= 9 and parts[1] == "mo" and re.match(r"mo\d+$", parts[2]):
+                rows.append((parts[0], parts[3], int(parts[4]), float(parts[6])))
+        bad = []
+        for k, label, deg, energy in rows:
+            match = [lv for lv in result.kpoint(k).levels if abs(lv.energy_raw - energy) < 2e-3]
+            if not match or match[0].irrep != label or match[0].degeneracy != deg:
+                bad.append((k, label, deg, energy))
+        report(f"live (3a): the {len(rows)} crystal-column levels of the anchor engine "
+               "(CrystOD_BAND_vasp_levels.txt) carry the same irreps and degeneracies",
+               len(rows) == 62 and not bad, str(bad))
+    else:
+        print(f"  [SKIP] live (3a): no {anchor}")
+
+    lak = os.path.join(data, "SrTiO3_Pm-3m_LAK")
+    if os.path.isdir(lak):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out = run_cli(["--diagram", "--co-left", "SrTi", "--co-right", "O3", "--vasp",
+                                 lak, "--vasp-engine", "overlap"], cwd=tmp)
+            path = os.path.join(tmp, "CrystOD_SrTiO3_Pm-3m_vasp_overlap.json")
+            overlap = json.load(open(path)) if os.path.isfile(path) else {"kpoints": []}
+        mine = ei.extract_band_irreps(os.path.join(lak, "BAND"))
+        bad, total = [], 0
+        for kpd in overlap["kpoints"]:
+            levels = {tuple(lv.bands): lv for lv in mine.kpoint(kpd["name"]).levels}
+            for level in kpd["crystal"]["levels"]:
+                total += 1
+                lv = levels.get(tuple(level["bands"]))
+                if lv is None or (lv.irrep or None) != (level.get("irrep") or None):
+                    bad.append((kpd["name"], level["bands"], level.get("irrep")))
+        report(f"live (3b): the {total} crystal levels of --vasp-engine overlap on "
+               "SrTiO3_Pm-3m_LAK have the same bands and irreps as --extract-irrep on its "
+               "BAND run", code == 0 and total == 154 and not bad, out[-2000:] + str(bad))
+        # the sublattice (Va point-charge) runs: the overlap engine names them in the
+        # crystal's frame (symmetry_cell); --extract-irrep reads their own POSCARs
+        runs, bad, total = {}, [], 0
+        for kpd in overlap["kpoints"]:
+            for fragment in kpd.get("fragments", []):
+                path = fragment["run"]
+                if path not in runs:
+                    runs[path] = ei.extract_band_irreps(path)
+                levels = {tuple(lv.bands): lv for lv in runs[path].kpoint(kpd["name"]).levels}
+                for level in fragment["levels"]:
+                    total += 1
+                    lv = levels.get(tuple(level["bands"]))
+                    if lv is None or (lv.irrep or None) != (level.get("irrep") or None):
+                        bad.append((kpd["name"], os.path.basename(path), level["bands"],
+                                    level.get("irrep")))
+        report(f"live (3c): the {total} sublattice-run levels of --vasp-engine overlap "
+               "(BAND_sublattice1/2, Va point charges) have the same bands and irreps as "
+               "--extract-irrep on those runs", total == 308 and not bad, str(bad[:20]))
+    else:
+        print(f"  [SKIP] live (3b): no {lak}")
+
+    cspbi3 = os.path.join(data, "CsPbI3_Pm-3m_LAK_SOC", "BAND")
+    if os.path.isfile(os.path.join(cspbi3, "WAVECAR")):
+        code, out = run_cli(["--extract-irrep", cspbi3, "--kpoint", "R", "--window", "-1",
+                             "1"])
+        report("live: CsPbI3 spin-orbit run (3.2 GB): VBM -R6+, CBM -R6- (the Koster names "
+               "of the perovskite literature), direct gap at R",
+               code == 0 and re.search(r"^R\s+k#\d+\s+0\.0000\s+-R6\+\s+[\d.]+\s+-R6-", out,
+                                       re.M) is not None and "(direct)" in out, out)
+    else:
+        print("  [SKIP] live: no CsPbI3_Pm-3m_LAK_SOC/BAND")
+
+
 SECTIONS = {
     1: test_01_wigner_d,
     2: test_02_salc,
@@ -14429,15 +18759,19 @@ SECTIONS = {
     34: test_34_vibration,
     35: test_35_phonon_command,
     36: test_36_spin_basis,
-    37: test_37_mag_command,
-    38: test_38_xdatcar2adp,
-    39: test_39_md_command,
-    40: test_40_mol,
-    41: test_41_molod,
-    42: test_42_mol_command,
-    43: test_43_python_api,
-    44: test_44_xrd,
-    45: test_45_search,
+    37: test_37_magnetic_group,
+    38: test_38_mag_command,
+    39: test_39_xdatcar2adp,
+    40: test_40_md_projection,
+    41: test_41_md_command,
+    42: test_42_mol,
+    43: test_43_molod,
+    44: test_44_mol_command,
+    45: test_45_python_api,
+    46: test_46_xrd,
+    47: test_47_xrd_superlattice,
+    48: test_48_search,
+    49: test_49_extract_irrep,
 }
 
 
@@ -14447,7 +18781,18 @@ def main() -> None:
             print(f"ERROR: {label} not found: {path}")
             sys.exit(2)
 
-    selected = sorted({int(arg) for arg in sys.argv[1:]}) if len(sys.argv) > 1 else sorted(SECTIONS)
+    args = sys.argv[1:]
+    if any(arg in ("-h", "--help") for arg in args):
+        print(__doc__)
+        print("Sections:")
+        for number, func in SECTIONS.items():
+            print(f"  {number:2d}  {func.__name__}")
+        sys.exit(0)
+    bad = [arg for arg in args if not arg.isdigit()]
+    if bad:
+        print(f"ERROR: section numbers must be integers: {bad} (valid: 1-{max(SECTIONS)}; --help lists them)")
+        sys.exit(2)
+    selected = sorted({int(arg) for arg in args}) if args else sorted(SECTIONS)
     unknown = [number for number in selected if number not in SECTIONS]
     if unknown:
         print(f"ERROR: unknown section number(s): {unknown} (valid: 1-{max(SECTIONS)})")
