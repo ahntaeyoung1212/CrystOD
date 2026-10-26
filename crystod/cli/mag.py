@@ -21,13 +21,18 @@ irreps at a q-point, ferromagnetic (dipole) and antiferromagnetic (net moment
 = 0) combinations are separated, and each basis vector is exported as a VESTA
 file with spin arrows. Per-atom spin directions and a ready-to-paste
 noncollinear magnetization input (VASP MAGMOM or Quantum ESPRESSO
-starting_magnetization/angle1/angle2) are printed for every basis vector.
+starting_magnetization/angle1/angle2) are printed for every basis vector,
+with its magnetic space group (BNS), magnetic point group, the responses
+allowed by symmetry (net magnetization, linear magnetoelectric effect,
+piezomagnetism) and its collinear class (ferromagnet, conventional
+antiferromagnet, altermagnet with its d/g/i-wave type).
 
 # Command Examples:
 crystod-mag -c 221_PPOSCAR_AlNi3 --element Ni --qpoint 0 0 0
 crystod-mag -c 221_PPOSCAR_AlNi3 --element Ni --qpoint 0 0 0 --format qe
 crystod-mag -c 221_PPOSCAR_AlNi3 --element Ni --qpoint R
 crystod-mag -c 221_PPOSCAR_AlNi3 --element Ni    # survey: all special k points
+crystod-mag -c 136_PPOSCAR_TiO2 --element Ti --qpoint GM --classify-only
 """
 
 
@@ -88,7 +93,15 @@ def build_parser() -> ArgumentParser:
         "--tolerance",
         type=float,
         default=None,
-        help="Symmetry tolerance (default: 1e-5).",
+        help="Symmetry tolerance, a distance in Angstrom, used by spglib and\n"
+        "for matching the sites (default: 1e-5).",
+    )
+    parser.add_argument(
+        "--classify-only",
+        action="store_true",
+        help="Print the structure, the decomposition and the table of magnetic\n"
+        "space groups, magnetic point groups and collinear classes only\n"
+        "(no VESTA files, no spin listings). Needs --qpoint.",
     )
     return parser
 
@@ -118,6 +131,8 @@ def main(argv: list[str] | None = None) -> None:
         dispatch_argv.extend(["--amplitude", str(args.amplitude)])
     if args.tolerance is not None:
         dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+    if args.classify_only:
+        dispatch_argv.append("--classify-only")
 
     from ..spin_basis import main as spin_basis_main
 

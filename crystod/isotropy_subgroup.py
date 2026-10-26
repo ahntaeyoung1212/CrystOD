@@ -51,6 +51,11 @@ _SCALED_PARAMETER = re.compile(
     r"(\d+/\d+|\d+(?:\.\d*)?|\.\d+)\*?([A-Za-z_][A-Za-z0-9_]*)"
 )
 
+# one signed term of a multi-term component (a+b-c-d, 2a-1/2b, -a+3*b)
+_COMPONENT_TERM = re.compile(
+    r"([+-])(\d+/\d+|\d+(?:\.\d*)?|\.\d+)?\*?([A-Za-z_][A-Za-z0-9_]*)"
+)
+
 # space-group types that exist as enantiomorphic pairs: the stabilizers of
 # the mirror-image order parameters of one stratum are of partner types, so
 # either member may appear as the representative of the stratum
@@ -62,6 +67,43 @@ ENANTIOMORPHIC_PAIRS = {
 
 
 # --------------------------------------------------------------- representation
+
+
+def _irrep_or_pair_member(algebra: SpaceGroupIrrepAlgebra, label: str):
+    """The tabulated irrep record behind an ``--irrep`` label.
+
+    Besides the ISO-IR labels this accepts the pair labels that the tables
+    print for complex-type irreps (``H1H2``, ``P1PA1``, ``M1+M4+``): a pair
+    label is split into two tabulated names, and the member listed first in
+    the ISO-IR tables is returned -- the member ``kpoint_irrep_tables``
+    builds the pair from, so the order-parameter components read the same.
+
+    Args:
+        algebra: The ``SpaceGroupIrrepAlgebra`` of the space group.
+        label: The label as given.
+
+    Returns:
+        ``(irrep, pair)``: the irrep record, and ``None`` for a tabulated
+        label or the two member names of a pair label.  Whether the two
+        members are complex-conjugate partners is decided by the caller,
+        once the representation is built.
+
+    Raises:
+        SystemExit: The label is neither tabulated nor two tabulated names
+            joined (the message of ``find_irrep``).
+    """
+    try:
+        return algebra.find_irrep(label), None
+    except SystemExit as missing:
+        names = [
+            irrep.name for irreps in algebra.irreps_by_kname.values() for irrep in irreps
+        ]
+        for cut in range(1, len(label)):
+            first, second = label[:cut], label[cut:]
+            if first != second and first in names and second in names:
+                member = min(first, second, key=names.index)
+                return algebra.find_irrep(member), (first, second)
+        raise missing
 
 
 class InducedRepresentation:
@@ -85,11 +127,16 @@ class InducedRepresentation:
 
     Args:
         algebra: The ``SpaceGroupIrrepAlgebra`` of the space group.
-        irrep_label: ISO-IR irrep label, e.g. ``"R4+"``.
+        irrep_label: ISO-IR irrep label, e.g. ``"R4+"``, or the pair label
+            of a complex-type irrep as the tables print it (``"H1H2"``,
+            ``"P1PA1"``): an alias of the doubled real form, built from the
+            member listed first in the ISO-IR tables (the member the
+            ``--kpoint`` table builds the pair from).
 
     Attributes:
         algebra: The algebra the representation was built from.
-        irrep: The tabulated irrep record (``name``, ``dim``, ``kpname``).
+        irrep: The tabulated irrep record (``name``, ``dim``, ``kpname``);
+            for a pair label, the record of the member it was built from.
         k: k vector of the irrep (primitive basis, units of ``1/DEN``).
         arms: Star arms, shape ``(n_arms, 3)``; ``representatives`` holds
             the coset-representative index generating each arm.
@@ -109,8 +156,9 @@ class InducedRepresentation:
             matrices are distinct.
 
     Raises:
-        SystemExit: Unknown irrep label, or a tabulated entry that cannot be
-            matched to any spgrep small irrep.
+        SystemExit: Unknown irrep label, a pair label whose two members are
+            not complex-conjugate partners, or a tabulated entry that cannot
+            be matched to any spgrep small irrep.
 
     Example:
         >>> from crystod import group
@@ -122,7 +170,7 @@ class InducedRepresentation:
 
     def __init__(self, algebra: SpaceGroupIrrepAlgebra, irrep_label: str):
         self.algebra = algebra
-        self.irrep = algebra.find_irrep(irrep_label)
+        self.irrep, pair = _irrep_or_pair_member(algebra, irrep_label)
         kpname = self.irrep.kpname
         if kpname not in algebra.k_by_kname:
             raise SystemExit(f"ERROR: unknown k point for irrep {irrep_label}.")
@@ -144,6 +192,16 @@ class InducedRepresentation:
             for t in self._translation_grid()
         ]
         self._realify()
+        # a pair label names a complex-conjugate pair, in either order; the
+        # pair is recognized by the representation, as in --kpoint
+        if pair is not None and self.label != "".join(sorted(pair)):
+            sg = algebra.sg_type
+            raise SystemExit(
+                f'ERROR: irrep "{irrep_label}" is not tabulated for space group '
+                f"{sg.international_short} (No. {sg.number}): {pair[0]} and "
+                f"{pair[1]} are not a complex-conjugate pair (the order "
+                f"parameter of {self.irrep.name} is {self.label})."
+            )
 
     # -- small irrep matrices matched to the ISO-IR label
     def _small_matrices(self):
@@ -1489,11 +1547,19 @@ class IsotropyAnalyzer:
         rows = _rref_orthogonal([basis[:, j] for j in range(n_free)])
         pretty_rows = []
         for row in rows:
-            coefficients, _ = _pretty_coefficients(np.asarray(row))
+            row = np.asarray(row, dtype=float)
+            coefficients, _ = _pretty_coefficients(row)
             coefficients = np.asarray(coefficients, dtype=float)
-            if np.max(np.abs(coefficients)) > 6.5:
-                # spurious large-integer rationalization of an arbitrary
-                # basis angle -- show normalized decimals instead
+            # the integers must be the row itself: the SALC tolerance (2e-3,
+            # for XYZ geometries) also takes irrational ratios such as the
+            # 1 : 0.7504 of 214 P1 for 4 : 3, and that pattern, passed back to
+            # --order-parameter, is a different direction
+            scale = (coefficients @ row) / (coefficients @ coefficients)
+            if (np.max(np.abs(coefficients)) > 6.5
+                    or not np.allclose(scale * coefficients, row, rtol=0, atol=1e-6)):
+                # spurious rationalization (large integers, or integers that
+                # are not the row) of an arbitrary basis angle -- show
+                # normalized decimals instead
                 coefficients = np.asarray(row, dtype=float)
                 coefficients = coefficients / np.max(np.abs(coefficients))
                 coefficients[np.abs(coefficients) < 1e-8] = 0.0
@@ -1548,7 +1614,9 @@ class IsotropyAnalyzer:
             rows,
         )
 
-    def _generic_vector(self, rows: list[np.ndarray]) -> np.ndarray:
+    def _generic_vector(
+        self, rows: list[np.ndarray], offset: np.ndarray | None = None
+    ) -> np.ndarray:
         """A representative of the stratum spanned by ``rows`` that is
         generic as a whole and in every irrep part.
 
@@ -1558,12 +1626,19 @@ class IsotropyAnalyzer:
         every part of a coupled representation the stabilizer of its slice
         (under that part's block of the matrices) equals the pointwise
         stabilizer of the part's slice of the subspace.  The tolerances are
-        those of the stabilizer tests of the callers.
+        those of the stabilizer tests of the callers.  A nonzero ``offset``
+        (the literal numbers of an ``--order-parameter`` direction) is added
+        to every trial vector and counts as one more row to be fixed.
         """
         n = self.representation.dimension
         if not rows:
-            return np.zeros(n)
+            return np.zeros(n) if offset is None else np.asarray(offset, dtype=float)
         R = np.array(rows, dtype=float)
+        anchors = R
+        if offset is not None and np.any(offset):
+            anchors = np.vstack([R, offset])
+        else:
+            offset = np.zeros(n)
         stack = getattr(self, "_matrix_stack", None)
         if stack is None or stack.shape[0] != len(self.elements):
             stack = np.array([matrix for _, _, matrix in self.elements], dtype=float)
@@ -1584,9 +1659,9 @@ class IsotropyAnalyzer:
                 axis=tuple(range(1, 1 + target.ndim)),
             )
 
-        pointwise = [fixed(stack[:, a:b, a:b], R[:, a:b].T) for a, b in slices]
+        pointwise = [fixed(stack[:, a:b, a:b], anchors[:, a:b].T) for a, b in slices]
         for magnitudes in _generic_magnitude_sets(len(rows)):
-            generic = np.asarray(magnitudes) @ R
+            generic = np.asarray(magnitudes) @ R + offset
             if all(
                 np.array_equal(fixed(stack[:, a:b, a:b], generic[a:b]), target)
                 for (a, b), target in zip(slices, pointwise)
@@ -1609,19 +1684,23 @@ class IsotropyAnalyzer:
             tokens: One token per component, e.g. ``["0", "0", "a"]`` or
                 ``["a", "-a", "0"]``; letters are free parameters (equal
                 letters mean equal components), numbers and fractions are
-                taken literally, a leading ``-`` flips the sign, and an
-                exact rational factor scales a parameter (``2a``,
-                ``-0.5a``, ``1/2a``).
+                taken literally, a leading ``-`` flips the sign, an exact
+                rational factor scales a parameter (``2a``, ``-0.5a``,
+                ``1/2a``), and a component may be a sum of such terms
+                (``a+b-c-d``, ``2a-1/2b``), as the tables print them.
 
         Returns:
             A representative order-parameter vector of length
-            ``dimension``.
+            ``dimension``: a generic point of the direction (its stabilizer
+            fixes every parameter's coefficient vector, see
+            ``_generic_vector``).
 
         Raises:
             SystemExit: Wrong number of components, an all-zero order
-                parameter, or a parameter factor that is a rounded decimal
-                (``0.282a``: the tables print irrational factors to three
-                digits, and the rounded value is a different direction).
+                parameter, a parameter factor that is a rounded decimal
+                (``0.282a``, ``-0.4g+0.917h``: the tables print irrational
+                factors as rounded decimals, and the rounded value is a
+                different direction), or a component that cannot be read.
         """
         n = self.representation.dimension
         if len(tokens) != n:
@@ -1634,45 +1713,23 @@ class IsotropyAnalyzer:
                 f"ERROR: --order-parameter needs {n} components for "
                 f"{name} (dim {n})."
             )
-        values = np.zeros(n)
-        symbol_slots: list[tuple[int, float, str]] = []
+        constant = np.zeros(n)
+        coefficients: dict[str, np.ndarray] = {}
         for slot, token in enumerate(tokens):
-            token = token.strip()
-            component = token
-            sign = 1.0
-            if token.startswith("-"):
-                sign, token = -1.0, token[1:]
-            if token in ("0", "0.0", ""):
-                continue
-            try:
-                values[slot] = sign * float(Fraction(token))
-                continue
-            except ValueError:
-                pass
-            scaled = _SCALED_PARAMETER.fullmatch(token)
-            if scaled is not None:
-                factor = Fraction(scaled.group(1))
-                if factor.limit_denominator(24) != factor:
-                    raise SystemExit(
-                        f"ERROR: order-parameter component {component!r}: the "
-                        f"factor {scaled.group(1)} is not an exact fraction. "
-                        "The tables print irrational factors rounded to three "
-                        "digits, and the rounded direction has a different "
-                        "isotropy subgroup; read that entry from the listing "
-                        "without --order-parameter."
-                    )
-                sign *= float(factor)
-                token = scaled.group(2)
-            symbol_slots.append((slot, sign, token))
-        # one distinct magnitude per parameter, in order of appearance: the
-        # first eight are the historical values; the list used to wrap after
-        # eight, so a ninth parameter equalled the first (16 letters for L3 of
-        # F-43c gave C2 instead of P1)
-        symbols = list(dict.fromkeys(token for _, _, token in symbol_slots))
-        if symbols:
-            magnitudes = next(_generic_magnitude_sets(len(symbols)))
-            for slot, sign, token in symbol_slots:
-                values[slot] = sign * magnitudes[symbols.index(token)]
+            value, terms = _component_terms(token)
+            if value is not None:
+                constant[slot] = float(value)
+            for name, factor in terms.items():
+                coefficients.setdefault(name, np.zeros(n))[slot] += float(factor)
+        # one distinct magnitude per parameter, in order of appearance; the
+        # magnitudes are tested like those of the tables' representatives:
+        # the first set that is generic for the parameters' coefficient
+        # vectors (it used to be taken untested, and a sum such as a+b-c-d
+        # was read as one more independent parameter, which gave 230 P1
+        # (2a,2b,2c,2d;a+b-c-d,...) the P1 of the generic direction instead
+        # of its C2)
+        rows = [row for row in coefficients.values() if np.any(row)]
+        values = self._generic_vector(rows, constant)
         if not np.any(values):
             raise SystemExit("ERROR: the order parameter must not be zero.")
         return values
@@ -1783,6 +1840,86 @@ def _generic_magnitude_sets(count: int):
         yield [1.0 / (1.0 + j / x) for j in range(count)]
 
 
+def _exact_factor(component: str, text: str) -> Fraction:
+    """The factor of a parameter in an ``--order-parameter`` component,
+    refused when it is a rounded decimal (``0.282`` of ``0.282a``): the
+    tables print irrational factors rounded, and the rounded direction has
+    a different isotropy subgroup."""
+    factor = Fraction(text)
+    if factor.limit_denominator(24) != factor:
+        raise SystemExit(
+            f"ERROR: order-parameter component {component!r}: the "
+            f"factor {text} is not an exact fraction. "
+            "The tables print irrational factors as rounded decimals, "
+            "and the rounded direction has a different "
+            "isotropy subgroup; read that entry from the listing "
+            "without --order-parameter."
+        )
+    return factor
+
+
+def _component_terms(token: str) -> tuple[Fraction | None, dict[str, Fraction]]:
+    """Read one ``--order-parameter`` component.
+
+    A component is a number (``0``, ``1/2``, ``-0.5``: taken literally), a
+    parameter with an optional exact factor (``a``, ``-a``, ``2a``,
+    ``1/2a``, ``-0.5a``), or a sum of such terms joined by ``+`` and ``-``
+    (``a+b-c-d``, ``2a-1/2b``), as the direction tables print them.
+
+    Args:
+        token: The component as given.
+
+    Returns:
+        ``(value, terms)``: for a number, ``value`` is that number and
+        ``terms`` is empty; otherwise ``value`` is ``None`` and ``terms``
+        maps every parameter name, in order of appearance, to its exact
+        coefficient (repeated names are added up, ``a+a`` is ``2a``).
+
+    Raises:
+        SystemExit: A factor that is a rounded decimal (``0.282a``,
+            ``-0.4g+0.917h``), or a sum that is not made of parameter terms
+            (``a+1``, ``a++b``).
+    """
+    component = token.strip()
+    body = component
+    sign = Fraction(1)
+    if body.startswith("-"):
+        sign, body = Fraction(-1), body[1:]
+    if body in ("", "0", "0.0"):
+        return Fraction(0), {}
+    try:
+        return sign * Fraction(body), {}
+    except ValueError:
+        pass
+    if "+" not in body and "-" not in body:
+        scaled = _SCALED_PARAMETER.fullmatch(body)
+        if scaled is None:
+            return None, {body: sign}  # a bare parameter name of any spelling
+        return None, {scaled.group(2): sign * _exact_factor(component, scaled.group(1))}
+    # a sum: every term is [+-][exact factor]parameter; before, the whole
+    # sum was read as one new independent parameter (a too generic direction)
+    text = ("-" if sign < 0 else "+") + body
+    terms: dict[str, Fraction] = {}
+    position = 0
+    while position < len(text):
+        term = _COMPONENT_TERM.match(text, position)
+        if term is None:
+            raise SystemExit(
+                f"ERROR: order-parameter component {component!r} cannot be read: "
+                "a component is a number, or parameters with exact factors "
+                "joined by + and - (a, -2a, a+b-c-d, 2a-1/2b)."
+            )
+        factor = Fraction(1)
+        if term.group(2) is not None:
+            factor = _exact_factor(component, term.group(2))
+        name = term.group(3)
+        terms[name] = terms.get(name, Fraction(0)) + (
+            factor if term.group(1) == "+" else -factor
+        )
+        position = term.end()
+    return None, terms
+
+
 def _orth_basis(projector: np.ndarray) -> np.ndarray:
     values, vectors = np.linalg.eigh((projector + projector.T.conj()) / 2)
     return np.real_if_close(vectors[:, values > 0.5])
@@ -1875,11 +2012,21 @@ def _format_setting_value(value: float) -> str:
 
 
 def _format_coefficient(value: float) -> str:
+    """A factor of a direction pattern: three significant digits, more when
+    the three-digit text would read as an exact fraction that the value is
+    not (0.7504 is printed ``0.7504``, not ``0.75`` = 3/4), so that
+    ``--order-parameter`` refuses a rounded factor instead of taking it for
+    a different direction (``_exact_factor``)."""
     if abs(value - 1.0) < 1e-6:
         return ""
     if abs(value + 1.0) < 1e-6:
         return "-"
-    return f"{value:.3g}"
+    for digits in range(3, 10):
+        text = f"{value:.{digits}g}"
+        factor = Fraction(text)
+        if factor.limit_denominator(24) != factor or abs(float(factor) - value) < 1e-6:
+            return text
+    return text
 
 
 # ---------------------------------------------------------------------- report
@@ -2288,7 +2435,8 @@ def main(argv: list[str] | None = None) -> None:
     target.add_argument(
         "--irrep",
         nargs="+",
-        help="ISO-IR irrep label(s), e.g. GM4-; several labels (e.g. X3- X2+) "
+        help="ISO-IR irrep label(s), e.g. GM4-, or the pair label of a complex "
+        "irrep as --kpoint prints it (H1H2); several labels (e.g. X3- X2+) "
         "enumerate the isotropy subgroups of the coupled order parameters.",
     )
     target.add_argument(
@@ -2301,8 +2449,9 @@ def main(argv: list[str] | None = None) -> None:
         "--order-parameter",
         nargs="+",
         default=None,
-        help='components, e.g. "0 0 a" or "a -a 0" (symbols = free parameters; '
-        'also one string "a -a 0", "a;-a;0" or "a,-a,0").',
+        help='components, e.g. "0 0 a" or "a -a 0" (symbols = free parameters, '
+        '2a or 1/2a = a multiple, a+b-c = a sum; also one string "a -a 0", '
+        '"a;-a;0" or "a,-a,0").',
     )
     parser.add_argument(
         "--invariants",

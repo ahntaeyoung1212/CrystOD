@@ -1205,35 +1205,25 @@ def landau_lifshitz_note(label: str, record: LandauLifshitz) -> str:
 
 def _component_expressions(tokens: list[str]):
     """sympy expressions of ``--order-parameter`` tokens (``a``, ``-a``,
-    ``2a``, ``1/2a``, ``0``, ``1/2``) and the parameter symbols in order of
-    appearance."""
+    ``2a``, ``1/2a``, ``a+b-c-d``, ``0``, ``1/2``), read by the rules of
+    ``IsotropyAnalyzer.resolve_direction``, and the parameter symbols in
+    order of appearance."""
     import sympy
 
-    from .isotropy_subgroup import _SCALED_PARAMETER
+    from .isotropy_subgroup import _component_terms
 
     expressions, symbols = [], {}
     for token in tokens:
-        token = token.strip()
-        sign = 1
-        body = token
-        if body.startswith("-"):
-            sign, body = -1, body[1:]
-        if body in ("", "0", "0.0"):
-            expressions.append(sympy.Integer(0))
+        value, terms = _component_terms(token)
+        if value is not None:
+            expressions.append(sympy.Rational(value.numerator, value.denominator))
             continue
-        try:
-            expressions.append(sign * sympy.Rational(str(Fraction(body))))
-            continue
-        except ValueError:
-            pass
-        factor = sympy.Integer(1)
-        scaled = _SCALED_PARAMETER.fullmatch(body)
-        if scaled is not None:
-            factor = sympy.Rational(str(Fraction(scaled.group(1))))
-            body = scaled.group(2)
-        if body not in symbols:
-            symbols[body] = sympy.Symbol(body)
-        expressions.append(sign * factor * symbols[body])
+        expression = sympy.Integer(0)
+        for name, factor in terms.items():
+            if name not in symbols:
+                symbols[name] = sympy.Symbol(name)
+            expression += sympy.Rational(factor.numerator, factor.denominator) * symbols[name]
+        expressions.append(expression)
     return expressions, list(symbols.values())
 
 
@@ -1251,7 +1241,7 @@ def restricted_invariants(basis: InvariantBasis, tokens: list[str]) -> dict:
         basis: An ``InvariantBasis`` (one irrep or a direct sum).
         tokens: One ``--order-parameter`` token per component, in the order
             of ``basis.variables`` (letters are parameters; ``-a``, ``2a``,
-            ``1/2a`` and numbers are accepted).
+            ``1/2a``, sums such as ``a+b-c-d`` and numbers are accepted).
 
     Returns:
         A dict from every degree with a surviving invariant to the list of
@@ -1259,7 +1249,8 @@ def restricted_invariants(basis: InvariantBasis, tokens: list[str]) -> dict:
 
     Raises:
         SystemExit: The number of tokens differs from the number of
-            components.
+            components, a parameter factor is a rounded decimal
+            (``0.282a``), or a component cannot be read.
 
     Example:
         >>> from crystod import group

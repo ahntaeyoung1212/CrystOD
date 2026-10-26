@@ -63,8 +63,12 @@ def build_parser() -> ArgumentParser:
         "--irreps",
         action="store_true",
         help="Label the phonon modes with space-group irreps, with the IR/Raman/silent/\n"
-        "acoustic activity at Gamma (writes phonon_irreps.yaml); with --nac also the\n"
-        "mode effective charges and the static dielectric tensor.",
+        "acoustic activity at Gamma (writes phonon_irreps.yaml, or the -o path); with\n"
+        "--nac also the mode effective charges and the static dielectric tensor. The\n"
+        "file is YAML: irreps lists every q point (q_label, q_position) with its\n"
+        "band_sets, one per degenerate set (band_indices 1-based, irrep_label,\n"
+        "frequency in THz; at Gamma also mulliken and activity);\n"
+        "crystod.phonon.read_phonon_irreps reads it.",
     )
     mode.add_argument(
         "--fatband",
@@ -175,7 +179,7 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         default=None,
         help="q-point for --vector/--modulation/--vibration/--subgroup: three coordinates\n"
-        "or a high-symmetry label when supported. In --subgroup mode it is optional;\n"
+        "or a special-point label (GM, X, M, R, ...). In --subgroup mode it is optional;\n"
         "without it every q point commensurate with the supercell is scanned.",
     )
     parser.add_argument(
@@ -209,7 +213,9 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         type=float,
         default=None,
-        help="Amplitude(s) in Angstroms for --vector/--modulation/--vibration.",
+        help="Amplitude(s) in Angstroms for --vector/--modulation/--vibration: one value, or\n"
+        "in --modulation one per --mode; --vibration writes one mode-space component\n"
+        "and takes one value.",
     )
     parser.add_argument(
         "--yaml",
@@ -360,6 +366,8 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.append("--nac")
         if args.raman_tensor:
             dispatch_argv.append("--raman-tensor")
+        if args.output:
+            dispatch_argv.extend(["--output", args.output])
 
         from ..phonon_irreps import main as phonon_irreps_main
 

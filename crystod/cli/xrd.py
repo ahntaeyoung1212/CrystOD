@@ -1,10 +1,15 @@
-"""crystod-xrd: powder X-ray diffraction patterns.
+"""crystod-xrd: powder X-ray and neutron diffraction patterns.
 
 The structure of a POSCAR is turned into its Bragg peak list (``h k l``,
 multiplicity, ``d``, ``2theta``, intensity) and a broadened pattern drawn as
 a PDF (backed by :mod:`crystod.xrd_pattern`).  ``--xraytype`` selects the
-radiation, Cu K-alpha by default as the Ka1 + Ka2 doublet; ``--peak-profile``
-selects the broadening, Lorentzian by default.
+X-ray radiation, Cu K-alpha by default as the Ka1 + Ka2 doublet;
+``--radiation neutron --wavelength W`` gives the neutron pattern (nuclear
+scattering only); ``--peak-profile`` selects the broadening, Lorentzian by
+default.  ``--parent PARENT -c CHILD`` indexes the reflections of a
+distorted structure on its parent lattice and assigns the superlattice
+reflections to parent k points and irreps (backed by
+:mod:`crystod.xrd_superlattice`).
 """
 
 from __future__ import annotations
@@ -13,11 +18,13 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 
 from ..xrd_pattern import (
     DEFAULT_PEAK_PROFILE,
+    DEFAULT_RADIATION,
     DEFAULT_TWO_THETA_RANGE,
     DEFAULT_WIDTH,
     DEFAULT_XRAY_TYPE,
     KALPHA_DOUBLETS,
     PEAK_PROFILES,
+    RADIATIONS,
     WAVELENGTHS,
 )
 from .common import (
@@ -40,12 +47,23 @@ Gaussian profile is drawn as a PDF with tick marks at the peak positions.
 Ka1 + Ka2 superposition with the 2:1 intensity ratio, as a laboratory
 diffractometer records it; a single line (CuKa1, CuKb, ...) gives the
 monochromatic pattern. The wavelengths are those of the RIETAN-FP manual.
+--radiation neutron --wavelength W gives the neutron pattern instead
+(nuclear scattering only).
+
+--parent PARENT -c CHILD (CIF or POSCAR files) indexes every reflection
+family of the distorted child structure on the parent lattice: reflections
+on parent reciprocal-lattice points are fundamental (child and parent
+intensities on one scale), the others are superlattice reflections, assigned
+to the parent k point and split among the parent irreps of its star;
+reflections carried by one irrep alone are listed as diagnostic for it.
 
 # Command Examples:
 crystod-xrd -c 221_PPOSCAR_ScF3
 crystod-xrd -c 221_PPOSCAR_ScF3 --xraytype CuKa1 --peak-profile gaussian
 crystod-xrd -c 221_PPOSCAR_ScF3 --xraytype MoKa --two-theta 5 60 --width 0.05
+crystod-xrd -c 221_PPOSCAR_ScF3 --radiation neutron --wavelength 1.5
 crystod-xrd -c 221_PPOSCAR_ScF3 --output ScF3_xrd --show
+crystod-xrd --parent 221_PPOSCAR_CaTiO3.cif -c 62_PPOSCAR_CaTiO3.cif --xraytype CuKa1
 crystod-xrd --example ScF3   (bundled input; --example alone lists the names)
 """
 
@@ -57,13 +75,36 @@ def build_parser() -> ArgumentParser:
         epilog=CRYSTOD_CITATION,
         formatter_class=RawTextHelpFormatter,
     )
-    add_cell_argument(parser)
+    add_cell_argument(parser, " With --parent: the child\n(distorted) structure, CIF or POSCAR.")
     add_example_argument(parser, "crystod-xrd")
     parser.add_argument(
+        "--parent",
+        default=None,
+        metavar="FILE",
+        help="Parent (high-symmetry) structure, CIF or POSCAR: index the\n"
+        "reflections of the child (-c) on the parent lattice and assign the\n"
+        "superlattice reflections to parent k points and irreps.",
+    )
+    parser.add_argument(
+        "--radiation",
+        default=DEFAULT_RADIATION,
+        type=str.lower,
+        metavar="{" + ",".join(RADIATIONS) + "}",
+        help="xray (default) or neutron (nuclear scattering only; needs\n"
+        "--wavelength); case-insensitive.",
+    )
+    parser.add_argument(
+        "--wavelength",
+        type=float,
+        default=None,
+        metavar="W",
+        help="Neutron wavelength in Angstrom (with --radiation neutron).",
+    )
+    parser.add_argument(
         "--xraytype",
-        default=DEFAULT_XRAY_TYPE,
+        default=None,
         metavar="TYPE",
-        help="X-ray radiation (default: CuKa). Doublets, Ka1 + Ka2 in the\n"
+        help=f"X-ray radiation (default: {DEFAULT_XRAY_TYPE}). Doublets, Ka1 + Ka2 in the\n"
         f"2:1 ratio: {', '.join(KALPHA_DOUBLETS)}.\n"
         "Single lines (wavelength in Angstrom):\n"
         + "\n".join(
@@ -104,7 +145,8 @@ def build_parser() -> ArgumentParser:
         default=0.0,
         metavar="PERCENT",
         help="Drop reflections weaker than this relative intensity\n"
-        "(default: 0, every reflection is kept).",
+        "(default: 0, every reflection is kept). With --parent: from the\n"
+        "table only; the k-point summary uses every family.",
     )
     parser.add_argument(
         "--show",
@@ -114,7 +156,9 @@ def build_parser() -> ArgumentParser:
     add_output_argument(
         parser,
         "Output prefix: PREFIX.txt (peak table) and PREFIX.pdf (pattern).\n"
-        "Default: XRD_{cell file}_{xraytype}.",
+        "Default: XRD_{cell file}_{xraytype}, ND_{cell file}_{wavelength}A\n"
+        "for neutrons; with --parent XRD_{child}_vs_{parent}_{xraytype}\n"
+        "(ND_{child}_vs_{parent}_{wavelength}A).",
     )
     parser.add_argument(
         "--tolerance",
@@ -141,24 +185,33 @@ def main(argv: list[str] | None = None) -> None:
         main(run_example("crystod-xrd", request.name, argv))
         return
 
-    dispatch_argv = [
-        "--poscar", args.cell,
-        "--xraytype", args.xraytype,
+    common_argv = [
+        "--radiation", args.radiation,
         "--peak-profile", args.peak_profile,
         "--two-theta", *(str(value) for value in args.two_theta),
         "--width", str(args.width),
         "--min-intensity", str(args.min_intensity),
     ]
+    if args.xraytype is not None:
+        common_argv.extend(["--xraytype", args.xraytype])
+    if args.wavelength is not None:
+        common_argv.extend(["--wavelength", str(args.wavelength)])
     if args.output:
-        dispatch_argv.extend(["--output", args.output])
+        common_argv.extend(["--output", args.output])
     if args.tolerance is not None:
-        dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        common_argv.extend(["--tolerance", str(args.tolerance)])
     if args.show:
-        dispatch_argv.append("--show")
+        common_argv.append("--show")
+
+    if args.parent is not None:
+        from ..xrd_superlattice import main as superlattice_main
+
+        superlattice_main(["--parent", args.parent, "--child", args.cell, *common_argv])
+        return
 
     from ..xrd_pattern import main as xrd_pattern_main
 
-    xrd_pattern_main(dispatch_argv)
+    xrd_pattern_main(["--poscar", args.cell, *common_argv])
 
 
 if __name__ == "__main__":

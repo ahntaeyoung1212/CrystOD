@@ -207,7 +207,7 @@ def _filters_given(args) -> list[str]:
 
 
 def _print_table(title: str, materials, lines: list[str]) -> None:
-    print(f"\n * Materials Project: {title} *")
+    print(f"\n* Materials Project: {title} *")
     for line in lines:
         print(" " + line)
     if not materials:
@@ -215,7 +215,7 @@ def _print_table(title: str, materials, lines: list[str]) -> None:
     if lines:
         # the query block above carries the filters and the count; the
         # table gets its own block (a bare --get lists it under the title)
-        print("\n * Materials *")
+        print("\n* Materials *")
     for line in format_table(materials):
         print(" " + line)
     if any(m.experimental for m in materials):
@@ -229,7 +229,7 @@ def _download(materials, args) -> None:
     from ..mp_search import write_poscar
 
     cell = f"standardized {args.cell} cell, tolerance {args.tolerance:g} A"
-    print(f"\n * POSCAR files ({cell}) *")
+    print(f"\n* POSCAR files ({cell}) *")
     written = []
     rename_hint = len(materials) == 1 and not args.directory
     for material in materials:

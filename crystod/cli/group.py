@@ -43,6 +43,8 @@ crystod-group --jahn-teller Eg --pg m-3m              (Eg T2g: pseudo-Jahn-Telle
 crystod-group --multiplet T2g2 --pg m-3m [--orbital d]
 crystod-group --poscar2cif -c PPOSCAR [--tolerance 0.01]
 crystod-group --cif2poscar -c FILE.cif [--conventional]
+crystod-group --cif-axis -c FILE.cif                  (every axis setting of the space group)
+crystod-group --cif2poscar -c FILE.cif --spacegroup-set Amam
 crystod-group --parent Pm-3m --irrep R4+              (--supergroup is an alias)
 crystod-group --parent Pm-3m --kpoint GM              (every irrep of the k point)
 crystod-group --parent Pm-3m --irrep R4+ --invariants [--degree 4]
@@ -206,6 +208,14 @@ def build_parser() -> ArgumentParser:
         "e.g. --cif2poscar -c FILE.cif.",
     )
     mode.add_argument(
+        "--cif-axis",
+        dest="cif_axis",
+        action="store_true",
+        help="List every axis setting of the space group of a CIF or POSCAR\n"
+        "(Cmcm, Ccmm, Amma, Amam, ... as VESTA's Setting list) with the\n"
+        "lattice parameters of the file in each setting, e.g. --cif-axis -c FILE.cif.",
+    )
+    mode.add_argument(
         "--supergroup-cif",
         dest="supergroup_cif",
         default=None,
@@ -251,7 +261,8 @@ def build_parser() -> ArgumentParser:
         nargs="+",
         default=None,
         metavar="IR",
-        help="ISO-IR irrep label(s) for --parent, e.g. GM4- or R4+;\n"
+        help="ISO-IR irrep label(s) for --parent, e.g. GM4- or R4+, or the\n"
+        "pair label of a complex irrep as --kpoint prints it (H1H2, P1PA1);\n"
         "several labels (e.g. --irrep X3- X2+) enumerate the isotropy\n"
         "subgroups of the coupled order parameters. For every irrep of one\n"
         "k point, give --kpoint instead.",
@@ -262,8 +273,9 @@ def build_parser() -> ArgumentParser:
         default=None,
         metavar="C",
         help='Order-parameter direction for --parent, e.g. 0 0 a or a -a 0\n'
-        "(letters = free parameters, -a = minus a, 2a or 1/2a = a multiple;\n"
-        'also one string as printed: "a;-a;0"). Omit to list every direction.',
+        "(letters = free parameters, -a = minus a, 2a or 1/2a = a multiple,\n"
+        "a+b-c = a sum; also one string as printed: \"a;-a;0\"). Rounded\n"
+        "decimal factors (0.282a) are refused. Omit to list every direction.",
     )
     parser.add_argument(
         "--invariants",
@@ -369,9 +381,11 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--orbital",
         default=None,
-        help="Parent atomic orbital (s/p/d/f/...) for --multiplet: checks the\n"
+        help="Parent atomic orbital (s, p, d or f) for --multiplet: checks the\n"
         "occupied shells against its ligand-field splitting and computes the\n"
-        "Coulomb multiplet energies (Racah/Slater parameters).",
+        "Coulomb multiplet energies (Racah/Slater parameters; implemented\n"
+        "for l <= 3, so g/h/i are refused -- their splitting alone is\n"
+        "--ligand-field).",
     )
     parser.add_argument(
         "--cell",
@@ -382,14 +396,14 @@ def build_parser() -> ArgumentParser:
         default=None,
         metavar="FILE",
         help="Input structure file: POSCAR for --poscar2cif and --tensor,\n"
-        "CIF for --cif2poscar.",
+        "CIF for --cif2poscar, CIF or POSCAR for --cif-axis.",
     )
     parser.add_argument(
         "--tolerance",
         type=float,
         default=None,
         help="Symmetry tolerance (symprec, Angstrom) for --poscar2cif/"
-        "--cif2poscar (default: 0.01)\nand for --tensor -c (default: 1e-5).",
+        "--cif2poscar/--cif-axis\n(default: 0.01) and for --tensor -c (default: 1e-5).",
     )
     parser.add_argument(
         "--output",
@@ -411,6 +425,15 @@ def build_parser() -> ArgumentParser:
         help="For --cif2poscar: write the conventional cell instead of the\n"
         "primitive cell. For --supergroup-cif: write the per-irrep mode\n"
         "VESTA files in the parent conventional basis (_conv suffix).",
+    )
+    parser.add_argument(
+        "--spacegroup-set",
+        dest="spacegroup_set",
+        default=None,
+        metavar="SETTING",
+        help="For --cif2poscar: write the conventional cell in this axis\n"
+        "setting of the space group (a symbol, No. or choice listed by\n"
+        "--cif-axis, e.g. Amam, 4 or -cba); output <input without .cif>_<setting>.",
     )
     parser.add_argument(
         "--subgroup-cif",
@@ -508,7 +531,8 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
-_DASH_VALUE_FLAGS = ("--point-group", "--pointgroup", "--pg", "--subgroup", "--child")
+_DASH_VALUE_FLAGS = ("--point-group", "--pointgroup", "--pg", "--subgroup", "--child",
+                     "--spacegroup-set")
 _NEGATIVE_FRACTION = re.compile(r"-\d+/\d+")
 
 
@@ -663,6 +687,9 @@ def main(argv: list[str] | None = None) -> None:
     if (args.symmetric or args.antisymmetric) and not args.product:
         parser.error("--symmetric/--antisymmetric are only used with --product "
                      "(two identical irreps, e.g. --product T2g T2g).")
+    if args.spacegroup_set is not None and not args.cif2poscar:
+        parser.error("--spacegroup-set is only used with --cif2poscar "
+                     "(e.g. --cif2poscar -c FILE.cif --spacegroup-set Amam).")
     if (args.output_dir is not None or args.no_files) and not args.supergroup_cif:
         parser.error("--output-dir and --no-files are only used with --supergroup-cif.")
     if args.output_dir is not None and args.no_files:
@@ -928,16 +955,35 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.append("--conventional")
         if args.output:
             dispatch_argv.append(f"--output={args.output}")
+        if args.spacegroup_set is not None:
+            dispatch_argv.append(f"--spacegroup-set={args.spacegroup_set}")
 
         from ..poscar2cif import cif2poscar_main
 
         cif2poscar_main(dispatch_argv)
         return
+    if args.cif_axis:
+        if not args.cell:
+            parser.error("--cif-axis requires -c/--cell (the CIF or POSCAR file).")
+        if args.point_group or args.space_group:
+            parser.error("--cif-axis does not use --pg/--sg.")
+        if args.conventional or args.output:
+            parser.error("--cif-axis takes only -c/--cell and --tolerance.")
+
+        dispatch_argv = [f"--cell={args.cell}"]
+        if args.tolerance is not None:
+            dispatch_argv.append(f"--tolerance={args.tolerance}")
+
+        from ..space_group_setting import main as space_group_setting_main
+
+        space_group_setting_main(dispatch_argv)
+        return
     if (args.cell or args.tolerance is not None or args.conventional
             or (args.output and not args.multiplet)):
         parser.error("-c/--cell, --tolerance, --output, and --conventional are "
                      "only used with --poscar2cif/--cif2poscar/--supergroup-cif "
-                     "(--output also with --multiplet --visualize).")
+                     "(-c/--cell and --tolerance also with --cif-axis, --output "
+                     "also with --multiplet --visualize).")
 
     if args.multiplet:
         require_point_group("--multiplet")

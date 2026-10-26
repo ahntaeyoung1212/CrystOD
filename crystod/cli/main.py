@@ -6,7 +6,8 @@ selection and the SALC irrep decomposition runs directly.
 - ``--element EL --orbital ORB``  -- elemental SALC;
 - ``--atomic-orbital A_x B_y``    -- hybridization SALC;
 - ``--visualize``                 -- SALC coefficients + interactive 3D HTML;
-- ``--star-of-k``                 -- symmetry information: star of a k point.
+- ``--star-of-k``                 -- symmetry information: star of a k point;
+- ``--extract-irrep [PATH]``      -- band irreps of one VASP run from its WAVECAR.
 
 Flag spellings that belong to a sectioned command (``--phonon-irrep``,
 ``--bz``, ...) are caught by :data:`MOVED_MODE_FLAGS` and answered with the
@@ -67,6 +68,7 @@ crystod -c 221_PPOSCAR_SrTiO3 --atomic-orbital Ti_d O_p --kpoint 0 0 0
 crystod --diagram -c 221_PPOSCAR_SrTiO3 --co-left SrTi --co-right O3
 crystod -c 221_PPOSCAR_ScF3 --element F --orbital p --kpoint 0 0 0 --visualize
 crystod --star-of-k -c 221_PPOSCAR_ScF3 --kpoint 0.5 0.5 0
+crystod --extract-irrep BAND   (band irreps of a VASP run, from BAND/WAVECAR)
 crystod --example ScF3_d   (bundled input; --example alone lists the names)
 """
 
@@ -141,7 +143,8 @@ def build_parser() -> ArgumentParser:
         help="k-point: three primitive reciprocal coordinates (fractions such as 1/2\n"
         "are allowed), or a high-symmetry label such as GM/X/M/R (which\n"
         "labels a space group has: crystod-bz --show-kpoint --space-group SG).\n"
-        "When omitted in SALC mode, all special k points are analyzed.",
+        "When omitted in SALC mode, all special k points are analyzed.\n"
+        "--extract-irrep takes several labels and/or coordinates.",
     )
     parser.add_argument(
         "--diagram",
@@ -509,6 +512,21 @@ def build_parser() -> ArgumentParser:
         help="FFT-grid cutoff in Hartree for --diagram --pyscf (default: 200).",
     )
     parser.add_argument(
+        "--sigma",
+        type=float,
+        default=None,
+        metavar="EV",
+        help="A width in eV whose meaning follows the mode:\n"
+        "  --diagram --pyscf, --visualize --pyscf: Fermi smearing of the\n"
+        "    SCF occupations (default 0 = integer occupations; a column\n"
+        "    with an odd electron count always smears, 0.2 eV unless\n"
+        "    --sigma is positive)\n"
+        "  --dos --pyscf: Gaussian broadening of the DOS curves\n"
+        "    (default 0.15)\n"
+        "Not used by --band, nor by the extended-Hueckel and VASP\n"
+        "engines (--vasp-sigma is the Va point-charge width).",
+    )
+    parser.add_argument(
         "--no-symmetrize",
         action="store_true",
         help="For --diagram --pyscf: keep the raw SCF eigenvalues instead of\n"
@@ -560,7 +578,10 @@ def build_parser() -> ArgumentParser:
         "--no-chk",
         action="store_true",
         help="For --diagram --pyscf: do not write the automatic\n"
-        "CHK_{formula}.chk cache (and do not read one).",
+        "CHK_{formula}.chk cache (and do not read one). --band, --dos and\n"
+        "--visualize --pyscf accept it too, but there it changes nothing:\n"
+        "those modes never use the automatic cache (they read or write a\n"
+        "checkpoint only through --chk FILE).",
     )
     parser.add_argument(
         "--chk-info",
@@ -604,6 +625,49 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="Display the star of a k point for the space group of the structure "
         "(requires --kpoint).",
+    )
+    parser.add_argument(
+        "--extract-irrep",
+        nargs="?",
+        const=".",
+        default=None,
+        metavar="PATH",
+        help="Band irreps of ONE finished VASP run, straight from its WAVECAR:\n"
+        "PATH is the WAVECAR or the run directory (default: .); the structure\n"
+        "is its POSCAR (-c FILE: the same cell). Every special k point of the\n"
+        "space group that the file holds (any arm of the star) is analysed,\n"
+        "the levels sorted by energy with ISO-IR labels (double-valued -R6+\n"
+        "names for spin-orbit runs, one table per spin for ISPIN = 2). With\n"
+        "--kpoint (labels or coordinates), --all-kpoints, --zero, --window,\n"
+        "--spin, --degeneracy-tol; -o FILE writes the results as YAML.",
+    )
+    parser.add_argument(
+        "--all-kpoints",
+        action="store_true",
+        help="For --extract-irrep: label every k point of the WAVECAR (lines\n"
+        "and general points too, named by the ISO-IR k label of the little\n"
+        "group: DT, SM, GP, ...).",
+    )
+    parser.add_argument(
+        "--zero",
+        choices=("vbm", "efermi", "raw"),
+        default=None,
+        help="Energy zero of --extract-irrep: vbm (default; the highest occupied\n"
+        "eigenvalue over all k points of the file), efermi, or raw.",
+    )
+    parser.add_argument(
+        "--spin",
+        choices=("up", "down", "both"),
+        default=None,
+        help="Spin channel of --extract-irrep for an ISPIN = 2 run (default both).",
+    )
+    parser.add_argument(
+        "--degeneracy-tol",
+        type=float,
+        default=None,
+        metavar="EV",
+        help="For --extract-irrep: bands within EV of the first band of a level\n"
+        "form one level (default 0.001, the WAVECAR-overlap engine's window).",
     )
     parser.add_argument(
         "--mode-index",
@@ -689,7 +753,9 @@ def build_parser() -> ArgumentParser:
         metavar=("LO", "HI"),
         help="For the --visualize levels viewer and --band: energy window in eV\n"
         "(visualize default: HOMO-15 .. LUMO+10 of the displayed column;\n"
-        "band default: the band range clipped to -25 .. 15).",
+        "band default: the band range clipped to -25 .. 15). For\n"
+        "--extract-irrep: the levels listed, in eV relative to --zero\n"
+        "(default: every band of the file).",
     )
     parser.add_argument(
         "--align",
@@ -697,6 +763,15 @@ def build_parser() -> ArgumentParser:
         default=None,
         help="For --band/--dos (--pyscf): energy reference of the plots --\n"
         "the valence-band maximum (default) or the raw absolute scale.",
+    )
+    parser.add_argument(
+        "--xrange",
+        type=float,
+        nargs=2,
+        default=None,
+        metavar=("XMIN", "XMAX"),
+        help="For --dos --pyscf: energy range of the DOS plot in eV, on the\n"
+        "--align scale (default: the whole spectrum).",
     )
     parser.add_argument(
         "--diagonalize",
@@ -715,7 +790,8 @@ def build_parser() -> ArgumentParser:
         "node makes a bonding sigma level look antibonding; levels the\n"
         "shell dominates (the semicore bands themselves) keep it.",
     )
-    add_output_argument(parser, "Output HTML path for --visualize.")
+    add_output_argument(parser, "Output HTML path for --visualize; the YAML file of "
+                        "--extract-irrep.")
     parser.add_argument(
         "--tolerance",
         type=float,
@@ -795,6 +871,59 @@ def _normalize_kpoint(
     parser.error(message + ".")
 
 
+# options --extract-irrep shares with the rest of the main command; any other
+# option given with it is an error (it would be silently ignored otherwise)
+_EXTRACT_IRREP_OPTIONS = {"extract_irrep", "cell", "kpoint", "all_kpoints", "zero",
+                          "window", "spin", "degeneracy_tol", "tolerance", "output"}
+_EXTRACT_IRREP_HINTS = {
+    "--vasp-zero": " (its energy zero is --zero)",
+    "--vasp-window": " (its energy window is --window)",
+    "--spinor": " (a spin-orbit run is recognised from its WAVECAR)",
+}
+
+
+def _dispatch_extract_irrep(parser: ArgumentParser, args, argv, cell_given: bool) -> None:
+    """``crystod --extract-irrep [PATH]``: :func:`crystod.extract_irrep.main`."""
+    for action in parser._actions:
+        dest = action.dest
+        if dest in _EXTRACT_IRREP_OPTIONS or not action.option_strings \
+                or dest in ("help", "version"):
+            continue
+        value = getattr(args, dest, action.default)
+        if value is not None and value is not False and value != action.default:
+            flag = max(action.option_strings, key=len)
+            for name in action.option_strings:
+                if any(token == name or token.startswith(name + "=") for token in argv):
+                    flag = name
+            parser.error(f"{flag} is not used with --extract-irrep"
+                         f"{_EXTRACT_IRREP_HINTS.get(flag, '')}.")
+    if args.all_kpoints and args.kpoint is not None:
+        parser.error("--kpoint and --all-kpoints exclude each other.")
+    dispatch_argv = [args.extract_irrep]
+    if cell_given:
+        dispatch_argv.extend(["-c", args.cell])
+    if args.kpoint is not None:
+        dispatch_argv.extend(["--kpoint", *args.kpoint])
+    if args.all_kpoints:
+        dispatch_argv.append("--all-kpoints")
+    if args.zero is not None:
+        dispatch_argv.extend(["--zero", args.zero])
+    if args.window is not None:
+        dispatch_argv.extend(["--window", *map(str, args.window)])
+    if args.spin is not None:
+        dispatch_argv.extend(["--spin", args.spin])
+    if args.degeneracy_tol is not None:
+        dispatch_argv.extend(["--degeneracy-tol", str(args.degeneracy_tol)])
+    if args.tolerance is not None:
+        dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+    if args.output is not None:
+        dispatch_argv.extend(["--output", args.output])
+
+    from ..extract_irrep import main as extract_irrep_main
+
+    extract_irrep_main(dispatch_argv)
+
+
 def main(argv: list[str] | None = None) -> None:
     import sys
 
@@ -846,11 +975,33 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--band-points is only used with --band.")
     if args.align is not None and not (args.band or args.dos):
         parser.error("--align is only used with --band or --dos (--pyscf).")
+    if args.xrange is not None and not args.dos:
+        parser.error("--xrange is only used with --dos --pyscf (the energy "
+                     "range of the DOS plot).")
+    if args.sigma is not None:
+        if args.band or not (args.diagram or args.visualize or args.dos):
+            parser.error("--sigma is only used with --diagram --pyscf and "
+                         "--visualize --pyscf (SCF Fermi smearing) or with "
+                         "--dos --pyscf (DOS broadening); --band does not "
+                         "take it.")
+        if args.sigma < 0:
+            parser.error("--sigma must not be negative.")
     if args.bond and not args.visualize:
         parser.error("--bond is only available with --visualize.")
     if args.conventional and not (args.visualize or args.diagram):
         parser.error("--conventional is only available with --visualize "
                      "or --diagram.")
+
+    extract_flags = (("--all-kpoints", args.all_kpoints), ("--zero", args.zero),
+                     ("--spin", args.spin),
+                     ("--degeneracy-tol", args.degeneracy_tol is not None))
+    if args.extract_irrep is None:
+        for flag, value in extract_flags:
+            if value:
+                parser.error(f"{flag} is only used with --extract-irrep.")
+    else:
+        _dispatch_extract_irrep(parser, args, argv, cell_given)
+        return
 
     if args.star_of_k:
         if args.visualize:
@@ -960,6 +1111,15 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.extend(["--dos-kmesh", *map(str, args.dos_kmesh)])
         if args.align is not None:
             dispatch_argv.extend(["--align", args.align])
+        if args.sigma is not None:
+            # with --dos the width is the Gaussian broadening of the curves
+            # (dos_pyscf --sigma), not an SCF smearing
+            if args.sigma <= 0:
+                parser.error("--sigma with --dos is the Gaussian broadening "
+                             "of the DOS curves and must be positive.")
+            dispatch_argv.extend(["--sigma", str(args.sigma)])
+        if args.xrange is not None:
+            dispatch_argv.extend(["--xrange", *map(str, args.xrange)])
         if args.oxidation:
             dispatch_argv.extend(["--oxidation", *args.oxidation])
         if args.electrons is not None:
@@ -1056,6 +1216,8 @@ def main(argv: list[str] | None = None) -> None:
                 dispatch_argv.extend(["--kmesh", *map(str, args.kmesh)])
             if args.ke_cutoff is not None:
                 dispatch_argv.extend(["--ke-cutoff", str(args.ke_cutoff)])
+            if args.sigma is not None:
+                dispatch_argv.extend(["--sigma", str(args.sigma)])
             if args.no_align:
                 dispatch_argv.append("--no-align")
             if args.no_ghost:
@@ -1083,6 +1245,7 @@ def main(argv: list[str] | None = None) -> None:
                             ("--xc", args.xc),
                             ("--kmesh", args.kmesh),
                             ("--ke-cutoff", args.ke_cutoff is not None),
+                            ("--sigma", args.sigma is not None),
                             ("--no-align", args.no_align),
                             ("--no-ghost", args.no_ghost),
                             ("--no-symmetrize", args.no_symmetrize),
@@ -1225,6 +1388,11 @@ def main(argv: list[str] | None = None) -> None:
             parser.error("--onsite needs --pyscf: the extended-Hueckel "
                          "columns already come from the one shared "
                          "Hamiltonian.")
+        if not args.pyscf and args.sigma is not None:
+            parser.error("--sigma (SCF Fermi smearing) needs --pyscf: the "
+                         "extended-Hueckel engine runs no SCF and the VASP "
+                         "engine reads finished runs (the Va point-charge "
+                         "width of --vasp-setup is --vasp-sigma).")
         if args.force and args.vasp_setup is None:
             parser.error("--force is only used with --vasp-setup (it lets it "
                          "overwrite the inputs of a finished run).")
@@ -1336,6 +1504,8 @@ def main(argv: list[str] | None = None) -> None:
                 dispatch_argv.extend(["--kmesh", *map(str, args.kmesh)])
             if args.ke_cutoff is not None:
                 dispatch_argv.extend(["--ke-cutoff", str(args.ke_cutoff)])
+            if args.sigma is not None:
+                dispatch_argv.extend(["--sigma", str(args.sigma)])
             if args.no_align:
                 dispatch_argv.append("--no-align")
             if args.no_ghost:
@@ -1414,7 +1584,8 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--onsite is only used with --diagram --pyscf, "
                      "--dos --pyscf or --band --pyscf.")
     if args.window is not None:
-        parser.error("--window is only used with --visualize or --band.")
+        parser.error("--window is only used with --visualize, --band or "
+                     "--extract-irrep.")
     if args.electrons is not None:
         parser.error("--electrons is only used with --diagram or "
                      "--visualize.")
@@ -1480,7 +1651,8 @@ def main(argv: list[str] | None = None) -> None:
 
     parser.error(
         "nothing to do: give --element ELEMENT --orbital ORBITAL (SALC), "
-        "--atomic-orbital EL_ORB ... (hybridization), --visualize, or --star-of-k.\n"
+        "--atomic-orbital EL_ORB ... (hybridization), --visualize, --star-of-k, or "
+        "--extract-irrep [PATH] (band irreps of a VASP run).\n"
         "Domain analyses live in the sectioned commands: crystod-phonon, "
         "crystod-group, crystod-mag, crystod-md, crystod-bz."
     )

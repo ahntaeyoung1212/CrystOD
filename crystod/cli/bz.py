@@ -91,8 +91,8 @@ def build_parser() -> ArgumentParser:
         default=IDENTITY_MATRIX,
         metavar="MATRIX",
         help=(
-            "Unit-cell to supercell transformation matrix (row-wise, nine numbers),\n"
-            'e.g. "0 1 2  -1 0 2  1 -1 2". Fractions such as 1/2 are allowed.\n'
+            "Unit-cell to supercell transformation matrix (row-wise, nine integers),\n"
+            'e.g. "0 1 2  -1 0 2  1 -1 2". A non-integer entry is rejected.\n'
             f'Default: identity ("{IDENTITY_MATRIX}") -> plot the unit-cell BZ only.\n'
             "Any non-identity matrix -> plot the unit-cell BZ together with the\n"
             "first BZ of the transformed (super)lattice."
