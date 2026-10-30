@@ -1128,6 +1128,39 @@ class IsotropyAnalyzer:
             return np.eye(n)
         return _nullspace(np.vstack(stack))
 
+    # -- representative of a stratum (the direction the tables name)
+    def canonical_projector(self, projector: np.ndarray) -> np.ndarray:
+        """The representative of the group orbit of a subspace.
+
+        The images ``g P g^T`` of a subspace under the group are the
+        domain-equivalent directions of one stratum; the representative is
+        the image with the simplest direction label, the rule by which
+        ``enumerate_directions`` names every stratum (the row of
+        ``crystod-group --parent SG --irrep IR``).  A direction found on a
+        structure (``crystod-group --supergroup-cif``) is named by it, so
+        that both commands print the same label for the same stratum.
+
+        Args:
+            projector: Orthogonal projector onto the subspace, shape
+                ``(dimension, dimension)``.
+
+        Returns:
+            The orthogonal projector onto the representative subspace (the
+            input itself, up to rounding, when it is the representative).
+        """
+        cache = _rep_cache(self.representation, self.elements)
+        return self._orbit_representative(cache.orbit(projector).values())
+
+    def _orbit_representative(self, projectors):
+        """The member of an orbit with the simplest direction label
+        (``_label_rank``); among equal labels the first one in the order
+        given.  The one rule of ``canonical_projector`` and of both
+        enumerators."""
+        return min(
+            projectors,
+            key=lambda P: _label_rank(self._direction_pattern(P)[0]),
+        )
+
     # -- enumerate strata (order-parameter direction types)
     def enumerate_directions(self, method: str = "fast"):
         """Enumerate the order-parameter direction types (strata).
@@ -1135,9 +1168,9 @@ class IsotropyAnalyzer:
         Seeds the search with the fixed spaces of every group element and
         closes the set under pairwise intersection; keeps the isotropy
         subspaces (``V == Fix(Stab(V))``) and one representative per group
-        orbit (the one with the simplest direction label).  This is the
-        listing of ``crystod-group --parent`` without
-        ``--order-parameter``.
+        orbit (the one with the simplest direction label,
+        ``canonical_projector``).  This is the listing of ``crystod-group
+        --parent`` without ``--order-parameter``.
 
         The default enumerator intersects every new subspace with the seeds
         only (every member of the closure is an intersection of seeds),
@@ -1235,10 +1268,7 @@ class IsotropyAnalyzer:
             if used.intersection(orbit):
                 continue
             used.update(orbit)
-            best = min(
-                orbit.values(),
-                key=lambda P: _label_rank(self._direction_pattern(P)[0]),
-            )
+            best = self._orbit_representative(orbit.values())
             members = [
                 (self.elements[g][0], self.elements[g][1])
                 for g in np.nonzero(cache.stabilizer_mask(best))[0]
@@ -1305,10 +1335,7 @@ class IsotropyAnalyzer:
             if orbit_keys & used:
                 continue
             used |= orbit_keys
-            best = min(
-                orbit_projectors,
-                key=lambda P: _label_rank(self._direction_pattern(P)[0]),
-            )
+            best = self._orbit_representative(orbit_projectors)
             strata.append((best, self.stabilizer_of(best)))
         return strata
 

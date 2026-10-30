@@ -19,7 +19,9 @@ Irrep labeling (``crystod-phonon --irreps``):
 - :func:`get_irt_special_points` -- the special q points of the ISO-IR tables
   in the primitive basis;
 - :func:`find_star_representative` -- map any arm of a star onto its
-  tabulated arm.
+  tabulated arm;
+- :func:`read_phonon_irreps` -- read the ``phonon_irreps.yaml`` (or
+  ``phonon_irreps_all.yaml``) the command writes into a plain dictionary.
 
 Spectroscopic activity at Gamma (``--irreps`` and ``--vibration --qpoint GM``):
 
@@ -96,14 +98,35 @@ Symmetry-only vibration bases (``crystod-phonon --vibration``):
 - :class:`SymmetryOnlyVibrations` -- irrep-projected displacement bases from
   the crystal structure alone.
 
+Band unfolding (``crystod-phonon --unfold``):
+
+- :func:`load_unfold_inputs` -- the child and the parent structures with
+  their force constants (each force file read next to its POSCAR), as
+  :class:`UnfoldInputs`;
+- :func:`find_parent_mapping` -- the setting of ``crystod-group
+  --supergroup-cif/--subgroup-cif`` converted to the unfolding cells (M with
+  ``A_child = M @ A_parent``, the origin shift, the atom map), or another of
+  the equivalent settings, as :class:`ParentMapping`;
+  :func:`parent_mapping_from_setting` for a given setting;
+- :func:`make_parent_path` -- the band path of the parent zone
+  (:class:`ParentPath`);
+- :func:`unfold` -- the child phonons projected onto the parent Bloch states
+  (ideal-site phase), the weights P_J(k), as :class:`UnfoldedBands`;
+- :func:`star_arms` and :func:`domain_average` -- the arms of a star and the
+  average over the orientation domains (:class:`DomainAverage`);
+- :func:`irrep_resolve` -- the parent irreps of the unfolded levels
+  (:class:`UnfoldedIrreps`);
+- :func:`gamma_origin` -- the parent k and irreps the child Gamma modes come
+  from (:class:`GammaOrigin`).
+
 Attributes resolve lazily (PEP 562): importing this module is instant and
 pulls in phonopy/spgrep only on first use. The implementation lives in
 ``crystod.phonon_irreps``, ``crystod.phonon_activity``, ``crystod.phonon_subgroups``,
-``crystod.phonon_vector``, ``crystod.phonon_lt``, ``crystod.modulation`` and
-``crystod.vibration_modes``, whose import paths keep working. Bad input
-raises ``ValueError`` from the functions of this namespace, where the
-implementation modules exit the process (``SystemExit``) as a command line
-wants it.
+``crystod.phonon_vector``, ``crystod.phonon_lt``, ``crystod.modulation``,
+``crystod.vibration_modes`` and ``crystod.phonon_unfold``, whose import paths
+keep working. Bad input raises ``ValueError`` from the functions of this
+namespace, where the implementation modules exit the process (``SystemExit``)
+as a command line wants it.
 
 Example::
 
@@ -133,6 +156,7 @@ _EXPORTS = {
     "get_irrep_labels": ("phonon_irreps", "get_irrep_labels"),
     "get_irt_special_points": ("phonon_irreps", "get_irt_special_points"),
     "find_star_representative": ("phonon_irreps", "find_star_representative"),
+    "read_phonon_irreps": ("phonon_irreps", "read_phonon_irreps"),
     # spectroscopic activity at Gamma (--irreps / --vibration --qpoint GM)
     "gamma_mode_activities": ("phonon_activity", "gamma_mode_activities"),
     "classify_gamma_irreps": ("phonon_activity", "classify_gamma_irreps"),
@@ -173,6 +197,23 @@ _EXPORTS = {
     "SymmetryAdaptedModulation": ("modulation", "SymmetryAdaptedModulation"),
     # symmetry-only vibration bases (crystod-phonon --vibration)
     "SymmetryOnlyVibrations": ("vibration_modes", "SymmetryOnlyVibrations"),
+    # band unfolding onto the parent zone (crystod-phonon --unfold)
+    "load_unfold_inputs": ("phonon_unfold", "load_unfold_inputs"),
+    "find_parent_mapping": ("phonon_unfold", "find_parent_mapping"),
+    "parent_mapping_from_setting": ("phonon_unfold", "parent_mapping_from_setting"),
+    "make_parent_path": ("phonon_unfold", "make_parent_path"),
+    "unfold": ("phonon_unfold", "unfold"),
+    "star_arms": ("phonon_unfold", "star_arms"),
+    "domain_average": ("phonon_unfold", "domain_average"),
+    "irrep_resolve": ("phonon_unfold", "irrep_resolve"),
+    "gamma_origin": ("phonon_unfold", "gamma_origin"),
+    "UnfoldInputs": ("phonon_unfold", "UnfoldInputs"),
+    "ParentMapping": ("phonon_unfold", "ParentMapping"),
+    "ParentPath": ("phonon_unfold", "ParentPath"),
+    "UnfoldedBands": ("phonon_unfold", "UnfoldedBands"),
+    "DomainAverage": ("phonon_unfold", "DomainAverage"),
+    "UnfoldedIrreps": ("phonon_unfold", "UnfoldedIrreps"),
+    "GammaOrigin": ("phonon_unfold", "GammaOrigin"),
 }
 
 __getattr__, __dir__, __all__ = lazy_namespace(globals(), _EXPORTS)

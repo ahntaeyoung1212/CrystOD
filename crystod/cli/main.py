@@ -85,6 +85,7 @@ Sectioned commands (see crystod-<section> --help):
   crystod-mol      molecular point groups, SALCs and MO diagrams (XYZ files)
   crystod-xrd      powder X-ray diffraction patterns (--xraytype/--peak-profile)
   crystod-search   Materials Project search and POSCAR download (--get)
+  crystod-example  the packaged example directories (list; copy: NN/--all, -o DIR)
 
 If you use CrystOD in your research, please cite:
   H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024). https://doi.org/10.1103/PhysRevB.110.064104

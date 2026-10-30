@@ -128,7 +128,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _load_standardized(path: str, tolerance: float):
-    """(conventional cell, primitive cell, dataset-number) via spglib."""
+    """(conventional cell, primitive cell, dataset, rotation, input transform) via spglib.
+
+    The last item is ``(P, p)`` of spglib for the cell as the file gives it,
+    ``x_std = P x_in + p`` in column form (fractional coordinates of the
+    standardized conventional cell from those of the input cell), or None
+    when spglib gives none; :meth:`SymmetryModeAnalysis.setting_transformation`
+    uses it to express the parent-to-child transformation in the settings of
+    the input files."""
     import spglib
 
     if not os.path.isfile(path):
@@ -154,7 +161,7 @@ def _load_standardized(path: str, tolerance: float):
     cell = (
         np.asarray(structure.lattice.matrix),
         np.asarray(structure.frac_coords),
-        [site.specie.Z for site in structure],
+        _ordered_numbers(structure, path),
     )
     conventional = spglib.standardize_cell(
         cell, to_primitive=False, no_idealize=False, symprec=tolerance
@@ -165,6 +172,21 @@ def _load_standardized(path: str, tolerance: float):
     if conventional is None or primitive is None:
         raise SystemExit(f"ERROR: spglib could not standardize {path}.")
     dataset = spglib.get_symmetry_dataset(conventional, symprec=1e-5)
+    # how the input file's own cell maps onto the standardized conventional
+    # cell (axes and origin), for the transformation matrix in the settings
+    # of the input files
+    input_transform = None
+    try:
+        input_dataset = spglib.get_symmetry_dataset(cell, symprec=tolerance)
+        if input_dataset is not None:
+            input_transform = (
+                np.asarray(_dataset_field(input_dataset, "transformation_matrix"),
+                           dtype=float),
+                np.asarray(_dataset_field(input_dataset, "origin_shift"),
+                           dtype=float),
+            )
+    except Exception:
+        input_transform = None
     # the idealized cells are rotated into spglib's canonical Cartesian
     # orientation, which forgets how the input structure was oriented; the
     # rotation back to the input frame is recovered from the same cells
@@ -182,7 +204,29 @@ def _load_standardized(path: str, tolerance: float):
         )
     except Exception:
         rotation = None
-    return conventional, primitive, dataset, rotation
+    return conventional, primitive, dataset, rotation, input_transform
+
+
+def _ordered_numbers(structure, path: str) -> list[int]:
+    """Atomic numbers of the sites of an ordered structure.
+
+    Raises:
+        SystemExit: A site is partially occupied or shared by several
+            species (a disordered CIF): the analysis pairs one atom per
+            site, and no species is chosen on the user's behalf.
+    """
+    disordered = [site for site in structure if not site.is_ordered]
+    if disordered:
+        first = disordered[0]
+        where = ", ".join(f"{v:.4f}" for v in first.frac_coords)
+        raise SystemExit(
+            f"ERROR: {path} has {len(disordered)} partially occupied or "
+            f"mixed site(s) (first: {first.species_string} at ({where})); "
+            "the symmetry-mode analysis needs an ordered structure with one "
+            "atom of full occupancy on every site (give an ordered model, "
+            "e.g. the majority species on each site or an ordered supercell)."
+        )
+    return [site.specie.Z for site in structure]
 
 
 def _idealization_rotation(conventional, primitive, raw_conventional,
@@ -1053,12 +1097,31 @@ class SymmetryModeAnalysis:
             carrying ``kname``, ``kvec``, ``irrep_name``, ``dim`` (number
             of independent modes), ``amplitude`` (Angstrom),
             ``projected_u`` (the irrep-projected displacement field on the
-            core cell, shape ``(n_atoms, 3)``) and ``label_info()``, which
-            returns ``(direction label, subgroup info, index)``.
+            core cell, shape ``(n_atoms, 3)``), ``label_info()``, which
+            returns ``(direction label, subgroup info, index)``, and
+            ``domain_label``.  The direction label names the stratum by its
+            ISOTROPY representative, the row of ``crystod-group --parent SG
+            --irrep IR`` (``IsotropyAnalyzer.canonical_projector``), and the
+            subgroup info and index are those of that row (conjugate to the
+            isotropy subgroup of the input child: same type and index);
+            ``domain_label`` is the domain-equivalent direction the child
+            sits on as given (equal to the direction label when the child
+            sits on the representative), which the command names in a note
+            under the table when they differ.  The sublattice setting, the
+            mode fields and the files follow the input child.  A complex
+            pair whose conjugate irrep lives on the -k star (a parent with
+            no operation taking k to -k) is one entry on the first of the
+            two stars; its field and amplitude include the -k Fourier
+            components, and ``partner_kname`` / ``partner_kvec`` name the
+            -k star (None for every other entry).
         total_distortion: Total distortion amplitude (Angstrom), normalized
             within the primitive cell of the distorted structure.
         parent_formula: Reduced chemical formula of the parent (the command
             names its ``sym_mode_<formula>`` table after it).
+        setting_transformation(): The transformation (P, p) from the parent
+            to the child conventional setting in the AMPLIMODES convention
+            (:class:`SettingTransformation`); the command prints it before the
+            decomposition table and saves it in ``sym_mode_<formula>``.
 
     Raises:
         SystemExit: The child cell is not an integer multiple of the parent
@@ -1078,12 +1141,12 @@ class SymmetryModeAnalysis:
     """
 
     def __init__(self, parent_file: str, child_file: str, tolerance: float):
-        parent_conv, parent_prim, parent_ds, parent_rotation = (
-            _load_standardized(parent_file, tolerance)
-        )
-        child_conv, child_prim, child_ds, child_rotation = _load_standardized(
-            child_file, tolerance
-        )
+        (parent_conv, parent_prim, parent_ds, parent_rotation,
+         parent_input_transform) = _load_standardized(parent_file, tolerance)
+        (child_conv, child_prim, child_ds, child_rotation,
+         child_input_transform) = _load_standardized(child_file, tolerance)
+        self.parent_input_transform = parent_input_transform
+        self.child_input_transform = child_input_transform
         self.parent_number = int(_dataset_field(parent_ds, "number"))
         self.child_number = int(_dataset_field(child_ds, "number"))
         self.parent_symbol = str(
@@ -1962,10 +2025,18 @@ class SymmetryModeAnalysis:
                             entry.irrep_name = "".join(
                                 sorted([found["name"], irrep_name])
                             )
+                            if found["star"] is not star:
+                                # the partner sits on the -k star, whose
+                                # Fourier components the entry carries
+                                entry.partner_kname = star["kname"]
+                                entry.partner_kvec = np.asarray(
+                                    star["kvec"], dtype=float
+                                )
                         continue
                     record = {
                         "name": irrep_name,
                         "entry": None,
+                        "star": star,
                         "conjugate": {
                             tuple(int(v) % DEN for v in -np.asarray(arm)):
                                 np.conj(characters[:, a])
@@ -2108,6 +2179,131 @@ class SymmetryModeAnalysis:
         ]
 
 
+    def setting_transformation(self, frame: str = "input"):
+        """The transformation (P, p) from the parent to the child conventional setting.
+
+        The convention of AMPLIMODES and of the International Tables: the
+        columns of ``P`` are the child conventional basis vectors in units of
+        the parent conventional basis, ``(a', b', c') = (a, b, c) P``, and
+        ``p`` is the origin of the child cell in parent fractional
+        coordinates, so that a point with child coordinates ``x'`` has parent
+        coordinates ``x = P x' + p``. The child basis is the sublattice
+        setting the analysis uses (``mapping.S``, the one closest to the
+        orientation of the input files among the equivalent ones).
+
+        Args:
+            frame: ``"input"`` (default): the conventional cells as the two
+                input files set them up, which is what AMPLIMODES reports for
+                the same files; ``"standard"``: spglib's standard settings of
+                both structures (the same as ``"input"`` for files in the
+                standard setting). ``"input"`` falls back to ``"standard"``
+                when spglib gives no setting transformation for one of the
+                input cells; the result says which frame it is in.
+
+        Returns:
+            :class:`SettingTransformation` with ``matrix`` (``(3, 3)``, the
+            columns being the child basis vectors), ``origin`` (reduced into
+            ``[0, 1)``) and ``frame``; entries that are rational numbers with
+            a denominator up to 48 are snapped exactly.
+
+        Example:
+            >>> from crystod import group
+            >>> analysis = group.SymmetryModeAnalysis("221.cif", "140.cif", 0.01)
+            >>> t = analysis.setting_transformation()
+            >>> t.matrix.tolist(), t.origin.tolist()      # SrTiO3 Pm-3m -> I4/mcm
+            ([[1.0, 1.0, 0.0], [-1.0, 1.0, 0.0], [0.0, 0.0, 2.0]], [0.5, 0.5, 0.5])
+        """
+        if frame not in ("input", "standard"):
+            raise ValueError(f"frame must be 'input' or 'standard', got {frame!r}")
+        S = np.asarray(self.mapping.S, dtype=float)
+        p = np.asarray(self.mapping.p, dtype=float)
+        A = np.asarray(self.A_setting, dtype=float)
+        delta = np.asarray(self.delta, dtype=float)
+        L_child_conv = np.asarray(self.child_conv[0], dtype=float)
+        L_child_prim = np.asarray(self.child_prim[0], dtype=float)
+        # rows: the child conventional basis in child primitive units; the
+        # standardized primitive and conventional cells of spglib share the
+        # origin
+        C = L_child_conv @ np.linalg.inv(L_child_prim)
+        # rows: the child conventional basis in parent conventional units
+        # (L_child = S L_parent, L_parent = A L_parent_conv), and the child
+        # origin in parent conventional fractional coordinates (the parent
+        # primitive positions are (x_conv + delta) A^-1)
+        P_rows = C @ S @ A
+        origin = p @ A - delta
+        matrix = P_rows.T
+        used = "standard"
+        if frame == "input":
+            parent_t = self.parent_input_transform
+            child_t = self.child_input_transform
+            if parent_t is not None and child_t is not None:
+                # x_std = P_in x_in + o_in for each file (column form)
+                P_parent, o_parent = parent_t
+                P_child, o_child = child_t
+                parent_inverse = np.linalg.inv(P_parent)
+                matrix = parent_inverse @ matrix @ P_child
+                origin = parent_inverse @ (P_rows.T @ o_child + origin - o_parent)
+                used = "input"
+        matrix = _snap_rational(matrix)
+        origin = _snap_rational(np.asarray(origin, dtype=float) % 1.0)
+        origin[np.abs(origin - 1.0) < 1e-9] = 0.0
+        return SettingTransformation(matrix=matrix, origin=origin, frame=used)
+
+
+class SettingTransformation:
+    """The transformation (P, p) of :meth:`SymmetryModeAnalysis.setting_transformation`.
+
+    Attributes:
+        matrix: ``(3, 3)`` array; its columns are the child conventional
+            basis vectors in units of the parent conventional basis,
+            ``(a', b', c') = (a, b, c) P``.
+        origin: The child origin in parent fractional coordinates, ``p`` of
+            ``x_parent = P x_child + p``, reduced into ``[0, 1)``.
+        frame: ``"input"`` (the conventional settings of the input files) or
+            ``"standard"`` (spglib's standard settings).
+    """
+
+    def __init__(self, matrix, origin, frame):
+        self.matrix = np.asarray(matrix, dtype=float)
+        self.origin = np.asarray(origin, dtype=float)
+        self.frame = frame
+
+    def lines(self, parent_text: str, child_text: str) -> list[str]:
+        """The ``* Transformation matrix (parent -> child) *`` block, one string per line."""
+        setting = ("conventional settings of the input files" if self.frame == "input"
+                   else "spglib standard settings of both structures")
+        lines = ["* Transformation matrix (parent -> child) *",
+                 f"{parent_text} -> {child_text}, {setting}"]
+        for i in range(3):
+            row = " ".join(f"{_rational_text(v):>5}" for v in self.matrix[i])
+            lines.append(f"  [ {row} ] [ {_rational_text(self.origin[i]):>5} ]")
+        lines.append(
+            "(columns of P: the child basis vectors a', b', c' in parent units, "
+            "(a', b', c') = (a, b, c) P;\n last column: the child origin p in parent "
+            "fractional coordinates, x_parent = P x_child + p;\n the AMPLIMODES / "
+            "Bilbao convention)")
+        return lines
+
+
+def _snap_rational(values, max_denominator: int = 48, tol: float = 1e-6):
+    """Round the entries that are rational numbers (denominator up to 48)."""
+    array = np.array(values, dtype=float)
+    flat = array.reshape(-1)
+    for i, value in enumerate(flat):
+        fraction = Fraction(float(value)).limit_denominator(max_denominator)
+        if abs(float(fraction) - value) < tol:
+            flat[i] = float(fraction)
+    return flat.reshape(array.shape)
+
+
+def _rational_text(value: float) -> str:
+    """``1``, ``-1/2``, ``1/4``; a non-rational entry with four decimals."""
+    fraction = Fraction(float(value)).limit_denominator(48)
+    if abs(float(fraction) - value) < 1e-6:
+        return str(fraction)
+    return f"{value:.4f}"
+
+
 class _ModeEntry:
     def __init__(self, analysis, kname, kvec, irrep_name, representation,
                  dim, amplitude, projected_u):
@@ -2120,10 +2316,25 @@ class _ModeEntry:
         self.amplitude = amplitude
         # irrep-projected displacement field on the core cell, (n_atoms, 3)
         self.projected_u = projected_u
+        # the -k star of a complex pair recorded on the star of k (a parent
+        # without an operation taking k to -k): the conjugate irrep lives
+        # there, and projected_u / amplitude already include its Fourier
+        # components; None otherwise
+        self.partner_kname = None
+        self.partner_kvec = None
         self._label_info = None
+        self._domain_label = None
 
     def label_info(self):
-        """(direction label, subgroup info, index) via the isotropy machinery."""
+        """(direction label, subgroup info, index) via the isotropy machinery.
+
+        The direction is that of the stratum, named by its ISOTROPY
+        representative (``IsotropyAnalyzer.canonical_projector``, the row of
+        ``crystod-group --parent SG --irrep IR``); the subgroup and index
+        are those of that representative, conjugate to the isotropy
+        subgroup of the input child (same type and index).  The direction
+        the child sits on as given is ``domain_label``.
+        """
         if self._label_info is not None:
             return self._label_info
         analyzer = IsotropyAnalyzer.from_representation(
@@ -2151,11 +2362,24 @@ class _ModeEntry:
                     members.append((i, np.asarray(shifted, dtype=np.int64)))
         fixed = analyzer.fixed_space(members)
         projector = _projector(fixed)
-        label, _ = analyzer.direction_label(projector)
-        stabilizer = analyzer.stabilizer_of(projector)
+        # the child may sit on any domain-equivalent image of its stratum
+        # (the sublattice setting follows the orientation of the input
+        # files); the label names the stratum by the image the --parent
+        # table lists, and the image of the child is kept as domain_label
+        canonical = analyzer.canonical_projector(projector)
+        label, _ = analyzer.direction_label(canonical)
+        self._domain_label, _ = analyzer.direction_label(projector)
+        stabilizer = analyzer.stabilizer_of(canonical)
         info, size, index, *_ = analyzer.subgroup_of(stabilizer)
         self._label_info = (label, info, index)
         return self._label_info
+
+    @property
+    def domain_label(self):
+        """Direction label of the domain the input child sits on (the label
+        of ``label_info()`` when the child sits on the representative)."""
+        self.label_info()
+        return self._domain_label
 
 
 # ---------------------------------------------------------------------------
@@ -2251,6 +2475,13 @@ def main(argv: list[str] | None = None) -> None:
             "amplitudes for the\npolar irreps."
         )
 
+    transformation = analysis.setting_transformation()
+    transformation_lines = transformation.lines(
+        f"{analysis.parent_symbol} (No. {analysis.parent_number})",
+        f"{analysis.child_symbol} (No. {analysis.child_number})",
+    )
+    print("\n" + "\n".join(transformation_lines))
+
     table_lines = ["* Symmetry-mode decomposition *"]
     rows = []
     for mode in analysis.modes:
@@ -2277,6 +2508,27 @@ def main(argv: list[str] | None = None) -> None:
             "gauge may differ from the ISOTROPY web tables;\n the isotropy "
             "subgroup, dimension and amplitude are gauge-independent)"
         )
+    domains = [
+        f"{mode.irrep_name}\0{mode.domain_label}"
+        for mode, label, _ in rows if mode.domain_label != label
+    ]
+    if domains:
+        if len(domains) == 1:
+            listed = "direction " + domains[0]
+        else:
+            listed = ("directions " + ", ".join(domains[:-1])
+                      + " and " + domains[-1])
+        note = (
+            "(direction: each stratum is named by its ISOTROPY representative, "
+            "the row that crystod-group --parent "
+            f"{analysis.parent_number} --irrep IR lists; the input child sits "
+            f"on the domain-equivalent {listed})"
+        )
+        # an irrep and its direction stay on one line (\0 is the space
+        # between them), and a direction is never broken at its minus signs
+        table_lines.append(textwrap.fill(
+            note, width=79, subsequent_indent=" ", break_on_hyphens=False,
+            break_long_words=False).replace("\0", " "))
     print("\n" + "\n".join(table_lines))
 
     # the table again as a text file, named by the parent composition
@@ -2284,7 +2536,8 @@ def main(argv: list[str] | None = None) -> None:
     if not args.no_files:
         table_path = _output_path(args.output_dir, f"sym_mode_{analysis.parent_formula}")
         with open(table_path, "w", encoding="utf-8") as handle:
-            handle.write("\n".join(table_lines) + "\n")
+            handle.write("\n".join(transformation_lines) + "\n\n"
+                         + "\n".join(table_lines) + "\n")
         output_lines.append(f"Decomposition table saved to {table_path}")
 
     print("\n* Normalized mode components (parent primitive fractional, per 1 A) *")

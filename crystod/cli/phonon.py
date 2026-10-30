@@ -8,7 +8,8 @@ The phonon modes:
 - ``--vector``     -- eigenvector VESTA export;
 - ``--modulation`` -- modulated structures;
 - ``--vibration``  -- symmetry-only vibration bases, no force data;
-- ``--subgroup``   -- isotropy subgroups reachable from the imaginary modes.
+- ``--subgroup``   -- isotropy subgroups reachable from the imaginary modes;
+- ``--unfold``     -- phonon band unfolding onto the parent Brillouin zone.
 """
 
 from __future__ import annotations
@@ -47,6 +48,8 @@ crystod-phonon --vibration -c 186_PPOSCAR_ZnO --qpoint GM --raman-tensor
 crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_ScF3   (scan every commensurate q)
 crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --qpoint R --modulate
 crystod-phonon --subgroup --yaml phonopy_params.yaml --qpoint R
+crystod-phonon --unfold --child-poscar POSCAR_child --child-dim 2 2 2 \\
+               --parent-poscar POSCAR_parent --parent-dim 2 2 2   (unfold onto the parent zone)
 crystod-phonon --example SrTiO3   (bundled input; --example alone lists the names)
 """
 
@@ -100,6 +103,14 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="List the isotropy subgroups reachable from the imaginary phonon modes.",
     )
+    mode.add_argument(
+        "--unfold",
+        action="store_true",
+        help="Unfold the phonon bands of a distorted (child) structure onto the Brillouin\n"
+        "zone of its high-symmetry parent, with the parent irreps of the unfolded\n"
+        "levels (writes phonon_unfold.pdf and phonon_unfold.dat, or -o PREFIX). The\n"
+        "transformation and origin shift come from crystod-group --supergroup-cif.",
+    )
 
     # sentinel default: --modulation has to tell "-c was given" (drive the run
     # from the structure file + FORCE_SETS) from "-c was left out" (fall back to
@@ -116,13 +127,14 @@ def build_parser() -> ArgumentParser:
             "or a nine-value diagonal matrix, quoted or unquoted, e.g.\n"
             '--dim 4 4 4, --dim="4 4 4", --dim 4 0 0 0 4 0 0 0 4.\n'
             "Required for --irreps/--fatband/--lt/--vector, and for --subgroup\n"
-            "unless --yaml is given."
+            "unless --yaml is given; for --unfold the child (alias of --child-dim)."
         ),
     )
     parser.add_argument(
         "--readfc",
         action="store_true",
-        help="Read FORCE_CONSTANTS instead of FORCE_SETS.",
+        help="Read FORCE_CONSTANTS instead of FORCE_SETS (for --unfold the child: alias\n"
+        "of --child-readfc).",
     )
     parser.add_argument(
         "--nac",
@@ -150,8 +162,9 @@ def build_parser() -> ArgumentParser:
         "--band",
         default=None,
         help=(
-            "Optional manual band path for --fatband/--lt, comma-separated continuous\n"
-            'segments, e.g. "0 0 0  0 1/2 0  1/2 1/2 0, 1/2 1/2 0  1/2 1/2 1/2".\n'
+            "Optional manual band path for --fatband/--lt and --unfold (parent primitive\n"
+            "coordinates), comma-separated continuous segments, e.g.\n"
+            '"0 0 0  0 1/2 0  1/2 1/2 0, 1/2 1/2 0  1/2 1/2 1/2".\n'
             "If omitted, the path is generated automatically with seekpath."
         ),
     )
@@ -160,13 +173,15 @@ def build_parser() -> ArgumentParser:
         "--label",
         dest="band_labels",
         default=None,
-        help='Optional labels for the manual band path, e.g. "GM X M GM R X M R".',
+        help='Optional labels for the manual band path (--fatband/--lt, and --unfold with\n'
+        'parent primitive coordinates), e.g. "GM X M GM R X M R".',
     )
     parser.add_argument(
         "--npoints",
         type=int,
         default=None,
-        help="Number of q-points per band-path leg for --fatband/--lt (default: 51).",
+        help="Number of q-points per band-path leg for --fatband/--lt and --unfold (parent\n"
+        "primitive coordinates) (default: 51).",
     )
     parser.add_argument(
         "--projection-direction",
@@ -262,7 +277,84 @@ def build_parser() -> ArgumentParser:
         "--export-npz",
         default=None,
         metavar="FILE",
-        help="Optional .npz export path for --vibration mode data.",
+        help="Optional .npz export path for --vibration (with --mode-index) and --unfold.",
+    )
+    parser.add_argument(
+        "--child-poscar",
+        dest="child_poscar",
+        default=None,
+        metavar="FILE",
+        help="--unfold: the child (low-symmetry) structure; its FORCE_SETS\n"
+        "(FORCE_CONSTANTS with --child-readfc) is read next to it, else from the\n"
+        "working directory; FORCE_SETS_<file name> (macer's name, e.g.\n"
+        "FORCE_SETS_POSCAR_child) first. -c/--cell is accepted as well.",
+    )
+    parser.add_argument(
+        "--child-dim",
+        dest="child_dim",
+        nargs="+",
+        default=None,
+        metavar="N",
+        help="--unfold: supercell of the child force calculation (as --dim, which is\n"
+        "accepted as well).",
+    )
+    parser.add_argument(
+        "--child-readfc",
+        dest="child_readfc",
+        action="store_true",
+        help="--unfold: read the child's FORCE_CONSTANTS instead of FORCE_SETS\n"
+        "(--readfc too).",
+    )
+    parser.add_argument(
+        "--parent-poscar",
+        "--parent",
+        dest="parent_poscar",
+        default=None,
+        metavar="FILE",
+        help="--unfold: the high-symmetry parent structure (required); labels and path\n"
+        "refer to its primitive cell and origin.",
+    )
+    parser.add_argument(
+        "--parent-dim",
+        dest="parent_dim",
+        nargs="+",
+        default=None,
+        metavar="N",
+        help="--unfold: supercell of the parent force calculation; with it the parent's\n"
+        "FORCE_SETS next to --parent-poscar (FORCE_SETS_<file name> first) is read\n"
+        "and its harmonic bands are drawn.",
+    )
+    parser.add_argument(
+        "--parent-readfc",
+        dest="parent_readfc",
+        action="store_true",
+        help="--unfold: read the parent's FORCE_CONSTANTS instead of FORCE_SETS.",
+    )
+    parser.add_argument(
+        "--trans-mat",
+        "--trans-matrix",
+        dest="trans_mat",
+        nargs="+",
+        default=None,
+        metavar="T",
+        help="--unfold: choose another of the equivalent settings: nine integers,\n"
+        "row-wise, child = T @ parent (the crystod-bz convention), e.g.\n"
+        "--trans-mat 1 1 0 0 1 1 1 0 1. Default: the setting crystod-group\n"
+        "--supergroup-cif finds.",
+    )
+    parser.add_argument(
+        "--no-irreps",
+        dest="no_irreps",
+        action="store_true",
+        help="--unfold: skip the parent-irrep labels of the unfolded levels.",
+    )
+    parser.add_argument(
+        "--weight-min",
+        dest="weight_min",
+        type=float,
+        default=None,
+        metavar="W",
+        help="--unfold: smallest unfolding weight drawn and labelled (default 0.02).",
     )
     add_output_argument(parser, "Output path (mode-dependent default).")
     parser.add_argument(
@@ -273,7 +365,9 @@ def build_parser() -> ArgumentParser:
         "--tol",
         type=float,
         default=None,
-        help="Symmetry tolerance forwarded to the selected analysis.",
+        help="Symmetry tolerance forwarded to the selected analysis (for --unfold:\n"
+        "the tolerance of the setting search of crystod-group --supergroup-cif,\n"
+        "in (0, 0.5] Angstrom, default 0.01).",
     )
     return parser
 
@@ -298,28 +392,57 @@ def _require_force_file(parser: ArgumentParser, readfc: bool) -> None:
         )
 
 
-def _parse_dim(parser: ArgumentParser, tokens: list[str]) -> str:
-    """Normalize --dim to the three diagonal values as one string ("4 4 4")."""
+def _parse_dim(parser: ArgumentParser, tokens: list[str], name: str = "--dim") -> str:
+    """Normalize --dim (or --child-dim/--parent-dim) to the three diagonal values as one
+    string ("4 4 4")."""
     flat = " ".join(tokens).split()
     try:
         values = [int(token) for token in flat]
     except ValueError:
-        parser.error(f'--dim requires integers, got: {" ".join(flat)}')
+        parser.error(f'{name} requires integers, got: {" ".join(flat)}')
     if len(values) == 3:
         diagonal = values
     elif len(values) == 9:
         off_diagonal = [values[i] for i in range(9) if i not in (0, 4, 8)]
         if any(off_diagonal):
             parser.error(
-                "--dim with nine values must be a diagonal matrix; "
+                f"{name} with nine values must be a diagonal matrix; "
                 "non-diagonal supercells are not supported."
             )
         diagonal = [values[0], values[4], values[8]]
     else:
-        parser.error(f"--dim requires three or nine integers, got {len(values)}.")
+        parser.error(f"{name} requires three or nine integers, got {len(values)}.")
     if any(value <= 0 for value in diagonal):
-        parser.error("--dim diagonal values must be positive integers.")
+        parser.error(f"{name} diagonal values must be positive integers.")
     return " ".join(str(value) for value in diagonal)
+
+
+def _parse_trans_mat(parser: ArgumentParser, tokens: list[str]) -> str:
+    """Normalize --trans-mat to nine integers in one string, row-wise (child = T @ parent)."""
+    from fractions import Fraction
+
+    import numpy as np
+
+    flat = " ".join(tokens).split()
+    if len(flat) != 9:
+        parser.error(
+            f'--trans-mat requires nine integers ("t11 t12 t13  t21 ..."), got {len(flat)}.'
+        )
+    values = []
+    for token in flat:
+        try:
+            value = Fraction(token.strip())
+        except (ValueError, ZeroDivisionError):
+            parser.error(f"--trans-mat must have integer entries; got {token}.")
+        if value.denominator != 1:
+            parser.error(f"--trans-mat must have integer entries; got {token}.")
+        values.append(int(value))
+    det = int(round(np.linalg.det(np.array(values, dtype=float).reshape(3, 3))))
+    if det == 0:
+        parser.error("--trans-mat is singular.")
+    if det < 0:
+        parser.error("--trans-mat must have a positive determinant (a right-handed child cell).")
+    return " ".join(str(value) for value in values)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -339,6 +462,22 @@ def main(argv: list[str] | None = None) -> None:
 
     if unknown and not args.modulation:
         parser.error(f"unrecognized arguments: {' '.join(unknown)}")
+
+    unfold_only = [
+        ("--child-poscar", args.child_poscar is not None),
+        ("--child-dim", args.child_dim is not None),
+        ("--child-readfc", args.child_readfc),
+        ("--parent-poscar", args.parent_poscar is not None),
+        ("--parent-dim", args.parent_dim is not None),
+        ("--parent-readfc", args.parent_readfc),
+        ("--trans-mat", args.trans_mat is not None),
+        ("--no-irreps", args.no_irreps),
+        ("--weight-min", args.weight_min is not None),
+    ]
+    if not args.unfold:
+        used = [name for name, given in unfold_only if given]
+        if used:
+            parser.error(f"{', '.join(used)} only used with --unfold.")
 
     if args.band_labels and not args.band:
         parser.error("--band-labels requires --band.")
@@ -545,6 +684,91 @@ def main(argv: list[str] | None = None) -> None:
         from ..phonon_subgroups import main as phonon_subgroups_main
 
         phonon_subgroups_main(dispatch_argv)
+        return
+
+    if args.unfold:
+        if args.nac:
+            parser.error(
+                "--nac is not supported by --unfold in this version (unfolding LO/TO-split bands "
+                "needs the direction of approach to Gamma); run without --nac."
+            )
+        for name, given in (
+            ("--qpoint", args.qpoint),
+            ("--mode", args.mode),
+            ("--mode-index", args.mode_index),
+            ("--component-index", args.component_index),
+            ("--amplitude", args.amplitude),
+            ("--element", args.element),
+            ("--projection-direction", args.projection_direction),
+            ("--yaml", args.yaml),
+            ("--conventional", args.conventional),
+            ("--keep-q-coords", args.keep_q_coords),
+            ("--all-irreps", args.all_irreps),
+            ("--modulate", args.modulate),
+            ("--list-qpoints", args.list_qpoints),
+        ):
+            if given not in (None, False):
+                parser.error(f"{name} is not used by --unfold.")
+        if args.child_poscar and args.cell and args.child_poscar != args.cell:
+            parser.error("give the child structure once: --child-poscar or -c.")
+        if args.child_dim and args.dim and (
+            _parse_dim(parser, args.child_dim, "--child-dim") != _parse_dim(parser, args.dim)
+        ):
+            parser.error("give the child supercell once: --child-dim or --dim.")
+        child = args.child_poscar or args.cell or "POSCAR"
+        child_dim_tokens = args.child_dim or args.dim
+        if not child_dim_tokens:
+            parser.error(
+                "--unfold requires --child-dim (the supercell of the child force calculation)."
+            )
+        if not args.parent_poscar:
+            parser.error("--unfold requires --parent-poscar (the high-symmetry parent structure).")
+        if args.parent_readfc and not args.parent_dim:
+            parser.error("--parent-readfc requires --parent-dim.")
+        if args.weight_min is not None and not 0.0 < args.weight_min < 1.0:
+            parser.error("--weight-min must lie between 0 and 1.")
+        if args.npoints is not None and args.npoints < 2:
+            parser.error("--npoints must be at least 2.")
+        if args.tolerance is not None and not 0.0 < args.tolerance <= 0.5:
+            parser.error(
+                "--tolerance must lie in (0, 0.5] for --unfold (Angstrom; default 0.01)."
+            )
+
+        dispatch_argv = [
+            "--child-poscar", child,
+            "--child-dim", _parse_dim(parser, child_dim_tokens, "--child-dim"),
+            "--parent-poscar", args.parent_poscar,
+        ]
+        if args.child_readfc or args.readfc:
+            dispatch_argv.append("--child-readfc")
+        if args.parent_dim:
+            dispatch_argv.extend(
+                ["--parent-dim", _parse_dim(parser, args.parent_dim, "--parent-dim")]
+            )
+        if args.parent_readfc:
+            dispatch_argv.append("--parent-readfc")
+        if args.trans_mat:
+            dispatch_argv.extend(["--trans-mat", _parse_trans_mat(parser, args.trans_mat)])
+        if args.band:
+            dispatch_argv.extend(["--band", args.band])
+        if args.band_labels:
+            dispatch_argv.extend(["--label", args.band_labels])
+        if args.npoints is not None:
+            dispatch_argv.extend(["--npoints", str(args.npoints)])
+        if args.no_irreps:
+            dispatch_argv.append("--no-irreps")
+        if args.weight_min is not None:
+            dispatch_argv.extend(["--weight-min", str(args.weight_min)])
+        if args.output:
+            dispatch_argv.extend(["--output", args.output])
+        if args.export_npz is not None:
+            dispatch_argv.extend(["--export-npz", args.export_npz])
+        if args.tolerance is not None:
+            dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+
+        from ..phonon_unfold import main as phonon_unfold_main
+
+        phonon_unfold_main(dispatch_argv)
         return
 
     # --vibration

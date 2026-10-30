@@ -17,6 +17,7 @@ This package hosts the main command and one module per sectioned command
 - ``mol``     -- ``crystod-mol``: molecular point groups, SALCs and MO diagrams.
 - ``xrd``     -- ``crystod-xrd``: powder X-ray diffraction patterns.
 - ``search``  -- ``crystod-search``: Materials Project search and POSCAR download.
+- ``example`` -- ``crystod-example``: list and copy the packaged example directories.
 """
 
 from .main import build_parser, main
