@@ -1,0 +1,136 @@
+space_group: Pm-3m
+nac: false
+special_points:
+- q_label: GM
+  q_position: [0.0, 0.0, 0.0]
+- q_label: R
+  q_position: [0.5, 0.5, 0.5]
+- q_label: X
+  q_position: [0.0, 0.5, 0.0]
+- q_label: M
+  q_position: [0.5, 0.5, 0.0]
+
+irreps:
+- q_label: GM
+  q_position: [0.0, 0.0, 0.0]
+  activity_summary: GM4- x4 (3 IR, 1 acoustic), GM5- x1 (silent)
+  band_sets:
+  - band_indices: [1, 2, 3]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:   0.0000003685
+    activity: [acoustic]
+  - band_indices: [4, 5, 6]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:   2.6629186664
+    activity: [IR]
+  - band_indices: [7, 8, 9]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:   4.7144147359
+    activity: [IR]
+  - band_indices: [10, 11, 12]
+    irrep_label: ['GM5-(3)']
+    mulliken: T2u
+    frequency:   7.3464877515
+    activity: [silent]
+  - band_indices: [13, 14, 15]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:  15.3054117938
+    activity: [IR]
+
+- q_label: R
+  q_position: [0.5, 0.5, 0.5]
+  band_sets:
+  - band_indices: [1, 2, 3]
+    irrep_label: ['R5-(3)']
+    frequency:  -1.0867090338
+  - band_indices: [4, 5, 6]
+    irrep_label: ['R4-(3)']
+    frequency:   3.9890931052
+  - band_indices: [7, 8, 9]
+    irrep_label: ['R5+(3)']
+    frequency:  11.6887064855
+  - band_indices: [10, 11, 12]
+    irrep_label: ['R4-(3)']
+    frequency:  12.6621461943
+  - band_indices: [13, 14]
+    irrep_label: ['R3-(2)']
+    frequency:  14.8133485798
+  - band_indices: [15]
+    irrep_label: ['R2-(1)']
+    frequency:  23.2301542277
+
+- q_label: X
+  q_position: [0.0, 0.5, 0.0]
+  band_sets:
+  - band_indices: [1, 2]
+    irrep_label: ['X5-(2)']
+    frequency:   3.1516406628
+  - band_indices: [3, 4]
+    irrep_label: ['X5+(2)']
+    frequency:   3.7901660572
+  - band_indices: [5]
+    irrep_label: ['X3-(1)']
+    frequency:   4.6879249606
+  - band_indices: [6, 7]
+    irrep_label: ['X5+(2)']
+    frequency:   5.3845982355
+  - band_indices: [8]
+    irrep_label: ['X2+(1)']
+    frequency:   7.8416778012
+  - band_indices: [9]
+    irrep_label: ['X1+(1)']
+    frequency:   7.8497645288
+  - band_indices: [10, 11]
+    irrep_label: ['X5-(2)']
+    frequency:   9.0357307723
+  - band_indices: [12]
+    irrep_label: ['X1+(1)']
+    frequency:  13.8179585262
+  - band_indices: [13, 14]
+    irrep_label: ['X5+(2)']
+    frequency:  14.2275094850
+  - band_indices: [15]
+    irrep_label: ['X3-(1)']
+    frequency:  21.2463784441
+
+- q_label: M
+  q_position: [0.5, 0.5, 0.0]
+  band_sets:
+  - band_indices: [1]
+    irrep_label: ['M2+(1)']
+    frequency:   1.7234475084
+  - band_indices: [2]
+    irrep_label: ['M3-(1)']
+    frequency:   3.0662011782
+  - band_indices: [3, 4]
+    irrep_label: ['M5-(2)']
+    frequency:   3.3562395182
+  - band_indices: [5]
+    irrep_label: ['M2-(1)']
+    frequency:   3.5013065027
+  - band_indices: [6, 7]
+    irrep_label: ['M5-(2)']
+    frequency:   7.4462375329
+  - band_indices: [8, 9]
+    irrep_label: ['M5+(2)']
+    frequency:   9.2178675143
+  - band_indices: [10]
+    irrep_label: ['M2-(1)']
+    frequency:  12.7399490713
+  - band_indices: [11, 12]
+    irrep_label: ['M5-(2)']
+    frequency:  12.8629196053
+  - band_indices: [13]
+    irrep_label: ['M1+(1)']
+    frequency:  13.1307334000
+  - band_indices: [14]
+    irrep_label: ['M3+(1)']
+    frequency:  14.9420004208
+  - band_indices: [15]
+    irrep_label: ['M4+(1)']
+    frequency:  22.4199521608
+

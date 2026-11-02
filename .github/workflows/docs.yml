@@ -1,0 +1,40 @@
+# Build the Sphinx documentation on every push and keep the result as an artifact.
+#
+# The published site lives in the laboratory website repository
+# (Mochizuki-TUS/mochizuki-tus.github.io, served at
+# https://mochizuki-tus.github.io/CrystOD/), so this workflow does not deploy
+# anywhere: it is the gate that catches a broken doc build, and the artifact it
+# uploads is the same HTML tree that `sphinx-build -b html doc doc/_build/html`
+# produces locally -- download it from the run page if you would rather not
+# build the docs yourself before copying them over.
+name: docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # the API reference (doc/api/, sphinx.ext.autodoc) imports crystod, so
+      # the package is installed with its [doc] extra (Sphinx, MyST, the
+      # book theme, copybutton); not [quantum] -- PySCF is optional and
+      # conf.py mocks it for the build
+      - name: Install CrystOD with the documentation toolchain
+        run: pip install -e ".[doc]"
+      - name: Build HTML (warnings are errors)
+        run: sphinx-build -b html -W --keep-going doc doc/_build/html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crystod-docs-html
+          path: doc/_build/html

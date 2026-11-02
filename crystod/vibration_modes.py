@@ -108,9 +108,11 @@ def build_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--amplitude",
+        nargs="+",
         type=float,
-        default=0.3,
-        help="Amplitude used when writing a displaced structure.",
+        default=[0.3],
+        help="Amplitude in Angstroms of the written displacement: one value per selected\n"
+        "mode, i.e. one value (a single mode-space component is written).",
     )
     parser.add_argument(
         "--output",
@@ -125,6 +127,98 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
+# The note printed when the input cell is reduced to the spglib primitive
+# cell (crystod.visualize_pyscf filters this exact text; keep them in sync).
+PRIMITIVE_CELL_NOTICE = "### Inputed cell was converted into primitive cell. ###"
+
+# The largest supercell multiplicity per axis a modulation at q is frozen
+# into (--vibration and --modulation share it).
+MAX_SUPERCELL_DENOMINATOR = 12
+
+
+def _note(message: str, quiet: bool = False) -> None:
+    """Print a note of this module where the commands show it (stdout),
+    unless ``quiet`` (library use, MCP tools)."""
+    if not quiet:
+        print(message)
+
+
+def _format_size(sizes) -> str:
+    return "x".join(str(int(size)) for size in sizes)
+
+
+def commensurate_supercell_sizes(
+    qpoint, max_denominator: int = MAX_SUPERCELL_DENOMINATOR
+) -> tuple[int, int, int]:
+    """Supercell multiplicities along a, b, c commensurate with q.
+
+    The smallest diagonal supercell on which the modulation at q is periodic:
+    1 for an integer component, else the denominator of the component. The
+    check of ``crystod-phonon --vibration`` and ``--modulation``.
+
+    Args:
+        qpoint: Fractional coordinates of q in the primitive reciprocal basis.
+        max_denominator: The largest multiplicity accepted per axis.
+
+    Returns:
+        ``(n1, n2, n3)``.
+
+    Raises:
+        ValueError: If a component is not a fraction with a denominator of at
+            most ``max_denominator`` (within 1e-4, e.g. 0.15 = 3/20): freezing
+            the modulation into a smaller supercell would build a structure
+            that is not periodic. The message names the smallest commensurate
+            supercell when one with at most 1000 cells per axis exists.
+    """
+    sizes = []
+    offending = None
+    for component in qpoint:
+        value = float(component)
+        if abs(value - round(value)) < 1e-10:
+            sizes.append(1)
+            continue
+        fraction = Fraction(value).limit_denominator(max_denominator)
+        if abs(value - float(fraction)) > 1e-4:
+            if offending is None:
+                offending = value
+            sizes.append(None)
+            continue
+        sizes.append(fraction.denominator)
+    if offending is None:
+        return tuple(sizes)
+    smallest = []
+    for component, size in zip(qpoint, sizes):
+        value = float(component)
+        fraction = Fraction(value).limit_denominator(1000)
+        if size is None and abs(value - float(fraction)) < 1e-6:
+            size = fraction.denominator
+        smallest.append(size)
+    if all(size is not None for size in smallest):
+        where = f"the smallest commensurate supercell is {_format_size(smallest)}"
+    else:
+        where = "no supercell of at most 1000 cells per axis is commensurate with it"
+    raise ValueError(
+        f"q = {[float(v) for v in qpoint]} is not commensurate with a supercell of "
+        f"at most {max_denominator} cells per axis (component {offending:g}; {where}); "
+        f"give q as fractions with a denominator of at most {max_denominator}, e.g. 1/3."
+    )
+
+
+def _approximate_supercell_sizes(qpoint, max_denominator: int = 6) -> tuple[int, int, int]:
+    """The multiplicities :meth:`SymmetryOnlyVibrations.get_supercell_size`
+    returned before it checked commensurability: 1 for a zero component, else
+    the denominator of the component limited to ``max_denominator``, never an
+    error. Kept for the display cell of the SALC viewer (``crystod
+    --visualize``), which draws a k point it cannot hold periodically too."""
+    sizes = []
+    for component in qpoint:
+        if abs(component) < 1e-10:
+            sizes.append(1)
+        else:
+            sizes.append(Fraction(float(component)).limit_denominator(max_denominator).denominator)
+    return tuple(sizes)
+
+
 class _CoreRepresentation:
     def __init__(
         self,
@@ -132,6 +226,7 @@ class _CoreRepresentation:
         symprec: float = 1e-5,
         standardize: bool = True,
         input_cell: PhonopyAtoms | None = None,
+        quiet: bool = False,
     ):
         # the cell as given: the ISO-IR frame of the irrep labels is taken
         # from it, not from the standardized cell derived below
@@ -147,7 +242,7 @@ class _CoreRepresentation:
                 scaled_positions=primitive_pos,
                 cell=primitive_lattice,
             )
-            print("\n ### Inputed cell was converted into primitive cell. ###")
+            _note(f"\n {PRIMITIVE_CELL_NOTICE}", quiet=quiet)
         else:
             # Keep the input cell as-is (it must already be primitive). This
             # preserves the caller's atom positions so that phase conventions
@@ -316,15 +411,19 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             object, e.g. from ``phonopy.interface.calculator.read_crystal_structure``.
         symprec: Symmetry tolerance of the spglib analysis.
         standardize: Reduce ``cell`` to the spglib primitive cell first (the
-            default; a note is printed). ``False`` keeps the input cell as
-            it is, which must then already be primitive; this preserves the
-            caller's atom positions so that phase conventions stay consistent
-            with an externally built dynamical matrix. Either way the
-            analysis, the Bloch phases and the written supercells all use
-            ``primitive_cell``.
+            default; a note is printed on stdout unless ``quiet``). ``False``
+            keeps the input cell as it is, which must then already be
+            primitive; this preserves the caller's atom positions so that
+            phase conventions stay consistent with an externally built
+            dynamical matrix. Either way the analysis, the Bloch phases and
+            the written supercells all use ``primitive_cell``.
         input_cell: The cell whose ISO-IR frame names the irreps, when it is
             not ``cell`` itself (e.g. the unit cell a phonopy primitive cell
             was built from); default ``cell``.
+        quiet: Do not print the note ``### Inputed cell was converted into
+            primitive cell. ###`` that ``standardize`` prints on stdout (the
+            commands keep it); for library use and the MCP server, whose
+            stdout is the protocol stream.
 
     Attributes:
         primitive_cell: The primitive cell the analysis runs on.
@@ -362,9 +461,11 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
         symprec: float = 1e-5,
         standardize: bool = True,
         input_cell: PhonopyAtoms | None = None,
+        quiet: bool = False,
     ):
         super().__init__(
-            cell=cell, symprec=symprec, standardize=standardize, input_cell=input_cell
+            cell=cell, symprec=symprec, standardize=standardize, input_cell=input_cell,
+            quiet=quiet,
         )
         lattice_t = np.transpose(self.primitive_cell.cell)
         lattice_t_inv = np.linalg.inv(lattice_t)
@@ -994,16 +1095,16 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
                 basis.
 
         Returns:
-            ``(n1, n2, n3)``: 1 for a zero component, else the denominator of
-            the component (limited to 6).
+            ``(n1, n2, n3)``: 1 for an integer component, else the denominator
+            of the component (:func:`commensurate_supercell_sizes`, the check
+            ``--modulation`` makes).
+
+        Raises:
+            ValueError: If a component is not a fraction with a denominator of
+                at most 12 (e.g. 0.15 = 3/20): no such supercell holds the
+                modulation; the message names the smallest one that does.
         """
-        sizes = []
-        for component in qpoint:
-            if abs(component) < 1e-10:
-                sizes.append(1)
-            else:
-                sizes.append(Fraction(float(component)).limit_denominator(6).denominator)
-        return tuple(sizes)
+        return commensurate_supercell_sizes(qpoint)
 
     def get_supercell_displacements(
         self,
@@ -1087,6 +1188,10 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
     ) -> None:
         """Write ``positions + amplitude * displacements`` as a POSCAR.
 
+        The atoms are grouped by species, in the order the species first
+        appear in ``symbols`` (one block per element, ``Sc F`` / ``8 24``, as
+        ``--modulation`` writes them); within a species they keep their order.
+
         Args:
             positions: Cartesian positions from
                 :meth:`get_supercell_displacements`.
@@ -1097,9 +1202,14 @@ class SymmetryOnlyVibrations(_CoreRepresentation):
             amplitude: Displacement amplitude in Angstroms.
             output_path: Output file path (VASP format, direct coordinates).
         """
+        first_seen: dict[str, int] = {}
+        for symbol in symbols:
+            first_seen.setdefault(symbol, len(first_seen))
+        order = sorted(range(len(symbols)), key=lambda index: first_seen[symbols[index]])
+        displaced = np.asarray(positions) + amplitude * np.asarray(displacements)
         atoms = Atoms(
-            symbols=symbols,
-            positions=positions + amplitude * displacements,
+            symbols=[symbols[index] for index in order],
+            positions=displaced[order],
             cell=supercell_lattice,
             pbc=True,
         )
@@ -1252,6 +1362,14 @@ def main(argv: list[str] | None = None) -> None:
     from .star_of_k import read_poscar_or_exit
 
     args = build_parser().parse_args(argv)
+    # one mode-space component is written, so one amplitude (per selected mode)
+    if len(args.amplitude) != 1:
+        raise SystemExit(
+            f"ERROR: --vibration writes one mode-space component (--mode-index, "
+            f"--component-index), so --amplitude takes one value; got "
+            f"{len(args.amplitude)} ({' '.join(f'{value:g}' for value in args.amplitude)})."
+        )
+    amplitude = args.amplitude[0]
     cell = read_poscar_or_exit(args.poscar)
     vibrations = SymmetryOnlyVibrations(cell=cell, symprec=args.tolerance)
 
@@ -1275,6 +1393,15 @@ def main(argv: list[str] | None = None) -> None:
             f"{qpoint_label} = {format_fraction_vector(qpoint)}."
         )
     _print_qpoint_block("Selected Q point", {qpoint_label: qpoint})
+    if args.mode_index is not None:
+        # the written structure must be periodic: a q that no supercell of at
+        # most 12 cells per axis holds is refused before any space is computed
+        # (as --modulation does); the spaces can still be listed without
+        # --mode-index
+        try:
+            vibrations.get_supercell_size(qpoint)
+        except ValueError as exc:
+            raise SystemExit(f"ERROR: {exc}") from None
 
     irreps, basis_spaces, irrep_labels = vibrations.describe_mode_spaces(qpoint)
     activities = _gamma_space_activities(vibrations, qpoint, basis_spaces, irrep_labels)
@@ -1350,7 +1477,7 @@ def main(argv: list[str] | None = None) -> None:
             selected_irrep_label=np.array(irrep_labels[args.mode_index - 1], dtype=object),
             mode_space_dimensions=np.array([space.shape[0] for space in basis_spaces], dtype=int),
             selected_mode_dimension=np.array(selected_space.shape[0], dtype=int),
-            amplitude=np.array(args.amplitude, dtype=float),
+            amplitude=np.array(amplitude, dtype=float),
         )
         print(f"Saved mode data to: {args.export_npz}")
 
@@ -1360,7 +1487,7 @@ def main(argv: list[str] | None = None) -> None:
             displacements=displacements,
             symbols=symbols,
             supercell_lattice=supercell_lattice,
-            amplitude=args.amplitude,
+            amplitude=amplitude,
             output_path=args.output,
         )
         print(f"Saved displaced structure to: {args.output}")

@@ -1,0 +1,1639 @@
+{
+ "mode": "extract-irrep",
+ "run": {
+  "directory": ".",
+  "wavecar": "WAVECAR",
+  "structure": "POSCAR",
+  "formula": "SrTiO3",
+  "nbands": 20,
+  "nkpts": 4,
+  "ispin": 2,
+  "spin_orbit": false,
+  "encut": 200.0,
+  "efermi": 5.9876,
+  "efermi_source": "OUTCAR",
+  "vbm": 5.972327,
+  "cbm": 6.320295
+ },
+ "space_group": "Pm-3m",
+ "space_group_number": 221,
+ "symprec": 1e-05,
+ "energy_zero": "vbm",
+ "zero_energy": 5.972327,
+ "degeneracy_tol": 0.001,
+ "window": null,
+ "kpoint_selection": "special",
+ "kpoints": [
+  {
+   "k_label": "GM",
+   "k_position": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "k_index": 1,
+   "little_group": "Pm-3m (221)",
+   "special": true,
+   "copies": []
+  },
+  {
+   "k_label": "R",
+   "k_position": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "k_index": 4,
+   "little_group": "Pm-3m (221)",
+   "special": true,
+   "copies": []
+  },
+  {
+   "k_label": "X",
+   "k_position": [
+    0.5,
+    0.0,
+    0.0
+   ],
+   "k_index": 2,
+   "little_group": "P4/mmm (123)",
+   "special": true,
+   "copies": []
+  },
+  {
+   "k_label": "M",
+   "k_position": [
+    0.5,
+    0.5,
+    0.0
+   ],
+   "k_index": 3,
+   "little_group": "P4/mmm (123)",
+   "special": true,
+   "copies": []
+  }
+ ],
+ "missing_special_points": [],
+ "irreps": [
+  {
+   "k_label": "GM",
+   "k_position": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "k_index": 1,
+   "spin": "up",
+   "levels": [
+    {
+     "level": 1,
+     "bands": [
+      1
+     ],
+     "energy": -36.80561,
+     "degeneracy": 1,
+     "irrep": "GM1+",
+     "mulliken": "A1g",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 2,
+     "bands": [
+      2
+     ],
+     "energy": -21.750116,
+     "degeneracy": 1,
+     "irrep": "GM1+",
+     "mulliken": "A1g",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 3,
+     "bands": [
+      3,
+      4
+     ],
+     "energy": -20.714235,
+     "degeneracy": 2,
+     "irrep": "GM3+",
+     "mulliken": "Eg",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 4,
+     "bands": [
+      5,
+      6,
+      7
+     ],
+     "energy": -18.766714,
+     "degeneracy": 3,
+     "irrep": "GM4-",
+     "mulliken": "T1u",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 5,
+     "bands": [
+      8,
+      9,
+      10
+     ],
+     "energy": -6.178754,
+     "degeneracy": 3,
+     "irrep": "GM4-",
+     "mulliken": "T1u",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 6,
+     "bands": [
+      11,
+      12,
+      13
+     ],
+     "energy": -4.109955,
+     "degeneracy": 3,
+     "irrep": "GM5-",
+     "mulliken": "T2u",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 7,
+     "bands": [
+      14,
+      15,
+      16
+     ],
+     "energy": -3.636565,
+     "degeneracy": 3,
+     "irrep": "GM4-",
+     "mulliken": "T1u",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 8,
+     "bands": [
+      17,
+      18,
+      19
+     ],
+     "energy": -0.466458,
+     "degeneracy": 3,
+     "irrep": "GM5+",
+     "mulliken": "T2g",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 9,
+     "bands": [
+      20
+     ],
+     "energy": 1.405014,
+     "degeneracy": 1,
+     "irrep": null,
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": "incomplete: the band list ends inside this multiplet (multiplicities GM3+ 0.50)"
+    }
+   ]
+  },
+  {
+   "k_label": "GM",
+   "k_position": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "k_index": 1,
+   "spin": "down",
+   "levels": [
+    {
+     "level": 1,
+     "bands": [
+      1
+     ],
+     "energy": -36.804173,
+     "degeneracy": 1,
+     "irrep": "GM1+",
+     "mulliken": "A1g",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 2,
+     "bands": [
+      2
+     ],
+     "energy": -21.754678,
+     "degeneracy": 1,
+     "irrep": "GM1+",
+     "mulliken": "A1g",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 3,
+     "bands": [
+      3,
+      4
+     ],
+     "energy": -20.730901,
+     "degeneracy": 2,
+     "irrep": "GM3+",
+     "mulliken": "Eg",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 4,
+     "bands": [
+      5,
+      6,
+      7
+     ],
+     "energy": -18.7638,
+     "degeneracy": 3,
+     "irrep": "GM4-",
+     "mulliken": "T1u",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 5,
+     "bands": [
+      8,
+      9,
+      10
+     ],
+     "energy": -6.149321,
+     "degeneracy": 3,
+     "irrep": "GM4-",
+     "mulliken": "T1u",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 6,
+     "bands": [
+      11,
+      12,
+      13
+     ],
+     "energy": -4.125725,
+     "degeneracy": 3,
+     "irrep": "GM5-",
+     "mulliken": "T2u",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 7,
+     "bands": [
+      14,
+      15,
+      16
+     ],
+     "energy": -3.647801,
+     "degeneracy": 3,
+     "irrep": "GM4-",
+     "mulliken": "T1u",
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 8,
+     "bands": [
+      17,
+      18,
+      19
+     ],
+     "energy": 0.0,
+     "degeneracy": 3,
+     "irrep": "GM5+",
+     "mulliken": "T2g",
+     "occupation": 0.6667,
+     "note": ""
+    },
+    {
+     "level": 9,
+     "bands": [
+      20
+     ],
+     "energy": 1.396554,
+     "degeneracy": 1,
+     "irrep": null,
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": "incomplete: the band list ends inside this multiplet (multiplicities GM3+ 0.50)"
+    }
+   ]
+  },
+  {
+   "k_label": "R",
+   "k_position": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "k_index": 4,
+   "spin": "up",
+   "levels": [
+    {
+     "level": 1,
+     "bands": [
+      1
+     ],
+     "energy": -36.745587,
+     "degeneracy": 1,
+     "irrep": "R2-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 2,
+     "bands": [
+      2,
+      3,
+      4
+     ],
+     "energy": -20.485055,
+     "degeneracy": 3,
+     "irrep": "R4-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 3,
+     "bands": [
+      5,
+      6,
+      7
+     ],
+     "energy": -19.021103,
+     "degeneracy": 3,
+     "irrep": "R5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 4,
+     "bands": [
+      8
+     ],
+     "energy": -7.741688,
+     "degeneracy": 1,
+     "irrep": "R1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 5,
+     "bands": [
+      9,
+      10,
+      11
+     ],
+     "energy": -6.957307,
+     "degeneracy": 3,
+     "irrep": "R5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 6,
+     "bands": [
+      12,
+      13
+     ],
+     "energy": -6.658779,
+     "degeneracy": 2,
+     "irrep": "R3+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 7,
+     "bands": [
+      14,
+      15,
+      16
+     ],
+     "energy": -2.759831,
+     "degeneracy": 3,
+     "irrep": "R4+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 8,
+     "bands": [
+      17,
+      18,
+      19
+     ],
+     "energy": 2.451035,
+     "degeneracy": 3,
+     "irrep": "R5+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    },
+    {
+     "level": 9,
+     "bands": [
+      20
+     ],
+     "energy": 3.028976,
+     "degeneracy": 1,
+     "irrep": null,
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": "incomplete: the band list ends inside this multiplet (multiplicities R4- 0.33)"
+    }
+   ]
+  },
+  {
+   "k_label": "R",
+   "k_position": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "k_index": 4,
+   "spin": "down",
+   "levels": [
+    {
+     "level": 1,
+     "bands": [
+      1
+     ],
+     "energy": -36.744164,
+     "degeneracy": 1,
+     "irrep": "R2-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 2,
+     "bands": [
+      2,
+      3,
+      4
+     ],
+     "energy": -20.503507,
+     "degeneracy": 3,
+     "irrep": "R4-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 3,
+     "bands": [
+      5,
+      6,
+      7
+     ],
+     "energy": -19.017912,
+     "degeneracy": 3,
+     "irrep": "R5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 4,
+     "bands": [
+      8
+     ],
+     "energy": -7.655175,
+     "degeneracy": 1,
+     "irrep": "R1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 5,
+     "bands": [
+      9,
+      10,
+      11
+     ],
+     "energy": -6.886389,
+     "degeneracy": 3,
+     "irrep": "R5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 6,
+     "bands": [
+      12,
+      13
+     ],
+     "energy": -6.589389,
+     "degeneracy": 2,
+     "irrep": "R3+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 7,
+     "bands": [
+      14,
+      15,
+      16
+     ],
+     "energy": -2.784403,
+     "degeneracy": 3,
+     "irrep": "R4+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 8,
+     "bands": [
+      17,
+      18
+     ],
+     "energy": 2.935027,
+     "degeneracy": 2,
+     "irrep": null,
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": "not assigned: multiplicities R5+ 0.67, leakage 1.00"
+    },
+    {
+     "level": 9,
+     "bands": [
+      19
+     ],
+     "energy": 2.939339,
+     "degeneracy": 1,
+     "irrep": null,
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": "not assigned: multiplicities R5+ 0.31, R4- 0.02, leakage 1.00"
+    },
+    {
+     "level": 10,
+     "bands": [
+      20
+     ],
+     "energy": 3.073786,
+     "degeneracy": 1,
+     "irrep": null,
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": "incomplete: the band list ends inside this multiplet (multiplicities R4- 0.33)"
+    }
+   ]
+  },
+  {
+   "k_label": "X",
+   "k_position": [
+    0.5,
+    0.0,
+    0.0
+   ],
+   "k_index": 2,
+   "spin": "up",
+   "levels": [
+    {
+     "level": 1,
+     "bands": [
+      1
+     ],
+     "energy": -36.783421,
+     "degeneracy": 1,
+     "irrep": "X3-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 2,
+     "bands": [
+      2
+     ],
+     "energy": -21.86866,
+     "degeneracy": 1,
+     "irrep": "X1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 3,
+     "bands": [
+      3
+     ],
+     "energy": -20.75675,
+     "degeneracy": 1,
+     "irrep": "X2+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 4,
+     "bands": [
+      4
+     ],
+     "energy": -20.619677,
+     "degeneracy": 1,
+     "irrep": "X3-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 5,
+     "bands": [
+      5,
+      6
+     ],
+     "energy": -18.71884,
+     "degeneracy": 2,
+     "irrep": "X5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 6,
+     "bands": [
+      7
+     ],
+     "energy": -18.27024,
+     "degeneracy": 1,
+     "irrep": "X1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 7,
+     "bands": [
+      8
+     ],
+     "energy": -7.162043,
+     "degeneracy": 1,
+     "irrep": "X1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 8,
+     "bands": [
+      9,
+      10
+     ],
+     "energy": -6.362359,
+     "degeneracy": 2,
+     "irrep": "X5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 9,
+     "bands": [
+      11
+     ],
+     "energy": -5.945239,
+     "degeneracy": 1,
+     "irrep": "X3-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 10,
+     "bands": [
+      12,
+      13
+     ],
+     "energy": -5.75346,
+     "degeneracy": 2,
+     "irrep": "X5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 11,
+     "bands": [
+      14
+     ],
+     "energy": -5.360202,
+     "degeneracy": 1,
+     "irrep": "X4-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 12,
+     "bands": [
+      15,
+      16
+     ],
+     "energy": -3.987994,
+     "degeneracy": 2,
+     "irrep": "X5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 13,
+     "bands": [
+      17
+     ],
+     "energy": -0.168833,
+     "degeneracy": 1,
+     "irrep": "X4+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 14,
+     "bands": [
+      18,
+      19
+     ],
+     "energy": 1.592275,
+     "degeneracy": 2,
+     "irrep": "X5+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    },
+    {
+     "level": 15,
+     "bands": [
+      20
+     ],
+     "energy": 2.479404,
+     "degeneracy": 1,
+     "irrep": "X2+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "k_label": "X",
+   "k_position": [
+    0.5,
+    0.0,
+    0.0
+   ],
+   "k_index": 2,
+   "spin": "down",
+   "levels": [
+    {
+     "level": 1,
+     "bands": [
+      1
+     ],
+     "energy": -36.782007,
+     "degeneracy": 1,
+     "irrep": "X3-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 2,
+     "bands": [
+      2
+     ],
+     "energy": -21.87339,
+     "degeneracy": 1,
+     "irrep": "X1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 3,
+     "bands": [
+      3
+     ],
+     "energy": -20.773396,
+     "degeneracy": 1,
+     "irrep": "X2+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 4,
+     "bands": [
+      4
+     ],
+     "energy": -20.638046,
+     "degeneracy": 1,
+     "irrep": "X3-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 5,
+     "bands": [
+      5,
+      6
+     ],
+     "energy": -18.715892,
+     "degeneracy": 2,
+     "irrep": "X5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 6,
+     "bands": [
+      7
+     ],
+     "energy": -18.271782,
+     "degeneracy": 1,
+     "irrep": "X1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 7,
+     "bands": [
+      8
+     ],
+     "energy": -7.090693,
+     "degeneracy": 1,
+     "irrep": "X1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 8,
+     "bands": [
+      9,
+      10
+     ],
+     "energy": -6.338377,
+     "degeneracy": 2,
+     "irrep": "X5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 9,
+     "bands": [
+      11
+     ],
+     "energy": -5.940483,
+     "degeneracy": 1,
+     "irrep": "X3-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 10,
+     "bands": [
+      12,
+      13
+     ],
+     "energy": -5.691588,
+     "degeneracy": 2,
+     "irrep": "X5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 11,
+     "bands": [
+      14
+     ],
+     "energy": -5.373154,
+     "degeneracy": 1,
+     "irrep": "X4-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 12,
+     "bands": [
+      15,
+      16
+     ],
+     "energy": -3.994407,
+     "degeneracy": 2,
+     "irrep": "X5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 13,
+     "bands": [
+      17
+     ],
+     "energy": 0.347967,
+     "degeneracy": 1,
+     "irrep": "X4+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    },
+    {
+     "level": 14,
+     "bands": [
+      18,
+      19
+     ],
+     "energy": 2.053089,
+     "degeneracy": 2,
+     "irrep": "X5+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    },
+    {
+     "level": 15,
+     "bands": [
+      20
+     ],
+     "energy": 2.736666,
+     "degeneracy": 1,
+     "irrep": "X2+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "k_label": "M",
+   "k_position": [
+    0.5,
+    0.5,
+    0.0
+   ],
+   "k_index": 3,
+   "spin": "up",
+   "levels": [
+    {
+     "level": 1,
+     "bands": [
+      1
+     ],
+     "energy": -36.763799,
+     "degeneracy": 1,
+     "irrep": "M4+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 2,
+     "bands": [
+      2
+     ],
+     "energy": -21.035358,
+     "degeneracy": 1,
+     "irrep": "M1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 3,
+     "bands": [
+      3,
+      4
+     ],
+     "energy": -20.911522,
+     "degeneracy": 2,
+     "irrep": "M5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 4,
+     "bands": [
+      5
+     ],
+     "energy": -18.664024,
+     "degeneracy": 1,
+     "irrep": "M2-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 5,
+     "bands": [
+      6,
+      7
+     ],
+     "energy": -18.461559,
+     "degeneracy": 2,
+     "irrep": "M5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 6,
+     "bands": [
+      8
+     ],
+     "energy": -7.968363,
+     "degeneracy": 1,
+     "irrep": "M4+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 7,
+     "bands": [
+      9
+     ],
+     "energy": -7.440723,
+     "degeneracy": 1,
+     "irrep": "M1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 8,
+     "bands": [
+      10
+     ],
+     "energy": -6.864205,
+     "degeneracy": 1,
+     "irrep": "M2+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 9,
+     "bands": [
+      11,
+      12
+     ],
+     "energy": -6.084528,
+     "degeneracy": 2,
+     "irrep": "M5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 10,
+     "bands": [
+      13,
+      14
+     ],
+     "energy": -4.806023,
+     "degeneracy": 2,
+     "irrep": "M5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 11,
+     "bands": [
+      15
+     ],
+     "energy": -4.626481,
+     "degeneracy": 1,
+     "irrep": "M3-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 12,
+     "bands": [
+      16
+     ],
+     "energy": -3.184764,
+     "degeneracy": 1,
+     "irrep": "M3+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 13,
+     "bands": [
+      17,
+      18
+     ],
+     "energy": 1.706471,
+     "degeneracy": 2,
+     "irrep": "M5+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    },
+    {
+     "level": 14,
+     "bands": [
+      19
+     ],
+     "energy": 2.035589,
+     "degeneracy": 1,
+     "irrep": "M4+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    },
+    {
+     "level": 15,
+     "bands": [
+      20
+     ],
+     "energy": 3.124711,
+     "degeneracy": 1,
+     "irrep": "M1+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "k_label": "M",
+   "k_position": [
+    0.5,
+    0.5,
+    0.0
+   ],
+   "k_index": 3,
+   "spin": "down",
+   "levels": [
+    {
+     "level": 1,
+     "bands": [
+      1
+     ],
+     "energy": -36.762369,
+     "degeneracy": 1,
+     "irrep": "M4+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 2,
+     "bands": [
+      2
+     ],
+     "energy": -21.046563,
+     "degeneracy": 1,
+     "irrep": "M1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 3,
+     "bands": [
+      3,
+      4
+     ],
+     "energy": -20.924936,
+     "degeneracy": 2,
+     "irrep": "M5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 4,
+     "bands": [
+      5
+     ],
+     "energy": -18.661517,
+     "degeneracy": 1,
+     "irrep": "M2-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 5,
+     "bands": [
+      6,
+      7
+     ],
+     "energy": -18.464866,
+     "degeneracy": 2,
+     "irrep": "M5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 6,
+     "bands": [
+      8
+     ],
+     "energy": -7.906988,
+     "degeneracy": 1,
+     "irrep": "M4+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 7,
+     "bands": [
+      9
+     ],
+     "energy": -7.36141,
+     "degeneracy": 1,
+     "irrep": "M1+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 8,
+     "bands": [
+      10
+     ],
+     "energy": -6.796963,
+     "degeneracy": 1,
+     "irrep": "M2+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 9,
+     "bands": [
+      11,
+      12
+     ],
+     "energy": -6.018581,
+     "degeneracy": 2,
+     "irrep": "M5+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 10,
+     "bands": [
+      13,
+      14
+     ],
+     "energy": -4.810975,
+     "degeneracy": 2,
+     "irrep": "M5-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 11,
+     "bands": [
+      15
+     ],
+     "energy": -4.594921,
+     "degeneracy": 1,
+     "irrep": "M3-",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 12,
+     "bands": [
+      16
+     ],
+     "energy": -3.208693,
+     "degeneracy": 1,
+     "irrep": "M3+",
+     "mulliken": null,
+     "occupation": 1.0,
+     "note": ""
+    },
+    {
+     "level": 13,
+     "bands": [
+      17,
+      18
+     ],
+     "energy": 2.168786,
+     "degeneracy": 2,
+     "irrep": "M5+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    },
+    {
+     "level": 14,
+     "bands": [
+      19
+     ],
+     "energy": 2.468699,
+     "degeneracy": 1,
+     "irrep": "M4+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    },
+    {
+     "level": 15,
+     "bands": [
+      20
+     ],
+     "energy": 3.31369,
+     "degeneracy": 1,
+     "irrep": "M1+",
+     "mulliken": null,
+     "occupation": 0.0,
+     "note": ""
+    }
+   ]
+  }
+ ],
+ "band_edges": [
+  {
+   "k_label": "GM",
+   "k_index": 1,
+   "spin": "up",
+   "vbm": {
+    "level": 8,
+    "bands": [
+     17,
+     18,
+     19
+    ],
+    "energy": -0.466458,
+    "irrep": "GM5+",
+    "mulliken": "T2g"
+   },
+   "cbm": {
+    "level": 9,
+    "bands": [
+     20
+    ],
+    "energy": 1.405014,
+    "irrep": null,
+    "mulliken": null
+   },
+   "direct_gap": 1.871472
+  },
+  {
+   "k_label": "GM",
+   "k_index": 1,
+   "spin": "down",
+   "vbm": {
+    "level": 8,
+    "bands": [
+     17,
+     18,
+     19
+    ],
+    "energy": 0.0,
+    "irrep": "GM5+",
+    "mulliken": "T2g"
+   },
+   "cbm": {
+    "level": 9,
+    "bands": [
+     20
+    ],
+    "energy": 1.396554,
+    "irrep": null,
+    "mulliken": null
+   },
+   "direct_gap": 1.396554
+  },
+  {
+   "k_label": "R",
+   "k_index": 4,
+   "spin": "up",
+   "vbm": {
+    "level": 7,
+    "bands": [
+     14,
+     15,
+     16
+    ],
+    "energy": -2.759831,
+    "irrep": "R4+",
+    "mulliken": null
+   },
+   "cbm": {
+    "level": 8,
+    "bands": [
+     17,
+     18,
+     19
+    ],
+    "energy": 2.451035,
+    "irrep": "R5+",
+    "mulliken": null
+   },
+   "direct_gap": 5.210865
+  },
+  {
+   "k_label": "R",
+   "k_index": 4,
+   "spin": "down",
+   "vbm": {
+    "level": 7,
+    "bands": [
+     14,
+     15,
+     16
+    ],
+    "energy": -2.784403,
+    "irrep": "R4+",
+    "mulliken": null
+   },
+   "cbm": {
+    "level": 8,
+    "bands": [
+     17,
+     18
+    ],
+    "energy": 2.935027,
+    "irrep": null,
+    "mulliken": null
+   },
+   "direct_gap": 5.71943
+  },
+  {
+   "k_label": "X",
+   "k_index": 2,
+   "spin": "up",
+   "vbm": {
+    "level": 13,
+    "bands": [
+     17
+    ],
+    "energy": -0.168833,
+    "irrep": "X4+",
+    "mulliken": null
+   },
+   "cbm": {
+    "level": 14,
+    "bands": [
+     18,
+     19
+    ],
+    "energy": 1.592275,
+    "irrep": "X5+",
+    "mulliken": null
+   },
+   "direct_gap": 1.761108
+  },
+  {
+   "k_label": "X",
+   "k_index": 2,
+   "spin": "down",
+   "vbm": {
+    "level": 12,
+    "bands": [
+     15,
+     16
+    ],
+    "energy": -3.994407,
+    "irrep": "X5-",
+    "mulliken": null
+   },
+   "cbm": {
+    "level": 13,
+    "bands": [
+     17
+    ],
+    "energy": 0.347967,
+    "irrep": "X4+",
+    "mulliken": null
+   },
+   "direct_gap": 4.342374
+  },
+  {
+   "k_label": "M",
+   "k_index": 3,
+   "spin": "up",
+   "vbm": {
+    "level": 12,
+    "bands": [
+     16
+    ],
+    "energy": -3.184764,
+    "irrep": "M3+",
+    "mulliken": null
+   },
+   "cbm": {
+    "level": 13,
+    "bands": [
+     17,
+     18
+    ],
+    "energy": 1.706471,
+    "irrep": "M5+",
+    "mulliken": null
+   },
+   "direct_gap": 4.891235
+  },
+  {
+   "k_label": "M",
+   "k_index": 3,
+   "spin": "down",
+   "vbm": {
+    "level": 12,
+    "bands": [
+     16
+    ],
+    "energy": -3.208693,
+    "irrep": "M3+",
+    "mulliken": null
+   },
+   "cbm": {
+    "level": 13,
+    "bands": [
+     17,
+     18
+    ],
+    "energy": 2.168786,
+    "irrep": "M5+",
+    "mulliken": null
+   },
+   "direct_gap": 5.377479
+  }
+ ],
+ "gap": {
+  "metallic": true,
+  "gap": null,
+  "vbm": {
+   "energy": 0.0,
+   "k_index": 1,
+   "k_position": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "k_label": "GM",
+   "band": 19,
+   "spin": "down"
+  },
+  "cbm": {
+   "energy": 0.347967,
+   "k_index": 2,
+   "k_position": [
+    0.5,
+    0.0,
+    0.0
+   ],
+   "k_label": "X",
+   "band": 17,
+   "spin": "down"
+  }
+ }
+}

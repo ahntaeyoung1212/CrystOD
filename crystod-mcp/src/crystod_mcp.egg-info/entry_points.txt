@@ -1,2 +1,0 @@
-[console_scripts]
-crystod-mcp = crystod_mcp.server:main

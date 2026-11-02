@@ -22,9 +22,13 @@ def crystod_special_kpoints(
 
     The labels and coordinates are the ISO-IR convention that all other
     CrystOD tools use for irrep names (``crystod-bz --show-kpoint --sg SG``):
-    primitive reciprocal basis, and for centred lattices (F, I, C, A, B, R)
-    the conventional basis as well, where the two differ. Give either the
-    space group or a POSCAR (whose space group is detected with spglib).
+    primitive reciprocal basis, and for centred lattices (F, I, C, A, R)
+    the conventional basis as well, where the two differ. The table is that
+    of the ISO-IR standard setting, whose centring is the one that occurs
+    (A only for Nos. 38-41, never B): a non-standard symbol such as ``Pbnm``
+    or ``Bbmm`` gives the table of ``Pnma`` or ``Cmcm``, named in the
+    heading. Give either the space group or a POSCAR (whose space group is
+    detected with spglib).
 
     Args:
         space_group: Space group as an international symbol (``Pm-3m``,

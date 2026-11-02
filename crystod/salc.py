@@ -6,7 +6,8 @@ with a ``phonopy.structure.atoms.PhonopyAtoms`` cell in place of the
 orbitals -- the symmetry-adapted linear combinations (SALCs) of one atomic
 shell's Bloch sums -- at any k point, the SALC coefficient bases behind
 the interactive 3D viewer, the crystal-orbital diagrams built from
-extended-Hueckel or periodic PySCF overlaps, and the star of a k point.
+extended-Hueckel or periodic PySCF overlaps, the star of a k point, and
+the band irreps of a finished VASP run read from its WAVECAR.
 The classes take the same inputs as the command-line flags they mirror
 and return the numbers the command prints.
 
@@ -52,6 +53,18 @@ Star of k (``crystod --star-of-k``)
         A ``--kpoint`` argument (label or coordinates) as label plus
         coordinates.
 
+Band irreps of a VASP run (``crystod --extract-irrep``)
+    :func:`extract_band_irreps`
+        ``extract_band_irreps(path, kpoints=None, zero="vbm", window=None,
+        spin="both", symprec=1e-5, degeneracy_tol=None)``: the irreps of the
+        electronic bands of one finished VASP run, straight from its WAVECAR
+        (every special k point of the space group the file holds, or the
+        given labels/coordinates, or ``kpoints="all"``), returned as a
+        :class:`BandIrreps` (levels with band indices, energies, degeneracy,
+        ISO-IR label, Mulliken symbol at Gamma and the engine's notes; band
+        edges and gap); :func:`format_band_irreps` gives the report lines
+        and :func:`write_band_irreps_yaml` the ``-o`` YAML file.
+
 Attributes resolve lazily (PEP 562): ``import crystod.salc`` is instant;
 the implementation modules, and with them phonopy and spgrep (and pyscf
 for the PySCF diagram), are imported the first time an attribute is used.
@@ -82,6 +95,11 @@ _EXPORTS = {
     "compute_star": ("star_of_k", "compute_star"),
     "format_star_lines": ("star_of_k", "format_star_lines"),
     "resolve_kpoint_input": ("star_of_k", "resolve_kpoint_input"),
+    # band irreps of a VASP run (crystod --extract-irrep)
+    "extract_band_irreps": ("extract_irrep", "extract_band_irreps"),
+    "BandIrreps": ("extract_irrep", "BandIrreps"),
+    "format_band_irreps": ("extract_irrep", "format_band_irreps"),
+    "write_band_irreps_yaml": ("extract_irrep", "write_band_irreps_yaml"),
 }
 
 __getattr__, __dir__, __all__ = lazy_namespace(globals(), _EXPORTS)

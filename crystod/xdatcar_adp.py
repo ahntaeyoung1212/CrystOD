@@ -40,7 +40,8 @@ U_ij tensors as a CIF file.
 crystod-md --adp --dim 4 4 4 --start-step 1000 --xdatcar XDATCAR --output ADP.cif
 """
 
-# U-component order used throughout: [U11, U22, U33, U12, U13, U23]
+# U-component order used throughout: [U11, U22, U33, U12, U13, U23], the CIF
+# components U^ij = <dx_i dx_j> / (|a*_i| |a*_j|) (dx fractional; Trueblood et al. 1996)
 U_INDICES = [(0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2)]
 U_NAMES = ["U11", "U22", "U33", "U12", "U13", "U23"]
 
@@ -77,7 +78,9 @@ def build_parser() -> ArgumentParser:
         dest="symprec",
         type=float,
         default=0.1,
-        help="Symmetry tolerance for spglib on the time-averaged structure.",
+        help="Symmetry tolerance (Angstrom) for spglib on the time-averaged structure;\n"
+        "the same Cartesian distance selects the site-symmetry operations and maps\n"
+        "every site onto its asymmetric-unit representative.",
     )
     parser.add_argument(
         "--grouping-tolerance",
@@ -133,7 +136,7 @@ def read_xdatcar(path: str) -> tuple[list[str], list[NDArray[np.float64]], NDArr
     Example:
         >>> from crystod import md
         >>> symbols, lattices, frames = md.read_xdatcar("XDATCAR")
-        >>> frames.shape          # example/38_xdatcar2adp: ScF3, 4x4x4 cell, NpT
+        >>> frames.shape          # example/39_xdatcar2adp: ScF3, 4x4x4 cell, NpT
         (4001, 256, 3)
         >>> symbols[0], symbols[-1], lattices[0].shape
         ('Sc', 'F', (3, 3))
@@ -174,17 +177,84 @@ def read_xdatcar(path: str) -> tuple[list[str], list[NDArray[np.float64]], NDArr
 # ADP symmetry-constraint helpers
 # =============================================================================
 
-def build_symmetry_projector(rotations) -> NDArray[np.float64]:
+# the 27 lattice translations {-1, 0, 1}^3, for minimum-image distances
+_IMAGE_SHIFTS = np.array(
+    [[i, j, k] for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1)], dtype=float
+)
+
+
+def _min_image_distance(diff: NDArray[np.float64], lattice: NDArray[np.float64]) -> float:
+    """Cartesian length (Angstrom) of the shortest lattice image of a
+    fractional difference vector; ``lattice`` rows are the lattice vectors."""
+    diff = np.asarray(diff, dtype=float)
+    diff = diff - np.round(diff)
+    return float(np.min(np.linalg.norm((diff + _IMAGE_SHIFTS) @ lattice, axis=1)))
+
+
+def _averaged_metric(lattice, rotations=None) -> NDArray[np.float64]:
+    """The metric ``G = L L^T`` of ``lattice`` (rows = lattice vectors),
+    averaged over ``rotations`` (fractional, spglib convention) when given,
+    ``G -> mean(R^T G R)``: a cell that is only approximately symmetric (an
+    instantaneous MD cell) becomes exactly symmetric, an exactly symmetric
+    cell is left unchanged."""
+    lattice = np.asarray(lattice, dtype=float)
+    metric = lattice @ lattice.T
+    if rotations is not None and len(rotations):
+        metric = sum(
+            np.asarray(rotation, dtype=float).T @ metric @ np.asarray(rotation, dtype=float)
+            for rotation in rotations
+        ) / len(rotations)
+    return metric
+
+
+def _symmetrized_lattice(lattice, rotations) -> NDArray[np.float64]:
+    """A lattice matrix (rows = lattice vectors, arbitrary orientation) whose
+    metric is that of ``lattice`` averaged over ``rotations``."""
+    return np.linalg.cholesky(_averaged_metric(lattice, rotations))
+
+
+def _reciprocal_lengths(lattice, rotations=None) -> NDArray[np.float64]:
+    """The reciprocal-axis lengths ``|a*_i|`` (1/Angstrom, no 2 pi) of
+    ``lattice`` (rows = lattice vectors), from the metric averaged over
+    ``rotations`` when given (see ``_averaged_metric``)."""
+    return np.sqrt(np.diag(np.linalg.inv(_averaged_metric(lattice, rotations))))
+
+
+def _equivalent_isotropic_u(u_cryst: NDArray[np.float64], lattice) -> float:
+    """``U_eq`` of a CIF ``U^{ij}`` tensor (Fischer and Tillmanns 1988).
+
+    ``U_eq = (1/3) sum_ij U^{ij} a*_i a*_j (a_i . a_j)``, i.e. one third of
+    the trace of the Cartesian tensor ``U_cart = L^T N* U N* L`` with
+    ``N* = diag(|a*_i|)``; ``lattice`` rows are the lattice vectors (Angstrom)
+    of the cell the ``U^{ij}`` refer to. This is the value ``crystod-md --adp``
+    prints next to every site, computed from the tensor it writes.
+    """
+    lattice = np.asarray(lattice, dtype=float)
+    n_star = np.diag(_reciprocal_lengths(lattice))
+    u_cart = lattice.T @ n_star @ np.asarray(u_cryst, dtype=float) @ n_star @ lattice
+    return float(np.trace(u_cart) / 3.0)
+
+
+def build_symmetry_projector(rotations, lattice=None) -> NDArray[np.float64]:
     """Build the 6x6 projector onto ``U`` tensors with a given site symmetry.
 
     ``crystod-md --adp`` calls this once per Wyckoff position with the
     rotations found by ``get_site_symmetry_operations``. A symmetric tensor
-    is handled as the component vector ``[U11, U22, U33, U12, U13, U23]`` on
-    the fractional axes; every rotation ``R`` maps it through
-    ``R @ U @ R.T``, and the projector is the average of those 6x6 maps over
-    the group. Multiplying a component vector by it leaves the closest tensor
-    that has the full site symmetry, which is what
-    ``apply_symmetry_constraints`` does.
+    is handled as the component vector ``[U11, U22, U33, U12, U13, U23]`` of
+    the CIF ``U^{ij}`` (``U^{ij} = <dx_i dx_j> / (|a*_i| |a*_j|)`` with ``dx``
+    the fractional displacement; Trueblood et al. 1996). A fractional rotation
+    ``R`` maps ``dx -> R dx``, hence ``U -> M @ U @ M.T`` with
+    ``M = N*^-1 @ R @ N*`` and ``N* = diag(|a*_1|, |a*_2|, |a*_3|)``; the
+    projector is the average of those 6x6 maps over the group. Multiplying a
+    component vector by it leaves the closest tensor that has the full site
+    symmetry, which is what ``apply_symmetry_constraints`` does.
+
+    ``M`` equals ``R`` when every rotation only mixes axes of equal
+    reciprocal length, which holds for the conventional cells of the
+    standard settings and for the F-, C-centred, rhombohedral and
+    body-centred cubic primitive cells, but not for body-centred tetragonal
+    or orthorhombic primitive cells (or a general basis). ``lattice`` must be
+    given for those.
 
     Args:
         rotations (Sequence[numpy.ndarray]): The rotation matrices of the
@@ -192,6 +262,12 @@ def build_symmetry_projector(rotations) -> NDArray[np.float64]:
             fractional coordinates (the spglib convention). The sequence
             must be a complete group; ``[identity]`` gives the identity
             projector.
+        lattice (array-like, optional): The ``(3, 3)`` lattice matrix of the
+            cell (rows = lattice vectors, Angstrom), from which ``N*`` is
+            taken; its metric is averaged over ``rotations`` first, so an
+            approximately symmetric (instantaneous MD) cell gives exact
+            constraints. ``None`` (default) uses ``R`` itself, i.e. assumes
+            ``M == R`` as described above.
 
     Returns:
         The ``(6, 6)`` projector ``P`` (idempotent, ``P @ P == P``).
@@ -206,6 +282,11 @@ def build_symmetry_projector(rotations) -> NDArray[np.float64]:
         >>> md.get_constraint_description(projector)
         'U13=0, U23=0'
     """
+    rotations = [np.asarray(rotation, dtype=float) for rotation in rotations]
+    if lattice is not None:
+        n_star = _reciprocal_lengths(lattice, rotations)
+        # M = N*^-1 R N*, element-wise M_ij = R_ij |a*_j| / |a*_i|
+        rotations = [rotation * n_star[np.newaxis, :] / n_star[:, np.newaxis] for rotation in rotations]
     averaged = np.zeros((6, 6))
     for rotation in rotations:
         transform = np.zeros((6, 6))
@@ -230,9 +311,9 @@ def apply_symmetry_constraints(u_cryst: NDArray[np.float64], projector: NDArray[
     and reassembled into a symmetric matrix.
 
     Args:
-        u_cryst: Symmetric ``(3, 3)`` tensor on the fractional axes, in the
-            basis the projector's rotations act on. Only the upper triangle
-            is read.
+        u_cryst: Symmetric ``(3, 3)`` tensor of CIF components ``U^{ij}``
+            (the basis ``build_symmetry_projector`` works in). Only the upper
+            triangle is read.
         projector: The ``(6, 6)`` matrix from ``build_symmetry_projector``.
 
     Returns:
@@ -267,11 +348,13 @@ def get_constraint_description(projector: NDArray[np.float64], tol: float = 1e-6
 
     ``crystod-md --adp`` prints the result next to every Wyckoff position
     and in its ``Site / Ueq / Constraint`` table, for example
-    ``U11=U33, U12=0, U13=0, U23=0`` for the F site of cubic ScF3. Each unit
-    component is sent through the projector: a component that projects to
-    zero is reported as ``Uij=0``, and one that projects onto a later
-    component with the same (opposite) coefficient as ``Uij=Ukl``
-    (``Uij=-Ukl``). Other linear relations, such as ``U12 = U11/2`` on a
+    ``U11=U33, U12=0, U13=0, U23=0`` for the F site of cubic ScF3. Every
+    symmetric tensor is ``P @ v`` for some ``v``, so its component ``i`` is
+    row ``i`` of the projector ``P`` applied to ``v``: a component whose row
+    vanishes is reported as ``Uij=0``, and two components with equal
+    (opposite) rows as ``Uij=Ukl`` (``Uij=-Ukl``). This reading holds for
+    oblique projectors too, such as those of body-centred tetragonal
+    primitive cells. Other linear relations, such as ``U12 = U11/2`` on a
     three-fold axis of a hexagonal cell, are enforced by the projector but
     not spelled out.
 
@@ -281,8 +364,11 @@ def get_constraint_description(projector: NDArray[np.float64], tol: float = 1e-6
             and within which two coefficients count as equal.
 
     Returns:
-        The relations joined by ``", "``, or ``"no constraint"`` for a site
-        of symmetry 1.
+        The relations joined by ``", "``; ``"no constraint"`` when the
+        projector is the identity (site symmetry 1 or -1), and ``"general
+        linear constraints only"`` when it constrains ``U`` only through
+        relations of the other kind (a two-fold axis along ``a`` of a
+        hexagonal cell: ``U12 = U22/2``, ``U13 = U23/2``).
 
     Example:
         >>> import numpy as np
@@ -292,24 +378,26 @@ def get_constraint_description(projector: NDArray[np.float64], tol: float = 1e-6
         >>> md.get_constraint_description(md.build_symmetry_projector(group))
         'U11=U22, U13=0, U23=0'
     """
+    projector = np.asarray(projector, dtype=float)
     constraints = []
     for i in range(6):
-        unit = np.zeros(6)
-        unit[i] = 1.0
-        projected = projector @ unit
-        if abs(projected[i]) < tol:
+        row = projector[i]
+        if np.max(np.abs(row)) < tol:
             constraints.append(f"{U_NAMES[i]}=0")
         else:
             for j in range(i + 1, 6):
-                if abs(projected[j]) > tol:
-                    if abs(projected[j] - projected[i]) < tol:
-                        constraints.append(f"{U_NAMES[i]}={U_NAMES[j]}")
-                    elif abs(projected[j] + projected[i]) < tol:
-                        constraints.append(f"{U_NAMES[i]}=-{U_NAMES[j]}")
-    return ", ".join(constraints) if constraints else "no constraint"
+                if np.max(np.abs(projector[j] - row)) < tol:
+                    constraints.append(f"{U_NAMES[i]}={U_NAMES[j]}")
+                elif np.max(np.abs(projector[j] + row)) < tol:
+                    constraints.append(f"{U_NAMES[i]}=-{U_NAMES[j]}")
+    if constraints:
+        return ", ".join(constraints)
+    if np.max(np.abs(projector - np.eye(6))) < tol:
+        return "no constraint"
+    return "general linear constraints only"
 
 
-def get_site_symmetry_operations(coords, rotations, translations, symprec: float = 0.1):
+def get_site_symmetry_operations(coords, rotations, translations, symprec: float = 0.1, lattice=None):
     """Select the space-group operations that leave a site fixed.
 
     This is where the ADP constraints of ``crystod-md --adp`` start: the
@@ -324,8 +412,15 @@ def get_site_symmetry_operations(coords, rotations, translations, symprec: float
             shape ``(n_ops, 3, 3)``, as in ``spglib.get_symmetry(cell)``.
         translations (array-like): The matching translation parts, shape
             ``(n_ops, 3)``.
-        symprec: Tolerance on the Euclidean norm of the wrapped fractional
-            difference ``R @ x + t - x``.
+        symprec: Tolerance on the distance between ``R @ x + t`` and ``x``.
+            With ``lattice`` it is the Cartesian minimum-image distance in
+            Angstrom, the unit of spglib's ``symprec`` (``crystod-md --adp``
+            passes its ``--tolerance`` here and to spglib). Without
+            ``lattice`` it is the Euclidean norm of the wrapped fractional
+            difference (unitless; kept for backward compatibility).
+        lattice (array-like, optional): The ``(3, 3)`` lattice matrix (rows =
+            lattice vectors, Angstrom) that makes ``symprec`` a Cartesian
+            distance. ``None`` (default) compares fractional coordinates.
 
     Returns:
         The rotation matrices of the site-symmetry group, a list of ``(3, 3)``
@@ -347,14 +442,40 @@ def get_site_symmetry_operations(coords, rotations, translations, symprec: float
         >>> md.get_constraint_description(md.build_symmetry_projector(site_ops))
         'U22=U33, U12=0, U13=0, U23=0'
     """
+    if lattice is not None:
+        lattice = np.asarray(lattice, dtype=float)
     site_operations = []
     for rotation, translation in zip(rotations, translations):
         transformed = (rotation @ coords + translation) % 1.0
         diff = transformed - coords
         diff = diff - np.round(diff)
-        if np.linalg.norm(diff) < symprec:
+        distance = np.linalg.norm(diff) if lattice is None else _min_image_distance(diff, lattice)
+        if distance < symprec:
             site_operations.append(rotation)
     return site_operations
+
+
+def _representative_operations(site_coords, equivalent_atoms, rotations, translations, lattice, symprec):
+    """For every unit-cell site, the index of the space-group operation that
+    maps it onto its asymmetric-unit representative ``equivalent_atoms[site]``.
+
+    The operation whose image ``R @ x + t`` lies closest to the representative
+    (Cartesian minimum-image distance; the first one among equally close
+    operations) is taken when that distance is below ``symprec`` (Angstrom,
+    the tolerance spglib used to call the sites equivalent); otherwise the
+    entry is ``None`` and the caller reports the site's atoms.
+    """
+    lattice = np.asarray(lattice, dtype=float)
+    symop_ids = []
+    for site_index, coord in enumerate(site_coords):
+        representative = site_coords[equivalent_atoms[site_index]]
+        best_index, best_distance = None, np.inf
+        for symop_index, (rotation, translation) in enumerate(zip(rotations, translations)):
+            distance = _min_image_distance(rotation @ coord + translation - representative, lattice)
+            if distance < best_distance - 1e-8:
+                best_index, best_distance = symop_index, distance
+        symop_ids.append(best_index if best_distance < symprec else None)
+    return symop_ids
 
 
 def rotation_to_xyz(rotation, translation) -> str:
@@ -519,14 +640,20 @@ def main(argv: list[str] | None = None) -> None:
             f"coords=({coords[0]:.5f}, {coords[1]:.5f}, {coords[2]:.5f})"
         )
 
-    # ADP constraints per Wyckoff position
+    # ADP constraints per Wyckoff position. The U^{ij} transformation
+    # M = N*^-1 R N* takes N* from the cell metric made exactly invariant under
+    # the whole space group (the first-frame NpT cell is only approximately
+    # so); M == R for every conventional cell.
+    symmetric_lattice = _symmetrized_lattice(lattice_vec_unit, rotations)
     wyckoff_constraints = {}
     wyckoff_projectors = {}
     print("\n* ADP constraints per Wyckoff position *")
     for wyckoff_id in wyckoff_ids_sorted:
         coords = group_unitcell_coords[wyckoff_id]
-        site_operations = get_site_symmetry_operations(coords, rotations, translations, args.symprec)
-        projector = build_symmetry_projector(site_operations)
+        site_operations = get_site_symmetry_operations(
+            coords, rotations, translations, args.symprec, lattice=lattice_vec_unit
+        )
+        projector = build_symmetry_projector(site_operations, lattice=symmetric_lattice)
         wyckoff_projectors[wyckoff_id] = projector
         constraint = get_constraint_description(projector)
         wyckoff_constraints[wyckoff_id] = constraint
@@ -539,8 +666,10 @@ def main(argv: list[str] | None = None) -> None:
     lattice_inv = np.linalg.inv(lattice_vec_unit)
     all_atom_cart_coords = []
     all_atom_group_ids = []
+    all_atom_indices = []
     for group_index, atom_indices in enumerate(grouped_indices):
         for atom_index in atom_indices:
+            all_atom_indices.append(atom_index)
             supercell_frac = coordinates[:, atom_index, :] % 1.0
             unitcell_frac = supercell_frac @ lattice_vec_super @ lattice_inv
             steps_diff = np.diff(unitcell_frac, axis=0)
@@ -557,23 +686,23 @@ def main(argv: list[str] | None = None) -> None:
     print(f"  Coordinate unwrapping done: {len(all_atom_cart_coords)} atoms x {n_steps} steps")
 
     # Step 10: map every atom onto its Wyckoff representative
-    all_atom_wyckoff_ids = []
-    all_atom_symop_ids = []
-    for atom_index in range(len(all_atom_cart_coords)):
-        group_index = all_atom_group_ids[atom_index]
-        wyckoff_id = equivalent_atoms[group_index]
-        all_atom_wyckoff_ids.append(wyckoff_id)
-        coord = group_unitcell_coords[group_index]
-        representative = group_unitcell_coords[wyckoff_id]
-        found = None
-        for symop_index, (rotation, translation) in enumerate(zip(rotations, translations)):
-            transformed = (rotation @ coord + translation) % 1.0
-            diff = transformed - representative
-            diff = diff - np.round(diff)
-            if np.linalg.norm(diff) < 0.01:
-                found = symop_index
-                break
-        all_atom_symop_ids.append(found)
+    group_symop_ids = _representative_operations(
+        group_unitcell_coords, equivalent_atoms, rotations, translations, lattice_vec_unit, args.symprec
+    )
+    all_atom_wyckoff_ids = [equivalent_atoms[group_index] for group_index in all_atom_group_ids]
+    all_atom_symop_ids = [group_symop_ids[group_index] for group_index in all_atom_group_ids]
+    unmapped = sorted(
+        all_atom_indices[atom_index]
+        for atom_index, symop_index in enumerate(all_atom_symop_ids)
+        if symop_index is None
+    )
+    if unmapped:
+        print(
+            f"  WARNING: {len(unmapped)} atom(s) could not be mapped onto their asymmetric-unit "
+            f"representative within --tolerance {args.symprec:g} A and are excluded from the "
+            f"ADP statistics (XDATCAR atom numbers, 1-based): "
+            + ", ".join(str(index + 1) for index in unmapped)
+        )
 
     # Step 11: collect displacements rotated into the representative frame
     volume = np.linalg.det(lattice_vec_unit)
@@ -613,7 +742,8 @@ def main(argv: list[str] | None = None) -> None:
         wyckoff_averaged_u_cryst[wyckoff_id] = u_cryst
 
         label = asym_sites[wyckoff_to_cif_index[wyckoff_id]]["label"]
-        u_eq = float(np.mean(np.real(np.linalg.eigvals(u_cart))))
+        # U_eq of the tensor written to the CIF (in the CIF cell)
+        u_eq = _equivalent_isotropic_u(u_cryst, lattice_vec_unit)
         print(f"{label:<10} {u_eq:<12.6f} {wyckoff_constraints[wyckoff_id]:<35}")
 
     # Step 13: CIF output
@@ -629,7 +759,7 @@ def main(argv: list[str] | None = None) -> None:
     formula_sum = " ".join(f"{element}{count}" for element, count in sorted(element_counts.items()))
 
     cif = []
-    cif.append("# generated using crystod --xdatcar2adp")
+    cif.append("# generated using crystod-md --adp")
     cif.append(f"data_{formula}")
     cif.append(f"_symmetry_space_group_name_H-M   '{spacegroup}'")
     cif.append(f"_cell_length_a   {a:.8f}")

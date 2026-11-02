@@ -1,0 +1,12 @@
+* Transformation matrix (parent -> child) *
+Pm-3m (No. 221) -> P4mm (No. 99), conventional settings of the input files
+  [     1     0     0 ] [     0 ]
+  [     0     1     0 ] [     0 ]
+  [     0     0     1 ] [ 0.9620 ]
+(columns of P: the child basis vectors a', b', c' in parent units, (a', b', c') = (a, b, c) P;
+ last column: the child origin p in parent fractional coordinates, x_parent = P x_child + p;
+ the AMPLIMODES / Bilbao convention)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(0,0,0)          GM4-    (a,0,0)      99 P4mm             4    0.3956

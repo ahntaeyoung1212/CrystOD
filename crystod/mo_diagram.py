@@ -226,6 +226,15 @@ F_LABELS = ["fx(x2-3y2)", "fy(3x2-y2)", "fz(x2-y2)", "fxyz",
 ANGSTROM_TO_BOHR = 1.0 / 0.529177210903
 
 
+def _format_zeta(zeta) -> str:
+    """Slater exponent(s) of an EHT_PARAMETERS entry for the text report:
+    ``"1.950"`` for a single zeta, ``"4.550 (c = 0.4206) + 1.400 (c = 0.7839)"``
+    for a double-zeta contraction of ``(zeta, coefficient)`` pairs."""
+    if isinstance(zeta, (list, tuple)):
+        return " + ".join(f"{z:.3f} (c = {c:.4f})" for z, c in zeta)
+    return f"{zeta:.3f}"
+
+
 # ----------------------------------------------------- STO overlap integrals
 
 
@@ -867,9 +876,12 @@ class MODiagram:
     def _count_core_shells(self) -> None:
         """Number of core levels per irrep (for the MO numbering only).
 
-        A core shell of angular momentum l decomposes into the same irreps as
-        the corresponding valence shell of the same fragment, so the valence
-        SALC structure is reused for the counting.
+        A core shell of angular momentum l (read from the shell letter, as in
+        the two-fragment engine) decomposes into the same irreps as a valence
+        shell of the same l on the same sites, so the valence SALC structure
+        is reused for the counting; a core l with no valence counterpart (the
+        3d core of Zn-Br, the 4d of Cd-I, the 4f/5d of Pb and Bi) is projected
+        on the fragment's sites directly.
         """
         rotation_list = list(self.character_table["rotation_list"])
         e_index = rotation_list.index("E")
@@ -886,12 +898,21 @@ class MODiagram:
                 continue
             counted.add((fragment.element, fragment.is_center))
             for core_shell in CORE_SHELLS[fragment.element]:
-                l = 0 if core_shell.endswith("s") else 1
+                l = "spdf".index(core_shell[-1])
                 proxy = by_key.get((fragment.element, fragment.is_center, l))
-                if proxy is None:
-                    continue
+                if proxy is not None:
+                    salcs = proxy.salcs
+                else:
+                    permutations = get_permutation_matrices(
+                        self.operations, self.coordinates[fragment.sites],
+                        self.tolerance,
+                    )
+                    salcs = project_salcs(
+                        self.operations, self.operation_classes, permutations,
+                        l, self.character_table,
+                    )
                 irreps = []
-                for irrep, vectors in proxy.salcs.items():
+                for irrep, vectors in salcs.items():
                     count = len(vectors) // dimension[irrep]
                     self.core_counts[irrep] = self.core_counts.get(irrep, 0) + count
                     irreps.extend([lowercase_irrep(irrep)] * count)
@@ -1192,25 +1213,31 @@ class MODiagram:
         print("\n* Fragments *")
         print(f"central atom: {center_symbol}; ligands: {ligands}")
 
+        elements = list(dict.fromkeys([center_symbol] + sorted(self.ligand_sites)))
+        double_zeta = any(
+            isinstance(zeta, (list, tuple))
+            for element in elements
+            for _shell, _n, _l, zeta, _h_ii in EHT_PARAMETERS[element]
+        )
         print(
             "\n* Valence Atomic Orbital (AO) parameters "
-            "(single-zeta STO, extended Hueckel) *"
+            + ("(single-zeta STO, double-zeta d/f contractions, extended Hueckel) *"
+               if double_zeta else "(single-zeta STO, extended Hueckel) *")
         )
-        seen = set()
-        for element in [center_symbol] + sorted(self.ligand_sites):
-            if element in seen:
-                continue
-            seen.add(element)
+        for element in elements:
             for shell, n, l, zeta, h_ii in EHT_PARAMETERS[element]:
-                print(f"{element} {shell}:  zeta = {zeta:.3f} / bohr,  H_ii = {h_ii:.1f} eV")
+                print(f"{element} {shell}:  zeta = {_format_zeta(zeta)} / bohr,  "
+                      f"H_ii = {h_ii:.1f} eV")
 
         print("\n* Ligand SALCs (standard point-group axes) *")
+        component_labels = {1: P_LABELS, 2: D_LABELS, 3: F_LABELS}
         for fragment in self.fragment_shells:
             if fragment.is_center:
                 continue
             width = 2 * fragment.l + 1
+            # same component names and order as AtomicOrbital.orbital_label
             orbital_names = [fragment.shell] if fragment.l == 0 else [
-                fragment.shell[:-1] + p for p in P_LABELS
+                fragment.shell[:-1] + c for c in component_labels[fragment.l]
             ]
             term_labels = [
                 f"{orbital_names[m]}({label})"
@@ -1358,15 +1385,18 @@ def canonical_sketch_partners(per_atom_list: list[dict]) -> list[dict]:
     orthogonal mixture; the SCF (or eigh) returns an arbitrary one. Applying
     the same RREF + Gram-Schmidt canonicalization as the SALC viewer makes
     the displayed partners match the visualized SALCs
-    (crystod-mol --visualize)."""
+    (crystod-mol --visualize). The per-atom lists may carry the 4 s/p slots
+    or the wider s/p/d(/f) sketch layout; all partners share one width."""
     if len(per_atom_list) < 2:
         return per_atom_list
     from .molecular_salc import _rref_orthogonal
 
     atoms = sorted(set().union(*[set(d) for d in per_atom_list]))
+    # slots per atom: 4 (s, p) or the wider s/p/d(/f) sketch layout
+    width = max((len(v) for d in per_atom_list for v in d.values()), default=4)
     rows = np.array([
         np.concatenate([
-            np.asarray(d.get(a, [0.0, 0.0, 0.0, 0.0]), dtype=float) for a in atoms
+            np.asarray(d.get(a, [0.0] * width), dtype=float) for a in atoms
         ])
         for d in per_atom_list
     ])
@@ -1381,7 +1411,7 @@ def canonical_sketch_partners(per_atom_list: list[dict]) -> list[dict]:
     for row in canonical:
         per_atom = {}
         for k, a in enumerate(atoms):
-            values = row[4 * k:4 * k + 4]
+            values = row[width * k:width * (k + 1)]
             if np.max(np.abs(values)) > 1e-8:
                 per_atom[a] = [float(v) for v in values]
         result.append(per_atom)
@@ -1389,8 +1419,9 @@ def canonical_sketch_partners(per_atom_list: list[dict]) -> list[dict]:
 
 
 def _sketch_entries(per_atom: dict) -> list:
-    """Compress {atom: [s, px, py, pz]} to sketch entries, normalized so the
-    largest component is 1; atoms with negligible amplitude are dropped."""
+    """Compress {atom: [s, px, py, pz, (d...), (f...)]} to sketch entries,
+    normalized so the largest component is 1; atoms with negligible amplitude
+    are dropped."""
     if not per_atom:
         return []
     peak = max(
@@ -2214,16 +2245,24 @@ def write_diagram_html(diagram: MODiagram, output_path: str) -> None:
     e_min, e_max = min(energies), max(energies)
     padding = 0.06 * (e_max - e_min) or 1.0
 
+    # sketch slots per atom: s, (px, py, pz), then the d components
+    # (dxy, dyz, dz2, dxz, dx2-y2) and the f components in the wigner_D_real
+    # order of D_LABELS / F_LABELS when the basis carries them -- the 9-slot
+    # s/p/d layout the other diagram engines and the page's lobe renderer
+    # use (the renderer draws s/p/d lobes; the trailing f slots enter the
+    # lobe-size normalization only); the s/p-only width 4 keeps the
+    # main-group pages unchanged
+    max_l = max(orbital.l for orbital in diagram.orbitals)
+    width = {0: 4, 1: 4, 2: 9, 3: 16}[max_l]
+    slot_of = {0: 0, 1: 1, 2: 4, 3: 9}
+
     def per_atom_components(vector):
         components: dict[int, list[float]] = {}
         for index, orbital in enumerate(diagram.orbitals):
             if abs(vector[index]) < 1e-10:
                 continue
-            values = components.setdefault(orbital.atom, [0.0, 0.0, 0.0, 0.0])
-            if orbital.l == 0:
-                values[0] += float(vector[index])
-            else:
-                values[1 + orbital.m] += float(vector[index])
+            values = components.setdefault(orbital.atom, [0.0] * width)
+            values[slot_of[orbital.l] + orbital.m] += float(vector[index])
         return components
 
     bond_letter = {"bonding": "b", "nonbonding": "n", "antibonding": "a"}

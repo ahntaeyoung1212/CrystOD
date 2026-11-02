@@ -41,6 +41,19 @@ Besides the polar coordinates x, y, z, the axial-vector (pseudovector)
 components Rx, Ry, Rz are supported; they transform with det(R) * R, i.e.
 like rotations, angular momenta, or magnetic moments (spins).
 
+Operations act actively, (O_R f)(r) = f(R^-1 r), the convention of the
+characters printed by --table and used by the SALC and vibration analyses
+(P4 at GM: GM3, with 4^+_001 character -i, gets x + i y, printed -Ix + y).
+With --space-group a polynomial about the origin stands for its Bloch sum
+at k: an operation {R|t} of the little group acts as exp(-2 pi i k.t) O_R.
+This is a representation of the little group when (kR - k).t is an integer
+for all its rotations R and translations t: always at GM, at every k of a
+symmorphic group and inside the Brillouin zone.  At the zone-boundary points
+of non-symmorphic groups where it fails (e.g. M of P4_2/mnm, X of Pnma,
+X of Fd-3m) the polynomials span no representation of the little group and
+the command stops with an ERROR (without --kpoint such points are listed as
+skipped).
+
 # Command Examples:
 crystod-group --basis x y z --point-group m-3m
 crystod-group --basis Rx Ry Rz --point-group m-3m
@@ -371,17 +384,39 @@ def _build_closed_subspace(seed_expressions: list, rotations: list[np.ndarray]):
     return monomials, normalized_basis_vectors, basis_expressions
 
 
+def _inverse_rotation(rotation) -> Matrix:
+    """Exact inverse of a (Cartesianized) rotation matrix: the transpose for
+    the orthogonal matrices used here, the general inverse otherwise."""
+    matrix = Matrix(rotation)
+    transpose = matrix.T
+    if (matrix * transpose).applyfunc(simplify) == Matrix.eye(matrix.shape[0]):
+        return transpose
+    return matrix.inv()
+
+
 def _representation_matrices(
     basis_matrix: Matrix,
     basis_expressions: list,
     monomials: list[tuple[int, int, int]],
     rotations: list[np.ndarray],
 ) -> list[Matrix]:
+    """Matrices of the active action ``(O_R f)(r) = f(R^-1 r)`` on the closed
+    basis, one per rotation (columns = images of the basis functions).
+
+    ``_apply_rotation`` substitutes ``f(R r)``, which is ``O_{R^-1}``; the
+    inverse rotation is substituted here so that ``D(R1) D(R2) = D(R1 R2)``
+    and the matrices follow the active convention of the spgrep characters
+    (and of the SALC and vibration paths).  With the substitution ``f(R r)``
+    a complex-type irrep was printed with the function of its conjugate
+    partner (P4 at GM: GM3 got x - i y although its 4^+_001 character is
+    -i); the traces, hence the multiplicities, and every function of a
+    real character table are the same in both conventions."""
     representation_matrices: list[Matrix] = []
     for rotation in rotations:
+        inverse = _inverse_rotation(rotation)
         columns = []
         for expr in basis_expressions:
-            rotated_expr = expand(_apply_rotation(expr, rotation))
+            rotated_expr = expand(_apply_rotation(expr, inverse))
             rotated_vector = _vectorize(rotated_expr, monomials)
             solution, params = basis_matrix.gauss_jordan_solve(rotated_vector)
             if params.shape[0] != 0:
@@ -539,6 +574,107 @@ def _project_spacegroup_irrep_basis(
         if expr != 0:
             functions.append(_normalize_expr(expr))
     return functions
+
+
+class PolynomialBasisUnavailable(SystemExit):
+    """``--basis``/``--generate-basis --sg`` at a k point where polynomials
+    carry no representation of the little group (see
+    ``_polynomial_bloch_phases``).  A ``SystemExit`` with an ``ERROR:``
+    message, like the other input errors of the command line."""
+
+
+def _bloch_phase_obstruction(
+    kpoint: list[float],
+    rotations: np.ndarray,
+    translations: np.ndarray,
+    tol: float = 1e-6,
+) -> tuple[int, int, np.ndarray] | None:
+    """First ``(i, j, G)`` with ``G = k R_i - k`` and ``G.t_j`` not an
+    integer (primitive basis; rotations and translations of the little
+    group in the same order), or ``None`` when there is none."""
+    k = np.asarray(kpoint, dtype=float)
+    t = np.asarray(translations, dtype=float).reshape(-1, 3)
+    for index, rotation in enumerate(rotations):
+        shift = k @ np.asarray(rotation, dtype=float) - k
+        products = t @ shift
+        offending = np.flatnonzero(np.abs(products - np.rint(products)) > tol)
+        if offending.size:
+            return index, int(offending[0]), np.rint(shift).astype(int)
+    return None
+
+
+def _polynomial_bloch_phases(
+    kpoint: list[float],
+    rotations: np.ndarray,
+    translations: np.ndarray,
+    tol: float = 1e-6,
+) -> np.ndarray | None:
+    """Bloch phases ``exp(-2 pi i k.t)`` of the little-group operations
+    ``{R|t}`` (primitive basis, the representatives spgrep evaluated), or
+    ``None`` when they do not form a one-dimensional representation of the
+    little group.
+
+    A polynomial ``f`` in x, y, z about the origin knows only the rotation
+    part; at k it stands for the modulated field ``exp(i k.r) f(r)`` (to
+    leading degree; for a symmorphic group the Bloch sum of ``f`` on the
+    lattice sites), on which ``{R|t}`` acts as ``exp(-2 pi i k.t) O_R`` in
+    spgrep's (active) convention.  That is a representation of G_k iff the
+    phases are a homomorphism, ``k.(R1 t2) = k.t2 (mod 1)``, i.e.
+    ``(k R1 - k).t2`` is an integer for every rotation R1 and translation t2
+    of the little group.  This holds at GM, at every k of a symmorphic group
+    (t = 0 in the ISO-IR settings) and inside the Brillouin zone (k R = k
+    exactly); it fails at zone-boundary points of non-symmorphic groups
+    (M of P4_2/mnm, X of Pnma, X of Fd-3m), where the rotation-only action
+    used before gave incomplete decompositions without notice."""
+    if _bloch_phase_obstruction(kpoint, rotations, translations, tol) is not None:
+        return None
+    k = np.asarray(kpoint, dtype=float)
+    t = np.asarray(translations, dtype=float).reshape(-1, 3)
+    return np.exp(-2j * np.pi * (t @ k))
+
+
+def _fraction_text(value: float) -> str:
+    return str(Fraction(float(value)).limit_denominator(48))
+
+
+def _vector_text(values) -> str:
+    return "(" + ", ".join(_fraction_text(value) for value in values) + ")"
+
+
+def _polynomial_basis_error(context, kpoint: list[float]) -> PolynomialBasisUnavailable:
+    sg_type = context.sg_type
+    name = f" ({context.kpoint_label})" if context.kpoint_label else ""
+    witness = ""
+    obstruction = _bloch_phase_obstruction(
+        kpoint, context.little_primitive_rotations, context.little_primitive_translations
+    )
+    if obstruction is not None:
+        rotation_index, translation_index, shift = obstruction
+        translation = np.asarray(context.little_primitive_translations[translation_index], dtype=float)
+        product = float(np.dot(shift, translation))
+        product %= 1.0
+        witness = (
+            f" Here {context.operation_labels[rotation_index]} maps k to k + G with "
+            f"G = {_vector_text(shift)} and {context.operation_labels[translation_index]} "
+            f"carries t = {_vector_text(translation)} (primitive basis), so "
+            f"G.t = {_fraction_text(product)} (mod 1)."
+        )
+    return PolynomialBasisUnavailable(
+        "ERROR: polynomial basis functions are not defined at "
+        f"k = {_format_kpoint(kpoint)}{name} of the non-symmorphic space group "
+        f"{sg_type.international_short} ({sg_type.number}).\n"
+        "A polynomial in x, y, z about the origin is acted on by the rotation "
+        "part R of each little-group operation {R|t}, times the Bloch phase "
+        "exp(-2 pi i k.t). These phases follow the group multiplication only "
+        "if (kR - k).t is an integer for every R and t of the little group, "
+        "which holds at GM, at every k of a symmorphic group and inside the "
+        "Brillouin zone, but not at this zone-boundary point." + witness + " "
+        "The polynomials therefore span no representation of the little group, "
+        "and a decomposition into its small irreps would be incomplete.\n"
+        "Use GM (--kpoint 0 0 0), a k point inside the zone, or a SALC of "
+        "orbitals on the actual Wyckoff sites (crystod -c POSCAR --element EL "
+        "--orbital ORB --kpoint ...)."
+    )
 
 
 def _format_kpoint(values: list[float]) -> list[float]:
@@ -1021,8 +1157,25 @@ def _space_group_blocks(
         ``(header_blocks, analysis_blocks)`` as ``_point_group_blocks``:
         the space-group, little-group and k-point blocks (and the little-group
         ``* IrRep Table *`` with ``show_irrep_table``), then the analysis.
+
+    Raises:
+        PolynomialBasisUnavailable: at a zone-boundary k of a non-symmorphic
+            group where the Bloch phases of the little group are no
+            representation (``_polynomial_bloch_phases``).
+
+    Every little-group operation ``{R|t}`` acts on the polynomials as
+    ``exp(-2 pi i k.t) O_R``; the printed little-group characters carry the
+    phase and compare directly with the small-irrep characters (the phases
+    are 1 at GM and in symmorphic groups).
     """
     context = _spacegroup_irrep_context(space_group_symbol, kpoint)
+    bloch_phases = _polynomial_bloch_phases(
+        kpoint,
+        context.little_primitive_rotations,
+        context.little_primitive_translations,
+    )
+    if bloch_phases is None:
+        raise _polynomial_basis_error(context, kpoint)
     sg_type = context.sg_type
     irreps = context.irreps
     little_primitive_rotations = context.little_primitive_rotations
@@ -1047,7 +1200,9 @@ def _space_group_blocks(
         monomials=monomials,
         rotations=cartesian_little_rotations,
     )
-    rep_characters = np.array([complex(matrix.trace().evalf()) for matrix in rep_matrices], dtype=np.complex128)
+    rep_characters = bloch_phases * np.array(
+        [complex(matrix.trace().evalf()) for matrix in rep_matrices], dtype=np.complex128
+    )
     multiplicities = _decompose_by_operations(rep_characters, irrep_characters_map)
 
     operation_labels = [
@@ -1077,17 +1232,36 @@ def _space_group_blocks(
         if value > 0
     )
     irrep_lines = []
+    found_dimension = 0
     for irrep_name in generic_labels:
         multiplicity = multiplicities[irrep_name]
         if multiplicity <= 0:
             continue
+        # project the rotation-only matrices with the phase-stripped
+        # characters chi(g) exp(+2 pi i k.t): the same projector as the
+        # phase-carrying representation with chi(g), but the stripped values
+        # are exact sums of roots of unity (characters of the little co-group)
         adapted_functions = _project_spacegroup_irrep_basis(
             basis_expressions=basis_expressions,
             rep_matrices=rep_matrices,
-            irrep_characters=irrep_characters_map[irrep_name],
+            irrep_characters=irrep_characters_map[irrep_name] * np.conjugate(bloch_phases),
             irrep_name=irrep_name,
         )
+        irrep_dimension = int(round(float(np.real(irrep_characters_map[irrep_name][0]))))
+        if len(adapted_functions) != multiplicity * irrep_dimension:
+            raise SystemExit(
+                f"ERROR: the projection onto {display_label_map[irrep_name]} gave "
+                f"{len(adapted_functions)} functions instead of "
+                f"{multiplicity} x {irrep_dimension} (internal inconsistency; please report)."
+            )
+        found_dimension += len(adapted_functions)
         irrep_lines.append(f"  {display_label_map[irrep_name]}: {_format_expression_list(adapted_functions)}")
+    if found_dimension != len(basis_expressions):
+        raise SystemExit(
+            f"ERROR: the decomposition covers {found_dimension} of the "
+            f"{len(basis_expressions)} closed basis functions "
+            "(internal inconsistency; please report)."
+        )
 
     analysis_blocks = [
         ("Input basis functions",
@@ -1160,13 +1334,28 @@ def main(argv: list[str] | None = None) -> None:
     if args.space_group:
         if args.kpoint is None:
             # no k-point given: analyze all special k-points of the space group
+            # (zone-boundary points of a non-symmorphic group where the
+            # polynomials carry no representation of the little group are
+            # listed as skipped instead of aborting the whole run)
             names, kpoints = _get_special_kpoints(args.space_group)
-            print(_render_blocks([(
-                "Special k points",
-                ["No --kpoint given; analyzing all special k points: " + ", ".join(names)],
-            )]))
-            for kpoint in kpoints:
-                print(_analyze_space_group(args.space_group, kpoint, seed_expressions, args.show_irrep_table))
+            reports: list[str] = []
+            skipped: list[str] = []
+            for name, kpoint in zip(names, kpoints):
+                try:
+                    reports.append(_analyze_space_group(
+                        args.space_group, kpoint, seed_expressions, args.show_irrep_table
+                    ))
+                except PolynomialBasisUnavailable:
+                    skipped.append(name)
+            lines = ["No --kpoint given; analyzing all special k points: " + ", ".join(names)]
+            if skipped:
+                lines.append(
+                    "Skipped (non-symmorphic zone-boundary points where the polynomials "
+                    "span no representation of the little group): " + ", ".join(skipped)
+                )
+            print(_render_blocks([("Special k points", lines)]))
+            for report in reports:
+                print(report)
             return
         print(_analyze_space_group(args.space_group, args.kpoint, seed_expressions, args.show_irrep_table))
         return

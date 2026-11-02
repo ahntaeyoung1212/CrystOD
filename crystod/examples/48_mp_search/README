@@ -1,0 +1,168 @@
+# Materials Project search and POSCAR download (crystod-search); testsuite section 48
+# Needs a free Materials Project API key (https://next-gen.materialsproject.org/api):
+#   export MP_API_KEY=<key>   or once   pmg config --add PMG_MAPI_KEY <key>
+# Data: the Materials Project, CC BY 4.0. Cite A. Jain et al., APL Mater. 1, 011002 (2013),
+# https://doi.org/10.1063/1.4812323
+
+Files (not in the pip package)
+------------------------------
+The commands below read no input file: they need only the network and an API key.
+The files listed here are not in the pip package (they stay in the CrystOD
+development tree); the copy of this example made by "crystod-example 48" holds
+this README alone.
+
+mp_summary_Sr-Ti-O.json.gz        offline fixture of testsuite section 48 (17 kB)
+POSCAR_Sr2TiO4_I4mmm_mp-5532      written by "crystod-search --get mp-5532": the conventional cell
+PPOSCAR_Sr2TiO4_I4mmm_mp-5532     written by "crystod-search --get mp-5532 --cell primitive"
+                                  (both from the live run of the sample below)
+record_fixture.py                 re-records the fixture (needs the network and a key)
+
+The fixture holds Materials Project summary documents, recorded on 2026-09-18 from
+https://api.materialsproject.org/materials/summary/ (API version 0.87.3): every entry
+of the chemical system Sr-Ti-O and of all its subsystems (O, Sr, Ti, O-Sr, O-Ti, Sr-Ti,
+O-Sr-Ti; 216 current and 6 deprecated entries) with the fields crystod-search requests
+(material_id, formula_pretty, symmetry, band_gap, energy_above_hull, nsites, theoretical)
+and those the server filters on (elements, nelements, chemsys, formula_anonymous,
+composition_reduced, is_stable, deprecated), in the order the API returns them unsorted.
+The crystal structure is included for the ten entries the tests download: the five SrTiO3
+polymorphs and the six experimentally observed Sr-Ti-O ternaries (mp-5229 is both).
+Material IDs are kept in the alphabetical form the API returns (mp-aaaaahtd = mp-5229).
+
+"python testsuite.py 48" serves this file from a local stub of the summary endpoint
+(the same query parameters, _fields/_sort_fields/_limit/_skip paging, error bodies and
+401 answers as the live API, checked against it on the recording date), so the section
+runs without network access or an API key and never contacts the Materials Project.
+With CRYSTOD_LIVE_MP=1 it adds one live search.
+
+Sample output (data of a live run on 2026-09-18, current layout)
+----------------------------------------------------------------
+
+$ crystod-search SrTiO3
+
+* Materials Project: formula SrTiO3 *
+ 5 materials, sorted by energy above hull
+
+* Materials *
+ Formula  Space group  Material ID  Band Gap (eV)  Energy Above Hull (eV/atom)  Sites
+ SrTiO3   I4/mcm       mp-4651              1.856                        0.000     10
+ SrTiO3   I4/mcm       mp-551830            1.787                        0.000     10
+ SrTiO3   Pm-3m        mp-5229 *            1.766                        0.000      5
+ SrTiO3   P6_3/mmc     mp-776018            1.736                        0.039     30
+ SrTiO3   R-3          mp-aaaieiuj          4.075                        0.130     10
+
+ * experimentally observed (the structure matches an ICSD or other experimental entry)
+
+Download a POSCAR:  crystod-search --get mp-4651
+(or add --get to this command line to download every listed material)
+
+Data: the Materials Project, A. Jain et al., APL Mater. 1, 011002 (2013). https://doi.org/10.1063/1.4812323
+
+$ crystod-search Sr-Ti-O
+
+* Materials Project: chemical system Sr-Ti-O (compounds of exactly these elements) *
+ 23 materials, sorted by energy above hull
+
+* Materials *
+ Formula       Space group  Material ID  Band Gap (eV)  Energy Above Hull (eV/atom)  Sites
+ Sr2TiO4       I4/mmm       mp-5532 *            1.915                        0.000      7
+ Sr3Ti2O7      I4/mmm       mp-3349 *            1.839                        0.000     12
+ SrTi11O20     P-1          mp-28740 *           0.012                        0.000     64
+ SrTiO3        I4/mcm       mp-4651              1.856                        0.000     10
+ SrTiO3        I4/mcm       mp-551830            1.787                        0.000     10
+ Sr2Ti6O13     C2/m         mp-540640 *          0.000                        0.000     21
+ SrTiO3        Pm-3m        mp-5229 *            1.766                        0.000      5
+ Sr4Ti3O10     I4/mmm       mp-31213 *           1.783                        0.001     17
+ SrTiO3        P6_3/mmc     mp-776018            1.736                        0.039     30
+ Sr5Ti8O21     P2/m         mp-1202462           1.858                        0.042    136
+ Sr25Ti39O103  P2/m         mp-1198567           1.948                        0.043    167
+ Sr3Ti5O13     P2/m         mp-1197629           1.887                        0.044    105
+ Sr15Ti23O61   P2/m         mp-1201432           1.813                        0.047    198
+ Sr5Ti5O13     P-1          mp-675134            0.000                        0.048     23
+ Sr2Ti2O5      Imm2         mp-1097778           0.000                        0.060     18
+ Sr2Ti2O5      Pnma         mp-1094086           0.000                        0.065     36
+ Sr2Ti2O5      Ima2         mp-1076454           0.000                        0.073     18
+ Sr2Ti2O5      Cmmm         mp-1094047           0.000                        0.076      9
+ Sr5Ti9O23     P2/m         mp-1197010           1.890                        0.078     74
+ Sr5Ti7O19     Pmmm         mp-1202132           1.821                        0.094     31
+ SrTiO3        R-3          mp-aaaieiuj          4.075                        0.130     10
+ SrTi2O5       Cmm2         mp-572124            1.951                        0.221     32
+ SrTi2O5       Cmm2         mp-680689            1.863                        0.247     32
+
+ * experimentally observed (the structure matches an ICSD or other experimental entry)
+
+Download a POSCAR:  crystod-search --get mp-5532
+(or add --get to this command line to download every listed material)
+
+Data: the Materials Project, A. Jain et al., APL Mater. 1, 011002 (2013). https://doi.org/10.1063/1.4812323
+
+$ crystod-search --get mp-5532
+
+* Materials Project: material ID mp-5532 *
+ Formula  Space group  Material ID  Band Gap (eV)  Energy Above Hull (eV/atom)  Sites
+ Sr2TiO4  I4/mmm       mp-5532 *            1.915                        0.000      7
+
+ * experimentally observed (the structure matches an ICSD or other experimental entry)
+
+* POSCAR files (standardized conventional cell, tolerance 0.1 A) *
+ Wrote POSCAR_Sr2TiO4_I4mmm_mp-5532: Sr2TiO4, I4/mmm, 14 atoms
+
+Use it with any CrystOD command, e.g.  crystod-xrd -c POSCAR_Sr2TiO4_I4mmm_mp-5532
+
+Data: the Materials Project, A. Jain et al., APL Mater. 1, 011002 (2013). https://doi.org/10.1063/1.4812323
+
+$ cat POSCAR_Sr2TiO4_I4mmm_mp-5532
+Sr2TiO4 I4/mmm mp-5532 (Materials Project, conventional cell)
+1.0
+   3.896235512562    0.000000000000    0.000000000000
+   0.000000000000    3.896235512562    0.000000000000
+   0.000000000000    0.000000000000   12.594377779663
+Sr Ti O
+4 2 8
+direct
+   0.000000000000    0.000000000000    0.645351870000 Sr
+   0.500000000000    0.500000000000    0.854648130000 Sr
+   0.500000000000    0.500000000000    0.145351870000 Sr
+   0.000000000000    0.000000000000    0.354648130000 Sr
+   0.000000000000    0.000000000000    0.000000000000 Ti
+   0.500000000000    0.500000000000    0.500000000000 Ti
+   0.000000000000    0.000000000000    0.841983980000 O
+   0.500000000000    0.500000000000    0.658016020000 O
+   0.000000000000    0.500000000000    0.000000000000 O
+   0.500000000000    0.000000000000    0.000000000000 O
+   0.500000000000    0.500000000000    0.341983980000 O
+   0.000000000000    0.000000000000    0.158016020000 O
+   0.500000000000    0.000000000000    0.500000000000 O
+   0.000000000000    0.500000000000    0.500000000000 O
+
+$ crystod-search --get mp-5532 --cell primitive
+ ...
+* POSCAR files (standardized primitive cell, tolerance 0.1 A) *
+ Wrote PPOSCAR_Sr2TiO4_I4mmm_mp-5532: Sr2TiO4, I4/mmm, 7 atoms
+ ...
+
+$ cat PPOSCAR_Sr2TiO4_I4mmm_mp-5532
+Sr2TiO4 I4/mmm mp-5532 (Materials Project, primitive cell)
+1.0
+  -1.948117756281    1.948117756281    6.297188889832
+   1.948117756281   -1.948117756281    6.297188889832
+   1.948117756281    1.948117756281   -6.297188889832
+Sr Ti O
+2 1 4
+direct
+   0.645351870000    0.645351870000    0.000000000000 Sr
+   0.354648130000    0.354648130000    0.000000000000 Sr
+   0.000000000000    0.000000000000    0.000000000000 Ti
+   0.841983980000    0.841983980000    0.000000000000 O
+   0.158016020000    0.158016020000    0.000000000000 O
+   0.500000000000    0.000000000000    0.500000000000 O
+   0.000000000000    0.500000000000    0.500000000000 O
+
+Other query forms (as in the search box of the website)
+-------------------------------------------------------
+crystod-search Sr,Ti,O                      # every material containing at least Sr, Ti and O
+crystod-search ABO3                         # anonymous formula: each letter stands for any element
+crystod-search '*TiO3'                      # formula with a wildcard element
+crystod-search 'Sr-*'                       # Sr and one more element
+crystod-search mp-5229,mp-5532              # material IDs
+crystod-search Sr-Ti-O --subsystems --stable    # the convex hull of Sr-Ti-O, elements and binaries included
+crystod-search Sr-Ti-O --experimental --get --directory   # one {formula}_{space group}_{ID}/POSCAR per starred entry

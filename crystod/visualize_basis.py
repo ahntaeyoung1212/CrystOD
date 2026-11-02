@@ -231,6 +231,19 @@ class SymmetryAdaptedOrbitalBasis(SymmetryOnlyVibrations):
         ([(3, 9), (3, 9), (3, 9)], ['GM4-(3)', 'GM4-(3)', 'GM5-(3)'])
     """
 
+    def get_supercell_size(self, kpoint: list[float]) -> tuple[int, int, int]:
+        """Multiplicities of the viewer's display cell along a, b, c.
+
+        The denominator of each component of k, limited to 6 (1 for a zero
+        component); never an error, so that a k point no small cell holds
+        periodically is still drawn. (``crystod-phonon --vibration`` writes
+        structures, and its :meth:`SymmetryOnlyVibrations.get_supercell_size`
+        refuses such a q.)
+        """
+        from .vibration_modes import _approximate_supercell_sizes
+
+        return _approximate_supercell_sizes(kpoint)
+
     def get_element_indices(self, element: str) -> list[int]:
         """Indices of the atoms whose orbitals enter the basis.
 
@@ -334,6 +347,13 @@ class SymmetryAdaptedOrbitalBasis(SymmetryOnlyVibrations):
             irrep label of every space (repeated when an irrep occurs more
             than once).  ``--mode-index N`` of the CLI selects the N-th
             space, 1-based.
+
+            The coefficients are in the site gauge, that of the permutation
+            matrices of :meth:`get_orbital_rep`: they multiply the Bloch
+            sums with phase ``exp(2 pi i k.(T + x_a))`` (``x_a`` the atom's
+            fractional position).  Multiplying the block of atom ``a`` by
+            ``exp(2 pi i k.x_a)`` gives the atomic-gauge coefficients (phase
+            ``exp(2 pi i k.T)``), the ones the viewer draws.
         """
         basis_spaces: list[NDArray[np.complex128]] = []
         basis_labels: list[str] = []
@@ -367,6 +387,12 @@ def realify_basis_space(
 
     Returns (new_space, True) on success, or (space unchanged, False) when no
     real basis exists (complex-type irrep / conjugation leaves the space).
+
+    Complex conjugation of the coefficients is time reversal only in the
+    atomic gauge (Bloch phase exp(2 pi i k.T)); the SALC viewer therefore
+    hands this function atomic-gauge vectors (see
+    ``_realify_in_atomic_gauge``), not the site-gauge rows of
+    ``SymmetryAdaptedOrbitalBasis.get_orbital_basis``.
     """
     space = np.asarray(space, dtype=np.complex128)
     dimension = space.shape[0]
@@ -411,6 +437,144 @@ def realify_basis_space(
     return np.array(new_space, dtype=np.complex128), True
 
 
+def _atomic_gauge_phases(
+    frac_positions: NDArray[np.float64],
+    element_indices: list[int],
+    l: int,
+    kpoint: list[float],
+) -> NDArray[np.complex128]:
+    """Diagonal of Lambda = diag(exp(2 pi i k.x_a)) over the (atom, m) coefficients.
+
+    The SALC rows of ``get_orbital_basis`` are site-gauge coefficients (Bloch
+    phase exp(2 pi i k.(T + x_a)), the gauge of the permutation matrices),
+    while ``write_html_visualization`` multiplies every displayed image only
+    by exp(2 pi i k.T): it draws atomic-gauge coefficients, as the EHT and
+    PySCF level pages pass them.  ``Lambda v`` converts a site-gauge vector;
+    every m of one atom shares the atom's factor.  ``frac_positions`` must be
+    the positions the page uses (``primitive_cell.scaled_positions``).
+    """
+    positions = np.asarray(frac_positions, dtype=float)[list(element_indices)]
+    phases = np.exp(2j * np.pi * (positions @ np.asarray(kpoint, dtype=float)))
+    return np.repeat(phases, 2 * l + 1)
+
+
+def _reference_atom(
+    vector: NDArray[np.complex128],
+    n_components: int,
+    tol: float = 1e-6,
+) -> int | None:
+    """Slot of the first atom listed for ``vector`` (None for a null vector).
+
+    "Listed" uses the threshold of ``_print_salc_coefficients``, so this is
+    the first atom line printed under the component.
+    """
+    weights = np.max(np.abs(vector).reshape(-1, n_components), axis=1)
+    listed = np.flatnonzero(weights >= tol)
+    return None if listed.size == 0 else int(listed[0])
+
+
+def _gauge_is_global(gauge: NDArray[np.complex128], tol: float = 1e-8) -> bool:
+    """True when Lambda is one common phase for all atoms of the element.
+
+    Then the gauge changes no relative phase (always at GM, and e.g. for the
+    three F of ScF3 at R, all with factor i): the drawn SALCs are the
+    printed rows themselves and no gauge NOTE is printed.
+    """
+    gauge = np.asarray(gauge, dtype=np.complex128)
+    return bool(np.max(np.abs(gauge - gauge[0])) <= tol)
+
+
+def _site_to_drawn(
+    vector: NDArray[np.complex128],
+    gauge: NDArray[np.complex128],
+    n_components: int,
+) -> NDArray[np.complex128]:
+    """Atomic-gauge coefficients that the viewer draws for a site-gauge vector.
+
+    ``Lambda v`` fixes the RELATIVE phases between atoms, exp(2 pi i k.(x_a -
+    x_b)).  The overall phase of a SALC is arbitrary, but the page draws the
+    real part, so it is fixed on the first listed atom, which keeps its
+    printed coefficients: a bare ``Lambda v`` would re-phase every picture
+    (and blank the one-sublattice SALCs whose factor is +-i, e.g. the F p of
+    ScF3 at R).
+
+    Where Lambda is a global phase (:func:`_gauge_is_global`, GM included)
+    the vector is returned unchanged: the page draws the printed rows, as
+    it always did there.  Otherwise, and only when every drawn coefficient
+    would be purely imaginary (the component would have no lobe in the
+    Bloch cell), the vector is multiplied by the constant phase that makes
+    the largest coefficient of the first listed atom real positive; the
+    gauge NOTE of ``crystod --visualize`` states this.
+    """
+    vector = np.asarray(vector, dtype=np.complex128)
+    if _gauge_is_global(gauge):
+        return vector.copy()
+    reference = _reference_atom(vector, n_components)
+    if reference is None:
+        return vector * gauge
+    drawn = vector * gauge * (1.0 / gauge[reference * n_components])
+    magnitude = float(np.max(np.abs(drawn)))
+    if np.max(np.abs(drawn.real)) <= 1e-8 * magnitude:
+        block = drawn[reference * n_components : (reference + 1) * n_components]
+        magnitudes = np.abs(block)
+        # first coefficient of maximal magnitude (tie-tolerant, so the choice
+        # does not depend on rounding noise between equal-weight components)
+        leading = block[int(np.flatnonzero(magnitudes >= (1 - 1e-6) * magnitudes.max())[0])]
+        drawn = drawn * (leading.conjugate() / abs(leading))
+    return drawn
+
+
+def _drawn_to_site(
+    vector: NDArray[np.complex128],
+    gauge: NDArray[np.complex128],
+    n_components: int,
+) -> NDArray[np.complex128]:
+    """Site-gauge vector printed for a REAL atomic-gauge vector ``w``.
+
+    ``w Lambda^-1`` with the first listed atom's factor restored, so that
+    atom keeps the (real) coefficients of ``w``; :func:`_site_to_drawn`
+    maps the result back to ``w`` exactly.
+    """
+    vector = np.asarray(vector, dtype=np.complex128)
+    reference = _reference_atom(vector, n_components)
+    if reference is None:
+        return vector / gauge
+    return vector * gauge[reference * n_components] / gauge
+
+
+def _realify_in_atomic_gauge(
+    space: NDArray[np.complex128],
+    gauge: NDArray[np.complex128],
+    n_components: int,
+    tol: float = 1e-6,
+) -> tuple[NDArray[np.complex128], bool]:
+    """``--real-coefficient``: a basis of a site-gauge SALC space whose drawn
+    (atomic-gauge) vectors are real, returned in the site gauge for printing.
+
+    Time reversal at k = -k (mod G*) is complex conjugation of the
+    atomic-gauge coefficients, so the conjugation-closure test runs there
+    (on ``Lambda v``).  When the historical site-gauge realification already
+    gives such a basis (every drawn vector real), it is kept unchanged, so
+    those printed lines do not move.  Returns ``(space, False)`` unchanged
+    when no real basis exists.  Where Lambda is a global phase the two
+    gauges agree and this is ``realify_basis_space`` itself.
+    """
+    site_space, success = realify_basis_space(space, tol)
+    if _gauge_is_global(gauge):
+        return site_space, success
+    if success:
+        drawn = np.array([_site_to_drawn(vector, gauge, n_components) for vector in site_space])
+        if np.max(np.abs(drawn.imag)) <= 1e-8 * max(1.0, float(np.max(np.abs(drawn)))):
+            return site_space, True
+    atomic_space, success = realify_basis_space(np.asarray(space) * gauge[None, :], tol)
+    if not success:
+        return np.asarray(space, dtype=np.complex128), False
+    return np.array(
+        [_drawn_to_site(vector, gauge, n_components) for vector in atomic_space],
+        dtype=np.complex128,
+    ), True
+
+
 def _format_coefficient(value: complex, tol: float = 1e-6) -> str:
     real = 0.0 if abs(value.real) < tol else float(np.round(value.real, 4))
     imag = 0.0 if abs(value.imag) < tol else float(np.round(value.imag, 4))
@@ -429,7 +593,7 @@ def _print_salc_coefficients(
 ) -> None:
     component_names = ORBITAL_COMPONENT_NAMES[l]
     n_components = len(component_names)
-    print(" * SALC basis functions (irrep-grouped) *")
+    print("* SALC basis functions (irrep-grouped) *")
     for space_index, (space, label) in enumerate(zip(basis_spaces, basis_labels)):
         if mode_index is not None and space_index != mode_index:
             continue
@@ -754,6 +918,124 @@ def _crystod_citation_html() -> str:
     return CRYSTOD_CITATION_HTML
 
 
+def _display_cell_entries(
+    frac_positions: NDArray[np.float64],
+    cell_matrix: NDArray[np.int_],
+    boundary_eps: float = 1e-6,
+) -> list[tuple[int, NDArray[np.float64]]]:
+    """The atoms drawn in a display cell, with VESTA-style boundary completion.
+
+    The display cell's rows ``cell_matrix`` are its lattice vectors in the
+    primitive basis.  Every primitive atom ``a`` at a lattice translation
+    ``T`` whose position ``frac_positions[a] + T`` lies in the display cell
+    is listed once; an atom with fractional coordinate 0 along a display-cell
+    axis is also listed at 1 (with its own full translation, so that a Bloch
+    phase exp(2 pi i k.T) drawn on it is that of its image), so that bonds
+    and coordination polyhedra at the cell boundary are not cut off.  The
+    SALC viewer (``crystod --visualize``) and the phonon mode viewer
+    (``crystod-phonon --visualize``) draw these atoms.
+
+    Args:
+        frac_positions: Fractional coordinates of the primitive atoms, shape
+            ``(n_atoms, 3)``.
+        cell_matrix: Integer matrix, rows the display-cell vectors in the
+            primitive basis.
+        boundary_eps: Tolerance of the cell boundary in display-cell
+            fractional units.
+
+    Returns:
+        ``[(atom_index, translation), ...]`` with ``translation`` the
+        primitive-basis lattice translation (float array of integers).
+    """
+    cell_matrix = np.asarray(cell_matrix)
+    inverse_cell = np.linalg.inv(np.array(cell_matrix, dtype=float))
+    corner_shifts = [np.zeros(3)]
+    for axis in range(3):
+        corner_shifts = corner_shifts + [shift + cell_matrix[axis] for shift in corner_shifts]
+    corner_array = np.array(corner_shifts, dtype=float)
+    t_low = np.floor(corner_array.min(axis=0)).astype(int) - 1
+    t_high = np.ceil(corner_array.max(axis=0)).astype(int) + 1
+
+    atom_entries = []  # (atom_index, translation in primitive-cell units)
+    for t1 in range(t_low[0], t_high[0] + 1):
+        for t2 in range(t_low[1], t_high[1] + 1):
+            for t3 in range(t_low[2], t_high[2] + 1):
+                base_translation = np.array([t1, t2, t3], dtype=float)
+                for atom_index in range(len(frac_positions)):
+                    frac_cell = (frac_positions[atom_index] + base_translation) @ inverse_cell
+                    if np.any(frac_cell < -boundary_eps) or np.any(frac_cell >= 1 - boundary_eps):
+                        continue
+                    duplicate_axes = [
+                        axis for axis in range(3) if abs(frac_cell[axis]) < boundary_eps
+                    ]
+                    combos = [()]
+                    for axis in duplicate_axes:
+                        combos = combos + [combo + (axis,) for combo in combos]
+                    for combo in combos:
+                        translation = base_translation.copy()
+                        for axis in combo:
+                            translation = translation + cell_matrix[axis]
+                        atom_entries.append((atom_index, translation))
+    return atom_entries
+
+
+def _bond_pairs(
+    positions: NDArray[np.float64],
+    symbols: list[str],
+    lattice: NDArray[np.float64],
+    el1: str,
+    el2: str,
+    max_length: float,
+) -> list[tuple[int, int, tuple[int, int, int], NDArray[np.float64]]]:
+    """The ``el1``-``el2`` bonds of the drawn atoms, as VESTA finds them.
+
+    Neighbors are searched in the periodic images (offsets -1, 0, 1 along
+    each display-cell vector) of the drawn atoms, so that the coordination
+    polyhedra at the cell boundary are complete.
+
+    Args:
+        positions: Cartesian positions of the drawn atoms, shape ``(n, 3)``.
+        symbols: Their chemical symbols.
+        lattice: The display-cell lattice vectors as rows (Angstrom).
+        el1, el2: The bonded elements (polyhedra are drawn around ``el1``).
+        max_length: Bond length cutoff in Angstrom.
+
+    Returns:
+        ``[(a, b, offset, position_b), ...]`` in search order: atom ``a``
+        (an ``el1``) bonded to the image of atom ``b`` at the display-cell
+        offset ``offset`` (three ints), whose Cartesian position is
+        ``position_b``.
+    """
+    image_offsets = [
+        np.array([o1, o2, o3], dtype=float)
+        for o1 in (-1, 0, 1)
+        for o2 in (-1, 0, 1)
+        for o3 in (-1, 0, 1)
+    ]
+    shifts = [offset @ lattice for offset in image_offsets]
+    targets = [b for b in range(len(positions)) if symbols[b] == el2]
+    pairs: list = []
+    if not targets:
+        return pairs
+    points = np.asarray(positions, dtype=float)
+    # all images of the el2 atoms at once, shape (n_el2, 27, 3): a distance
+    # prefilter with a small margin; every candidate is then measured exactly
+    # as one pair at a time, so the bonds (order and values) do not change
+    images = points[targets][:, None, :] + np.array(shifts)[None, :, :]
+    for a in range(len(positions)):
+        if symbols[a] != el1:
+            continue
+        rough = np.linalg.norm(images - points[a], axis=-1)
+        for slot, k in np.argwhere((rough > 1e-3 - 1e-9) & (rough <= max_length + 1e-9)):
+            b = targets[slot]
+            position_b = positions[b] + shifts[k]
+            separation = float(np.linalg.norm(positions[a] - position_b))
+            if not (1e-3 < separation <= max_length):
+                continue
+            pairs.append((a, b, tuple(int(o) for o in image_offsets[k]), position_b))
+    return pairs
+
+
 def write_html_visualization(
     output_path: str,
     orbitals: SymmetryAdaptedOrbitalBasis,
@@ -773,6 +1055,12 @@ def write_html_visualization(
     basis_heading: str = "SALC basis (click to show)",
 ) -> None:
     """Write the standalone SALC viewer page.
+
+    Coefficients (``basis_spaces`` rows and the ``level_modes`` channels)
+    are taken in the atomic gauge: the displayed image of atom ``a`` at
+    lattice translation ``T`` is drawn as Re[c_a exp(2 pi i k.T)].  The
+    site-gauge SALC rows of ``get_orbital_basis`` must first be converted
+    with ``_site_to_drawn`` (``crystod --visualize`` does so).
 
     ``level_modes`` switches the page from SALC basis modes to
     caller-supplied rows (the PySCF eigen-levels of --visualize --pyscf):
@@ -820,41 +1108,10 @@ def write_html_visualization(
         cell_description = f"primitive, {n1} x {n2} x {n3} cells"
 
     display_lattice = np.array(cell_matrix, dtype=float) @ lattice
-    inverse_cell = np.linalg.inv(np.array(cell_matrix, dtype=float))
 
     # Atoms displayed in the display cell, with VESTA-style boundary
-    # completion: an atom with fractional coordinate 0 along a display-cell
-    # axis is also drawn at 1 (carrying the Bloch phase of its full primitive
-    # translation), so that bonds and coordination polyhedra at the cell
-    # boundary are not cut off.
-    boundary_eps = 1e-6
-    corner_shifts = [np.zeros(3)]
-    for axis in range(3):
-        corner_shifts = corner_shifts + [shift + cell_matrix[axis] for shift in corner_shifts]
-    corner_array = np.array(corner_shifts, dtype=float)
-    t_low = np.floor(corner_array.min(axis=0)).astype(int) - 1
-    t_high = np.ceil(corner_array.max(axis=0)).astype(int) + 1
-
-    atom_entries = []  # (atom_index, translation in primitive-cell units)
-    for t1 in range(t_low[0], t_high[0] + 1):
-        for t2 in range(t_low[1], t_high[1] + 1):
-            for t3 in range(t_low[2], t_high[2] + 1):
-                base_translation = np.array([t1, t2, t3], dtype=float)
-                for atom_index in range(len(frac_positions)):
-                    frac_cell = (frac_positions[atom_index] + base_translation) @ inverse_cell
-                    if np.any(frac_cell < -boundary_eps) or np.any(frac_cell >= 1 - boundary_eps):
-                        continue
-                    duplicate_axes = [
-                        axis for axis in range(3) if abs(frac_cell[axis]) < boundary_eps
-                    ]
-                    combos = [()]
-                    for axis in duplicate_axes:
-                        combos = combos + [combo + (axis,) for combo in combos]
-                    for combo in combos:
-                        translation = base_translation.copy()
-                        for axis in combo:
-                            translation = translation + cell_matrix[axis]
-                        atom_entries.append((atom_index, translation))
+    # completion (see _display_cell_entries).
+    atom_entries = _display_cell_entries(frac_positions, cell_matrix)
 
     all_positions = []
     all_symbols = []
@@ -886,12 +1143,6 @@ def write_html_visualization(
     polyhedra_traces = []
     if bonds:
         supercell_lattice = display_lattice
-        image_offsets = [
-            np.array([o1, o2, o3], dtype=float)
-            for o1 in (-1, 0, 1)
-            for o2 in (-1, 0, 1)
-            for o3 in (-1, 0, 1)
-        ]
         n_base = len(all_positions)
         base_positions = np.array(all_positions)
         extra_atoms: dict[tuple, np.ndarray] = {}  # (entry index, offset) -> position
@@ -899,21 +1150,13 @@ def write_html_visualization(
         for el1, el2, max_length in bonds:
             segments: list = []
             centers: dict[int, list] = {}
-            for a in range(n_base):
-                if all_symbols[a] != el1:
-                    continue
-                for b in range(n_base):
-                    if all_symbols[b] != el2:
-                        continue
-                    for offset in image_offsets:
-                        position_b = base_positions[b] + offset @ supercell_lattice
-                        separation = float(np.linalg.norm(base_positions[a] - position_b))
-                        if not (1e-3 < separation <= max_length):
-                            continue
-                        centers.setdefault(a, []).append(position_b)
-                        segments.append((base_positions[a], position_b))
-                        if np.any(offset):
-                            extra_atoms[(b, tuple(int(o) for o in offset))] = position_b
+            for a, b, offset, position_b in _bond_pairs(
+                base_positions, all_symbols[:n_base], supercell_lattice, el1, el2, max_length
+            ):
+                centers.setdefault(a, []).append(position_b)
+                segments.append((base_positions[a], position_b))
+                if any(offset):
+                    extra_atoms[(b, offset)] = position_b
 
             if segments:
                 xs: list = []
@@ -1454,7 +1697,7 @@ def format_output_files(paths: list[str]) -> str:
     Returns:
         The block text (header line plus one notice per file).
     """
-    lines = [" * Output files *"]
+    lines = ["* Output files *"]
     lines.extend(f" Saved 3D visualization to: {p}" for p in paths)
     return "\n".join(lines)
 
@@ -1471,14 +1714,14 @@ def _run_at_kpoint(
 
     print(
         ("\n" if leading_blank else "")
-        + f" * Space group *\n {orbitals.spglib_dataset['international']} "
+        + f"* Space group *\n {orbitals.spglib_dataset['international']} "
         f"({orbitals.spglib_dataset['number']})\n"
     )
-    print(f" * Orbital (number of atoms) *\n {args.element}_{args.orbital} ({len(element_indices)})\n")
-    print(" * Position *")
+    print(f"* Orbital (number of atoms) *\n {args.element}_{args.orbital} ({len(element_indices)})\n")
+    print("* Position *")
     print(f" wyckoff letters      : {wyckoff_letters}")
     print(f" site symmetry letters: {site_symmetry_symbols}\n")
-    print(f" * k point (primitive) * \n {kpoint_label} {format_kpoint(kpoint)}\n")
+    print(f"* k point (primitive) *\n {kpoint_label} {format_kpoint(kpoint)}\n")
 
     irreps, orbital_rep, mapping_little_group, element_indices = orbitals.get_orbital_rep(
         kpoint=kpoint,
@@ -1492,15 +1735,25 @@ def _run_at_kpoint(
         [(key, value) for key, value in multiplicities.items() if value > 0]
     )
     decomposition = "+".join(f" {value} [{key}] " for key, value in sorted_multiplicities)
-    print(" * Irreducible Decomposition *")
+    print("* Irreducible Decomposition *")
     print(decomposition + "\n")
 
     basis_spaces, basis_labels = orbitals.get_orbital_basis(irreps, orbital_rep, irrep_labels)
 
+    # The SALC rows are site-gauge coefficients (Bloch phase exp(2 pi i
+    # k.(T + x_a))) and are printed as such; the page multiplies each image
+    # by exp(2 pi i k.T) only, so it is handed the atomic-gauge vectors
+    # (Lambda = diag(exp(2 pi i k.x_a)), as visualize_eht's site_phase), and
+    # --real-coefficient tests the conjugation closure in that gauge.
+    n_components = 2 * l + 1
+    gauge = _atomic_gauge_phases(
+        orbitals.primitive_cell.scaled_positions, element_indices, l, kpoint
+    )
+
     if args.real_coefficient:
         realified_spaces = []
         for space, label in zip(basis_spaces, basis_labels):
-            new_space, success = realify_basis_space(space)
+            new_space, success = _realify_in_atomic_gauge(space, gauge, n_components)
             realified_spaces.append(new_space)
             if not success:
                 print(
@@ -1508,6 +1761,10 @@ def _run_at_kpoint(
                     "(space not closed under complex conjugation); left unchanged."
                 )
         basis_spaces = realified_spaces
+    drawn_spaces = [
+        np.array([_site_to_drawn(vector, gauge, n_components) for vector in space])
+        for space in basis_spaces
+    ]
 
     if args.mode_index is not None and not (1 <= args.mode_index <= len(basis_spaces)):
         raise SystemExit(
@@ -1515,6 +1772,16 @@ def _run_at_kpoint(
             f"[1, {len(basis_spaces)}] (numbering is 1-based)."
         )
     selected_space_index = None if args.mode_index is None else args.mode_index - 1
+
+    if not _gauge_is_global(gauge):
+        # the gauge changes the relative phases between atoms only here
+        print(
+            " NOTE: coefficients are in the site gauge (Bloch phase exp(2 pi i "
+            "k.(T+x_a))); the HTML page draws them times exp(2 pi i k.x_a) (atomic gauge"
+            + ("; real for the --real-coefficient bases" if args.real_coefficient else "")
+            + "), overall phase fixed on the first atom listed (turned to real where all "
+            "drawn coefficients of a component would be imaginary)."
+        )
 
     _print_salc_coefficients(
         basis_spaces=basis_spaces,
@@ -1582,7 +1849,7 @@ def _run_at_kpoint(
     write_html_visualization(
         output_path=output_path,
         orbitals=orbitals,
-        basis_spaces=basis_spaces,
+        basis_spaces=drawn_spaces,
         basis_labels=basis_labels,
         element_indices=element_indices,
         l=l,

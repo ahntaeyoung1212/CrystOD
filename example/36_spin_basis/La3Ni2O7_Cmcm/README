@@ -1,0 +1,815 @@
+crystod-mag -c 63_PPOSCAR_La3Ni2O7 --element Ni --qpoint GM --conventional
+
+* Structure *
+  Space group: Cmcm (#63)
+  Magnetic sites: Ni x 4
+    Ni1: [0.844492, 0.350408, 0.75]
+    Ni2: [0.155508, 0.649592, 0.25]
+    Ni3: [0.649592, 0.155508, 0.75]
+    Ni4: [0.350408, 0.844492, 0.25]
+
+* Selected Q point *
+  Selected q-point: GAMMA = [0.0, 0.0, 0.0]
+
+* Spin (axial-vector) representation *
+  Spin (axial-vector) representation on Ni sites: 12 dimensions
+  Decomposition: GM1+(1) + 2 x GM1-(1) + 2 x GM3+(1) + GM3-(1) + 2 x GM4+(1) + GM4-(1) + GM2+(1) + 2 x GM2-(1)
+
+* Symmetry-adapted spin bases *
+  GM1+(1): dim 1 [AFM, octupole]
+  GM1-(1): dim 1 [AFM, quadrupole]
+  GM1-(1): dim 1 [AFM, quadrupole]
+  GM3+(1): dim 1 [FM, dipole]
+  GM3+(1): dim 1 [AFM, octupole]
+  GM3-(1): dim 1 [AFM, quadrupole]
+  GM4+(1): dim 1 [FM, dipole]
+  GM4+(1): dim 1 [AFM, octupole]
+  GM4-(1): dim 1 [AFM, quadrupole]
+  GM2+(1): dim 1 [FM, dipole]
+  GM2-(1): dim 1 [AFM, quadrupole]
+  GM2-(1): dim 1 [AFM, hexadecapole]
+
+* Magnetic cell *
+  Display cell: conventional (C centring), 1x1x1 cells
+
+* GM1+(1) [AFM, octupole] *
+  component z:
+    Ni1: S = [ 0.0000,  0.0000,  1.0000]
+    Ni2: S = [ 0.0000,  0.0000,  1.0000]
+    Ni3: S = [ 0.0000,  0.0000, -1.0000]
+    Ni4: S = [ 0.0000,  0.0000, -1.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: Cmcm (BNS 63.457, type I), 16 operations, 0 with time reversal
+    magnetic point group: mmm
+    allowed by symmetry: net magnetization none; linear magnetoelectric effect none; piezomagnetism 3 components
+    collinear order: altermagnet (d-wave; spin splitting allowed by symmetry ~ k_x k_y; spin-degenerate planes perpendicular to [100], [010])
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [0.0000, 0.0000, 1.0000]
+      Ni8: [0.0000, 0.0000, 1.0000]
+      Ni9: [0.0000, 0.0000, -1.0000]
+      Ni10: [0.0000, 0.0000, -1.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [0.0000, 0.0000, 1.0000]
+      Ni32: [0.0000, 0.0000, 1.0000]
+      Ni33: [0.0000, 0.0000, -1.0000]
+      Ni34: [0.0000, 0.0000, -1.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 0.0000 1.0000   0.0000 0.0000 1.0000   0.0000 0.0000 -1.0000   0.0000 0.0000 -1.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 0.0000 1.0000   0.0000 0.0000 1.0000   0.0000 0.0000 -1.0000   0.0000 0.0000 -1.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM1-(1) [AFM, quadrupole] *
+  component x:
+    Ni1: S = [ 1.0000, -0.0000,  0.0000]
+    Ni2: S = [-1.0000,  0.0000,  0.0000]
+    Ni3: S = [-1.0000, -0.0000,  0.0000]
+    Ni4: S = [ 1.0000,  0.0000,  0.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: Cm'c'm' (BNS 63.465, type III), 16 operations, 8 with time reversal
+    magnetic point group: m'm'm'
+    allowed by symmetry: net magnetization none; linear magnetoelectric effect 3 components; piezomagnetism none
+    collinear order: antiferromagnet (conventional: inversion exchanges the sublattices, P T)
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [1.0000, -0.0000, 0.0000]
+      Ni8: [-1.0000, 0.0000, 0.0000]
+      Ni9: [-1.0000, -0.0000, 0.0000]
+      Ni10: [1.0000, 0.0000, 0.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [1.0000, -0.0000, 0.0000]
+      Ni32: [-1.0000, 0.0000, 0.0000]
+      Ni33: [-1.0000, -0.0000, 0.0000]
+      Ni34: [1.0000, 0.0000, 0.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   1.0000 -0.0000 0.0000   -1.0000 0.0000 0.0000   -1.0000 -0.0000 0.0000   1.0000 0.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   1.0000 -0.0000 0.0000   -1.0000 0.0000 0.0000   -1.0000 -0.0000 0.0000   1.0000 0.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM1-(1) [AFM, quadrupole] *
+  component y:
+    Ni1: S = [ 0.0000,  1.0000,  0.0000]
+    Ni2: S = [-0.0000, -1.0000,  0.0000]
+    Ni3: S = [-0.0000,  1.0000,  0.0000]
+    Ni4: S = [ 0.0000, -1.0000,  0.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: Cm'c'm' (BNS 63.465, type III), 16 operations, 8 with time reversal
+    magnetic point group: m'm'm'
+    allowed by symmetry: net magnetization none; linear magnetoelectric effect 3 components; piezomagnetism none
+    collinear order: antiferromagnet (conventional: inversion exchanges the sublattices, P T)
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [0.0000, 1.0000, 0.0000]
+      Ni8: [-0.0000, -1.0000, 0.0000]
+      Ni9: [-0.0000, 1.0000, 0.0000]
+      Ni10: [0.0000, -1.0000, 0.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [0.0000, 1.0000, 0.0000]
+      Ni32: [-0.0000, -1.0000, 0.0000]
+      Ni33: [-0.0000, 1.0000, 0.0000]
+      Ni34: [0.0000, -1.0000, 0.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 1.0000 0.0000   -0.0000 -1.0000 0.0000   -0.0000 1.0000 0.0000   0.0000 -1.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 1.0000 0.0000   -0.0000 -1.0000 0.0000   -0.0000 1.0000 0.0000   0.0000 -1.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM3+(1) [FM, dipole] *
+  component x:
+    Ni1: S = [ 1.0000,  0.0000,  0.0000]
+    Ni2: S = [ 1.0000,  0.0000,  0.0000]
+    Ni3: S = [ 1.0000, -0.0000,  0.0000]
+    Ni4: S = [ 1.0000, -0.0000,  0.0000]
+    net moment: [4.0, 0.0, 0.0]
+    magnetic space group: Cmc'm' (BNS 63.463, type III), 16 operations, 8 with time reversal
+    magnetic point group: mm'm'
+    allowed by symmetry: net magnetization along x; linear magnetoelectric effect none; piezomagnetism 5 components
+    collinear order: ferromagnet
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [1.0000, 0.0000, 0.0000]
+      Ni8: [1.0000, 0.0000, 0.0000]
+      Ni9: [1.0000, -0.0000, 0.0000]
+      Ni10: [1.0000, -0.0000, 0.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [1.0000, 0.0000, 0.0000]
+      Ni32: [1.0000, 0.0000, 0.0000]
+      Ni33: [1.0000, -0.0000, 0.0000]
+      Ni34: [1.0000, -0.0000, 0.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   1.0000 0.0000 0.0000   1.0000 0.0000 0.0000   1.0000 -0.0000 0.0000   1.0000 -0.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   1.0000 0.0000 0.0000   1.0000 0.0000 0.0000   1.0000 -0.0000 0.0000   1.0000 -0.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM3+(1) [AFM, octupole] *
+  component y:
+    Ni1: S = [ 0.0000,  1.0000,  0.0000]
+    Ni2: S = [ 0.0000,  1.0000,  0.0000]
+    Ni3: S = [ 0.0000, -1.0000,  0.0000]
+    Ni4: S = [ 0.0000, -1.0000,  0.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: Cmc'm' (BNS 63.463, type III), 16 operations, 8 with time reversal
+    magnetic point group: mm'm'
+    allowed by symmetry: net magnetization along x; linear magnetoelectric effect none; piezomagnetism 5 components
+    collinear order: altermagnet (d-wave; spin splitting allowed by symmetry ~ k_x k_y; spin-degenerate planes perpendicular to [100], [010])
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [0.0000, 1.0000, 0.0000]
+      Ni8: [0.0000, 1.0000, 0.0000]
+      Ni9: [0.0000, -1.0000, 0.0000]
+      Ni10: [0.0000, -1.0000, 0.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [0.0000, 1.0000, 0.0000]
+      Ni32: [0.0000, 1.0000, 0.0000]
+      Ni33: [0.0000, -1.0000, 0.0000]
+      Ni34: [0.0000, -1.0000, 0.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 1.0000 0.0000   0.0000 1.0000 0.0000   0.0000 -1.0000 0.0000   0.0000 -1.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 1.0000 0.0000   0.0000 1.0000 0.0000   0.0000 -1.0000 0.0000   0.0000 -1.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM3-(1) [AFM, quadrupole] *
+  component z:
+    Ni1: S = [ 0.0000,  0.0000,  1.0000]
+    Ni2: S = [ 0.0000,  0.0000, -1.0000]
+    Ni3: S = [ 0.0000,  0.0000,  1.0000]
+    Ni4: S = [ 0.0000,  0.0000, -1.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: Cm'cm (BNS 63.459, type III), 16 operations, 8 with time reversal
+    magnetic point group: m'mm
+    allowed by symmetry: net magnetization none; linear magnetoelectric effect 2 components; piezomagnetism none
+    collinear order: antiferromagnet (conventional: inversion exchanges the sublattices, P T)
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [0.0000, 0.0000, 1.0000]
+      Ni8: [0.0000, 0.0000, -1.0000]
+      Ni9: [0.0000, 0.0000, 1.0000]
+      Ni10: [0.0000, 0.0000, -1.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [0.0000, 0.0000, 1.0000]
+      Ni32: [0.0000, 0.0000, -1.0000]
+      Ni33: [0.0000, 0.0000, 1.0000]
+      Ni34: [0.0000, 0.0000, -1.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 0.0000 1.0000   0.0000 0.0000 -1.0000   0.0000 0.0000 1.0000   0.0000 0.0000 -1.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 0.0000 1.0000   0.0000 0.0000 -1.0000   0.0000 0.0000 1.0000   0.0000 0.0000 -1.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM4+(1) [FM, dipole] *
+  component y:
+    Ni1: S = [ 0.0000,  1.0000,  0.0000]
+    Ni2: S = [ 0.0000,  1.0000,  0.0000]
+    Ni3: S = [-0.0000,  1.0000,  0.0000]
+    Ni4: S = [-0.0000,  1.0000,  0.0000]
+    net moment: [0.0, 4.0, 0.0]
+    magnetic space group: Cm'cm' (BNS 63.464, type III), 16 operations, 8 with time reversal
+    magnetic point group: m'mm'
+    allowed by symmetry: net magnetization along y; linear magnetoelectric effect none; piezomagnetism 5 components
+    collinear order: ferromagnet
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [0.0000, 1.0000, 0.0000]
+      Ni8: [0.0000, 1.0000, 0.0000]
+      Ni9: [-0.0000, 1.0000, 0.0000]
+      Ni10: [-0.0000, 1.0000, 0.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [0.0000, 1.0000, 0.0000]
+      Ni32: [0.0000, 1.0000, 0.0000]
+      Ni33: [-0.0000, 1.0000, 0.0000]
+      Ni34: [-0.0000, 1.0000, 0.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 1.0000 0.0000   0.0000 1.0000 0.0000   -0.0000 1.0000 0.0000   -0.0000 1.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 1.0000 0.0000   0.0000 1.0000 0.0000   -0.0000 1.0000 0.0000   -0.0000 1.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM4+(1) [AFM, octupole] *
+  component x:
+    Ni1: S = [ 1.0000, -0.0000,  0.0000]
+    Ni2: S = [ 1.0000, -0.0000,  0.0000]
+    Ni3: S = [-1.0000, -0.0000,  0.0000]
+    Ni4: S = [-1.0000, -0.0000,  0.0000]
+    net moment: [0.0, -0.0, 0.0]
+    magnetic space group: Cm'cm' (BNS 63.464, type III), 16 operations, 8 with time reversal
+    magnetic point group: m'mm'
+    allowed by symmetry: net magnetization along y; linear magnetoelectric effect none; piezomagnetism 5 components
+    collinear order: altermagnet (d-wave; spin splitting allowed by symmetry ~ k_x k_y; spin-degenerate planes perpendicular to [100], [010])
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [1.0000, -0.0000, 0.0000]
+      Ni8: [1.0000, -0.0000, 0.0000]
+      Ni9: [-1.0000, -0.0000, 0.0000]
+      Ni10: [-1.0000, -0.0000, 0.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [1.0000, -0.0000, 0.0000]
+      Ni32: [1.0000, -0.0000, 0.0000]
+      Ni33: [-1.0000, -0.0000, 0.0000]
+      Ni34: [-1.0000, -0.0000, 0.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   1.0000 -0.0000 0.0000   1.0000 -0.0000 0.0000   -1.0000 -0.0000 0.0000   -1.0000 -0.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   1.0000 -0.0000 0.0000   1.0000 -0.0000 0.0000   -1.0000 -0.0000 0.0000   -1.0000 -0.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM4-(1) [AFM, quadrupole] *
+  component z:
+    Ni1: S = [ 0.0000,  0.0000,  1.0000]
+    Ni2: S = [ 0.0000,  0.0000, -1.0000]
+    Ni3: S = [ 0.0000,  0.0000, -1.0000]
+    Ni4: S = [ 0.0000,  0.0000,  1.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: Cmc'm (BNS 63.460, type III), 16 operations, 8 with time reversal
+    magnetic point group: mm'm
+    allowed by symmetry: net magnetization none; linear magnetoelectric effect 2 components; piezomagnetism none
+    collinear order: antiferromagnet (conventional: inversion exchanges the sublattices, P T)
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [0.0000, 0.0000, 1.0000]
+      Ni8: [0.0000, 0.0000, -1.0000]
+      Ni9: [0.0000, 0.0000, -1.0000]
+      Ni10: [0.0000, 0.0000, 1.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [0.0000, 0.0000, 1.0000]
+      Ni32: [0.0000, 0.0000, -1.0000]
+      Ni33: [0.0000, 0.0000, -1.0000]
+      Ni34: [0.0000, 0.0000, 1.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 0.0000 1.0000   0.0000 0.0000 -1.0000   0.0000 0.0000 -1.0000   0.0000 0.0000 1.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 0.0000 1.0000   0.0000 0.0000 -1.0000   0.0000 0.0000 -1.0000   0.0000 0.0000 1.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM2+(1) [FM, dipole] *
+  component z:
+    Ni1: S = [ 0.0000,  0.0000,  1.0000]
+    Ni2: S = [ 0.0000,  0.0000,  1.0000]
+    Ni3: S = [ 0.0000,  0.0000,  1.0000]
+    Ni4: S = [ 0.0000,  0.0000,  1.0000]
+    net moment: [0.0, 0.0, 4.0]
+    magnetic space group: Cm'c'm (BNS 63.462, type III), 16 operations, 8 with time reversal
+    magnetic point group: m'm'm
+    allowed by symmetry: net magnetization along z; linear magnetoelectric effect none; piezomagnetism 5 components
+    collinear order: ferromagnet
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [0.0000, 0.0000, 1.0000]
+      Ni8: [0.0000, 0.0000, 1.0000]
+      Ni9: [0.0000, 0.0000, 1.0000]
+      Ni10: [0.0000, 0.0000, 1.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [0.0000, 0.0000, 1.0000]
+      Ni32: [0.0000, 0.0000, 1.0000]
+      Ni33: [0.0000, 0.0000, 1.0000]
+      Ni34: [0.0000, 0.0000, 1.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 0.0000 1.0000   0.0000 0.0000 1.0000   0.0000 0.0000 1.0000   0.0000 0.0000 1.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 0.0000 1.0000   0.0000 0.0000 1.0000   0.0000 0.0000 1.0000   0.0000 0.0000 1.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM2-(1) [AFM, quadrupole] *
+  component x:
+    Ni1: S = [ 1.0000, -0.0000,  0.0000]
+    Ni2: S = [-1.0000,  0.0000,  0.0000]
+    Ni3: S = [ 1.0000,  0.0000,  0.0000]
+    Ni4: S = [-1.0000, -0.0000,  0.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: Cmcm' (BNS 63.461, type III), 16 operations, 8 with time reversal
+    magnetic point group: mmm'
+    allowed by symmetry: net magnetization none; linear magnetoelectric effect 2 components; piezomagnetism none
+    collinear order: antiferromagnet (conventional: inversion exchanges the sublattices, P T)
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [1.0000, -0.0000, 0.0000]
+      Ni8: [-1.0000, 0.0000, 0.0000]
+      Ni9: [1.0000, 0.0000, 0.0000]
+      Ni10: [-1.0000, -0.0000, 0.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [1.0000, -0.0000, 0.0000]
+      Ni32: [-1.0000, 0.0000, 0.0000]
+      Ni33: [1.0000, 0.0000, 0.0000]
+      Ni34: [-1.0000, -0.0000, 0.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   1.0000 -0.0000 0.0000   -1.0000 0.0000 0.0000   1.0000 0.0000 0.0000   -1.0000 -0.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   1.0000 -0.0000 0.0000   -1.0000 0.0000 0.0000   1.0000 0.0000 0.0000   -1.0000 -0.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM2-(1) [AFM, hexadecapole] *
+  component y:
+    Ni1: S = [ 0.0000,  1.0000,  0.0000]
+    Ni2: S = [-0.0000, -1.0000,  0.0000]
+    Ni3: S = [ 0.0000, -1.0000,  0.0000]
+    Ni4: S = [-0.0000,  1.0000,  0.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: Cmcm' (BNS 63.461, type III), 16 operations, 8 with time reversal
+    magnetic point group: mmm'
+    allowed by symmetry: net magnetization none; linear magnetoelectric effect 2 components; piezomagnetism none
+    collinear order: antiferromagnet (conventional: inversion exchanges the sublattices, P T)
+    spin directions (all atoms, POSCAR order) (conventional cell):
+      La1: [0, 0, 0]
+      La2: [0, 0, 0]
+      La3: [0, 0, 0]
+      La4: [0, 0, 0]
+      La5: [0, 0, 0]
+      La6: [0, 0, 0]
+      Ni7: [0.0000, 1.0000, 0.0000]
+      Ni8: [-0.0000, -1.0000, 0.0000]
+      Ni9: [0.0000, -1.0000, 0.0000]
+      Ni10: [-0.0000, 1.0000, 0.0000]
+      O11: [0, 0, 0]
+      O12: [0, 0, 0]
+      O13: [0, 0, 0]
+      O14: [0, 0, 0]
+      O15: [0, 0, 0]
+      O16: [0, 0, 0]
+      O17: [0, 0, 0]
+      O18: [0, 0, 0]
+      O19: [0, 0, 0]
+      O20: [0, 0, 0]
+      O21: [0, 0, 0]
+      O22: [0, 0, 0]
+      O23: [0, 0, 0]
+      O24: [0, 0, 0]
+      La25: [0, 0, 0]
+      La26: [0, 0, 0]
+      La27: [0, 0, 0]
+      La28: [0, 0, 0]
+      La29: [0, 0, 0]
+      La30: [0, 0, 0]
+      Ni31: [0.0000, 1.0000, 0.0000]
+      Ni32: [-0.0000, -1.0000, 0.0000]
+      Ni33: [0.0000, -1.0000, 0.0000]
+      Ni34: [-0.0000, 1.0000, 0.0000]
+      O35: [0, 0, 0]
+      O36: [0, 0, 0]
+      O37: [0, 0, 0]
+      O38: [0, 0, 0]
+      O39: [0, 0, 0]
+      O40: [0, 0, 0]
+      O41: [0, 0, 0]
+      O42: [0, 0, 0]
+      O43: [0, 0, 0]
+      O44: [0, 0, 0]
+      O45: [0, 0, 0]
+      O46: [0, 0, 0]
+      O47: [0, 0, 0]
+      O48: [0, 0, 0]
+    MAGMOM = 0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 1.0000 0.0000   -0.0000 -1.0000 0.0000   0.0000 -1.0000 0.0000   -0.0000 1.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0.0000 1.0000 0.0000   -0.0000 -1.0000 0.0000   0.0000 -1.0000 0.0000   -0.0000 1.0000 0.0000   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0   0 0 0
+
+* Magnetic groups and collinear classes *
+basis                        component  MSG (BNS)         type  MPG     net magnetization  class
+GM1+(1) [AFM, octupole]      z          Cmcm (63.457)     I     mmm     none               altermagnet (d-wave)
+GM1-(1) [AFM, quadrupole]    x          Cm'c'm' (63.465)  III   m'm'm'  none               antiferromagnet (P T)
+GM1-(1) [AFM, quadrupole]    y          Cm'c'm' (63.465)  III   m'm'm'  none               antiferromagnet (P T)
+GM3+(1) [FM, dipole]         x          Cmc'm' (63.463)   III   mm'm'   along x            ferromagnet
+GM3+(1) [AFM, octupole]      y          Cmc'm' (63.463)   III   mm'm'   along x            altermagnet (d-wave)
+GM3-(1) [AFM, quadrupole]    z          Cm'cm (63.459)    III   m'mm    none               antiferromagnet (P T)
+GM4+(1) [FM, dipole]         y          Cm'cm' (63.464)   III   m'mm'   along y            ferromagnet
+GM4+(1) [AFM, octupole]      x          Cm'cm' (63.464)   III   m'mm'   along y            altermagnet (d-wave)
+GM4-(1) [AFM, quadrupole]    z          Cmc'm (63.460)    III   mm'm    none               antiferromagnet (P T)
+GM2+(1) [FM, dipole]         z          Cm'c'm (63.462)   III   m'm'm   along z            ferromagnet
+GM2-(1) [AFM, quadrupole]    x          Cmcm' (63.461)    III   mmm'    none               antiferromagnet (P T)
+GM2-(1) [AFM, hexadecapole]  y          Cmcm' (63.461)    III   mmm'    none               antiferromagnet (P T)
+
+MSG: magnetic space group from the moment directions (BNS number, type I-IV);
+MPG: magnetic point group; net magnetization: the direction allowed by symmetry;
+class: from the signs of the moments along their common axis only (nonrelativistic).
+MSG and MPG symbols are in the standard BNS setting; directions are in the Cartesian axes of the input cell.
+
+* Output files *
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM1+_octupole_z_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM1-_quadrupole_x_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM1-_quadrupole_y_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM3+_dipole_x_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM3+_octupole_y_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM3-_quadrupole_z_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM4+_dipole_y_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM4+_octupole_x_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM4-_quadrupole_z_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM2+_dipole_z_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM2-_quadrupole_x_conv.vesta
+  Spin basis written to: POSCAR_La3Ni2O7_spin_GM2-_hexadecapole_y_conv.vesta
+
+All AFM bases satisfy sum_i S_i = 0; FM entries carry the cluster dipole moment.
+Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).

@@ -1,0 +1,14 @@
+# DOS/PDOS + lowdin partial charges for 221_PPOSCAR_ScF3
+# PBE/gth-dzvp-molopt-sr, SCF mesh 2x2x2, DOS mesh 8x8x8, sigma 0.15 eV, reference VBM
+ * Lowdin partial charges (sum of populations = 32.0000 electrons, expected 32) *
+   Sc0: population 10.9960  net charge +0.004   (3s 1.641  4s 0.336  5s 0.140  3p 5.715  4p 0.878  3d 1.434  4d 0.852)
+   F1: population  7.0013  net charge -0.001   (2s 1.523  3s 0.070  2p 5.203  3p 0.197  3d 0.008)
+   F2: population  7.0013  net charge -0.001   (2s 1.523  3s 0.070  2p 5.203  3p 0.197  3d 0.008)
+   F3: population  7.0013  net charge -0.001   (2s 1.523  3s 0.070  2p 5.203  3p 0.197  3d 0.008)
+ * Mulliken partial charges (sum of populations = 32.0000 electrons, expected 32) *
+   Sc0: population  9.4266  net charge +1.573   (3s 1.983  4s 0.054  5s 0.038  3p 5.987  4p 0.334  3d 1.064  4d -0.033)
+   F1: population  7.5245  net charge -0.524   (2s 1.948  3s -0.006  2p 5.603  3p -0.022  3d 0.002)
+   F2: population  7.5245  net charge -0.524   (2s 1.948  3s -0.006  2p 5.603  3p -0.022  3d 0.002)
+   F3: population  7.5245  net charge -0.524   (2s 1.948  3s -0.006  2p 5.603  3p -0.022  3d 0.002)
+   (an atomic partition of a continuous density is a convention: with this diffuse basis Loewdin tends toward neutral atoms, Mulliken keeps the ionic picture)
+   VBM +0.000 eV, CBM +5.199 eV, gap 5.199 eV (Fermi filling on the 8x8x8 mesh)

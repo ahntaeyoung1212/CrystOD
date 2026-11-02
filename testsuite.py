@@ -77,7 +77,7 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
   32. crystod-phonon --vector   phonon eigenvector VESTA export (phonopy data)
   33. crystod-phonon --modulation modulated structures (known space groups)
   34. crystod-phonon --vibration symmetry-only vibration bases
-  35. crystod-phonon            seven-mode extras, incl. --subgroup (isotropy
+  35. crystod-phonon            eight-mode extras, incl. --subgroup (isotropy
                                 subgroups of the imaginary modes)
   -- crystod-mag --
   36. crystod-mag               symmetry-adapted spin bases (cluster multipoles / SAMM)
@@ -99,7 +99,7 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
   43. crystod-mol --diagram     MO diagram from symmetry + overlap (extended Hueckel)
   44. crystod-mol               --align / --show-matrix / --visualize / error extras
   -- Python API --
-  45. crystod.salc/group/phonon/bz/mag/md/mol/xrd/search  library API (import
+  45. crystod.salc/group/phonon/bz/mag/md/mol/xrd/search/slab  library API (import
                                 hygiene, backward compatibility, API-vs-CLI agreement)
   -- crystod-xrd --
   46. crystod-xrd               powder X-ray diffraction patterns (pymatgen)
@@ -115,6 +115,61 @@ Sections (grouped by command; example/<NN>_* directories share the numbers):
                                 spin-orbit coupling; CRYSTOD_VASP_TESTDATA=<dir of the
                                 VASP runs> adds the consistency checks on
                                 SrTiO3_Pm-3m/BAND and the overlap engine)
+  -- crystod-example --
+  50. crystod-example           the example directories packaged in crystod/examples/:
+                                in sync with example/PACKAGED (script/
+                                sync_packaged_examples.py --check; skipped without
+                                git or a checkout), byte copies of example/, nothing
+                                that must not ship, every file a README names present
+                                in a copy of that example alone and no README command
+                                writing onto a packaged file, the crystod-example CLI
+                                (no copy inside the package), the XDATCAR_every10
+                                frames of 39
+                                (CRYSTOD_CHECK_DIST=<dir of the built wheel and sdist>
+                                adds the distribution checks)
+  -- crystod-phonon, continued --
+  51. crystod-phonon --unfold   phonon band unfolding onto the parent Brillouin
+                                zone (CaTiO3 Pnma and AlF3 R-3c onto Pm-3m:
+                                mapping from crystod-group, identity/gauge/
+                                frame/purity tests on ideal supercells, time-
+                                reversal labels on Pnma, the child GM mode
+                                origin, the domain average, the sets the child
+                                symmetry cannot separate, label ties, error
+                                messages, every output line within 100
+                                columns, table columns at irrational k, the
+                                figure layout in two fonts (also for Si
+                                Fd-3m with 26 star arms); the demo data of
+                                example/test_unfold, if present, add the
+                                checks against the demo)
+  52. crystod-phonon --visualize phonon mode viewer (ScF3, SrTiO3, Si): the
+                                terminal blocks, band_vector.yaml (phonopy's
+                                band.yaml with eigenvectors), the page data
+                                (q points, set labels, Mulliken and activity
+                                at GM, the imaginary R5- of SrTiO3), the
+                                displacement fields of the page against
+                                phonopy's modulation, --qpoint/--bond/--band/
+                                --readfc/--nac/-o, the error lines and the
+                                crystod.phonon API; --all-irreps (the segment
+                                midpoints: labels == phonon_irreps_all.yaml,
+                                display cells, oversize midpoints of Si
+                                skipped, phonon_visualize_all.html)
+  -- crystod-slab --
+  53. crystod-slab              surface slabs cut by pymatgen's SlabGenerator
+                                (SrTiO3, NaCl, ZnO, ScF3, fcc Cu): every
+                                termination's atoms, thickness, vacuum, area,
+                                polarity, face symmetry and net charge against
+                                pymatgen directly, the --max-index families
+                                against spglib's rotations (R-3c, Pa-3, P1),
+                                the POSCAR files (StructureMatcher, species
+                                blocks, comment line, _t/_s names, kept /
+                                refused / --force), --max-atoms / --no-polar /
+                                --symmetrize, --conventional, the options
+                                passed to pymatgen (--lll-reduce in the
+                                surface), four-index input, --index-list,
+                                --oxidation, the dialogue, --example, the
+                                error lines, every output line within 100
+                                columns, the citations and the crystod.slab
+                                API
 """
 
 from __future__ import annotations
@@ -161,6 +216,9 @@ VASP_OVERLAP_FIXTURE = os.path.join(ROOT, "example", "03_hybridization",
                                     "vasp_overlap")
 MP_SEARCH_DIR = os.path.join(ROOT, "example", "48_mp_search")
 MP_FIXTURE = os.path.join(MP_SEARCH_DIR, "mp_summary_Sr-Ti-O.json.gz")
+PHONON_UNFOLD_DIR = os.path.join(ROOT, "example", "51_phonon_unfold")
+UNFOLD_DEMO_DIR = os.path.join(ROOT, "example", "test_unfold")  # optional, untracked, read only
+PHONON_VISUALIZE_DIR = os.path.join(ROOT, "example", "52_phonon_visualize", "ScF3_Pm-3m")
 
 PASS = 0
 FAIL = 0
@@ -244,6 +302,25 @@ def run_xrd(args: list[str], cwd: str | None = None) -> tuple[int, str]:
 def run_search(args: list[str], cwd: str | None = None,
                env: dict | None = None) -> tuple[int, str]:
     return run_module("crystod.cli.search", args, cwd, env)
+
+
+def run_slab(args: list[str], cwd: str | None = None,
+             stdin: str | None = None) -> tuple[int, str]:
+    """crystod-slab with ``stdin`` as its input (the answers of the dialogue);
+    without it the input is empty, so a question nobody answers is an ERROR,
+    not a hang."""
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "crystod.cli.slab"] + args,
+            input="" if stdin is None else stdin,
+            capture_output=True,
+            text=True,
+            cwd=cwd or ROOT,
+            timeout=TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return -1, f"TIMEOUT after {TIMEOUT_SECONDS} s"
+    return proc.returncode, proc.stdout + proc.stderr
 
 
 # ---------------------------------------------------------------- 1. wigner_D_real
@@ -2115,10 +2192,15 @@ def _test_03_poscar_spellings() -> None:
                out)
 
     # ----------------------------------------------- the rule has no bypass
+    # the packaged example directories (crystod/examples/NN_*/...) hold
+    # copies of the user scripts of example/, which are not CrystOD modules
+    examples_data = os.path.join(ROOT, "crystod", "examples", "")
     phonopy_reads, uncorrected = [], []
     for path in sorted(glob.glob(os.path.join(ROOT, "crystod", "**", "*.py"),
                                  recursive=True)):
         if os.path.basename(path) == "vasp_io.py":
+            continue
+        if path.startswith(examples_data) and os.sep in path[len(examples_data):]:
             continue
         calls = [node for node in ast.walk(ast.parse(open(path).read()))
                  if isinstance(node, ast.Call)]
@@ -7489,6 +7571,19 @@ def test_28_phonon_irrep() -> None:
         report("exit code 0", code == 0, out)
         yaml_path = os.path.join(tmp, "phonon_irreps.yaml")
         report("phonon_irreps.yaml written", os.path.isfile(yaml_path))
+        # the dispersion along the seekpath path with the labels of the survey
+        # at its special points (the README figure) comes with every run: the
+        # YAML name with .pdf
+        figure = os.path.join(tmp, "phonon_irreps.pdf")
+        report("--irreps also writes phonon_irreps.pdf, prints the path in a * Band path * "
+               "block and names both files under * Output files *",
+               code == 0 and os.path.isfile(figure)
+               and open(figure, "rb").read(5) == b"%PDF-"
+               and "\n* Band path *\n  k path (seekpath): GM-X-M-GM-R-X | R-M  (306 q points)\n"
+               "  Labeled points: X, GM, R, M\n" in out
+               and "\n* Output files *\n  Phonon irreps written to: phonon_irreps.yaml\n"
+               "  Phonon dispersion with irrep labels written to: phonon_irreps.pdf\n" in out,
+               out)
         if os.path.isfile(yaml_path):
             text = open(yaml_path).read()
             try:
@@ -7542,10 +7637,14 @@ def test_28_phonon_irrep() -> None:
         except ValueError:
             same_data = False
         report("--irreps -o SrTiO3_irreps.yaml writes that file (the default survey's "
-               "data), not phonon_irreps.yaml",
+               "data) and SrTiO3_irreps.pdf, not phonon_irreps.yaml/.pdf",
                code == 0 and same_data
                and not os.path.exists(os.path.join(named_dir, "phonon_irreps.yaml"))
-               and "Phonon irreps written to: SrTiO3_irreps.yaml" in out, out)
+               and not os.path.exists(os.path.join(named_dir, "phonon_irreps.pdf"))
+               and os.path.isfile(os.path.join(named_dir, "SrTiO3_irreps.pdf"))
+               and "Phonon irreps written to: SrTiO3_irreps.yaml" in out
+               and "Phonon dispersion with irrep labels written to: SrTiO3_irreps.pdf" in out,
+               out)
 
         # --all-irreps: additionally label the seekpath k-path midpoints,
         # written to phonon_irreps_all.yaml so both surveys can coexist
@@ -7556,9 +7655,11 @@ def test_28_phonon_irrep() -> None:
         )
         report("--all-irreps exit code 0", code == 0, out)
         all_yaml_path = os.path.join(tmp, "phonon_irreps_all.yaml")
-        report("--all-irreps writes phonon_irreps_all.yaml",
+        report("--all-irreps writes phonon_irreps_all.yaml and phonon_irreps_all.pdf",
                os.path.isfile(all_yaml_path)
-               and "written to: phonon_irreps_all.yaml" in out, out)
+               and os.path.isfile(os.path.join(tmp, "phonon_irreps_all.pdf"))
+               and "written to: phonon_irreps_all.yaml" in out
+               and "written to: phonon_irreps_all.pdf" in out, out)
         if os.path.isfile(yaml_path):
             report("--all-irreps leaves phonon_irreps.yaml midpoint-free",
                    "path_midpoints" not in read_phonon_irreps(yaml_path))
@@ -7582,6 +7683,124 @@ def test_28_phonon_irrep() -> None:
                    and ["T5(2)"] in [s["irrep_label"]
                                      for s in on_lines.get("T", {}).get("band_sets", [])],
                    text)
+
+        # the data of the figure: every label dot on a band at its vertex, the
+        # labels those of phonon_irreps.yaml, each point once (GM at the middle
+        # vertex, M at the right edge with its labels to the left)
+        probe = (
+            "import warnings\n"
+            "warnings.simplefilter('ignore')\n"
+            "import numpy as np\n"
+            "from phonopy import load\n"
+            "from phonopy.structure.cells import get_primitive_matrix_by_centring\n"
+            "from crystod.irreptables_compat import load_irreptables\n"
+            "from crystod.phonon import read_phonon_irreps\n"
+            "from crystod.phonon_irreps_plot import _spread, compute_dispersion\n"
+            "from crystod.vasp_io import read_poscar_cell\n"
+            "ph = load(supercell_matrix=[4, 4, 4], primitive_matrix='auto',\n"
+            "          unitcell=read_poscar_cell('221_PPOSCAR_SrTiO3'),\n"
+            "          force_sets_filename='FORCE_SETS', is_nac=False)\n"
+            "table = load_irreptables()[0](221, spinor=False)\n"
+            "data = compute_dispersion(ph, table, get_primitive_matrix_by_centring('P'))\n"
+            "worst = 0.0\n"
+            "for p in data.points:\n"
+            "    ends = [f[0] for d, f in zip(data.distances, data.frequencies)\n"
+            "            if abs(d[0] - p.x) < 1e-9]\n"
+            "    ends += [f[-1] for d, f in zip(data.distances, data.frequencies)\n"
+            "             if abs(d[-1] - p.x) < 1e-9]\n"
+            "    bands = np.concatenate(ends)\n"
+            "    worst = max([worst] + [float(np.min(np.abs(bands - f))) for f, _ in p.levels])\n"
+            "def text(labels):\n"
+            "    return ' + '.join(x[:-3] if x.endswith('(1)') else x for x in labels)\n"
+            "ref = {e['q_label']: sorted((round(s['frequency'], 4), text(s['irrep_label']))\n"
+            "                            for s in e['band_sets'])\n"
+            "       for e in read_phonon_irreps('phonon_irreps.yaml')['irreps']}\n"
+            "print('WORST', worst)\n"
+            "print('SAME', all(sorted((round(f, 4), t) for f, t in p.levels) == ref[p.name]\n"
+            "                  for p in data.points))\n"
+            "print('POINTS', ' '.join(f'{p.name}:{p.side}:{data.ticks.index(p.x)}'\n"
+            "                         for p in data.points), len(data.ticks))\n"
+            "r = sorted(data.points[[p.name for p in data.points].index('R')].levels)[0]\n"
+            "print('R', r[1], r[0] < -1.0)\n"
+            "print('SPREAD', _spread([0.0, 0.0, 0.0], 1.0, -5.0, 5.0).tolist(),\n"
+            "      _spread([0.0, 0.1, 9.0], 1.0, 0.0, 9.5).tolist())\n"
+        )
+        code, out = run_python(probe, cwd=tmp)
+        worst = re.search(r"^WORST (\S+)$", out, re.M)
+        report("dispersion data: every label dot lies on a band at its vertex (< 1e-6 THz) and "
+               "carries the label of phonon_irreps.yaml",
+               code == 0 and worst is not None and float(worst.group(1)) < 1e-6
+               and "SAME True" in out, out)
+        report("dispersion data: X, GM, R, M labeled once (GM at the middle vertex, M at the "
+               "right edge with its labels to the left); R5-(3) imaginary",
+               "POINTS X:right:1 GM:right:3 R:right:4 M:left:6 7" in out
+               and "R R5-(3) True" in out, out)
+        report("label spreading: least-squares positions at least one pitch apart, "
+               "kept inside the axes",
+               "SPREAD [-1.0, 0.0, 1.0] [0.0, 1.0, 9.0]" in out, out)
+
+        # a manual --band path: vertices named by their ISO-IR k-vector type
+        # (DT on GM-X), labeled through the tabulated arm of their star, and the
+        # two different points of a break (X|M) labeled on either side
+        band_dir = os.path.join(tmp, "band")
+        os.makedirs(band_dir)
+        for name in ("221_PPOSCAR_SrTiO3", "FORCE_SETS"):
+            shutil.copy(os.path.join(PHONON_IRREP_DIR, name), band_dir)
+        code, out = run_phonon(
+            ["--irreps", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+             "--band", "0 0 0  1/4 0 0  1/2 0 0, 1/2 1/2 0  1/2 1/2 1/2", "--npoints", "11"],
+            cwd=band_dir,
+        )
+        band_figure = os.path.join(band_dir, "phonon_irreps.pdf")
+        report("--irreps --band: phonon_irreps.pdf along GM-DT-X | M-R, every vertex labeled",
+               code == 0 and os.path.isfile(band_figure)
+               and open(band_figure, "rb").read(5) == b"%PDF-"
+               and "k path (--band): GM-DT-X | M-R  (33 q points)" in out
+               and "Labeled points: GM, DT, X, M, R" in out, out)
+        # a --band-labels count that does not fit --band stops before the survey
+        code, out = run_phonon(
+            ["--irreps", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3", "-o", "early.yaml",
+             "--band", "0 0 0  1/2 0 0", "--band-labels", "GM X M"], cwd=band_dir
+        )
+        report("--irreps --band-labels with the wrong count stops with one line, "
+               "before the survey (no YAML)",
+               code != 0 and "ERROR: --band-labels needs 2 labels for this --band path, "
+               "but 3 were given." in out and "Traceback" not in out
+               and not os.path.exists(os.path.join(band_dir, "early.yaml")), out)
+        # the YAML is the result: a figure that cannot be drawn is a NOTE in the
+        # * Band path * block, the YAML is still written and the run exits 0
+        probe = (
+            "import crystod.phonon_irreps_plot as plot\n"
+            "def broken(*args, **kwargs):\n"
+            "    raise RuntimeError('seekpath failed on this cell')\n"
+            "plot.plot_irreps_dispersion = broken\n"
+            "from crystod.cli.phonon import main\n"
+            "main(['--irreps', '--dim', '4 4 4', '-c', '221_PPOSCAR_SrTiO3',\n"
+            "      '-o', 'guard.yaml'])\n"
+        )
+        code, out = run_python(probe, cwd=band_dir)
+        report("a failing figure: NOTE with the reason under * Band path *, the YAML "
+               "written and listed alone, exit 0",
+               code == 0 and os.path.isfile(os.path.join(band_dir, "guard.yaml"))
+               and not os.path.exists(os.path.join(band_dir, "guard.pdf"))
+               and "\n* Band path *\n  NOTE: the dispersion figure was not drawn "
+               "(RuntimeError: seekpath failed on this cell)\n" in out
+               and "\n* Output files *\n  Phonon irreps written to: guard.yaml\n" in out
+               and "Phonon dispersion with irrep labels" not in out, out)
+
+        # the NAC note: ScF3 with BORN (the inputs of section 31)
+        nac_src = os.path.join(ROOT, "example", "31_phonon_lt", "ScF3_Pm-3m")
+        nac_dir = os.path.join(tmp, "nac")
+        os.makedirs(nac_dir)
+        for name in ("221_PPOSCAR_ScF3", "FORCE_SETS", "BORN"):
+            shutil.copy(os.path.join(nac_src, name), nac_dir)
+        code, out = run_phonon(
+            ["--irreps", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3", "--nac"],
+            cwd=nac_dir,
+        )
+        report("--irreps --nac: the figure and a note that the GM labels are the TO modes",
+               code == 0 and os.path.isfile(os.path.join(nac_dir, "phonon_irreps.pdf"))
+               and "NOTE: at GM the labels are those of the TO modes" in out, out)
 
         # a band-set list hung directly under q_label (no band_sets key) is
         # not YAML; the reader says so instead of returning partial data
@@ -7627,6 +7846,12 @@ def test_28_phonon_irrep() -> None:
                code == 0
                and found.get("L") == ["L3+(2)", "L2-(1)", "L1+(1)", "L3-(2)"]
                and found.get("W") == ["W2(2)", "W1(2)", "W2(2)"], f"{found}\n{out}")
+        # the figure: U and K (the two sides of the break U|K) are equivalent
+        # points with the same SM labels, drawn once
+        report("Si --irreps figure: path GM-X-U | K-GM-L-W-X, U|K labeled once",
+               code == 0 and os.path.isfile(os.path.join(tmp, "phonon_irreps.pdf"))
+               and "k path (seekpath): GM-X-U | K-GM-L-W-X" in out
+               and "Labeled points: U|K, GM, L, W, X\n" in out, out)
         code, out = run_phonon(["--irreps", "--dim", "4 4 4", "-c", "227_PPOSCAR_Si",
                                 "--all-irreps"], cwd=tmp)
         all_yaml_path = os.path.join(tmp, "phonon_irreps_all.yaml")
@@ -9390,7 +9615,7 @@ def _measure_modulate_structures(directory: str, parent_name: str,
 
 
 def test_35_phonon_command() -> None:
-    print("\n[35] crystod-phonon (sectioned command: 7 phonon modes)")
+    print("\n[35] crystod-phonon (sectioned command: 8 phonon modes)")
 
     def run_phonon(args: list[str], cwd: str | None = None) -> tuple[int, str]:
         return run_module("crystod.cli.phonon", args, cwd)
@@ -15005,6 +15230,15 @@ def test_23_symmetry_mode() -> None:
                "R5-" in out and "(1/2,1/2,1/2)" in out
                and re.search(r"R5-\s+\S+\s+140 I4/mcm\s+1\s+0\.3303", out)
                is not None, out)
+        # the direction is the row of --parent Pm-3m --irrep R5- (0,0,a);
+        # the input child sits on the domain-equivalent (a,0,0), named in a
+        # note under the table
+        report("R5- named (0,0,a) -> 140 I4/mcm (the ISOTROPY representative); "
+               "the note names the input domain R5- (a,0,0)",
+               re.search(r"R5-\s+\(0,0,a\)\s+140 I4/mcm\s+1\s+0\.3303", out)
+               is not None
+               and "domain-equivalent direction R5- (a,0,0))"
+               in " ".join(out.split()), out)
         report("max displacement 0.1651 A and total distortion 0.3303 A",
                "maximum atomic displacement: 0.1651 A" in out
                and "total distortion amplitude : 0.3303 A" in out, out)
@@ -15507,6 +15741,34 @@ def test_23_symmetry_mode() -> None:
         ).read()
         report("R4+ VESTA carries arrow entries (VECTR section)",
                "VECTR" in vesta_text and "VECTT" in vesta_text, vesta_text[:500])
+        # the child sits on R4+ (a,a,0) M3+ (0;0;a); the rows show the
+        # domain in which R4+, the largest mode, is on its --parent
+        # representative (0,a,a), every other mode moved by the same parent
+        # operation (M3+ (a;0;0), the coupled Pnma row with R4+ (0,a,a)); the
+        # note names the representatives on their own and the input domain
+        catio3_note = " ".join(out[out.find("(direction:"):].split("\n\n")[0].split())
+        report("CaTiO3 Pnma: one domain, X5+ (0,0;a,a;0,0) M2+ (a;0;0) "
+               "M3+ (a;0;0) R4+ (0,a,a) R5+ (0,a,-a); the note names the "
+               "representatives on their own and the input domain",
+               re.search(r"X5\+\s+\(0,0;a,a;0,0\)\s+63 Cmcm\s+2\s+0\.5196", out)
+               is not None
+               and re.search(r"M2\+\s+\(a;0;0\)\s+127 P4/mbm\s+1\s+0\.0064", out)
+               is not None
+               and re.search(r"M3\+\s+\(a;0;0\)\s+127 P4/mbm\s+1\s+0\.8874", out)
+               is not None
+               and re.search(r"R4\+\s+\(0,a,a\)\s+74 Imma\s+1\s+1\.2458", out)
+               is not None
+               and re.search(r"R5\+\s+\(0,a,-a\)\s+74 Imma\s+2\s+0\.1047", out)
+               is not None
+               and "listed on their own, the other strata read X5+ (0,0;0,0;a,a), "
+               "M2+ (0;0;a), M3+ (0;0;a) and R5+ (0,a,a);" in catio3_note
+               and catio3_note.endswith(
+                   "the input child as given sits on the domain-equivalent "
+                   "directions X5+ (a,a;0,0;0,0), M2+ (0;0;a), M3+ (0;0;a), "
+                   "R4+ (a,a,0) and R5+ (a,-a,0))")
+               and all(len(line) <= 79 for line in
+                       out[out.find("(direction:"):].split("\n\n")[0].splitlines()),
+               out)
 
         # the transformation (P, p) through the API: x_parent = P x_child + p
         # must take every child atom of the INPUT file onto a parent atom of
@@ -15709,6 +15971,33 @@ def test_23_symmetry_mode() -> None:
                is not None, out)
         report("ScF3 Pbnm: inactive secondary X5+ listed with amplitude 0",
                re.search(r"X5\+\s+\S+\s+63 Cmcm\s+1\s+0\.0000", out) is not None, out)
+        # the rows are one domain: R4+ (the largest mode) on its --parent
+        # representative (0,a,a), M3+ on (a;0;0) with it -- together the row
+        # R4+(0,a,a) M3+(d;0;0) 62 Pnma of the coupled table, not the
+        # representative (0;0;a) M3+ has on its own (with R4+ (0,a,a) that
+        # is a C2/m direction); the child already sits there, so the note
+        # names the representatives on their own only
+        scf3_note = " ".join(out[out.find("(direction:"):].split("\n\n")[0].split())
+        report("ScF3 Pbnm: one domain, R4+ (0,a,a) and M3+ (a;0;0) (the coupled "
+               "Pnma row); the note names M3+ (0;0;a) on its own, no input domain",
+               re.search(r"R4\+\s+\(0,a,a\)\s+74 Imma", out) is not None
+               and re.search(r"M3\+\s+\(a;0;0\)\s+127 P4/mbm", out) is not None
+               and scf3_note.startswith(
+                   "(direction: the rows describe one domain of the child: the "
+                   "largest mode, R4+, sits on its ISOTROPY representative as listed "
+                   "by crystod-group --parent 221 --irrep R4+, and the smaller modes "
+                   "on the simplest directions left in that domain;")
+               and "M3+ (0;0;a)" in scf3_note
+               and "the input child as given" not in scf3_note, out)
+        code, out = run_group(["--parent", "Pm-3m", "--irrep", "R4+", "M3+"], cwd=tmp)
+        code_c2m, out_c2m = run_group(
+            ["--parent", "Pm-3m", "--irrep", "R4+", "M3+", "--order-parameter",
+             "0", "a", "a", "0", "0", "d"], cwd=tmp)
+        report("coupled table --parent Pm-3m --irrep R4+ M3+ lists "
+               "R4+(0,a,a) M3+(d;0;0) 62 Pnma; R4+(0,a,a) M3+(0;0;d) is C2/m",
+               code == 0 and re.search(r"R4\+\(0,a,a\) M3\+\(d;0;0\)\s+62 Pnma", out)
+               is not None
+               and code_c2m == 0 and "-> C2/m (No. 12)" in out_c2m, out + out_c2m)
 
         # complex-type irreps enter as their physically irreducible pair
         # D + D* on one line (label R1+R3+): before v0.4.3 the doubled
@@ -15954,6 +16243,233 @@ def test_23_symmetry_mode() -> None:
                and "Traceback" not in out and "please report" not in out
                and "different --tolerance" not in out, out)
 
+        # the direction column shows one domain of the child: the largest
+        # mode with domain-equivalent directions on its ISOTROPY
+        # representative, the row of crystod-group --parent SG --irrep IR
+        # (IsotropyAnalyzer.canonical_projector), the smaller modes on the
+        # simplest directions left to them (SymmetryModeAnalysis.
+        # _common_domain); the subgroup and index are those of the input
+        # child (the index and, except for enantiomorphic partners, the type
+        # of the direction shown); a child sitting on a domain-equivalent
+        # image is named in a note under the table, and the setting, the
+        # modes and the files keep following the input files.  V2O3 R-3c ->
+        # C2/c (debug9_V2O3): the child sits on GM3+ (0.577a,-a), the
+        # --parent table lists GM3+(a,0) 15 C2/c
+        debug9 = os.path.join(example, "debug9_V2O3")
+        v2o3_dir = os.path.join(tmp, "v2o3")
+        code, out = run_group(
+            ["--supergroup-cif", os.path.join(debug9, "POSCAR_V2O3_R-3c.cif"),
+             "--subgroup-cif", os.path.join(debug9, "POSCAR_V2O3_C2c.cif"),
+             "--conventional", "--output-dir", v2o3_dir], cwd=tmp)
+        report("V2O3 R-3c -> C2/c: GM3+ (a,0) -> 15 C2/c dim 5 0.1222 A and "
+               "GM1+ (a) -> 167 R-3c dim 2 0.0425 A",
+               code == 0
+               and re.search(r"\(0,0,0\)\s+GM3\+\s+\(a,0\)\s+15 C2/c\s+5\s+0\.1222",
+                             out) is not None
+               and re.search(r"\(0,0,0\)\s+GM1\+\s+\(a\)\s+167 R-3c\s+2\s+0\.0425",
+                             out) is not None
+               and "(0.577a,-a)  15 C2/c" not in out, out)
+        v2o3_table = out[out.find("* Symmetry-mode decomposition *"):]
+        v2o3_table = v2o3_table[:v2o3_table.find("\n\n")]
+        v2o3_note = v2o3_table[v2o3_table.find("(direction:"):]
+        v2o3_file = os.path.join(v2o3_dir, "sym_mode_V2O3")
+        report("V2O3: one note under the table names the input domain "
+               "GM3+ (0.577a,-a), lines <= 79 columns, also in sym_mode_V2O3",
+               "(direction:" in v2o3_table
+               and v2o3_table.count("(direction:") == 1
+               and "ISOTROPY representative" in v2o3_note
+               and "GM3+ sits on its ISOTROPY representative as listed by "
+               "crystod-group --parent 167 --irrep GM3+;" in " ".join(v2o3_note.split())
+               and " ".join(v2o3_note.split()).endswith(
+                   "domain-equivalent direction GM3+ (0.577a,-a))")
+               and all(len(line) <= 79 for line in v2o3_note.splitlines())
+               and all(line.startswith(" ") for line in v2o3_note.splitlines()[1:])
+               and os.path.isfile(v2o3_file)
+               and v2o3_table in open(v2o3_file, encoding="utf-8").read(), out)
+        report("V2O3: the setting keeps following the input files "
+               "(P, p of the transformation unchanged)",
+               "  [     1     1  -1/3 ] [   1/3 ]\n"
+               "  [    -1     1   1/3 ] [   1/6 ]\n"
+               "  [     0     0   1/3 ] [   1/6 ]\n" in out, out)
+
+        # La3Ni2O7 I4/mmm -> Cmcm (debug10_La3Ni2O7): the child already sits
+        # on the representative X3- (0;a) (ISODISTORT says X3-(0;a) as well),
+        # so no domain note
+        debug10 = os.path.join(example, "debug10_La3Ni2O7")
+        code, out = run_group(
+            ["--supergroup-cif", os.path.join(debug10, "POSCAR_La3Ni2O7_I4mmm.cif"),
+             "--subgroup-cif", os.path.join(debug10, "POSCAR_La3Ni2O7_Cmcm.cif"),
+             "--conventional", "--no-files"], cwd=tmp)
+        report("La3Ni2O7 I4/mmm -> Cmcm: X3- (0;a) -> 63 Cmcm dim 6 0.7283 A, "
+               "GM1+ (a) -> 139 I4/mmm dim 4 0.0285 A, no domain note",
+               code == 0
+               and re.search(r"\(0,0,1/2\)\s+X3-\s+\(0;a\)\s+63 Cmcm\s+6\s+0\.7283",
+                             out) is not None
+               and re.search(r"\(0,0,0\)\s+GM1\+\s+\(a\)\s+139 I4/mmm\s+4\s+0\.0285",
+                             out) is not None
+               and "domain-equivalent" not in out, out)
+
+        # a chiral child: the mirror-image domains of one stratum have
+        # enantiomorphic partner stabilizers (Fd-3m has improper operations).
+        # alpha-cristobalite in P4_12_12 and its mirror image (z -> -z) in
+        # P4_32_12 on ideal beta-cristobalite Fd-3m: both rows are named by
+        # the representative X4 (0,0;0,0;0,a) of --parent 227 --irrep X4
+        # (listed with 92 P4_12_12), the subgroup column keeps the type of
+        # the input child (the header type), and the note names the partner
+        import numpy as _np
+        from pymatgen.core import Lattice as _Lattice
+        from pymatgen.core import Structure as _Structure
+        _fcc = _np.array([(0, 0, 0), (0, .5, .5), (.5, 0, .5), (.5, .5, 0)])
+        _si = [t + s for t in _fcc for s in ((0, 0, 0), (.25, .25, .25))]
+        _o = [t + b for t in _fcc for b in ((.125, .125, .125), (.125, -.125, -.125),
+                                            (-.125, .125, -.125), (-.125, -.125, .125))]
+        sio2_parent = os.path.join(tmp, "POSCAR_SiO2_Fd-3m")
+        _Structure(_Lattice.cubic(7.16), ["Si"] * 8 + ["O"] * 16,
+                   _np.mod(_si + _o, 1.0)).to(filename=sio2_parent, fmt="poscar")
+        _right = _Structure.from_spacegroup(
+            92, _Lattice.tetragonal(4.9709, 6.9278), ["Si", "O"],
+            [[0.3003, 0.3003, 0.0], [0.2392, 0.1044, 0.1787]])
+        sio2_children = {
+            "P4_12_12": os.path.join(tmp, "POSCAR_SiO2_P4_12_12"),
+            "P4_32_12": os.path.join(tmp, "POSCAR_SiO2_P4_32_12"),
+        }
+        _right.to(filename=sio2_children["P4_12_12"], fmt="poscar")
+        _Structure(_right.lattice, _right.species,
+                   _np.mod(_right.frac_coords * [1, 1, -1], 1.0)).to(
+            filename=sio2_children["P4_32_12"], fmt="poscar")
+        sio2_out = {}
+        for _name, _path in sio2_children.items():
+            sio2_out[_name] = run_group(
+                ["--supergroup-cif", sio2_parent, "--subgroup-cif", _path,
+                 "--no-files"], cwd=tmp)
+        code, out = sio2_out["P4_12_12"]
+        report("cristobalite Fd-3m -> P4_12_12: X4 (0,0;0,0;0,a) -> 92 P4_12_12 "
+               "dim 3 1.9841 A, GM3- (a,0) -> 98 I4_122 dim 1 0.1547 A, "
+               "no enantiomorph clause",
+               code == 0 and "P41212 (No. 92)" in out
+               and re.search(r"X4\s+\(0,0;0,0;0,a\)\s+92 P4_12_12\s+3\s+1\.9841",
+                             out) is not None
+               and re.search(r"GM3-\s+\(a,0\)\s+98 I4_122\s+1\s+0\.1547",
+                             out) is not None
+               and "enantiomorphic" not in out, out)
+        code, out = sio2_out["P4_32_12"]
+        report("cristobalite mirror image -> P4_32_12: the same X4 (0,0;0,0;0,a) "
+               "with the type of the child, 96 P4_32_12, and the same amplitudes; "
+               "the note names the partner of the listed 92 P4_12_12",
+               code == 0 and "P43212 (No. 96)" in out
+               and re.search(r"X4\s+\(0,0;0,0;0,a\)\s+96 P4_32_12\s+3\s+1\.9841",
+                             out) is not None
+               and re.search(r"GM3-\s+\(a,0\)\s+98 I4_122\s+1\s+0\.1547",
+                             out) is not None
+               and "92 P4_12_12  " not in out
+               and "the isotropy subgroup is that of the input child, for X4 the "
+               "enantiomorphic partner of the 92 P4_12_12 of the direction "
+               "shown)" in " ".join(out.split())
+               and all(len(line) <= 79 for line in out.splitlines()
+                       if "enantiomorphic" in line), out)
+
+        # through the API, for SrTiO3, V2O3, CaTiO3 and ScF3 Pnma (Pbnm) and
+        # both cristobalite children: (1) the representative of every mode's
+        # stratum on its own (representative_label) with the subgroup and
+        # index of the child is a record of crystod.group.isotropy_subgroups
+        # (the --parent table; several rows of one table may share a type,
+        # X5+ Cmcm of Pm-3m, so the whole triple is compared; a child on a
+        # mirror-image domain may carry the enantiomorphic partner of the
+        # listed type, and only then); (2) the mode that decides the domain
+        # shown sits on it; (3) the rows are one domain: the stabilizer of
+        # all directions shown together is a subgroup of the index and type
+        # (or, through an improper operation, the partner type) of the
+        # child's own -- naming every row by its own representative instead
+        # gives P-1 (index 192) for the two Pnma perovskites
+        from crystod import group as _group
+        from crystod.isotropy_subgroup import ENANTIOMORPHIC_PAIRS
+        from crystod.isotropy_subgroup import CoupledRepresentation as _Coupled
+        from crystod.isotropy_subgroup import IsotropyAnalyzer as _IA
+        from crystod.isotropy_subgroup import _block_diag
+        _consistent = []
+        _domains = {}
+        _partner_rows = []
+        _primary = {}
+        _one_domain = []
+        for _tag, _pair in (
+                ("SrTiO3", (os.path.join(example, "221_PPOSCAR_SrTiO3.cif"),
+                            os.path.join(example, "140_PPOSCAR_SrTiO3.cif"))),
+                ("V2O3", (os.path.join(debug9, "POSCAR_V2O3_R-3c.cif"),
+                          os.path.join(debug9, "POSCAR_V2O3_C2c.cif"))),
+                ("CaTiO3", (os.path.join(example, "221_PPOSCAR_CaTiO3.cif"),
+                            os.path.join(example, "62_PPOSCAR_CaTiO3.cif"))),
+                ("ScF3", (parent_scf3, os.path.join(modulation, "POSCAR_Pbnm"))),
+                ("SiO2-92", (sio2_parent, sio2_children["P4_12_12"])),
+                ("SiO2-96", (sio2_parent, sio2_children["P4_32_12"]))):
+            try:
+                _an = _group.SymmetryModeAnalysis(*_pair, 0.01)
+            except SystemExit as _error:  # a missing input file: FAIL, go on
+                _consistent.append(((_tag, str(_error)), False))
+                continue
+            _shown, _, _first, _ = _an._common_domain()
+            for _mode in _an.modes:
+                _label, _info, _index = _mode.label_info()
+                _rep = _mode.representative_label
+                _records = {
+                    (r.direction, r.number, r.index)
+                    for r in _group.isotropy_subgroups(
+                        _an.parent_number, _mode.irrep_name, with_settings=False)
+                }
+                _ok = (_rep, _info.number, _index) in _records
+                if not _ok and _mode.domain_label != _rep:
+                    _ok = (_rep, ENANTIOMORPHIC_PAIRS.get(_info.number),
+                           _index) in _records
+                    if _ok:
+                        _partner_rows.append(
+                            (_an.child_number, _mode.irrep_name, _info.number))
+                _consistent.append(
+                    ((_tag, _mode.irrep_name, _rep, _info.number, _index), _ok))
+                _domains[(_tag, _mode.irrep_name)] = (
+                    _label, _mode.domain_label, _rep)
+            _primary[_tag] = (
+                None if _first is None
+                else (_first.irrep_name, _first.label_info()[0] == _first.representative_label))
+            _coupled = _IA.from_representation(_an.algebra, _Coupled.from_parts(
+                _an.algebra, [_mode.representation for _mode in _an.modes]))
+            _child = _coupled.subgroup_of(_coupled.stabilizer_of(_block_diag(
+                [_mode._actual_projector()[1] for _mode in _an.modes])))
+            _domain = _coupled.subgroup_of(_coupled.stabilizer_of(_block_diag(_shown)))
+            _one_domain.append(
+                (_tag, _child[0].number, _child[2], _domain[0].number, _domain[2]))
+        report("API: the representative of every stratum on its own is a row of "
+               "isotropy_subgroups(parent, irrep) with the child's subgroup and "
+               "index (SrTiO3, V2O3, CaTiO3, ScF3 Pnma, cristobalite), the "
+               "partner type only for the mirror-image domain (X4 of 96)",
+               len(_consistent) >= 16 and all(ok for _, ok in _consistent)
+               and _partner_rows == [(96, "X4", 96)],
+               str(_consistent) + " " + str(_partner_rows))
+        report("API: the largest mode with domain-equivalent directions sits on "
+               "its representative (R5-, GM3+, R4+, R4+, X4, X4)",
+               _primary == {"SrTiO3": ("R5-", True), "V2O3": ("GM3+", True),
+                            "CaTiO3": ("R4+", True), "ScF3": ("R4+", True),
+                            "SiO2-92": ("X4", True), "SiO2-96": ("X4", True)},
+               str(_primary))
+        report("API: the directions shown are one domain -- together they have "
+               "the child's isotropy subgroup (Pnma index 24 for CaTiO3 and "
+               "ScF3; the partner 92 of 96 through an improper operation)",
+               len(_one_domain) == 6
+               and all(index == shown_index and (number == shown_number
+                       or ENANTIOMORPHIC_PAIRS.get(number) == shown_number)
+                       for _, number, index, shown_number, shown_index in _one_domain)
+               and ("CaTiO3", 62, 24, 62, 24) in _one_domain
+               and ("ScF3", 62, 24, 62, 24) in _one_domain,
+               str(_one_domain))
+        report("API: domain_label keeps the input domain, representative_label "
+               "names the stratum on its own (R5- (a,0,0), GM3+ (0.577a,-a); "
+               "CaTiO3 R4+ (a,a,0) shown (0,a,a), M3+ (0;0;a) shown (a;0;0))",
+               _domains.get(("SrTiO3", "R5-")) == ("(0,0,a)", "(a,0,0)", "(0,0,a)")
+               and _domains.get(("V2O3", "GM3+")) == ("(a,0)", "(0.577a,-a)", "(a,0)")
+               and _domains.get(("V2O3", "GM1+")) == ("(a)", "(a)", "(a)")
+               and _domains.get(("CaTiO3", "R4+")) == ("(0,a,a)", "(a,a,0)", "(0,a,a)")
+               and _domains.get(("CaTiO3", "M3+")) == ("(a;0;0)", "(0;0;a)", "(0;0;a)")
+               and _domains.get(("ScF3", "M3+")) == ("(a;0;0)", "(a;0;0)", "(0;0;a)"),
+               str(_domains))
+
     # errors
     code, out = run_group(["--supergroup-cif", parent])
     report("--supergroup-cif without --subgroup-cif rejected cleanly",
@@ -15989,14 +16505,15 @@ def test_23_symmetry_mode() -> None:
 
 # ---------------------------------------------------------------- 45. Python API
 def test_45_python_api() -> None:
-    print("\n[45] Python API (crystod.salc / group / phonon / bz / mag / md / mol / xrd / search)")
+    print("\n[45] Python API (crystod.salc / group / phonon / bz / mag / md / mol / xrd / search"
+          " / slab)")
 
     # import hygiene: plain `import crystod` must not drag in the heavy stack
     probe = (
         "import sys, crystod\n"
         "import crystod.salc, crystod.group, crystod.phonon\n"
         "import crystod.bz, crystod.mag, crystod.md, crystod.mol\n"
-        "import crystod.xrd, crystod.search\n"
+        "import crystod.xrd, crystod.search, crystod.slab\n"
         "heavy = [m for m in ('phonopy', 'spgrep', 'pyscf', 'pymatgen', 'matplotlib',\n"
         "                     'requests')\n"
         "         if m in sys.modules]\n"
@@ -16519,17 +17036,18 @@ def test_45_python_api() -> None:
     # domain namespaces expose their advertised names
     probe = (
         "import crystod\n"
-        "for name in ('salc', 'group', 'phonon', 'bz', 'mag', 'md', 'mol', 'xrd', 'search'):\n"
+        "for name in ('salc', 'group', 'phonon', 'bz', 'mag', 'md', 'mol', 'xrd', 'search',\n"
+        "             'slab'):\n"
         "    module = getattr(crystod, name)\n"
         "    missing = [n for n in module.__all__ if not hasattr(module, n)]\n"
         "    print(name, len(module.__all__), 'MISSING' if missing else 'OK', missing or '')\n"
     )
     code, out = run_python(probe)
     report("every advertised API symbol resolves", code == 0 and "MISSING" not in out, out)
-    report("all nine API domains are populated",
+    report("all ten API domains are populated",
            code == 0 and all(f"\n{name} " in "\n" + out for name in
                              ("salc", "group", "phonon", "bz", "mag", "md", "mol", "xrd",
-                              "search")), out)
+                              "search", "slab")), out)
 
 
 # ---------------------------------------------------------------- 46. crystod-xrd
@@ -18722,6 +19240,4982 @@ def _test_49_live(data: str) -> None:
         print("  [SKIP] live: no CsPbI3_Pm-3m_LAK_SOC/BAND")
 
 
+# ---------------------------------------------------------------- 50. packaged examples
+PACKAGED_DIR = os.path.join(ROOT, "crystod", "examples")
+PACKAGED_SHARED = ("test_POSCARs", "test_XYZs")
+# the five --example inputs that lie directly in crystod/examples/, and their originals
+PACKAGED_FLAT = {
+    "221_PPOSCAR_ScF3": "test_POSCARs/221_PPOSCAR_ScF3",
+    "221_PPOSCAR_SrTiO3": "test_POSCARs/221_PPOSCAR_SrTiO3",
+    "FORCE_SETS_SrTiO3": "28_phonon_irrep/SrTiO3_Pm-3m/FORCE_SETS",
+    "XYZ_CH4.xyz": "test_XYZs/XYZ_CH4.xyz",
+    "XYZ_NH3.xyz": "test_XYZs/XYZ_NH3.xyz",
+}
+# no packaged text file may hold a private path, the name of the private VASP build
+# (~/vasp.6.5.1.crystod) or a shell prompt with the user name ...
+PACKAGED_PRIVATE = ("/Users/", "/home/", "vasp.6.5.1", "Mochizuki %")
+# ... except the version banner of a VASP OUTCAR, which names the release of the program
+_PKG_VASP_BANNER = re.compile(r" vasp\.\d+\.\d+\.\d+ \d\d[A-Z][a-z]{2}\d\d \(build [^)]*\) \w+")
+
+# The README reference check (per-example closure). A README line is a command when it
+# starts, after blanks and an optional "$ " prompt or a "#" followed by two or more
+# blanks (a command quoted in a comment block), with one of these words:
+_PKG_COMMAND = re.compile(r"\s*(?:\$\s+|#\s{2,})?(crystod(?:-[a-z]+)?|python3?|phonopy(?:-init)?"
+                          r"|cd|mkdir|cp|cat)(?=\s|$)")
+# options whose values are input files or directories, per command
+_PKG_CELL = frozenset({"-c", "--cell", "--poscar"})
+_PKG_INPUTS = {
+    "crystod": _PKG_CELL | {"--vasp", "--vasp-crystal", "--vasp-left", "--vasp-right",
+                            "--potcar-dir", "--vasp-cache", "--vasp-scalar-reference",
+                            "--chk-info", "--extract-irrep"},
+    "crystod-group": _PKG_CELL | {"--cif", "--supergroup-cif", "--subgroup-cif"},
+    "crystod-phonon": _PKG_CELL | {"--yaml", "--child-poscar", "--parent-poscar", "--parent"},
+    "crystod-md": _PKG_CELL | {"--yaml", "--xdatcar"},
+    "crystod-mag": _PKG_CELL,
+    "crystod-bz": _PKG_CELL,
+    "crystod-xrd": _PKG_CELL | {"--parent"},
+    "crystod-mol": frozenset({"--xyz"}),
+    "crystod-search": frozenset(),
+    "crystod-example": frozenset(),
+    "phonopy-init": _PKG_CELL,
+    "python": _PKG_CELL | {"--yaml"},   # the options of a shipped script (after its name)
+}
+# options whose values are written (outputs, so later lines may read them)
+_PKG_OUTPUTS = frozenset({"-o", "--output", "--output-dir", "--chk", "--export-npz",
+                          "--vasp-setup"})
+# crystod-phonon modes that read force constants: FORCE_SETS, FORCE_CONSTANTS or
+# phonopy_params.yaml in the working directory unless --yaml names the file (BORN is
+# not required: 29 runs --nac without it on purpose)
+_PKG_PHONON_MODES = frozenset({"--irreps", "--fatband", "--lt", "--vector", "--modulation",
+                               "--subgroup"})
+_PKG_PHONON_FORCES = ("FORCE_SETS", "FORCE_CONSTANTS", "phonopy_params.yaml")
+# (--unfold is not one of them: it reads the force files next to its POSCARs, see
+# _pkg_unfold_forces)
+# files that phonopy writes into the current directory (generated by an earlier README
+# line, never shipped)
+_PKG_PHONOPY_WRITES = {"phonopy-init": ("phonopy_disp.yaml", "SPOSCAR"),
+                       "--writefc": ("FORCE_CONSTANTS",), "--sp": ("phonopy_params.yaml",)}
+# references that are not files of the example on purpose: (README, reference) -> why
+_PKG_REFERENCE_EXEMPT = {
+    ("03_hybridization/README", "BAND/POSCAR"):
+        "the --vasp-setup template, run in the user's own calculation directory",
+}
+# A README command must not write onto a packaged file of the copy: the next
+# crystod-example into the same directory would stop on the changed file. These packaged
+# files are rewritten on purpose, by a README line that reproduces them byte for byte
+# (other examples read them); section 50 reruns those lines and compares.
+_PKG_REGENERATED = frozenset({"33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_1",
+                              "33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_2",
+                              "33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_3"})
+# A README line with one of these phrases (any case) marks its paragraph as data that
+# is not in the pip package (see _pkg_exempt_lines)
+_PKG_MARKER = re.compile(r"not in the pip package|not distributed|repository[ -]only",
+                         re.IGNORECASE)
+_PKG_UP_PATH = re.compile(r"(?<![\w.~/-])(?:\.\./)+[\w.+/-]*")
+_PKG_POINTER = re.compile(r"(?:\.\./)+(\d\d_[\w.+-]+)/?")
+# the file named by a line of program output ("... written to: X", " Wrote X: ..."); a
+# comment saying that a file is written by something does not count
+_PKG_WRITTEN = re.compile(r"(?:\bwritten to:?|\bWrote)\s+([\w.+/-]+)")
+
+
+def _pkg_rel(path: str, root: str) -> str:
+    return os.path.relpath(path, root).replace(os.sep, "/")
+
+
+def _pkg_disk_files() -> list[str]:
+    """The files under crystod/examples/{NN_*,test_POSCARs,test_XYZs}, '/'-separated.
+
+    __pycache__ directories and dot files are left out (the wheel never holds them).
+    """
+    files = []
+    for top in sorted(os.listdir(PACKAGED_DIR)):
+        path = os.path.join(PACKAGED_DIR, top)
+        if not (re.match(r"\d\d_", top) or top in PACKAGED_SHARED):
+            continue
+        if not os.path.isdir(path):
+            files.append(top)
+            continue
+        for dirpath, dirnames, filenames in os.walk(path):
+            dirnames[:] = sorted(name for name in dirnames
+                                 if name != "__pycache__" and not name.startswith("."))
+            files += [_pkg_rel(os.path.join(dirpath, name), PACKAGED_DIR)
+                      for name in filenames if not name.startswith(".")]
+    return sorted(files)
+
+
+def _pkg_index() -> dict:
+    with open(os.path.join(PACKAGED_DIR, "index.json"), encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _pkg_index_files(index: dict) -> list[str]:
+    return [path for entry in index["examples"] + index["shared"] for path in entry["files"]]
+
+
+def _pkg_up_paths(text: str) -> list[str]:
+    """The ``../`` paths of a line (a trailing sentence stop and ``...`` dropped)."""
+    refs = []
+    for match in _PKG_UP_PATH.finditer(text):
+        ref = match.group(0)
+        if text[match.end():match.end() + 1] in tuple("*<{[$"):
+            continue                       # a pattern or a placeholder, not a path
+        if ref.endswith("/..."):
+            ref = ref[:-3]
+        elif ref.endswith(".") and not ref.endswith("/.."):
+            ref = ref[:-1]
+        if ref not in refs:
+            refs.append(ref)
+    return refs
+
+
+def _pkg_exempt_lines(lines: list[str]) -> set[int]:
+    """Indices of the README lines about data that is not in the pip package.
+
+    A line saying "not in the pip package", "not distributed", "repository only" or
+    "repository-only" (any case) exempts its paragraph (the lines between blank or bare
+    "#" lines). A paragraph that OPENS with such a line heads an exempt part, which runs
+    on to the next paragraph that opens with a plain heading (a line at column 0 that
+    is neither a comment, a prompt nor a command), or to the end of the file.
+    """
+    def blank(line: str) -> bool:
+        return not line.strip().lstrip("#").strip()
+
+    def plain_heading(line: str) -> bool:
+        return (bool(line) and not line[0].isspace() and line[0] not in "#$"
+                and not _PKG_COMMAND.match(line))
+
+    paragraphs, start = [], None
+    for number, line in enumerate(lines):
+        if blank(line):
+            if start is not None:
+                paragraphs.append(range(start, number))
+                start = None
+        elif start is None:
+            start = number
+    if start is not None:
+        paragraphs.append(range(start, len(lines)))
+    exempt: set[int] = set()
+    k = 0
+    while k < len(paragraphs):
+        paragraph = paragraphs[k]
+        k += 1
+        if not any(_PKG_MARKER.search(lines[number]) for number in paragraph):
+            continue
+        exempt.update(paragraph)
+        if _PKG_MARKER.search(lines[paragraph[0]]):
+            while k < len(paragraphs) and not plain_heading(lines[paragraphs[k][0]]):
+                exempt.update(paragraphs[k])
+                k += 1
+    return exempt
+
+
+def _pkg_tokens(text: str) -> list[str]:
+    """Shell words of a command line, without its trailing comment."""
+    text = re.sub(r"(^|\s)#.*$", "", text)
+    lexer = shlex.shlex(text, posix=True, punctuation_chars="&|<>;")
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    try:
+        return list(lexer)
+    except ValueError:
+        return text.split()
+
+
+def _pkg_options(args: list[str], inputs: frozenset) -> tuple[list[str], list[str]]:
+    """(input paths, output paths) named by the options in ``args``."""
+    read, written, k = [], [], 0
+    while k < len(args):
+        option, equals, value = args[k].partition("=")
+        k += 1
+        if not option.startswith("-") or option == "-":
+            continue
+        values = [value] if equals else []
+        while not equals and k < len(args) and not args[k].startswith("-"):
+            values.append(args[k])
+            k += 1
+            if option != "--vasp":         # --vasp takes several run directories
+                break
+        if option in inputs:
+            read += values
+        elif option in _PKG_OUTPUTS:
+            written += values
+    return read, written
+
+
+def _pkg_unfold_forces(args: list[str]) -> list[tuple[str, ...]]:
+    """The force files of a ``crystod-phonon --unfold`` line, as alternatives per structure.
+
+    The lookup of crystod.phonon_unfold._force_file: next to the POSCAR,
+    NAME_<POSCAR file name> and then NAME (FORCE_SETS, or FORCE_CONSTANTS with
+    --child-readfc / --readfc or --parent-readfc); the child also in the working
+    directory; the parent only with --parent-dim.
+    """
+    flags = {arg.partition("=")[0] for arg in args}
+
+    def value(names: tuple[str, ...]) -> str | None:
+        found = None
+        for k, arg in enumerate(args):
+            option, equals, rest = arg.partition("=")
+            if option in names:
+                found = rest if equals else (args[k + 1] if k + 1 < len(args) else None)
+        return found
+
+    structures = [(value(("--child-poscar", "-c", "--cell")), {"--child-readfc", "--readfc"})]
+    if "--parent-dim" in flags:
+        structures.append((value(("--parent-poscar", "--parent")), {"--parent-readfc"}))
+    refs = []
+    for index, (poscar, readfc) in enumerate(structures):
+        if not poscar:                     # no POSCAR option: the command itself stops
+            continue
+        name = "FORCE_CONSTANTS" if flags & readfc else "FORCE_SETS"
+        names = (f"{name}_{os.path.basename(poscar)}", name)
+        alternatives = [os.path.join(os.path.dirname(poscar), each) for each in names]
+        if index == 0:                     # the child: also the working directory
+            alternatives += [each for each in names if each not in alternatives]
+        refs.append(tuple(alternatives))
+    return refs
+
+
+def _pkg_check_readme(path: str, root: str, packaged: set[str], copied: frozenset = frozenset()
+                      ) -> tuple[int, int, list[tuple[int, str, str]],
+                                 list[tuple[int, str, str, list[str], str]]]:
+    """Check the file references of one README in a copied example tree.
+
+    Returns (references checked, lines skipped as not in the pip package, unresolved
+    references as (line number, line, reference), writes onto packaged files). A
+    reference resolves when it exists below ``root`` relative to the README's
+    directory or to the directory of the last ``cd`` line, or when an earlier line
+    writes it (-o/--output/--output-dir/--chk/--export-npz/--vasp-setup values, mkdir
+    and cp targets, the files phonopy writes, the file a "written to: X" or "Wrote X"
+    line of program output names).
+
+    A write onto a packaged file is a command output that is one of ``copied`` (the
+    absolute paths of the files of the copy): an option value above, a ``>`` target,
+    a cp target, or a file that phonopy writes into the current directory
+    (phonopy-init: phonopy_disp.yaml, SPOSCAR; --sp: phonopy_params.yaml; --writefc:
+    FORCE_CONSTANTS). Each is (line number, line, path relative to ``root``, the
+    command words, the directory the command runs in).
+    """
+    rel = _pkg_rel(path, root)
+    home = os.path.dirname(path)
+    with open(path, encoding="utf-8") as handle:
+        lines = handle.read().splitlines()
+    exempt = _pkg_exempt_lines(lines)
+    generated: set[str] = set()
+    seen: set[tuple] = set()
+    state = {"cd": None, "checked": 0}
+    missing: list[tuple[int, str, str]] = []
+    writes: list[tuple[int, str, str, list[str], str]] = []
+
+    def bases() -> list[str]:
+        return [home] if state["cd"] is None else [state["cd"], home]
+
+    def write(number: int, ref: str, words: list[str]) -> None:
+        """A file a command writes, relative to the directory it runs in."""
+        target = os.path.normpath(os.path.join(bases()[0], ref))
+        if target in copied:
+            writes.append((number, lines[number - 1].strip(), _pkg_rel(target, root),
+                           list(words), bases()[0]))
+
+    def inside(target: str) -> bool:
+        return target == root or target.startswith(root + os.sep)
+
+    def found(ref: str) -> str | None:
+        for base in bases():
+            target = os.path.normpath(os.path.join(base, ref))
+            if inside(target) and os.path.exists(target):
+                return target
+        return None
+
+    def made(ref: str) -> bool:
+        for base in bases():
+            target = os.path.normpath(os.path.join(base, ref))
+            while inside(target):
+                if target in generated:
+                    return True
+                target = os.path.dirname(target)
+        return False
+
+    def produce(ref: str) -> None:
+        for base in bases():
+            generated.add(os.path.normpath(os.path.join(base, ref)))
+
+    def need(number: int, *refs: str) -> None:
+        """One reference; several are alternatives (any of them will do)."""
+        if (number, refs) in seen:             # a ../ path that is also an option value
+            return
+        seen.add((number, refs))
+        state["checked"] += 1
+        if any(found(ref) or made(ref) or (rel, ref) in _PKG_REFERENCE_EXEMPT for ref in refs):
+            return
+        target = os.path.normpath(os.path.join(bases()[0], refs[0]))
+        where = _pkg_rel(target, root) if inside(target) else "outside the copy"
+        missing.append((number, lines[number - 1].strip(), f"{' or '.join(refs)} (-> {where})"))
+
+    index = 0
+    while index < len(lines):
+        number, line = index + 1, lines[index]
+        index += 1
+        if number - 1 in exempt:
+            continue
+        match = _PKG_COMMAND.match(line)
+        if match is None:
+            # prose and program output: its ../ paths, and the files it says were written
+            for ref in _pkg_up_paths(line):
+                pointer = _PKG_POINTER.fullmatch(ref)
+                if (pointer and pointer.group(1) in packaged
+                        and os.path.normpath(os.path.join(home, ref))
+                        == os.path.join(root, pointer.group(1))):
+                    state["checked"] += 1      # "see ../26_bz_supercell": another example
+                    continue
+                need(number, ref)
+            if not line.lstrip().startswith("#"):
+                for written in _PKG_WRITTEN.findall(line):
+                    produce(written.rstrip(":.,"))
+            continue
+        text = line[match.start(1):]
+        quoted = line.lstrip().startswith("#")
+        while text.rstrip().endswith("\\") and index < len(lines):
+            more = lines[index].strip()
+            text = text.rstrip()[:-1] + " " + (more.lstrip("#").strip() if quoted else more)
+            index += 1
+        for ref in _pkg_up_paths(text):
+            need(number, ref)
+        commands, current = [], []
+        for token in _pkg_tokens(text):
+            if token in ("&&", "||", "|", ";", "&"):
+                commands.append(current)
+                current = []
+            else:
+                current.append(token)
+        commands.append(current)
+        for words in commands:
+            if not words:
+                continue
+            if "<<" in words:              # a here-document: its body is not a command
+                words = words[:words.index("<<")]
+            redirected = []
+            for k, word in enumerate(words[:-1]):
+                if word in (">", ">>"):
+                    redirected.append(words[k + 1])
+                elif word == "<":
+                    need(number, words[k + 1])
+            words = [word for k, word in enumerate(words)
+                     if word not in ("<", ">", ">>") and (k == 0 or words[k - 1] not in
+                                                          ("<", ">", ">>"))]
+            for ref in redirected:
+                write(number, ref, words)
+                produce(ref)
+            if not words:
+                continue
+            name, args = words[0], words[1:]
+            positional = [arg for arg in args if not arg.startswith("-")]
+            if name == "cd":
+                if not positional or positional[0] == "-":
+                    state["cd"] = None
+                else:
+                    need(number, positional[0])
+                    state["cd"] = (found(positional[0])
+                                   or os.path.normpath(os.path.join(home, positional[0])))
+            elif name == "mkdir":
+                for arg in positional:
+                    produce(arg)
+            elif name == "cp" and len(positional) >= 2:
+                sources, destination = positional[:-1], positional[-1]
+                into = os.path.normpath(os.path.join(bases()[0], destination))
+                if len(sources) > 1 or os.path.isdir(into) or into in generated:
+                    targets = [os.path.join(destination, os.path.basename(source))
+                               for source in sources]
+                else:
+                    targets = [destination]
+                for source in sources:
+                    need(number, source)
+                    produce(os.path.join(destination, os.path.basename(source)))
+                produce(destination)
+                for ref in targets:
+                    write(number, ref, words)
+            elif name == "cat":
+                for arg in positional:
+                    need(number, arg)
+            elif name.startswith("python"):
+                if not args or args[0].startswith("-"):
+                    continue                   # python -c / python - <<EOF
+                need(number, args[0])
+                read, written = _pkg_options(args[1:], _PKG_INPUTS["python"])
+                for ref in read:
+                    need(number, ref)
+                for ref in written:
+                    write(number, ref, words)
+                    produce(ref)
+            elif name == "phonopy-init":
+                for ref in _pkg_options(args, _PKG_INPUTS[name])[0]:
+                    need(number, ref)
+                for ref in _PKG_PHONOPY_WRITES[name]:
+                    write(number, ref, words)
+                    produce(ref)
+            elif name == "phonopy":
+                for arg in positional:
+                    if arg.endswith(".yaml"):
+                        need(number, arg)
+                for flag in ("--writefc", "--sp"):
+                    if flag in args:
+                        for ref in _PKG_PHONOPY_WRITES[flag]:
+                            write(number, ref, words)
+                            produce(ref)
+            else:                              # crystod, crystod-*
+                read, written = _pkg_options(args, _PKG_INPUTS.get(name, _PKG_CELL))
+                for ref in read:
+                    need(number, ref)
+                if (name == "crystod-phonon" and _PKG_PHONON_MODES & set(args)
+                        and "--yaml" not in args and "--example" not in args):
+                    need(number, *_PKG_PHONON_FORCES)
+                if name == "crystod-phonon" and "--unfold" in args and "--example" not in args:
+                    for refs in _pkg_unfold_forces(args):
+                        need(number, *refs)
+                for ref in written:
+                    write(number, ref, words)
+                    produce(ref)
+    return state["checked"], len(exempt), missing, writes
+
+
+def _pkg_python_refs(path: str) -> list[tuple[int, str]]:
+    """(line, path) of the files a shipped Python script opens by a computed name.
+
+    Two forms: ``os.path.join(DIR, "a", "b")`` with DIR a module constant built from
+    ``os.path.dirname(os.path.abspath(__file__))`` (and os.path.dirname/join of such
+    constants), and ``"../dir/" + NAME`` inside ``for NAME in ("x", "y")``.
+    """
+    import ast
+
+    with open(path, encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+    constants: dict[str, str] = {}
+
+    def value(node) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.Name):
+            return constants.get(node.id)
+        if isinstance(node, ast.Call) and node.args:
+            func, args = ast.unparse(node.func), node.args
+            if (func == "os.path.abspath" and isinstance(args[0], ast.Name)
+                    and args[0].id == "__file__"):
+                return path
+            parts = [value(arg) for arg in args]
+            if None in parts:
+                return None
+            if func == "os.path.dirname" and len(parts) == 1:
+                return os.path.dirname(parts[0])
+            if func == "os.path.join":
+                return os.path.join(*parts)
+        return None
+
+    for node in tree.body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)):
+            found = value(node.value)
+            if found is not None and os.path.isabs(found):
+                constants[node.targets[0].id] = found
+    refs = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and ast.unparse(node.func) == "os.path.join"
+                and node.args and isinstance(node.args[0], ast.Name)
+                and node.args[0].id in constants and value(node) is not None):
+            refs.append((node.lineno, value(node)))
+        if (isinstance(node, ast.For) and isinstance(node.target, ast.Name)
+                and isinstance(node.iter, (ast.Tuple, ast.List))
+                and all(isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+                        for elt in node.iter.elts)):
+            for sub in ast.walk(node):
+                if (isinstance(sub, ast.BinOp) and isinstance(sub.op, ast.Add)
+                        and isinstance(sub.left, ast.Constant) and isinstance(sub.left.value, str)
+                        and isinstance(sub.right, ast.Name) and sub.right.id == node.target.id):
+                    refs += [(sub.lineno, sub.left.value + elt.value) for elt in node.iter.elts]
+    return refs
+
+
+def _pkg_check_python(path: str, root: str) -> tuple[int, list[tuple[int, str, str]]]:
+    """Check the ``../`` paths and the computed file names of one shipped script."""
+    home = os.path.dirname(path)
+    with open(path, encoding="utf-8") as handle:
+        lines = handle.read().splitlines()
+    refs = [(number, ref) for number, line in enumerate(lines, 1) for ref in _pkg_up_paths(line)]
+    refs += _pkg_python_refs(path)
+    missing = []
+    for number, ref in refs:
+        target = os.path.normpath(os.path.join(home, ref))
+        if not ((target == root or target.startswith(root + os.sep)) and os.path.exists(target)):
+            missing.append((number, lines[number - 1].strip(), ref))
+    return len(refs), missing
+
+
+def _pkg_example_cli(args: list[str], cwd: str) -> tuple[int, str]:
+    """crystod-example (python -m crystod.cli.example) on the package of this tree."""
+    env = dict(os.environ)
+    env["PYTHONPATH"] = ROOT + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    return run_module("crystod.cli.example", args, cwd=cwd, env=env)
+
+
+def _pkg_tree(top: str) -> dict[str, int]:
+    """{relative path: st_mtime_ns} of every file below ``top``."""
+    tree = {}
+    for dirpath, _, filenames in os.walk(top):
+        for name in filenames:
+            path = os.path.join(dirpath, name)
+            tree[_pkg_rel(path, top)] = os.stat(path).st_mtime_ns
+    return tree
+
+
+def _pkg_scripts() -> dict[str, str]:
+    """The [project.scripts] table of pyproject.toml, {name: "module:function"}."""
+    with open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8") as handle:
+        text = handle.read()
+    table = re.search(r"^\[project\.scripts\]\n(.*?)(?=^\[|\Z)", text, re.M | re.S)
+    return dict(re.findall(r'^([\w-]+)\s*=\s*"([^"]+)"', table.group(1) if table else "", re.M))
+
+
+def _pkg_excludes() -> list[str]:
+    """The [tool.setuptools.exclude-package-data] globs of crystod.examples."""
+    with open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8") as handle:
+        text = handle.read()
+    table = re.search(r"^\[tool\.setuptools\.exclude-package-data\]\n(.*?)(?=^\[|\Z)", text,
+                      re.M | re.S)
+    entry = re.search(r'^"crystod\.examples"\s*=\s*\[((?:\s*"[^"]*"\s*,?)*)\s*\]',
+                      table.group(1) if table else "", re.M)
+    return re.findall(r'"([^"]*)"', entry.group(1)) if entry else []
+
+
+def _pkg_wheel_drops(path: str) -> bool:
+    """True when the package-data rules of pyproject.toml leave ``path`` out of the wheel.
+
+    ``path`` is relative to crystod/examples/. The include globs never match a name
+    that starts with '.'; setuptools applies the exclude globs with fnmatch to
+    "crystod/examples/<path>", where '*' also matches '/', so "**/POTCAR*" drops every
+    file below a POTCAR* directory too and "**/__pycache__/*" everything below
+    __pycache__/, while "**/*.html" and the other globs that end in a fixed text test
+    the file name only. script/sync_packaged_examples.py (_excluded_from_wheel) holds
+    the same rule; section 50 checks both against fnmatch with the globs of
+    pyproject.toml.
+    """
+    parts = path.split("/")
+    return (any(part.startswith(".") for part in parts)
+            or "__pycache__" in parts[:-1]
+            or any(part.startswith("POTCAR") for part in parts)
+            or path.endswith((".pyc", ".html", ".pdf", "/.DS_Store")))
+
+
+def _pkg_rerun(words: list[str], cwd: str) -> tuple[int, str]:
+    """Rerun a crystod command of a README (``crystod-phonon ...``) in ``cwd``."""
+    name, args = words[0], words[1:]
+    if name == "crystod":
+        module = "crystod"
+    elif name.startswith("crystod-"):
+        module = f"crystod.cli.{name[len('crystod-'):]}"
+    else:
+        return -1, f"{name}: only crystod commands are rerun"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = ROOT + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    return run_module(module, args, cwd=cwd, env=env)
+
+
+def test_50_packaged_examples() -> None:
+    """The example directories packaged in crystod/examples/ and ``crystod-example``.
+
+    1. ``script/sync_packaged_examples.py --check`` (needs git and a checkout): the
+       packaged tree, index.json and README are what example/PACKAGED selects, within
+       its budget. A checkout that tracks example/PACKAGED must have the script.
+    2. Independently of the script: every packaged file is byte-identical to the file
+       of the same path under example/, index.json lists exactly the files on disk,
+       and the five flat ``--example`` inputs equal their originals.
+    3. Nothing the wheel would leave out (POTCAR* files and directories, HTML, PDF,
+       bytecode, dot files) is packaged, and the exclusion rule is the same in
+       pyproject.toml, here and in the sync script; the sizes add up to index.json's
+       total_bytes; no packaged text file holds a private path.
+    4. Each example copied ALONE (``copy_example_dirs([name])``, which adds the
+       directories its README uses and the shared inputs): every file its READMEs and
+       scripts name (``../`` paths, ``cd`` lines, the values of -c/--xdatcar/--yaml/
+       --supergroup-cif/... and the force constants crystod-phonon reads) exists in
+       the copy or is written by an earlier README line; no README command writes onto
+       a packaged file of the copy (-o/--output/... values, ``>`` and cp targets, the
+       files phonopy writes), except the _PKG_REGENERATED files, whose lines are rerun
+       and must give the same bytes; the parts about data "not in the pip package"
+       (or "not distributed", "repository only") are skipped.
+    5. The crystod-example CLI: list, --all, identical files kept, a differing file
+       stops the copy before anything is written, a destination inside the crystod
+       package is refused, misuse.
+    6. 39_xdatcar2adp: XDATCAR_every10 is every tenth frame of the full XDATCAR.
+    7. ``CRYSTOD_CHECK_DIST=<dir>`` (the built crystod-<ver>-py3-none-any.whl and
+       crystod-<ver>.tar.gz): the distributions ship exactly these files, the
+       declared metadata and console scripts, and the module of every console script.
+    Also: pyproject.toml declares the eleven console scripts, and the docs name only
+    packaged examples in their ``crystod-example NN`` hints.
+    """
+    print("\n[50] crystod-example (the packaged example directories)")
+    import filecmp
+
+    from crystod import __version__ as crystod_version
+    from crystod.examples import (
+        ExampleConflictError,
+        copy_example_dirs,
+        get_example_dir,
+        list_example_dirs,
+        list_shared_dirs,
+        resolve_example_dirs,
+    )
+
+    if not os.path.isfile(os.path.join(PACKAGED_DIR, "index.json")):
+        report("crystod/examples/index.json present (run script/sync_packaged_examples.py)",
+               False, PACKAGED_DIR)
+        return
+    index = _pkg_index()
+    index_files = _pkg_index_files(index)
+    disk_files = _pkg_disk_files()
+    examples = list_example_dirs()
+    if not examples:
+        report("crystod/examples/index.json lists example directories", False,
+               json.dumps(index)[:500])
+        return
+    names = [example.name for example in examples]
+
+    # ------------------------------------------------ 1. the sync script agrees
+    script = os.path.join(ROOT, "script", "sync_packaged_examples.py")
+    git = shutil.which("git")
+    checkout = tracked = False
+    if git:
+        probe = subprocess.run([git, "-C", ROOT, "rev-parse", "--show-toplevel"],
+                               capture_output=True, text=True)
+        checkout = (probe.returncode == 0
+                    and os.path.realpath(probe.stdout.strip()) == os.path.realpath(ROOT))
+    if checkout:
+        tracked = subprocess.run([git, "-C", ROOT, "ls-files", "--error-unmatch", "--",
+                                  "example/PACKAGED"], capture_output=True).returncode == 0
+    if git is None:
+        print("  [SKIP] sync_packaged_examples.py --check: git is not installed")
+    elif not checkout:
+        print(f"  [SKIP] sync_packaged_examples.py --check: {ROOT} is not a git checkout")
+    elif not os.path.isfile(script):
+        if tracked:
+            report("script/sync_packaged_examples.py is present in a checkout that tracks "
+                   "example/PACKAGED (commit it with the packaged examples)", False, script)
+        else:
+            print(f"  [SKIP] sync_packaged_examples.py --check: no {script}")
+    else:
+        try:
+            proc = subprocess.run([sys.executable, script, "--check"], capture_output=True,
+                                  text=True, cwd=ROOT, timeout=TIMEOUT_SECONDS)
+            code, out = proc.returncode, proc.stdout + proc.stderr
+        except subprocess.TimeoutExpired:
+            code, out = -1, f"TIMEOUT after {TIMEOUT_SECONDS} s"
+        budget = re.search(r"^ Budget\s+([\d,]+)\s+\(([\d.]+) % used\)", out, re.M)
+        used = f", {budget.group(2)} % used" if budget else ""
+        report("sync_packaged_examples.py --check: crystod/examples matches example/PACKAGED "
+               f"(no drift, total within the budget{used})",
+               code == 0 and "crystod/examples matches example/PACKAGED" in out
+               and budget is not None, out)
+
+    # ------------------------------------------------ 2. byte copies of example/
+    different = [path for path in disk_files
+                 if not os.path.isfile(os.path.join(ROOT, "example", path))
+                 or not filecmp.cmp(os.path.join(PACKAGED_DIR, path),
+                                    os.path.join(ROOT, "example", path), shallow=False)]
+    report(f"every packaged file ({len(disk_files)}) is byte-identical to example/<same path>",
+           bool(disk_files) and not different, "\n".join(different[:30]))
+    duplicates = sorted({path for path in index_files if index_files.count(path) > 1})
+    report(f"index.json lists exactly the {len(disk_files)} packaged files on disk "
+           "(__pycache__ and dot files aside), each once",
+           sorted(index_files) == disk_files and not duplicates,
+           f"listed, not on disk: {sorted(set(index_files) - set(disk_files))[:20]}\n"
+           f"on disk, not listed: {sorted(set(disk_files) - set(index_files))[:20]}\n"
+           f"listed twice: {duplicates}")
+    entries_ok = all(
+        re.fullmatch(r"\d\d_[A-Za-z0-9_.+-]+", entry["name"])
+        and entry["number"] == int(entry["name"][:2])
+        and all(path.startswith(entry["name"] + "/") for path in entry["files"])
+        and set(entry["requires"]) <= set(names) and entry["name"] not in entry["requires"]
+        for entry in index["examples"]
+    ) and [entry["name"] for entry in index["shared"]] == list(PACKAGED_SHARED)
+    report("index.json entries: NN_name directories numbered by their prefix, files inside "
+           "them, requires naming packaged examples; shared = test_POSCARs, test_XYZs",
+           entries_ok, json.dumps([(e["name"], e["number"], e["requires"])
+                                   for e in index["examples"]]))
+    flat_bad = [name for name, origin in PACKAGED_FLAT.items()
+                if not os.path.isfile(os.path.join(PACKAGED_DIR, name))
+                or not filecmp.cmp(os.path.join(PACKAGED_DIR, name),
+                                   os.path.join(ROOT, "example", origin), shallow=False)]
+    report("the five flat --example inputs equal their originals (221_PPOSCAR_ScF3/SrTiO3, "
+           "XYZ_CH4/NH3.xyz in test_*, FORCE_SETS_SrTiO3 = 28_phonon_irrep/SrTiO3_Pm-3m/"
+           "FORCE_SETS)", not flat_bad, str(flat_bad))
+
+    # ------------------------------------------------ 3. nothing that must not ship
+    # (the files index.json lists and any other file found in the packaged directories)
+    candidates = sorted(set(index_files) | set(disk_files))
+    forbidden = [path for path in candidates if _pkg_wheel_drops(path)]
+    report("nothing the wheel would leave out is packaged (POTCAR* files and directories, "
+           "*.html, *.pdf, *.pyc, __pycache__, dot files)", not forbidden, "\n".join(forbidden))
+    # the same exclusion rule in three places: the globs of pyproject.toml as setuptools
+    # applies them (fnmatch on crystod/examples/<path>, the include globs skipping dot
+    # names), _pkg_wheel_drops here, and _excluded_from_wheel of the sync script
+    import fnmatch
+
+    excludes = _pkg_excludes()
+    probes = sorted(set(candidates) | {
+        f"01_x/{name}" for name in (
+            "README", "a.py", "POTCAR", "POTCAR_Sr", "sub/POTCAR.gz", "POTCAR_notes/README",
+            "xPOTCAR", "a.html", "a.html.d/README", "b.pdf", "b.pdf.txt", "m.pyc",
+            "m.pyc.d/README", "__pycache__/m.cpython-312.pyc", "__pycache__x/README",
+            ".DS_Store", "sub/.DS_Store", "DS_Store", ".hidden/README", "sub/.x")})
+    rules = {"pyproject.toml (fnmatch)": lambda path: (
+                 any(part.startswith(".") for part in path.split("/"))
+                 or any(fnmatch.fnmatchcase(f"crystod/examples/{path}",
+                                            f"crystod/examples/{glob_}") for glob_ in excludes)),
+             "testsuite _pkg_wheel_drops": _pkg_wheel_drops}
+    if os.path.isfile(script):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_crystod_sync_examples", script)
+        sync_module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = sync_module    # its dataclasses look the module up
+        spec.loader.exec_module(sync_module)
+        rules["sync script _excluded_from_wheel"] = sync_module._excluded_from_wheel
+    disagree = [f"{path}: " + ", ".join(f"{label} {rule(path)}" for label, rule in rules.items())
+                for path in probes if len({rule(path) for rule in rules.values()}) > 1]
+    report(f"the wheel exclusion rule agrees in {', '.join(rules)} on {len(probes)} paths "
+           f"(pyproject.toml excludes {', '.join(excludes)})",
+           bool(excludes) and not disagree, "\n".join(disagree[:20]) or "no excludes read")
+    sizes = {path: os.path.getsize(os.path.join(PACKAGED_DIR, path))
+             for path in index_files if os.path.isfile(os.path.join(PACKAGED_DIR, path))}
+    per_entry = [(entry["name"], entry["bytes"],
+                  sum(sizes.get(path, -1) for path in entry["files"]))
+                 for entry in index["examples"] + index["shared"]]
+    report(f"the packaged files add up to index.json total_bytes ({index['total_bytes']:,}), "
+           "and every entry's bytes to its files",
+           sum(sizes.values()) == index["total_bytes"] and len(sizes) == len(index_files)
+           and all(listed == actual for _, listed, actual in per_entry),
+           f"sum {sum(sizes.values())}\n"
+           + "\n".join(str(row) for row in per_entry if row[1] != row[2]))
+    private, banners, scanned = [], [], 0
+    for path in candidates + ["README", "index.json", "__init__.py", *PACKAGED_FLAT]:
+        if not os.path.isfile(os.path.join(PACKAGED_DIR, path)):
+            continue                           # reported above
+        with open(os.path.join(PACKAGED_DIR, path), "rb") as handle:
+            data = handle.read()
+        if path.endswith(".gz"):
+            data = gzip.decompress(data)
+        if b"\0" in data:
+            continue                           # binary (WAVECAR)
+        scanned += 1
+        for number, line in enumerate(data.decode("latin-1").splitlines(), 1):
+            hits = [word for word in PACKAGED_PRIVATE if word in line]
+            if (hits == ["vasp.6.5.1"] and path.endswith("OUTCAR")
+                    and _PKG_VASP_BANNER.fullmatch(line)):
+                banners.append(f"{path}:{number}")
+                continue
+            if hits:
+                private.append(f"{path}:{number}: {line.strip()[:100]}")
+    report(f"no private path ({', '.join(PACKAGED_PRIVATE)}) in the {scanned} packaged text "
+           f"files (.gz read decompressed; {len(banners)} VASP OUTCAR version banner"
+           f"{'' if len(banners) == 1 else 's'} allowed)", not private, "\n".join(private[:30]))
+
+    # ------------------------------------------------ 4. each example works alone
+    shared = list_shared_dirs()
+    rewritten: set[str] = set()                # the _PKG_REGENERATED files a README writes
+    for example in examples:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = os.path.realpath(tmp)
+            closure = resolve_example_dirs([example.name])
+            try:
+                copied = {_pkg_rel(str(path), root)
+                          for path in copy_example_dirs([example.name], root)}
+            except (OSError, KeyError, ValueError) as exc:
+                report(f"{example.name}: copy_example_dirs into an empty directory", False,
+                       f"{type(exc).__name__}: {exc}")
+                continue
+            expected = {path for directory in (*closure, *shared) for path in directory.files}
+            if copied != expected or set(_pkg_tree(root)) != expected:
+                report(f"{example.name}: copy_example_dirs copies the example, the directories "
+                       "it requires and the shared inputs", False,
+                       f"missing {sorted(expected - copied)[:10]}\n"
+                       f"extra {sorted(copied - expected)[:10]}")
+                continue
+            checked, skipped, failures, sources, writes = 0, 0, [], 0, []
+            files = frozenset(os.path.normpath(os.path.join(root, *path.split("/")))
+                              for path in expected)
+            for dirpath, dirnames, filenames in os.walk(os.path.join(root, example.name)):
+                dirnames.sort()
+                for name in sorted(filenames):
+                    path = os.path.join(dirpath, name)
+                    if name == "README":
+                        count, exempt, missing, written = _pkg_check_readme(
+                            path, root, set(names), files)
+                        skipped += exempt
+                        writes += [(_pkg_rel(path, root), *item) for item in written]
+                    elif name.endswith(".py"):
+                        count, missing = _pkg_check_python(path, root)
+                    else:
+                        continue
+                    sources += 1
+                    checked += count
+                    failures += [(_pkg_rel(path, root), *item) for item in missing]
+            along = ", ".join(directory.name for directory in closure[1:])
+            clobbers = [item for item in writes if item[3] not in _PKG_REGENERATED]
+            if not failures and not clobbers:
+                note = f"; {skipped} lines about data not in the pip package skipped"
+                report(f"{example.name}: the {checked} file references of its {sources} "
+                       f"README/script file{'' if sources == 1 else 's'} resolve in a copy of "
+                       f"it alone{' (+ ' + along + ')' if along else ''}, and no README "
+                       f"command writes onto a packaged file{note if skipped else ''}", True)
+            for source, number, line, ref in failures:
+                report(f"{example.name}: {source}:{number} names {ref}, which a copy of "
+                       f"{example.name} alone lacks", False, line)
+            for source, number, line, target, _, _ in clobbers:
+                report(f"{example.name}: {source}:{number} writes {target}, a packaged file of "
+                       "the copy (the next crystod-example into the same directory would stop "
+                       "on it; write into a subdirectory or under another name)", False, line)
+            # the packaged files a README line rewrites on purpose: the same bytes again
+            regenerated = [item for item in writes if item[3] in _PKG_REGENERATED]
+            rewritten.update(item[3] for item in regenerated)
+            bad = []
+            for source, number, line, target, words, cwd in regenerated:
+                before = os.stat(os.path.join(root, target)).st_mtime_ns
+                code, out = _pkg_rerun(words, cwd)
+                after = os.stat(os.path.join(root, target)).st_mtime_ns
+                if code != 0 or after == before or not filecmp.cmp(
+                        os.path.join(root, target), os.path.join(PACKAGED_DIR, target),
+                        shallow=False):
+                    bad.append(f"{source}:{number}: {line} (exit {code}, "
+                               f"{'rewritten' if after != before else 'not rewritten'})\n"
+                               f"{out[-600:]}")
+            if regenerated:
+                rewrites = ", ".join(item[3].rsplit("/", 1)[-1] for item in regenerated)
+                report(f"{example.name}: the {len(regenerated)} README lines that rewrite a "
+                       f"packaged file ({rewrites}) reproduce it byte for byte", not bad,
+                       "\n".join(bad))
+    report("every packaged file listed as rewritten on purpose (_PKG_REGENERATED) is still "
+           "written by a README line", rewritten == _PKG_REGENERATED,
+           str(sorted(_PKG_REGENERATED - rewritten)))
+
+    # ------------------------------------------------ 5. the crystod-example CLI
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = os.path.realpath(tmp)
+        code, out = _pkg_example_cli([], tmp)
+        listed = [name for name in names if re.search(rf"^  {re.escape(name)}\s", out, re.M)]
+        report(f"crystod-example lists the {len(names)} packaged examples (exit 0)",
+               code == 0 and listed == names and "* Packaged example directories *" in out,
+               f"not listed: {sorted(set(names) - set(listed))}\n{out}")
+        code, out = _pkg_example_cli(["--version"], tmp)
+        report("crystod-example --version prints the package version",
+               code == 0 and f"CrystOD {crystod_version}" in out, out)
+        everything = os.path.join(tmp, "all")
+        code, out = _pkg_example_cli(["--all", "-o", everything], tmp)
+        tree = _pkg_tree(everything) if os.path.isdir(everything) else {}
+        same = all(filecmp.cmp(os.path.join(everything, path), os.path.join(PACKAGED_DIR, path),
+                               shallow=False) for path in tree if path in sizes)
+        report(f"crystod-example --all -o DIR copies the {len(index_files)} files of index.json, "
+               "byte for byte",
+               code == 0 and sorted(tree) == sorted(index_files) and same
+               and f"Wrote {len(index_files)} files" in out, out)
+        code, out = _pkg_example_cli(["--all", "-o", everything], tmp)
+        report("a second --all run keeps every identical file (nothing rewritten)",
+               code == 0 and _pkg_tree(everything) == tree
+               and f"Kept {len(index_files)} identical files" in out, out)
+        changed = os.path.join(everything, examples[0].name, "README")
+        removed = os.path.join(everything, examples[-1].name, "README")
+        with open(changed, "a", encoding="utf-8") as handle:
+            handle.write("a line of the user's own\n")
+        os.remove(removed)
+        before = _pkg_tree(everything)
+        code, out = _pkg_example_cli(["--all", "-o", everything], tmp)
+        errors = [line for line in out.splitlines() if line.startswith("ERROR")]
+        report("a copied file changed by the user: the next copy stops with one ERROR naming "
+               "it (exit 1) and writes nothing (a deleted file stays deleted)",
+               code == 1 and len(errors) == 1 and changed in errors[0]
+               and "nothing was copied" in errors[0] and "Traceback" not in out
+               and _pkg_tree(everything) == before and not os.path.exists(removed), out)
+        code, out = _pkg_example_cli(["no_such_example", "-o", os.path.join(tmp, "x")], tmp)
+        errors = [line for line in out.splitlines() if line.startswith("ERROR")]
+        report("an unknown example name: one ERROR listing the available names (exit 1), "
+               "nothing written",
+               code == 1 and len(errors) == 1 and "available:" in errors[0]
+               and "Traceback" not in out and not os.path.exists(os.path.join(tmp, "x")), out)
+        code, out = _pkg_example_cli(["--list", "17"], tmp)
+        report("crystod-example --list 17: argparse error (exit 2)",
+               code == 2 and "usage: crystod-example" in out and "Traceback" not in out, out)
+        # the README commands write next to their inputs: never a copy inside the package
+        package = os.path.join(ROOT, "crystod")
+
+        def package_tree() -> dict[str, int]:
+            return {path: stamp for path, stamp in _pkg_tree(package).items()
+                    if "__pycache__" not in path.split("/")}
+
+        key = examples[0].name[:2]
+        before = package_tree()
+        refused = []
+        for args, cwd in (([key], PACKAGED_DIR),
+                          ([key, "-o", os.path.join(PACKAGED_DIR, examples[0].name)], tmp),
+                          (["--all", "-o", PACKAGED_DIR], tmp)):
+            code, out = _pkg_example_cli(args, cwd)
+            errors = [line for line in out.splitlines() if line.startswith("ERROR")]
+            if not (code == 1 and len(errors) == 1 and "Traceback" not in out
+                    and "inside the installed crystod package" in errors[0]):
+                refused.append(f"crystod-example {' '.join(args)} (in {cwd}): exit {code}\n"
+                               f"{out[-500:]}")
+        after = package_tree()
+        touched = sorted(path for path in set(before) | set(after)
+                         if before.get(path) != after.get(path))
+        report(f"crystod-example {key} run in crystod/examples/, -o into a packaged example "
+               "directory and --all -o crystod/examples: refused with one ERROR (exit 1), "
+               "nothing written inside the package",
+               not refused and not touched,
+               "\n".join(refused) + f"\nwritten or changed in {package}: {touched[:20]}")
+        work = os.path.join(tmp, "work")
+        os.makedirs(work)
+        first = examples[0]
+        code, out = _pkg_example_cli([first.name.split("_", 1)[0]], work)
+        default = sorted(_pkg_tree(os.path.join(work, "example")))
+        report(f"crystod-example {first.name[:2]}: into ./example by default, with the shared "
+               "inputs",
+               code == 0 and default == sorted({path for directory in (first, *shared)
+                                                for path in directory.files}), out)
+    try:
+        get_example_dir("no_such_example")
+        raised = None
+    except KeyError as exc:
+        raised = str(exc)
+    report("get_example_dir: an unknown name raises KeyError naming the available ones",
+           raised is not None and "available:" in raised, str(raised))
+    report("ExampleConflictError is a FileExistsError",
+           issubclass(ExampleConflictError, FileExistsError))
+    # a damaged index.json: one ValueError naming it, never a directory outside the package
+    import pathlib
+
+    import crystod.examples as examples_module
+
+    entry = {**index["examples"][0], "requires": []}
+    damaged = {
+        "name '..'": {"examples": [{**entry, "name": "..", "files": []}]},
+        "name '../../etc'": {"examples": [{**entry, "name": "../../etc", "files": []}]},
+        "name 'C:'": {"examples": [{**entry, "name": "C:", "files": ["C:/x"]}]},
+        "shared name '..'": {"shared": [{"name": "..", "files": [], "bytes": 0}]},
+        "requires naming no example": {"examples": [{**entry, "requires": ["99_missing"]}]},
+        "number as text": {"examples": [{**entry, "number": str(entry["number"])}]},
+        "bytes as text": {"examples": [{**entry, "bytes": "many"}]},
+        "a directory listed twice": {"examples": [entry, entry]},
+    }
+    accepted = []
+    saved = examples_module._index_path
+    with tempfile.TemporaryDirectory() as tmp:
+        fake = pathlib.Path(tmp, "index.json")
+        examples_module._index_path = lambda: fake
+        try:
+            for label, change in damaged.items():
+                fake.write_text(json.dumps({"format": index["format"], "examples": [],
+                                            "shared": [], **change}), encoding="utf-8")
+                try:
+                    found = [directory.name for directory in examples_module.list_example_dirs()]
+                    accepted.append(f"{label}: accepted, {found}")
+                except ValueError as exc:
+                    if "index.json is malformed" not in str(exc):
+                        accepted.append(f"{label}: {exc}")
+                except Exception as exc:       # any other error is wrong too
+                    accepted.append(f"{label}: {type(exc).__name__}: {exc}")
+        finally:
+            examples_module._index_path = saved
+    report(f"a damaged index.json ({'; '.join(damaged)}): ValueError 'index.json is malformed'",
+           not accepted, "\n".join(accepted))
+
+    # ------------------------------------------------ the console scripts and the docs
+    scripts = _pkg_scripts()
+    report("pyproject.toml declares the eleven console scripts, crystod-example = "
+           "crystod.cli.example:main",
+           len(scripts) == 11 and scripts.get("crystod-example") == "crystod.cli.example:main",
+           str(scripts))
+    docs = sorted(glob.glob(os.path.join(ROOT, "doc", "*.md"))) + [os.path.join(ROOT, "README.md")]
+    hints, wrong = 0, []
+    for path in docs:
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as handle:
+            for number, line in enumerate(handle, 1):
+                for match in re.finditer(r"crystod-example((?:\s+\d\d(?:_[\w+-]+)?\b)+)", line):
+                    for key in match.group(1).split():
+                        hints += 1
+                        try:
+                            target = get_example_dir(key).name
+                        except KeyError:
+                            target = None
+                        directory = re.search(r"example/(\d\d_[\w+-]+)", line)
+                        if target is None or (directory and len(match.group(1).split()) == 1
+                                              and directory.group(1) != target):
+                            wrong.append(f"{os.path.relpath(path, ROOT)}:{number}: {line.strip()}")
+    report(f"the {hints} 'crystod-example NN' hints of doc/*.md and README.md name packaged "
+           "examples (the one of their own example/NN_name line)", not wrong,
+           "\n".join(wrong[:20]))
+    # a page that names crystod-example and its options as whole words (not --all-kpoints)
+    options = [re.compile(rf"(?<![\w-]){option}(?![\w-])") for option in ("--list", "--all",
+                                                                       "--output")]
+    pages = []
+    for path in docs:
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+            if "crystod-example" in text and all(option.search(text) for option in options):
+                pages.append(os.path.relpath(path, ROOT))
+    with open(os.path.join(ROOT, "README.md"), encoding="utf-8") as handle:
+        readme_names_it = "crystod-example" in handle.read()
+    report("the crystod-example options (--list, --all, -o/--output) are documented in doc/ "
+           "and README.md names crystod-example",
+           any(page.startswith("doc") for page in pages) and readme_names_it,
+           f"pages documenting them: {pages}; README.md names it: {readme_names_it}")
+
+    # ------------------------------------------------ 6. 39: every tenth frame
+    full = os.path.join(XDATCAR_ADP_DIR, "XDATCAR")
+    every = os.path.join(XDATCAR_ADP_DIR, "XDATCAR_every10")
+    if not os.path.isfile(every):
+        report("39: example/39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/XDATCAR_every10 present", False,
+               every)
+    elif not os.path.isfile(full):
+        print(f"  [SKIP] XDATCAR_every10 against the full XDATCAR: no {full}")
+    else:
+        frame_lines = 264                      # 7 header lines + 1 + 256 atoms (NpT: per frame)
+        compared, mismatch, total = 0, None, 0
+        with open(full, "rb") as big, open(every, "rb") as small:
+            for total, line in enumerate(big, 1):
+                frame = (total - 1) // frame_lines
+                if 1000 <= frame <= 4000 and frame % 10 == 0:
+                    if small.readline() != line:
+                        mismatch = (total, line)
+                        break
+                    compared += 1
+            rest = small.read(1)
+        report("39: XDATCAR_every10 is frames 1000, 1010, ..., 4000 of XDATCAR (configurations "
+               "2000 ... 5000, 301 frames of 264 lines)",
+               mismatch is None and total == 4001 * frame_lines
+               and compared == 301 * frame_lines and not rest,
+               f"lines {total}, compared {compared}, mismatch {mismatch}, leftover {rest!r}")
+
+    # ------------------------------------------------ 7. the built distributions
+    dist = os.environ.get("CRYSTOD_CHECK_DIST")
+    if not dist:
+        print("  [SKIP] the wheel and the sdist (set CRYSTOD_CHECK_DIST to the directory of "
+              f"crystod-{crystod_version}-py3-none-any.whl and crystod-{crystod_version}.tar.gz)")
+        return
+    _pkg_check_dist(dist, crystod_version, index_files, scripts)
+
+
+def _pkg_check_dist(dist: str, version: str, index_files: list[str],
+                    scripts: dict[str, str]) -> None:
+    """Section 50, part 7: the wheel and the sdist in ``dist``."""
+    import configparser
+    import tarfile
+    import zipfile
+
+    expected = {f"crystod/examples/{path}": os.path.join(PACKAGED_DIR, path)
+                for path in [*index_files, "__init__.py", "README", "index.json", *PACKAGED_FLAT]}
+
+    def modules(label: str, names: set[str]) -> None:
+        """Each console script's module ("pkg.mod:func": pkg/mod.py or pkg/mod/__init__.py)."""
+        lacking = []
+        for script_name, target in sorted(scripts.items()):
+            stem = target.split(":", 1)[0].replace(".", "/")
+            if f"{stem}.py" not in names and f"{stem}/__init__.py" not in names:
+                lacking.append(f"{script_name} = {target}: no {stem}.py or {stem}/__init__.py")
+        report(f"{label}: the module of each of the {len(scripts)} console scripts is in it "
+               "(crystod/cli/example.py for crystod-example)",
+               bool(scripts) and not lacking, "\n".join(lacking))
+
+    def compare(label: str, members: dict[str, bytes]) -> None:
+        names = set(members)
+        report(f"{label}: crystod/examples/ holds exactly the {len(expected)} packaged files "
+               "(the example directories, __init__.py, the five flat inputs, README, index.json)",
+               names == set(expected),
+               f"missing {sorted(set(expected) - names)[:20]}\n"
+               f"extra {sorted(names - set(expected))[:20]}")
+        differ = []
+        for name in sorted(names & set(expected)):
+            with open(expected[name], "rb") as handle:
+                if handle.read() != members[name]:
+                    differ.append(name)
+        report(f"{label}: they are byte-identical to the tree", not differ, "\n".join(differ[:20]))
+
+    listing = str(os.listdir(dist) if os.path.isdir(dist) else f"no directory {dist}")
+    wheel = os.path.join(dist, f"crystod-{version}-py3-none-any.whl")
+    if not os.path.isfile(wheel):
+        report(f"wheel {wheel} present", False, listing)
+    else:
+        with zipfile.ZipFile(wheel) as archive:
+            files = [name for name in archive.namelist() if not name.endswith("/")]
+            compare("wheel", {name: archive.read(name) for name in files
+                              if name.startswith("crystod/examples/")})
+            junk = [name for name in files if "__pycache__" in name.split("/")
+                    or name.endswith((".pyc", ".pyo"))
+                    or any(part.startswith(".") for part in name.split("/"))]
+            report("wheel: no bytecode, __pycache__ or dot file", not junk, "\n".join(junk[:20]))
+            info = [name for name in files if re.fullmatch(r"[^/]+\.dist-info/METADATA", name)]
+            metadata = archive.read(info[0]).decode("utf-8") if info else ""
+            headers: dict[str, str] = {}
+            for line in metadata.split("\n\n", 1)[0].splitlines():
+                key, _, value = line.partition(": ")
+                headers.setdefault(key, value)
+            report(f"wheel METADATA: Version {version}, Requires-Python >=3.10, "
+                   "License-Expression MIT",
+                   headers.get("Version") == version and headers.get("Requires-Python") == ">=3.10"
+                   and headers.get("License-Expression") == "MIT",
+                   str({key: headers.get(key) for key in ("Version", "Requires-Python",
+                                                          "License-Expression")}))
+            points = configparser.ConfigParser()
+            entry = info[0].replace("METADATA", "entry_points.txt") if info else ""
+            if entry in files:
+                points.read_string(archive.read(entry).decode("utf-8"))
+            console = (dict(points["console_scripts"]) if points.has_section("console_scripts")
+                       else {})
+            report("wheel entry points: the console scripts of pyproject.toml, crystod-example "
+                   "among them", console == scripts and "crystod-example" in console,
+                   str(console))
+            modules("wheel", set(files))
+    sdist = os.path.join(dist, f"crystod-{version}.tar.gz")
+    if not os.path.isfile(sdist):
+        report(f"sdist {sdist} present", False, listing)
+        return
+    prefix = f"crystod-{version}/"
+    allowed = {"crystod", "CrystOD.egg-info", "LICENSE", "PKG-INFO", "README.md",
+               "pyproject.toml", "setup.cfg"}
+    with tarfile.open(sdist) as archive:
+        members = [member for member in archive.getmembers() if member.isfile()]
+        outside = sorted({member.name if not member.name.startswith(prefix)
+                          else member.name[len(prefix):].split("/")[0] for member in members}
+                         - allowed)
+        report(f"sdist: nothing outside {prefix}{{{', '.join(sorted(allowed))}}}",
+               not outside, "\n".join(outside[:20]))
+        compare("sdist", {member.name[len(prefix):]: archive.extractfile(member).read()
+                          for member in members
+                          if member.name.startswith(prefix + "crystod/examples/")})
+        modules(f"sdist (under {prefix})", {member.name[len(prefix):] for member in members
+                                            if member.name.startswith(prefix)})
+
+
+# ---------------------------------------------------------------- 51. crystod-phonon --unfold
+UNFOLD_SEED = 20261029
+UNFOLD_GROUP_TOL = 1e-4  # THz: degenerate modes (single linkage), the tolerance of --unfold
+UNFOLD_INK_DPI = 600.0  # check 26: resolution of the ink of the labels (1 px = 0.12 pt)
+UNFOLD_INK_TOL = 0.25  # pt: Agg sets glyphs on whole pixels, so ink edges move by up to 2 px
+UNFOLD_PDF_LIFT = 1.0  # pt: matplotlib's PDF output draws a mathtext label up to 1 pt above Agg
+UNFOLD_CASES = {
+    # case: (directory in example/51_phonon_unfold, child POSCAR, parent POSCAR)
+    "CaTiO3": ("CaTiO3_Pnma", "child/62_PPOSCAR_CaTiO3", "parent/221_PPOSCAR_CaTiO3"),
+    "AlF3": ("AlF3_R-3c", "child/167_PPOSCAR_AlF3", "parent/221_PPOSCAR_AlF3"),
+}
+# A_child = M @ A_parent (rows): settings of the Pnma-type and the R-3c-type child cells
+UNFOLD_M_PNMA = np.array([[1, 0, 1], [0, 2, 0], [-1, 0, 1]])
+UNFOLD_M_R3C = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]])
+UNFOLD_BLOCKS = (
+    "* Unfolding setup *",
+    "* Unfolding path *",
+    "* Star arms of the path vertices *",
+    "* Unfolded irreps at special points *",
+    "* Child GM mode origin *",
+    "* Unfolding summary *",
+    "* Output files *",
+)
+UNFOLD_NPZ_KEYS = (
+    "conventions", "crystod_version", "command", "child_poscar", "parent_poscar",
+    "child_force_file", "parent_force_file", "child_dim", "parent_dim", "M", "N",
+    "origin_shift", "setting_P", "setting_p", "equivalent_settings", "A_child", "A_parent",
+    "A_pp", "frame_rotation", "child_symbols", "parent_symbols", "child_frac", "parent_frac",
+    "ideal_frac_child", "displacement_cart", "kappa", "k_parent", "K_child", "segment_index",
+    "distances", "tick_positions", "tick_labels", "vertex_child_points", "frequencies",
+    "weights", "weights_canonical", "group_weight", "degenerate_group", "vectors_canonical",
+    "parent_frequencies", "parent_labels", "arm_star", "arm_child_point", "arm_k_parent",
+    "arm_K_child_reduced", "arm_condensed", "arm_on_path", "arm_class", "arm_frequencies",
+    "arm_weights_canonical", "davg_path_index", "davg_multiplicity", "davg_k_parent",
+    "davg_n_arms", "davg_frequencies", "davg_weights", "n_domains", "irrep_units",
+    "irrep_kname", "irrep_weights", "group_label", "group_fraction", "gamma_k_parent",
+    "gamma_k_names", "gamma_frequencies", "gamma_weights", "gamma_group_label",
+    "gamma_child_irrep", "checks_keys", "checks_values", "timings_keys", "timings_s",
+)
+# Regression constants of the module (check 19): (frequency in THz, P_g, number of modes) of
+# every degenerate group of child modes (|df| <= 1e-4 THz) with P_g >= 0.5 at k = R and
+# k = M = (1/2, 1/2, 0), frequency = mean of the group to 4 decimals, P_g to 6 decimals.
+# Computed once (2026-10-30, testsuite builder B2) with the validated demo engine
+# example/test_unfold/unfold_demo/unfold_core.py (unfold_phonon, rotate_degenerate=True; sha256
+# f7f1da85...) and the settings of its mapping.json (sha256 010361f5...: CaTiO3 M = 1 0 1  0 2 0
+# -1 0 1, p = (1/2, 0, 1/2); AlF3 M = 1 1 0  0 1 1  1 0 1, p = 0), read-only copies run with
+# python -B, on the FORCE_SETS fixtures of example/51_phonon_unfold (child loaded as --unfold
+# loads it).  The demo's AlF3 setting differs from the crystod-group setting by a two-fold
+# rotation of the R-3c child, so the groups at the same parent k are the same.
+UNFOLD_REGRESSION = {
+    "CaTiO3": {
+        "R": [(5.1343, 0.796406, 1), (5.5078, 0.925684, 1), (5.7633, 0.932043, 1),
+              (6.4519, 0.852423, 1), (7.1725, 0.868971, 1), (11.7271, 0.882591, 1),
+              (11.7635, 0.904183, 1), (11.9118, 0.812749, 1), (12.9270, 0.896002, 1),
+              (13.0534, 0.964932, 1), (13.1828, 0.957836, 1), (14.4142, 0.997412, 1),
+              (14.5944, 0.998776, 1), (22.7281, 0.999785, 1)],
+        "M": [(2.8034, 0.690599, 2), (3.5553, 0.758007, 2), (5.1424, 0.767615, 2),
+              (8.7607, 0.515554, 2), (8.8725, 0.862825, 2), (10.5851, 0.564844, 2),
+              (10.7263, 0.568687, 2), (12.3125, 0.966146, 2), (13.3559, 0.785870, 2),
+              (13.4177, 0.652246, 2), (13.8259, 0.970918, 2), (14.6880, 0.997670, 2),
+              (22.0594, 0.994694, 2)],
+    },
+    "AlF3": {
+        "R": [(4.0303, 2.0, 2), (6.1149, 1.0, 1), (10.9599, 1.0, 1), (11.3591, 2.0, 2),
+              (14.3513, 2.0, 2), (16.1107, 1.703052, 2), (16.3832, 0.971715, 1),
+              (19.9557, 1.0, 1)],
+        "M": [(4.4322, 0.950084, 1), (6.8787, 0.778721, 1), (7.0509, 0.529553, 1),
+              (7.1094, 0.721700, 1), (7.5798, 0.710392, 1), (8.5203, 0.691281, 1),
+              (11.4617, 0.968216, 1), (14.3986, 0.992356, 1), (17.0414, 0.947966, 1),
+              (17.1128, 0.947317, 1), (19.0483, 0.972473, 1), (19.1415, 0.992156, 1)],
+    },
+}
+UNFOLD_REGRESSION_K = {"R": (0.5, 0.5, 0.5), "M": (0.5, 0.5, 0.0)}
+# Child GM mode origin (check 24): for child GM levels (1-based modes) the weight P_g(k) at every
+# parent k folding onto the child GM point (in the order of "k") and the k of the largest P_g (the
+# origin column of '* Child GM mode origin *'); and every soft parent level (f < -0.1 THz) at those
+# k: (k, frequency, number of bands, content-weighted mean child frequency, the largest contents
+# ((child level frequency, c_g), ...), at most 8). Computed once (2026-10-30, fix round 1) with the
+# validated demo engine: byte copies of example/test_unfold/unfold_demo/unfold_core.py (sha256
+# f7f1da85...) and mapping.json (sha256 010361f5...), run with python -B, by the method of the
+# demo's irrep_label.unfold_child_gamma and write_gamma_origin (child eigenvectors at K = 0 unfolded
+# onto every folding k of mapping.json with the explicit G phase, ideal gauge, parent origin; c_g(S)
+# = sum_{J in g} sum_{s in S} |<e_s(k)|R u_J(k)>|^2 with the parent eigenvectors e_s and R =
+# unfold_core.frame_rotation(A_pp, A_parent)), on the FORCE_SETS fixtures of
+# example/51_phonon_unfold (child and parent 2x2x2, loaded as --unfold loads them). The CaTiO3
+# levels are a selection (every origin, close calls such as 38: GM 0.406 / X 0.392, the tilts' Ag
+# levels); the AlF3 list is complete.
+UNFOLD_GAMMA = {
+    "CaTiO3": {
+        "k": ("GM", "X", "M", "R"),
+        "groups": [
+            ((1, 2, 3), (3.000000, 0.000000, 0.000000, 0.000000), "GM"),
+            ((4,), (0.128189, 0.821335, 0.000000, 0.050476), "X"),
+            ((8,), (0.000014, 0.035427, 0.959327, 0.005232), "M"),
+            ((11,), (0.000000, 0.071165, 0.581136, 0.347699), "M"),
+            ((13,), (0.000000, 0.763804, 0.003638, 0.232558), "X"),
+            ((15,), (0.000000, 0.199627, 0.003967, 0.796406), "R"),
+            ((17,), (0.505309, 0.449779, 0.000000, 0.044912), "GM"),
+            ((25,), (0.000000, 0.061733, 0.069296, 0.868971), "R"),
+            ((26,), (0.516210, 0.475806, 0.000000, 0.007984), "GM"),
+            ((29,), (0.000000, 0.442882, 0.224319, 0.332799), "X"),
+            ((31,), (0.431377, 0.371661, 0.196962, 0.000000), "GM"),
+            ((32,), (0.530051, 0.408591, 0.040744, 0.020613), "GM"),
+            ((33,), (0.000000, 0.000000, 0.895535, 0.104465), "M"),
+            ((38,), (0.406386, 0.392007, 0.191163, 0.010443), "GM"),
+            ((48,), (0.007734, 0.992266, 0.000000, 0.000000), "X"),
+            ((60,), (0.000000, 0.000000, 0.000215, 0.999785), "R"),
+        ],
+        "soft": [
+            ("GM", -1.4414, 3, 5.8286, ((6.2504, 0.5986), (3.9734, 0.5941), (6.2471, 0.5085),
+                                        (7.2880, 0.3539), (3.2924, 0.3180), (3.4383, 0.2552),
+                                        (9.0848, 0.1490), (8.5852, 0.0539))),
+            ("M", -5.4389, 1, 6.0639, ((4.3684, 0.5811), (8.1035, 0.2196), (9.6209, 0.1229),
+                                       (7.1725, 0.0691))),
+            ("R", -5.7403, 3, 6.0852, ((5.5078, 0.9257), (5.1343, 0.7634), (8.1035, 0.3326),
+                                       (4.3684, 0.2360), (5.2623, 0.2247), (9.6209, 0.2211),
+                                       (4.6861, 0.1121), (7.1725, 0.0948))),
+        ],
+    },
+    "AlF3": {
+        "k": ("GM", "R"),
+        "groups": [
+            ((1, 2, 3), (3.000000, 0.000000), "GM"),
+            ((4, 5), (0.000000, 2.000000), "R"),
+            ((6,), (0.000000, 1.000000), "R"),
+            ((7, 8), (1.996072, 0.003928), "GM"),
+            ((9,), (0.971715, 0.028285), "GM"),
+            ((10,), (1.000000, 0.000000), "GM"),
+            ((11, 12), (1.748099, 0.251901), "GM"),
+            ((13,), (0.000000, 1.000000), "R"),
+            ((14, 15), (0.000000, 2.000000), "R"),
+            ((16, 17), (0.000000, 2.000000), "R"),
+            ((18, 19), (0.296948, 1.703052), "R"),
+            ((20,), (0.028285, 0.971715), "R"),
+            ((21,), (1.000000, 0.000000), "GM"),
+            ((22, 23), (1.958881, 0.041119), "GM"),
+            ((24,), (0.000000, 1.000000), "R"),
+        ],
+        "soft": [
+            ("R", -1.9107, 3, 4.7313, ((4.0303, 1.9976), (6.1149, 1.0000))),
+        ],
+    },
+}
+
+# Domain average (check 28): at a few parent k of the path, every class row of davg_* (one class of
+# equivalent arms of the star of k): (multiplicity, n_arms, the arm k of the row, sum_J w_J f_J in
+# THz, sum_J w_J f_J^2 in THz^2, the degenerate group of largest weight (mean frequency, summed
+# weight; ties: lowest frequency)).  Computed once (2026-10-31, fix round 3) from the npz of the
+# professor's command on the FORCE_SETS fixtures (CaTiO3 51 points per leg, AlF3 --npoints 11 as in
+# check 11; the rows depend only on k) with crystod.phonon_unfold.domain_average, whose arrays are
+# bit-identical to those of fix round 2 (V2fr2/V4e: the averaged spectrum is the same in every
+# equivalent setting and for an origin-shifted child); the check also recomputes every row from
+# unfold() at the arm of the row (canonical weights x multiplicity / n_arms).
+UNFOLD_DAVG = {
+    "CaTiO3": {
+        (0.0, 0.25, 0.0): [
+            (2, 6, (0.0, 0.25, 0.0), 43.130758, 494.7494, (20.0748, 0.326876)),
+            (4, 6, (0.25, 0.0, 0.0), 85.328294, 935.1908, (18.1353, 0.646759))],
+        (0.25, 0.5, 0.0): [
+            (4, 12, (0.25, 0.5, 0.0), 48.430694, 586.0707, (21.6508, 0.327369)),
+            (4, 12, (0.5, 0.25, 0.0), 48.126007, 584.9277, (3.0659, 0.333333)),
+            (4, 12, (0.5, 0.0, 0.25), 48.479849, 597.9856, (22.7324, 0.323962))],
+        (0.25, 0.25, 0.25): [
+            (4, 8, (0.25, 0.25, 0.25), 73.726907, 898.1191, (3.3132, 0.500000)),
+            (4, 8, (0.25, 0.25, -0.25), 73.433265, 893.8943, (3.0703, 0.250000))],
+    },
+    "AlF3": {
+        (0.25, 0.25, 0.0): [
+            (6, 12, (0.25, 0.25, 0.0), 67.175356, 933.9067, (20.9066, 0.496264)),
+            (6, 12, (0.25, 0.0, -0.25), 67.218794, 936.5270, (20.8971, 0.492481))],
+        (0.25, 0.25, 0.25): [
+            (2, 8, (0.25, 0.25, 0.25), 34.810117, 486.9687, (4.8062, 0.500000)),
+            (6, 8, (0.25, 0.25, -0.25), 103.897762, 1453.6544, (4.2494, 0.750000))],
+    },
+}
+
+
+def _unfold_path(case: str, which: str) -> str:
+    """Absolute path of the child or parent POSCAR of a fixture case."""
+    directory, child, parent = UNFOLD_CASES[case]
+    return os.path.join(PHONON_UNFOLD_DIR, directory, child if which == "child" else parent)
+
+
+def _unfold_copy_case(case: str, destination: str) -> None:
+    """Copy child/ and parent/ of a fixture case into ``destination`` (byte copies)."""
+    source = os.path.join(PHONON_UNFOLD_DIR, UNFOLD_CASES[case][0])
+    for part in ("child", "parent"):
+        shutil.copytree(os.path.join(source, part), os.path.join(destination, part))
+
+
+def _unfold_command(case: str, *extra: str, parent_dim: bool = True) -> list[str]:
+    """The professor's command for a fixture case (relative paths, run in a copy of the case)."""
+    _directory, child, parent = UNFOLD_CASES[case]
+    args = ["--unfold", "--child-poscar", child, "--child-dim", "2", "2", "2",
+            "--parent-poscar", parent]
+    if parent_dim:
+        args += ["--parent-dim", "2", "2", "2"]
+    return args + list(extra)
+
+
+def _unfold_load(poscar: str, dim, force_file: str, *, readfc: bool = False):
+    """phonopy object of a POSCAR with its force file; primitive cell = the cell as given.
+
+    phonopy.load reads ./FORCE_CONSTANTS of the working directory instead of the FORCE_SETS
+    it is given whenever such a file exists, so the load runs in an empty temporary directory
+    with absolute paths.
+    """
+    import phonopy
+    from crystod.vasp_io import read_poscar_cell
+
+    kwargs = dict(supercell_matrix=np.diag(dim), primitive_matrix="P",
+                  unitcell=read_poscar_cell(poscar), is_nac=False, is_compact_fc=False,
+                  log_level=0)
+    kwargs["force_constants_filename" if readfc else "force_sets_filename"] = (
+        os.path.abspath(force_file))
+    previous = os.getcwd()
+    with tempfile.TemporaryDirectory() as empty:
+        os.chdir(empty)
+        try:
+            return phonopy.load(**kwargs)
+        finally:
+            os.chdir(previous)
+
+
+def _unfold_parent_phonon(case: str):
+    """The 2x2x2 parent of a fixture case (FORCE_SETS next to its POSCAR)."""
+    poscar = _unfold_path(case, "parent")
+    return _unfold_load(poscar, (2, 2, 2), os.path.join(os.path.dirname(poscar), "FORCE_SETS"))
+
+
+def _unfold_qpoints(phonon, qpoints, eigenvectors: bool = False):
+    """``(frequencies, eigenvectors or None)`` of run_qpoints for every phonopy version."""
+    from crystod.runtime_compat import get_qpoints_result
+
+    q = np.atleast_2d(np.asarray(qpoints, dtype=float))
+    result = phonon.run_qpoints(q, with_eigenvectors=eigenvectors)
+    if result is None or not hasattr(result, "frequencies"):
+        result = get_qpoints_result(phonon)
+    vectors = np.array(result.eigenvectors) if eigenvectors else None
+    return np.array(result.frequencies, dtype=float), vectors
+
+
+def _unfold_kpoints(rng) -> np.ndarray:
+    """20 random parent k in [-1, 1)^3, then GM, the three X arms, the three M arms and R."""
+    special = [(0, 0, 0), (0.5, 0, 0), (0, 0.5, 0), (0, 0, 0.5), (0.5, 0.5, 0), (0.5, 0, 0.5),
+               (0, 0.5, 0.5), (0.5, 0.5, 0.5)]
+    return np.vstack([rng.uniform(-1.0, 1.0, size=(20, 3)), np.array(special, dtype=float)])
+
+
+def _unfold_groups(freqs_1d, tol: float = UNFOLD_GROUP_TOL) -> list:
+    """Degenerate sets at one k: consecutive sorted frequencies closer than ``tol`` THz."""
+    f = np.asarray(freqs_1d, dtype=float)
+    order = np.argsort(f, kind="stable")
+    cuts = np.where(np.diff(f[order]) > tol)[0] + 1
+    return [np.sort(g) for g in np.split(order, cuts)]
+
+
+def _unfold_group_sums(freqs, weights) -> list:
+    """Group-summed weights per k (groups from ``freqs``), one array per k."""
+    return [np.array([weights[ik, g].sum() for g in _unfold_groups(freqs[ik])])
+            for ik in range(len(freqs))]
+
+
+def _unfold_irrep_key(name: str):
+    """Natural order of ISO-IR irrep names: letters, index, then + before -."""
+    m = re.match(r"^([A-Z]+)(\d+)([+-]?)", name)
+    return (m.group(1), int(m.group(2)), {"+": 0, "": 1, "-": 2}[m.group(3)]) if m else (name, 0, 0)
+
+
+def _unfold_lattice_points(M) -> np.ndarray:
+    """The N = det M integer parent vectors t (rows) with t @ inv(M) in [0, 1)^3."""
+    M = np.asarray(M, dtype=np.int64)
+    n = int(round(np.linalg.det(M)))
+    corners = np.array([[i, j, k] for i in (0, 1) for j in (0, 1) for k in (0, 1)],
+                       dtype=float) @ M
+    lo = np.floor(corners.min(axis=0)).astype(int)
+    hi = np.ceil(corners.max(axis=0)).astype(int)
+    grid = np.array(np.meshgrid(*[np.arange(lo[a], hi[a] + 1) for a in range(3)],
+                                indexing="ij")).reshape(3, -1).T
+    frac = grid @ np.linalg.inv(M.astype(float))
+    points = grid[np.all((frac > -1e-9) & (frac < 1 - 1e-9), axis=1)]
+    if len(points) != n:
+        raise RuntimeError(f"{len(points)} lattice points in the supercell, expected {n}")
+    return points[np.lexsort(points.T[::-1])].astype(np.int64)
+
+
+def _unfold_full_fc(phonon) -> np.ndarray:
+    """Full force constants (n_sc, n_sc, 3, 3) of a phonopy object."""
+    from phonopy.harmonic.force_constants import compact_fc_to_full_fc
+
+    fc = np.asarray(phonon.force_constants)
+    return fc if fc.shape[0] == fc.shape[1] else compact_fc_to_full_fc(phonon.primitive, fc)
+
+
+def _unfold_copy_phonon(phonon, cell, force_constants):
+    """phonopy object of ``cell`` with the supercell matrix of ``phonon`` and the given force
+    constants (primitive cell = the cell as given); the supercell atom order must not change."""
+    import warnings
+
+    from phonopy import Phonopy
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # displaced and rotated test cells have low symmetry
+        copy = Phonopy(cell, supercell_matrix=phonon.supercell_matrix, primitive_matrix="P",
+                       symprec=1e-5, log_level=0)
+    if list(copy.supercell.s2u_map) != list(phonon.supercell.s2u_map):
+        raise RuntimeError("the supercell atom order changed")
+    if copy.unit_conversion_factor != phonon.unit_conversion_factor:
+        copy.unit_conversion_factor = phonon.unit_conversion_factor
+    copy.force_constants = np.ascontiguousarray(force_constants)
+    return copy
+
+
+def _unfold_ideal_supercell(ph_parent, M, origin_shift=None, permutation=None):
+    """Ideal supercell A_super = M @ A_parent with the parent's force constants, atom by atom.
+
+    Port of example/test_unfold/unfold_demo/ideal_supercell.make_ideal_supercell_phonon (the
+    oracle stays independent of the code under test): the atom of parent site kappa in parent
+    cell t sits at x_parent = tau_kappa + origin_shift + t, atoms in ``permutation`` order; the
+    force constants are the parent's re-indexed (no fit), so the phonons unfold exactly onto the
+    parent (weights 0 or 1 at the parent frequencies).  DIM_parent @ inv(M) must be integer.
+
+    Returns ``(ph_super, info)``; ``info`` holds ``kappa`` (parent atom of every atom),
+    ``ideal_scaled_positions`` (supercell fractional) and ``origin_shift``.
+    """
+    import warnings
+
+    from phonopy import Phonopy
+    from phonopy.structure.atoms import PhonopyAtoms
+
+    M = np.asarray(M, dtype=np.int64)
+    n_cells = int(round(np.linalg.det(M)))
+    M_inv = np.linalg.inv(M.astype(float))
+    unitcell = ph_parent.unitcell
+    tau = np.array(unitcell.scaled_positions, dtype=float)
+    shift = np.zeros(3) if origin_shift is None else np.asarray(origin_shift, dtype=float)
+    dim = np.array(ph_parent.supercell_matrix, dtype=np.int64).T  # A_fc = dim @ A_parent
+    m_fc = dim @ M_inv
+    if np.abs(m_fc - np.rint(m_fc)).max() > 1e-8:
+        raise ValueError("the parent force-constant supercell is not a supercell of M @ A_parent")
+    kappa = np.repeat(np.arange(len(tau)), n_cells)
+    t = np.tile(_unfold_lattice_points(M), (len(tau), 1))
+    x = (tau[kappa] + shift + t) @ M_inv
+    x -= np.floor(x)
+    x[np.abs(x - 1.0) < 1e-12] = 0.0
+    perm = np.arange(len(kappa)) if permutation is None else np.asarray(permutation)
+    kappa, x = kappa[perm], x[perm]
+    cell = PhonopyAtoms(symbols=[unitcell.symbols[k] for k in kappa],
+                        cell=M.astype(float) @ np.array(unitcell.cell, dtype=float),
+                        scaled_positions=x, masses=np.array(unitcell.masses)[kappa])
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*Point group symmetries of supercell")
+        ph_super = Phonopy(cell, supercell_matrix=np.rint(m_fc).astype(np.int64).T,
+                           primitive_matrix="P", symprec=ph_parent.symmetry.tolerance,
+                           log_level=0)
+    if ph_super.unit_conversion_factor != ph_parent.unit_conversion_factor:
+        ph_super.unit_conversion_factor = ph_parent.unit_conversion_factor
+    lattice = np.array(ph_parent.supercell.cell, dtype=float)
+    if np.abs(np.array(ph_super.supercell.cell) - lattice).max() > 1e-6:
+        raise RuntimeError("the force-constant supercells differ")
+    # force-constant supercell atom of ph_super -> that of ph_parent (origin shift removed)
+    x_big = (np.array(ph_super.supercell.scaled_positions) @ dim - shift) @ np.linalg.inv(dim)
+    d = x_big[:, None, :] - np.array(ph_parent.supercell.scaled_positions)[None, :, :]
+    d -= np.rint(d)
+    dist = np.linalg.norm(d @ lattice, axis=2)
+    fmap = dist.argmin(axis=1)
+    if dist[np.arange(len(fmap)), fmap].max() > 1e-6 or len(set(fmap.tolist())) != len(fmap):
+        raise RuntimeError("the force-constant atom map failed")
+    if list(ph_super.supercell.symbols) != [ph_parent.supercell.symbols[j] for j in fmap]:
+        raise RuntimeError("species differ in the force-constant atom map")
+    ph_super.force_constants = np.ascontiguousarray(_unfold_full_fc(ph_parent)[np.ix_(fmap, fmap)])
+    return ph_super, {"kappa": kappa, "ideal_scaled_positions": x, "origin_shift": shift}
+
+
+def _unfold_cut_fc(phonon, r_cut: float):
+    """Copy of ``phonon`` whose force constants vanish beyond ``r_cut`` (A, minimum image).
+
+    Port of identity_test.cut_force_constants; returns ``(copy, largest kept distance,
+    half the shortest supercell vector)``.
+    """
+    sc = phonon.supercell
+    lattice = np.array(sc.cell, dtype=float)
+    x = np.array(sc.scaled_positions, dtype=float)
+    dx = x[:, None, :] - x[None, :, :]
+    dx -= np.rint(dx)
+    dist = np.full(dx.shape[:2], np.inf)
+    for image in [(i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1)]:
+        dist = np.minimum(dist, np.linalg.norm((dx + np.array(image)) @ lattice, axis=-1))
+    mask = dist <= r_cut
+    copy = _unfold_copy_phonon(phonon, phonon.unitcell,
+                               _unfold_full_fc(phonon) * mask[:, :, None, None])
+    return copy, float(dist[mask].max()), float(0.5 * np.linalg.norm(lattice, axis=1).min())
+
+
+def _unfold_displaced(ph_super, dmax: float, rng):
+    """Every atom moved at random (0.3 dmax <= |d| <= dmax, A), force constants kept by label.
+
+    Port of identity_test.displaced_model: when every pair with non-zero force constants keeps
+    one unique shortest image, the model differs from the ideal one only by a gauge (phonopy's
+    actual-position phases), so its frequencies are those of the ideal model.
+    """
+    from phonopy.structure.atoms import PhonopyAtoms
+
+    cell0 = ph_super.unitcell
+    lattice = np.array(cell0.cell, dtype=float)
+    v = rng.normal(size=(len(cell0), 3))
+    v /= np.linalg.norm(v, axis=1)[:, None]
+    d = v * (dmax * rng.uniform(0.3, 1.0, size=(len(cell0), 1)))
+    x = np.array(cell0.scaled_positions) + d @ np.linalg.inv(lattice)
+    cell = PhonopyAtoms(symbols=list(cell0.symbols), cell=lattice, scaled_positions=x,
+                        masses=np.array(cell0.masses))
+    moved = _unfold_copy_phonon(ph_super, cell, np.array(ph_super.force_constants))
+    dd = np.array(moved.supercell.scaled_positions) - np.array(ph_super.supercell.scaled_positions)
+    dd -= np.rint(dd)
+    if np.linalg.norm(dd @ np.array(ph_super.supercell.cell), axis=1).max() > dmax + 1e-9:
+        raise RuntimeError("the supercell atoms are not the displaced copies of the ideal ones")
+    return moved, float(np.linalg.norm(d, axis=1).max())
+
+
+def _unfold_rotated(ph_super, rotation):
+    """The supercell rigidly rotated: lattice rows A @ R.T (a' = R a), force constants R Phi R^T."""
+    from phonopy.structure.atoms import PhonopyAtoms
+
+    cell0 = ph_super.unitcell
+    cell = PhonopyAtoms(symbols=list(cell0.symbols), cell=np.array(cell0.cell) @ rotation.T,
+                        scaled_positions=np.array(cell0.scaled_positions),
+                        masses=np.array(cell0.masses))
+    fc = np.einsum("ab,ijbc,dc->ijad", rotation, np.array(ph_super.force_constants), rotation)
+    return _unfold_copy_phonon(ph_super, cell, fc)
+
+
+def _unfold_random_rotation(rng) -> np.ndarray:
+    q, r = np.linalg.qr(rng.normal(size=(3, 3)))
+    q = q @ np.diag(np.sign(np.diag(r)))
+    if np.linalg.det(q) < 0:
+        q[:, 0] *= -1
+    return q
+
+
+def _unfold_dat(path: str) -> dict:
+    """Rows (lists of str) of the two datasets of an --unfold .dat file: {0: [...], 1: [...]}.
+
+    dataset 0: k_index distance kx ky kz mode frequency weight group_weight label fraction;
+    dataset 1: k_index distance class multiplicity n_arms akx aky akz mode frequency weight.
+    """
+    data, current = {0: [], 1: []}, None
+    with open(path) as handle:
+        for line in handle:
+            if line.startswith("# dataset "):
+                current = int(line.split()[2].rstrip(":"))
+            if line.startswith("#") or not line.strip():
+                continue
+            data[current].append(line.split())
+    return data
+
+
+def _unfold_tree(top: str) -> dict:
+    """{relative path: sha256} of every file below ``top``."""
+    tree = {}
+    for root, _dirs, names in os.walk(top):
+        for name in names:
+            full = os.path.join(root, name)
+            with open(full, "rb") as handle:
+                tree[os.path.relpath(full, top)] = hashlib.sha256(handle.read()).hexdigest()
+    return tree
+
+
+def _unfold_pdf_pages(path: str) -> int:
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        with open(path, "rb") as handle:
+            return len(re.findall(rb"/Type\s*/Page[^s]", handle.read()))
+    return len(PdfReader(path).pages)
+
+
+def _unfold_block(out: str, title: str) -> str:
+    """The text of one ``* Title *`` block of a terminal output ('' if absent)."""
+    start = out.find(f"\n{title}\n")
+    if start < 0:
+        return ""
+    end = out.find("\n* ", start + len(title) + 2)
+    return out[start + 1: end if end >= 0 else len(out)]
+
+
+def _unfold_guard(function, *args) -> None:
+    """One group of section-51 checks; an exception is reported as one FAIL."""
+    try:
+        function(*args)
+    except (Exception, SystemExit):  # report it and run the next group
+        import traceback
+
+        report(f"{function.__name__} completed without an exception", False,
+               traceback.format_exc())
+
+
+def _unfold_ff(f) -> np.ndarray:
+    """f |f| (THz^2): the eigenvalue scale, where the acoustic modes at Gamma are not
+    amplified by the square root (|f| ~ 1e-7 THz there)."""
+    f = np.asarray(f, dtype=float)
+    return f * np.abs(f)
+
+
+def _unfold_gamma_rows(block: str, n_k: int) -> dict:
+    """Check 24: the levels of '* Child GM mode origin *' as ``{modes: [cell at each of the n_k
+    folding k, ..., origin]}``, every cell split into words. The first table (header with
+    'child irrep' and 'origin') gives the origin column; the tables after it (fix round 6: as many
+    folding-k columns as fit 100 columns) give the cells, each starting at its header name."""
+    rows, origin, columns = {}, {}, None
+    level = re.compile(r"^(\d+(?:,\d+)*)\s+-?\d+\.\d{4}\s+\d+\s")
+    for line in block.splitlines():
+        if line.startswith("modes "):
+            starts = [m.start() for m in re.finditer(r"\S+", line)]
+            columns = ("origin", line.find("origin")) if line.endswith("origin") else (
+                "k", starts[3:])
+            continue
+        m = level.match(line)
+        if m is None or columns is None:
+            continue
+        if columns[0] == "origin":
+            origin[m.group(1)] = line[columns[1]:].split()
+        else:
+            starts = columns[1]
+            rows.setdefault(m.group(1), []).extend(
+                line[a:b].split() for a, b in zip(starts, starts[1:] + [None]))
+    return {key: cells + [origin[key]] for key, cells in rows.items()
+            if key in origin and len(cells) == n_k}
+
+
+def _unfold_gamma_checks(case: str, out: str, arrays: dict) -> None:
+    """Check 24: '* Child GM mode origin *' and the gamma_* arrays against UNFOLD_GAMMA (demo
+    engine)."""
+    ref = UNFOLD_GAMMA[case]
+    names = [str(v) for v in arrays["gamma_k_names"]]
+    weights = np.asarray(arrays["gamma_weights"], dtype=float)  # (N folding k, n_band)
+    levels = _unfold_groups(arrays["gamma_frequencies"])
+    dev = max(abs(float(weights[:, g].sum()) - len(g)) for g in levels)
+    report(f"{case}: child GM modes, folding k {' '.join(names)}; the weights of every level add "
+           f"up to its number of modes over them ({dev:.1e})",
+           names == list(ref["k"]) and dev <= 1e-10)
+    worst = 0.0
+    for modes, P, _origin in ref["groups"]:
+        got = weights[:, np.array(modes) - 1].sum(axis=1)
+        worst = max(worst, float(np.abs(got - np.array(P)).max()))
+    report(f"{case}: npz gamma_weights: P_g(k) of {len(ref['groups'])} child GM levels at the "
+           f"folding k = the demo engine ({worst:.1e})", worst <= 1e-5)
+    block = _unfold_block(out, "* Child GM mode origin *")
+    rows = _unfold_gamma_rows(block, len(ref["k"]))
+    n_k, bad, mulliken = len(ref["k"]), [], []
+    for modes, P, origin in ref["groups"]:
+        key = ",".join(str(v) for v in modes)
+        cells = rows.get(key)
+        if cells is None or any(len(c) < 1 for c in cells) or len(cells[-1]) < 3:
+            bad.append(f"{key}: no row")
+            continue
+        printed = [float(c[0]) for c in cells[:n_k]]
+        top = float(np.max(P))
+        if (max(abs(a - b) for a, b in zip(printed, P)) > 5.1e-4 or cells[-1][0] != origin
+                or abs(float(cells[-1][-1]) - top) > 5.1e-3):
+            bad.append(f"{key}: printed {printed}, origin {cells[-1]}; demo engine {P}, origin "
+                       f"{origin} {top:.2f}")
+        # a GM label (GM column, origin at GM) carries its Mulliken symbol in brackets
+        for c in [cells[i] for i in range(n_k) if ref["k"][i] == "GM"] + [cells[-1][1:-1]]:
+            label = c[1] if len(c) > 1 and re.match(r"^\d\.\d{3}$", c[0]) else c[0]
+            if label.startswith("GM") and not (len(c) > 1 and c[-1].startswith("[")):
+                mulliken.append(f"{key}: {' '.join(c)}")
+    report(f"{case}: '* Child GM mode origin *': P_g(k) at every folding k and the origin column "
+           f"(the k of the largest P_g) of {len(ref['groups'])} levels as the demo engine",
+           not bad, "\n".join(bad) or block)
+    report(f"{case}: '* Child GM mode origin *': every GM label of the folding-k columns and of "
+           "the origin column carries its Mulliken symbol", not mulliken and bool(rows),
+           "\n".join(mulliken) or block)
+    soft, entries = {}, []
+    lines = block.splitlines()
+    start = next((i for i, line in enumerate(lines) if line.startswith("soft parent levels")),
+                 len(lines))
+    for line in lines[start + 1:]:  # one entry per soft level, its continuation lines joined
+        if line.startswith("    ") and entries:
+            entries[-1] += " " + line.strip()
+        else:
+            entries.append(line)
+    for line in entries:
+        m = re.match(r"^  (\S+) \(.*?\) .*?(-\d+\.\d{4})(?: x(\d+))?: (.*); mean (\d+\.\d\d) THz$",
+                     line)
+        if m:
+            entries = [e.split() for e in m.group(4).split(", ") if e != "..."]
+            soft[m.group(1)] = (float(m.group(2)), int(m.group(3) or 1), float(m.group(5)),
+                                [(float(e[0]), float(e[-1])) for e in entries])
+    bad = []
+    for kname, f, n, mean, contents in ref["soft"]:
+        got = soft.get(kname)
+        if (got is None or abs(got[0] - f) > 1.1e-4 or got[1] != n or abs(got[2] - mean) > 5.1e-3
+                or len(got[3]) != len(contents)
+                or any(abs(a[0] - b[0]) > 6e-4 or abs(a[1] - b[1]) > 5.1e-3
+                       for a, b in zip(got[3], contents))):
+            bad.append(f"{kname}: printed {got}; demo engine {(f, n, mean, contents)}")
+    report(f"{case}: soft parent levels and the child GM levels they go into (contents c_g and "
+           f"mean frequency) as the demo engine: "
+           + "; ".join(f"{k} {f:.4f} x{n}" for k, f, n, _m, _c in ref["soft"]),
+           not bad, "\n".join(bad) or block)
+
+
+def _unfold_davg_checks(case: str, arrays: dict) -> None:
+    """Check 28: the domain average at the k of UNFOLD_DAVG: stored rows, and every row recomputed
+    from unfold() at its arm (canonical weights x multiplicity / n_arms)."""
+    import contextlib
+    import io
+
+    from crystod.phonon_unfold import find_parent_mapping, load_unfold_inputs, unfold
+
+    k_path = arrays["k_parent"]
+    index, mult = arrays["davg_path_index"], arrays["davg_multiplicity"]
+    n_arms, arm_k = arrays["davg_n_arms"], arrays["davg_k_parent"]
+    f, w = arrays["davg_frequencies"], arrays["davg_weights"]
+    bad, arms, rows_of = [], [], []
+    for kv, ref in UNFOLD_DAVG[case].items():
+        hits = np.flatnonzero(np.abs(k_path - np.array(kv)).max(axis=1) < 1e-9)
+        rows = np.flatnonzero(index == hits[0]) if len(hits) else []
+        if len(rows) != len(ref):
+            bad.append(f"k {kv}: {len(rows)} class rows, stored {len(ref)}")
+            continue
+        for r, (m, n, ak, m1, m2, (ft, wt)) in zip(rows, ref):
+            order = np.argsort(f[r], kind="stable")
+            ff, ww = f[r][order], w[r][order]
+            groups = [(float(ff[g].mean()), float(ww[g].sum()))
+                      for g in np.split(np.arange(len(ff)), np.where(np.diff(ff) > 1e-4)[0] + 1)]
+            top = sorted(groups, key=lambda t: (-round(t[1], 6), t[0]))[0]
+            got = (int(mult[r]), int(n_arms[hits[0]]), float(np.sum(ww * ff)),
+                   float(np.sum(ww * ff * ff)))
+            if (got[:2] != (m, n) or np.abs(arm_k[r] - np.array(ak)).max() > 1e-9
+                    or abs(got[2] - m1) > 2e-5 or abs(got[3] - m2) > 1e-3
+                    or abs(top[0] - ft) > 1.1e-4 or abs(top[1] - wt) > 2e-6):
+                bad.append(f"k {kv} row {r}: {got}, arm {arm_k[r].tolist()}, top {top}; stored "
+                           f"{(m, n, ak, m1, m2, (ft, wt))}")
+            arms.append(arm_k[r])
+            rows_of.append(r)
+    report(f"{case}: domain average at {len(UNFOLD_DAVG[case])} path k: multiplicities, arms, "
+           f"weight moments and the largest group of every class row as stored (fix round 3)",
+           not bad, "\n".join(bad))
+    directory, child, parent = UNFOLD_CASES[case]
+    root = os.path.join(PHONON_UNFOLD_DIR, directory)
+    with contextlib.redirect_stdout(io.StringIO()):
+        inputs = load_unfold_inputs(os.path.join(root, child), (2, 2, 2),
+                                    os.path.join(root, parent))
+        mapping = find_parent_mapping(os.path.join(root, child), os.path.join(root, parent),
+                                      child_cell=inputs.child_cell, parent_cell=inputs.parent_cell)
+    if not arms:
+        return
+    one = unfold(inputs.child_phonon, mapping, np.array(arms))
+    dw = max(float(np.abs(one.weights_canonical[i] * mult[r] / n_arms[index[r]] - w[r]).max())
+             for i, r in enumerate(rows_of))
+    df = max(float(np.abs(one.frequencies[i] - f[r]).max()) for i, r in enumerate(rows_of))
+    report(f"{case}: every one of these {len(rows_of)} rows = unfold() at its arm, canonical "
+           f"weights x multiplicity / n_arms ({dw:.1e}; frequencies {df:.1e} THz)",
+           dw <= 1e-10 and df <= 1e-9)
+
+
+def _test_51_cli() -> None:
+    """Checks 1-4 and 18: the professor's command, crystod-group, the files, --irreps, the trap."""
+    import phonopy
+    from phonopy.file_IO import write_FORCE_CONSTANTS
+
+    from crystod.phonon import read_phonon_irreps
+    from crystod.vasp_io import read_poscar_cell
+
+    with tempfile.TemporaryDirectory() as tmp:
+        run1 = os.path.join(tmp, "run1")
+        os.makedirs(run1)
+        _unfold_copy_case("CaTiO3", run1)
+        inputs = _unfold_tree(run1)
+        # 1. the professor's command, literally (full 51 points per leg)
+        code, out = run_phonon(_unfold_command("CaTiO3", "--export-npz", "u.npz"), cwd=run1)
+        ok = code == 0 and "Traceback" not in out
+        report("professor's command --unfold --child-poscar ... --child-dim 2 2 2 --parent-poscar "
+               "... --parent-dim 2 2 2 exit 0 (CaTiO3 Pnma onto Pm-3m)", ok, out)
+        if not ok:
+            return
+        positions = [out.find(f"\n{title}\n") for title in UNFOLD_BLOCKS]
+        report("the seven blocks * Unfolding setup * ... * Output files * in order",
+               min(positions) >= 0 and positions == sorted(positions), out)
+        report("crystod-group setting: M (rows) 1 0 1  0 2 0  -1 0 1, p = (1/2, 0, 1/2)",
+               "M (rows)       1 0 1  0 2 0  -1 0 1" in out and "p = (1/2, 0, 1/2)" in out, out)
+        irreps_block = _unfold_block(out, "* Unfolded irreps at special points *")
+        origin_block = _unfold_block(out, "* Child GM mode origin *")
+        report("Mulliken symbols next to the ISO-IR labels at GM (parent GM4- [T1u], GM5- [T2u]; "
+               "child GM4- [B2u])",
+               "GM (0, 0, 0) -> child GM" in irreps_block and "GM4- [T1u]" in irreps_block
+               and "GM5- [T2u]" in irreps_block and "GM4- [B2u]" in origin_block, out)
+        report("the NOTE names the condensed arm M (1/2, 0, 1/2) that is off the default path",
+               "NOTE: the condensed arm M (1/2, 0, 1/2) is not on the band path" in out, out)
+        m = re.search(r"sum rule\s+max \|sum_J P_J\(k\) - 15\| = (\S+) on the path, (\S+) for "
+                      r"the domain average", out)
+        report("summary: printed sum rules below 1e-10 (path and domain average)",
+               m is not None and max(float(m.group(1)), float(m.group(2))) < 1e-10, out)
+        after = _unfold_tree(run1)
+        added = sorted(set(after) - set(inputs))
+        report("phonon_unfold.pdf, phonon_unfold.dat and u.npz written, no other file, inputs "
+               "unchanged", added == ["phonon_unfold.dat", "phonon_unfold.pdf", "u.npz"]
+               and all(after.get(name) == digest for name, digest in inputs.items()),
+               "\n".join(added))
+        pages = _unfold_pdf_pages(os.path.join(run1, "phonon_unfold.pdf"))
+        report(f"phonon_unfold.pdf has 2 pages (bands and star arms; irreps): {pages}", pages == 2)
+        report("terminal output is plain ASCII (no emoji or icon characters)", out.isascii(),
+               "\n".join(line for line in out.splitlines() if not line.isascii()))
+        _unfold_check_wrapping("CaTiO3, the professor's command", out, notes=1)
+        # 36. with the labels the explanation under the child GM weights names them
+        report("the explanation under the child GM weights names the labels of the cells "
+               "('its label there', '-' below 0.02)",
+               _unfold_weights_legend(out) == "(columns: weight P_g(k) of the child level at each "
+               "folding k and its label there ('-' below 0.02); the weights of a level add up to "
+               "its number of modes)", origin_block)
+        # 37. with the labels the Output files line names them, as the .dat holds them (fix
+        #     round 8)
+        files_block = _unfold_block(out, "* Output files *")
+        with open(os.path.join(run1, "phonon_unfold.dat")) as handle:
+            header = "".join(line for line in handle if line.startswith("#"))
+        report("* Output files * says '  Weights and labels written to: phonon_unfold.dat' (the "
+               ".dat header does not say 'no labels')",
+               "  Weights and labels written to: phonon_unfold.dat" in files_block.splitlines()
+               and "no labels (--no-irreps)" not in header, files_block or out)
+
+        # 2. the transformation printed exactly as crystod-group prints it
+        code, gout = run_group(["--supergroup-cif", "parent/221_PPOSCAR_CaTiO3",
+                                "--subgroup-cif", "child/62_PPOSCAR_CaTiO3", "--no-files"],
+                               cwd=run1)
+        rows = [line for line in
+                _unfold_block(gout, "* Transformation matrix (parent -> child) *").splitlines()
+                if re.match(r"^  \[.*\] \[.*\]$", line)]
+        setup = _unfold_block(out, "* Unfolding setup *").splitlines()
+        report("the three [ P ] [ p ] rows of crystod-group --supergroup-cif/--subgroup-cif "
+               "appear verbatim in * Unfolding setup *",
+               code == 0 and len(rows) == 3 and all(row in setup for row in rows),
+               "\n".join(rows) + "\n--\n" + "\n".join(setup))
+
+        # 3. the files: sum rules, keys, shapes, dat = npz
+        z = np.load(os.path.join(run1, "u.npz"), allow_pickle=False)
+        arrays = {key: z[key] for key in z.files}  # allow_pickle=False: no object array
+        missing = [key for key in UNFOLD_NPZ_KEYS if key not in arrays]
+        report(f"u.npz holds the {len(UNFOLD_NPZ_KEYS)} keys of the specification and loads "
+               "with allow_pickle=False", not missing, " ".join(missing))
+        if missing:
+            return
+        freqs, wc = arrays["frequencies"], arrays["weights_canonical"]
+        vectors = arrays["vectors_canonical"]
+        report("306 path k x 60 child modes (vectors 306 x 60 x 15 complex128)",
+               freqs.shape == wc.shape == (306, 60) and vectors.shape == (306, 60, 15)
+               and vectors.dtype == np.complex128, f"{freqs.shape} {wc.shape} {vectors.shape}")
+        dev = float(np.abs(wc.sum(axis=1) - 15).max())
+        report(f"npz: sum_J P_J(k) = 3 n_parent = 15 at every k ({dev:.1e})", dev <= 1e-10)
+        report("npz: K_child = k_parent @ M.T exactly",
+               np.array_equal(arrays["K_child"], arrays["k_parent"] @ arrays["M"].T.astype(float)))
+        dat = _unfold_dat(os.path.join(run1, "phonon_unfold.dat"))
+        k0 = np.array([int(r[0]) for r in dat[0]])
+        w0 = np.array([float(r[7]) for r in dat[0]])
+        s0 = np.bincount(k0, weights=w0) if len(k0) else np.zeros(0)
+        dev0 = float(np.abs(s0 - 15).max()) if len(s0) else np.inf
+        report(f"dat dataset 0: {len(dat[0])} rows (306 x 60), weights add up to 15 at every k "
+               f"({dev0:.1e})", len(dat[0]) == 18360 and len(s0) == 306 and dev0 <= 1e-6)
+        k1 = np.array([int(r[0]) for r in dat[1]])
+        w1 = np.array([float(r[10]) for r in dat[1]])
+        s1 = np.bincount(k1, weights=w1, minlength=306) if len(k1) else np.zeros(0)
+        dev1 = float(np.abs(s1 - 15).max()) if len(s1) else np.inf
+        report(f"dat dataset 1 (domain average, {len(dat[1])} rows): weights add up to 15 at "
+               f"every k ({dev1:.1e})",
+               len(s1) == 306 and dev1 <= 2e-6
+               and len(dat[1]) == 60 * len(arrays["davg_path_index"]))
+        n_rows = len(arrays["davg_path_index"])
+        if len(dat[1]) == 60 * n_rows:
+            rows1 = np.array([[float(v) for v in (r[0], r[3], r[4], r[10])] for r in dat[1]])
+            rows1 = rows1.reshape(n_rows, 60, 4)
+            path_index = arrays["davg_path_index"]
+            report("dat dataset 1 = npz (path k, multiplicity, n_arms, weights of every class row)",
+                   np.array_equal(rows1[:, 0, 0], path_index)
+                   and np.array_equal(rows1[:, 0, 1], arrays["davg_multiplicity"])
+                   and np.array_equal(rows1[:, 0, 2], arrays["davg_n_arms"][path_index])
+                   and np.abs(rows1[:, :, 3] - arrays["davg_weights"]).max() <= 5.1e-9)
+        if len(dat[0]) == 18360:
+            f0 = np.array([float(r[6]) for r in dat[0]]).reshape(306, 60)
+            labels0 = np.array([r[9] for r in dat[0]]).reshape(306, 60)
+            report("dat dataset 0 = npz (frequencies, canonical weights, group labels)",
+                   np.abs(f0 - freqs).max() <= 5.1e-7 and np.abs(w0.reshape(306, 60) - wc).max()
+                   <= 5.1e-9 and np.array_equal(labels0, arrays["group_label"]))
+
+        # 24. the child GM mode origin (U9): values against the demo engine
+        _unfold_guard(_unfold_gamma_checks, "CaTiO3", out, arrays)
+        # 28. the domain average at a few k: stored values and unfold() at the arms
+        _unfold_guard(_unfold_davg_checks, "CaTiO3", arrays)
+
+        # 4. parent labels and frequencies = crystod-phonon --irreps --all-irreps of the parent
+        irr = os.path.join(tmp, "irreps")
+        os.makedirs(irr)
+        for name in ("221_PPOSCAR_CaTiO3", "FORCE_SETS"):
+            shutil.copy(os.path.join(PHONON_UNFOLD_DIR, "CaTiO3_Pnma", "parent", name), irr)
+        code, iout = run_phonon(["--irreps", "--all-irreps", "--dim", "2", "2", "2",
+                                 "-c", "221_PPOSCAR_CaTiO3"], cwd=irr)
+        yaml_path = os.path.join(irr, "phonon_irreps_all.yaml")
+        if code != 0 or not os.path.isfile(yaml_path):
+            report("--irreps --all-irreps on the parent exit 0", False, iout)
+        else:
+            k_path = arrays["k_parent"]
+            labels, pf = arrays["parent_labels"], arrays["parent_frequencies"]
+            bad, worst, worst_ff, found, mid = [], 0.0, 0.0, 0, []
+            for point in read_phonon_irreps(yaml_path)["irreps"]:
+                q = np.array(point["q_position"], dtype=float)
+                hits = np.where(np.abs(k_path - q).max(axis=1) < 1e-9)[0]
+                found += bool(len(hits))
+                if "segment" in point:
+                    mid.extend(hits.tolist())
+                for ik in hits:
+                    for band_set in point["band_sets"]:
+                        names = [label.rsplit("(", 1)[0] for label in band_set["irrep_label"]]
+                        for b in band_set["band_indices"]:
+                            f_yaml, f_ours = float(band_set["frequency"]), float(pf[ik, b - 1])
+                            worst_ff = max(worst_ff, abs(_unfold_ff(f_yaml) - _unfold_ff(f_ours)))
+                            if abs(f_yaml) >= 0.01:
+                                worst = max(worst, abs(f_yaml - f_ours))
+                            if labels[ik, b - 1] not in names:
+                                bad.append(f"{point['q_label']} k index {ik} band {b}: "
+                                           f"{labels[ik, b - 1]} vs {names}")
+            report(f"parent labels at GM, X, M, R and the 6 path midpoints = --irreps "
+                   f"--all-irreps ({found} points, {len(bad)} differences; frequencies "
+                   f"{worst:.1e} THz, f|f| {worst_ff:.1e} THz^2)",
+                   found == 10 and sorted(mid) == [51 * i + 25 for i in range(6)] and not bad
+                   and worst <= 1e-6 and worst_ff <= 1e-6, "\n".join(bad[:15]) or iout)
+
+        # 18. a stray ./FORCE_CONSTANTS of the child (x 1.1) must not be read
+        trap = os.path.join(tmp, "trap")
+        os.makedirs(trap)
+        _unfold_copy_case("CaTiO3", trap)
+        child_poscar = _unfold_path("CaTiO3", "child")
+        child_fs = os.path.join(os.path.dirname(child_poscar), "FORCE_SETS")
+        child = _unfold_load(child_poscar, (2, 2, 2), child_fs)
+        write_FORCE_CONSTANTS(1.1 * _unfold_full_fc(child),
+                              filename=os.path.join(trap, "FORCE_CONSTANTS"))
+        previous = os.getcwd()
+        os.chdir(trap)
+        try:  # control: a plain phonopy.load in that directory takes the stray file
+            plain = phonopy.load(supercell_matrix=np.diag([2, 2, 2]), primitive_matrix="P",
+                                 unitcell=read_poscar_cell(child_poscar),
+                                 force_sets_filename=os.path.abspath(child_fs), is_nac=False,
+                                 is_compact_fc=False, log_level=0)
+        finally:
+            os.chdir(previous)
+        k_test = [[0.1, 0.2, 0.3]]
+        ratio = float(_unfold_qpoints(plain, k_test)[0].max()
+                      / _unfold_qpoints(child, k_test)[0].max())
+        report(f"control: a plain phonopy.load with that ./FORCE_CONSTANTS reads it (frequencies x "
+               f"{ratio:.4f}, sqrt(1.1) = 1.0488)", abs(ratio - np.sqrt(1.1)) < 1e-3)
+        code, tout = run_phonon(_unfold_command("CaTiO3", "--export-npz", "t.npz"), cwd=trap)
+        if code != 0 or not os.path.isfile(os.path.join(trap, "t.npz")):
+            report("run 1 again next to a stray ./FORCE_CONSTANTS exit 0", False, tout)
+        else:
+            ft = np.load(os.path.join(trap, "t.npz"), allow_pickle=False)["frequencies"]
+            dff = float(np.abs(_unfold_ff(ft) - _unfold_ff(freqs)).max())
+            df = float(np.abs(ft - freqs).max())
+            report(f"a stray ./FORCE_CONSTANTS (child x 1.1) is ignored: frequencies = run 1 "
+                   f"({df:.1e} THz, f|f| {dff:.1e} THz^2)", dff <= 1e-10, tout)
+
+
+def _unfold_identity(name: str, ph_parent, M, rng):
+    """Check 5 (and 23) on one ideal supercell; returns (ph_super, info, mapping)."""
+    from crystod.phonon_unfold import parent_mapping_from_setting, unfold
+
+    n_parent = len(ph_parent.primitive)
+    n_child = n_parent * int(round(np.linalg.det(M)))
+    shift = rng.uniform(0.0, 1.0, 3)
+    ph_super, info = _unfold_ideal_supercell(ph_parent, M, origin_shift=shift,
+                                             permutation=rng.permutation(n_child))
+    mapping = parent_mapping_from_setting(ph_super.primitive, ph_parent.primitive, M,
+                                          (-shift) % 1.0)
+    d = mapping.ideal_frac_child - info["ideal_scaled_positions"]
+    d_ideal = float(np.abs(d - np.rint(d)).max())
+    report(f"identity {name}: atom map recovered (kappa exact, ideal sites {d_ideal:.1e})",
+           np.array_equal(mapping.kappa, info["kappa"]) and d_ideal <= 1e-10)
+    k = _unfold_kpoints(rng)
+    b1 = unfold(ph_super, mapping, k)
+    b2 = unfold(ph_super, mapping, k, method="wrapped")
+    s = max(float(np.abs(b.weights.sum(axis=1) - 3 * n_parent).max()) for b in (b1, b2))
+    report(f"identity {name}: sum rule ({s:.1e})", s <= 1e-8)
+    zero_one = max(float(np.minimum(np.abs(b.weights_canonical),
+                                    np.abs(b.weights_canonical - 1.0)).max()) for b in (b1, b2))
+    report(f"identity {name}: canonical weights 0 or 1 band by band ({zero_one:.1e})",
+           zero_one <= 1e-6)
+    f_par, _ = _unfold_qpoints(ph_parent, k)
+    worst, counts = 0.0, True
+    for ik in range(len(k)):
+        chosen = np.sort(b1.frequencies[ik][b1.weights_canonical[ik] > 0.5])
+        if len(chosen) != 3 * n_parent:
+            counts = False
+            continue
+        worst = max(worst, float(np.abs(chosen - np.sort(f_par[ik])).max()))
+    report(f"identity {name}: the modes of weight 1 are the parent modes at k ({worst:.1e} THz)",
+           counts and worst <= 1e-5)
+    dff = float(np.abs(_unfold_ff(b1.frequencies) - _unfold_ff(b2.frequencies)).max())
+    g1 = _unfold_group_sums(b1.frequencies, b1.weights_canonical)
+    g2 = _unfold_group_sums(b1.frequencies, b2.weights_canonical)
+    dg = max(float(np.abs(a - b).max()) for a, b in zip(g1, g2))
+    report(f"identity {name}: wrapped K = unwrapped K (f|f| {dff:.1e} THz^2, group weights "
+           f"{dg:.1e})", dff <= 1e-9 and dg <= 1e-10)
+    return ph_super, info, mapping
+
+
+def _unfold_purity(bands, irreps, levels) -> tuple:
+    """(1 - smallest label fraction, largest |P_g - integer|, differences) over the groups with
+    P_g > 0.5, compared with the parent levels (sorted labels, frequency, degeneracy)."""
+    deficit = integral = 0.0
+    problems = []
+    for ik in range(len(bands.k_parent)):
+        ours = []
+        gid = bands.degenerate_group[ik]
+        for g in np.unique(gid):
+            idx = np.where(gid == g)[0]
+            Pg = float(bands.weights_canonical[ik, idx].sum())
+            if Pg <= 0.5:
+                continue
+            deficit = max(deficit, 1.0 - float(irreps.group_fraction[ik, idx[0]]))
+            integral = max(integral, abs(Pg - round(Pg)))
+            ours.append((tuple(sorted(irreps.group_members[ik][idx[0]])),
+                         float(bands.frequencies[ik, idx].mean()), int(round(Pg))))
+        theirs = sorted(levels[ik], key=lambda level: level[1])
+        ours.sort(key=lambda level: level[1])
+        if len(ours) != len(theirs) or any(
+                a[0] != b[0] or abs(a[1] - b[1]) > 1e-4 or a[2] != b[2]
+                for a, b in zip(ours, theirs)):
+            problems.append(f"k = {bands.k_parent[ik]}: ours {ours}\n  label_phonon_modes {theirs}")
+    return deficit, integral, problems
+
+
+def _unfold_worst_fraction(bands, irreps, p_min: float) -> float:
+    """Smallest label fraction over the groups with P_g >= p_min (0 for mixed)."""
+    worst = 1.0
+    for ik in range(len(bands.k_parent)):
+        gid = bands.degenerate_group[ik]
+        for g in np.unique(gid):
+            idx = np.where(gid == g)[0]
+            if bands.weights_canonical[ik, idx].sum() >= p_min:
+                worst = min(worst, float(irreps.group_fraction[ik, idx[0]]))
+    return worst
+
+
+def _test_51_ideal() -> None:
+    """Checks 5-9: identity, gauge, frame and irrep-purity tests on ideal supercells (API)."""
+    import contextlib
+    import io
+    from dataclasses import replace
+
+    from crystod.phonon import label_phonon_modes
+    from crystod.phonon_unfold import (
+        WEIGHT_MIN,
+        _print_gamma,
+        gamma_origin,
+        irrep_resolve,
+        parent_mapping_from_setting,
+        unfold,
+    )
+
+    rng = np.random.default_rng(UNFOLD_SEED)
+    parents = {case: _unfold_parent_phonon(case) for case in UNFOLD_CASES}
+    # 5. identity: an ideal supercell unfolds onto its parent with weights 0/1
+    for case, M, kind in (("CaTiO3", UNFOLD_M_PNMA, "Pnma-type"),
+                          ("AlF3", UNFOLD_M_R3C, "R-3c-type")):
+        _unfold_identity(f"({case} 2x2x2 parent, {kind} M)", parents[case], M, rng)
+    ph_parent = parents["CaTiO3"]
+
+    # 27. child GM origin of the ideal 2x2x2 supercell (M = 2I): the three X and the three M arms
+    #     fold onto the child GM point, so its degenerate levels hold one parent level of each
+    #     arm; canonical at each folding k, every per-mode weight is 0 or 1 (without the rotation
+    #     the eigensolver's basis mixes the arms: weights near 1/3 and 1/2)
+    rng27 = np.random.default_rng(UNFOLD_SEED + 27)  # its own stream: checks 6-9 keep theirs
+    M2 = 2 * np.eye(3, dtype=np.int64)
+    shift = rng27.uniform(0.0, 1.0, 3)
+    ph_sup, _info = _unfold_ideal_supercell(ph_parent, M2, origin_shift=shift,
+                                            permutation=rng27.permutation(8 * 5))
+    mapping2 = parent_mapping_from_setting(ph_sup.primitive, ph_parent.primitive, M2,
+                                           (-shift) % 1.0)
+    origin = gamma_origin(ph_sup, mapping2)
+    w = origin.weights
+    zero_one = float(np.minimum(np.abs(w), np.abs(w - 1.0)).max())
+    level_sum = max(abs(float(w[:, g].sum()) - len(g)) for g in origin.groups)
+    shared = sum(1 for g in origin.groups if len(g) > 1)
+    report(f"child GM origin of the ideal 2x2x2 supercell ({len(origin.k_names)} folding k "
+           f"{' '.join(origin.k_names)}, {shared} degenerate levels): per-mode weights 0 or 1 "
+           f"({zero_one:.1e}), level sums = number of modes ({level_sum:.1e})",
+           len(origin.k_names) == 8 and shared > 0 and zero_one <= 1e-8 and level_sum <= 1e-10)
+    # 32. its '* Child GM mode origin *' block (fix round 6): the 8 folding-k columns go into
+    #     weights tables of at most 100 columns, each folding k once, every level in each table,
+    #     and the printed weights are the level sums
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        _print_gamma(origin, mapping2, None, False, WEIGHT_MIN)
+    block = buffer.getvalue()
+    tables = [line.split()[3:] for line in block.splitlines() if line.startswith("modes ")][1:]
+    names = [name for table in tables for name in table]
+    rows = _unfold_gamma_rows(block, len(origin.k_names))
+    printed = max((abs(float(rows[",".join(str(J + 1) for J in g)][i][0])
+                       - float(w[i][g].sum()))
+                   for g in origin.groups for i in range(len(origin.k_names))
+                   if ",".join(str(J + 1) for J in g) in rows), default=np.inf)
+    report(f"its child GM block: {len(names)} folding-k columns in {len(tables)} weights tables, "
+           f"{len(rows)} levels in every table, every line within 100 columns (the longest "
+           f"{max(len(line) for line in block.splitlines())}), printed weights = level sums "
+           f"({printed:.1e})",
+           len(tables) >= 2 and len(names) == len(set(names)) == len(origin.k_names)
+           and len(rows) == len(origin.groups) and printed <= 5.1e-4
+           and all(len(line) <= 100 for line in block.splitlines()), block)
+
+    # 6. pure gauge: atoms moved, force constants kept by label (cut so that every pair keeps
+    #    one shortest image); exact only with the ideal-site factor exp(2 pi i K.d)
+    ph_cut, r_kept, r_tie = _unfold_cut_fc(ph_parent, 3.0)
+    shift = rng.uniform(0.0, 1.0, 3)
+    n_super = 4 * len(ph_parent.primitive)  # N = det M = 4 for the Pnma-type M
+    ph_sup, info = _unfold_ideal_supercell(ph_cut, UNFOLD_M_PNMA, origin_shift=shift,
+                                           permutation=rng.permutation(n_super))
+    ph_moved, d_used = _unfold_displaced(ph_sup, 0.3, rng)
+    K = rng.uniform(-1.0, 1.0, size=(10, 3))
+    pure = float(np.abs(_unfold_qpoints(ph_sup, K)[0] - _unfold_qpoints(ph_moved, K)[0]).max())
+    report(f"gauge test: force constants cut at 3.0 A (pairs kept up to {r_kept:.3f} A, image "
+           f"tie at {r_tie:.3f} A), atoms moved by up to {d_used:.3f} A: frequencies of the "
+           f"moved model = ideal model at 10 random K ({pure:.1e} THz)", pure <= 1e-9)
+    mapping = parent_mapping_from_setting(ph_moved.primitive, ph_cut.primitive, UNFOLD_M_PNMA,
+                                          (-shift) % 1.0)
+    report("gauge test: atom map of the moved cell = the ideal map",
+           np.array_equal(mapping.kappa, info["kappa"]))
+    k = _unfold_kpoints(rng)
+    f_cut, _ = _unfold_qpoints(ph_cut, k)
+    ideal = unfold(ph_moved, mapping, k)
+    zero_one = float(np.minimum(np.abs(ideal.weights_canonical),
+                                np.abs(ideal.weights_canonical - 1.0)).max())
+    s = float(np.abs(ideal.weights.sum(axis=1) - 15).max())
+    worst = max(float(np.abs(np.sort(ideal.frequencies[ik][ideal.weights_canonical[ik] > 0.5])
+                             - np.sort(f_cut[ik])).max()) for ik in range(len(k)))
+    report(f"gauge='ideal': canonical weights 0 or 1 ({zero_one:.1e}), sum rule ({s:.1e}), "
+           f"parent frequencies ({worst:.1e} THz)",
+           zero_one <= 1e-6 and s <= 1e-8 and worst <= 1e-5)
+    actual = unfold(ph_moved, mapping, k, gauge="actual")
+    off = max(float(np.abs(x - np.rint(x)).max())
+              for x in _unfold_group_sums(actual.frequencies, actual.weights_canonical))
+    report(f"gauge='actual' (without exp(2 pi i K.d)) breaks it: a group weight is off an "
+           f"integer by {off:.2f}", off > 1e-3)
+
+    # 7. frame: the ideal supercell rigidly rotated
+    M = UNFOLD_M_PNMA
+    shift = rng.uniform(0.0, 1.0, 3)
+    p = (-shift) % 1.0
+    ph_sup, info = _unfold_ideal_supercell(ph_parent, M, origin_shift=shift,
+                                           permutation=rng.permutation(n_super))
+    mapping_u = parent_mapping_from_setting(ph_sup.primitive, ph_parent.primitive, M, p)
+    rotation = _unfold_random_rotation(rng)
+    ph_rot = _unfold_rotated(ph_sup, rotation)
+    mapping_r = parent_mapping_from_setting(ph_rot.primitive, ph_parent.primitive, M, p)
+    err = float(np.abs(mapping_r.frame_rotation - rotation.T).max())
+    report(f"frame test: frame_rotation = inverse of the rigid rotation ({err:.1e})",
+           err <= 1e-12 and np.array_equal(mapping_r.kappa, info["kappa"]))
+
+    # 8. irrep purity: every group of weight > 0.5 is one parent level with its labels
+    k8 = np.array([(0, 0, 0), (0, 0.5, 0), (0.5, 0.5, 0), (0.5, 0.5, 0.5), (0, 0.25, 0),
+                   (0.25, 0.5, 0), (0.25, 0.25, 0), (0.25, 0.25, 0.25), (0.25, 0.5, 0.25),
+                   (0.5, 0.5, 0.25), (0, 0.1, 0), (0.3, 0.3, 0), (0.5, 0.5, 0.4), (0.5, 0, 0),
+                   (0, 0.5, 0.5), (0.5, 0, 0.5)], dtype=float)
+    levels = [[(tuple(sorted(mode.labels)), float(mode.frequency), mode.degeneracy)
+               for mode in label_phonon_modes(ph_parent, kk,
+                                              degeneracy_tolerance=UNFOLD_GROUP_TOL)]
+              for kk in k8]
+    projector_keys = ("completeness", "idempotency", "hermiticity", "orthogonality",
+                      "mass_commutator")
+    results = {}
+    for tag, phonon, mp in (("unrotated", ph_sup, mapping_u), ("rotated", ph_rot, mapping_r)):
+        bands = unfold(phonon, mp, k8)
+        irreps = irrep_resolve(bands, mp, path=None)
+        results[tag] = (bands, irreps)
+        deficit, integral, problems = _unfold_purity(bands, irreps, levels)
+        projector = max(irreps.checks[key] for key in projector_keys)
+        report(f"irrep purity ({tag} ideal supercell, 16 k): label fraction 1 - "
+               f"{deficit:.1e}, P_g integer ({integral:.1e}), groups = levels of "
+               f"label_phonon_modes ({len(problems)} differences), projectors {projector:.1e}",
+               deficit <= 1e-8 and integral <= 1e-8 and not problems and projector <= 1e-12,
+               "\n".join(problems[:6]))
+
+    # 9. negative controls: the purity test must notice a skipped frame rotation and a wrong map
+    bands_r, _irreps = results["rotated"]
+    no_frame = replace(mapping_r, frame_rotation=np.eye(3))
+    worst_a = _unfold_worst_fraction(bands_r, irrep_resolve(bands_r, no_frame, path=None), 0.5)
+    report(f"negative control: frame rotation skipped -> smallest label fraction {worst_a:.2f} "
+           "(< 0.9)", worst_a < 0.9)
+    kappa = mapping_u.kappa.copy()
+    o1, o2 = np.where(kappa == 2)[0][0], np.where(kappa == 3)[0][0]  # two O sites (Ca Ti O O O)
+    kappa[[o1, o2]] = kappa[[o2, o1]]
+    swapped = replace(mapping_u, kappa=kappa)
+    bands_s = unfold(ph_sup, swapped, k8)
+    worst_b = _unfold_worst_fraction(bands_s, irrep_resolve(bands_s, swapped, path=None), 0.1)
+    report(f"negative control: two O atoms swapped in the atom map -> smallest label fraction "
+           f"{worst_b:.2f} (< 0.9)", worst_b < 0.9)
+
+
+def _unfold_ink_boxes(fig, texts, dpi: float = UNFOLD_INK_DPI) -> list:
+    """Ink box ``(x0, y0, x1, y1)`` in points from the lower left of the figure of every text as
+    Agg draws it (each text alone on a small canvas at ``dpi``, pixels inked to at least one
+    half); ``None`` for a text without ink.  The ink, not matplotlib's layout boxes: those differ
+    between versions for the same glyphs (mathtext labels of 6.5 pt: boxes 7.9-9.4 pt high with
+    matplotlib 3.10, 6.4-6.5 pt with 3.11).  Texts placed in display units (axis labels) need the
+    figure drawn at ``dpi`` first (:func:`_unfold_drawn_texts`)."""
+    from matplotlib.backends.backend_agg import RendererAgg
+    from matplotlib.transforms import Affine2D
+
+    fig.set_dpi(dpi)
+    layout = RendererAgg(1, 1, dpi)
+    scale = 72.0 / dpi
+    boxes = []
+    for text in texts:
+        e = text.get_window_extent(layout)
+        margin = int(np.ceil(text.get_fontsize() * dpi / 72.0))
+        x0, y0 = int(np.floor(e.x0)) - margin, int(np.floor(e.y0)) - margin
+        width, height = int(np.ceil(e.x1)) + margin - x0, int(np.ceil(e.y1)) + margin - y0
+        canvas = RendererAgg(width, height, dpi)
+        transform, clip = text.get_transform(), text.get_clip_on()
+        text.set_transform(transform + Affine2D().translate(-x0, -y0))  # whole pixels
+        text.set_clip_on(False)
+        try:
+            text.draw(canvas)
+        finally:
+            text.set_transform(transform)
+            text.set_clip_on(clip)
+        rows, cols = np.nonzero(np.asarray(canvas.buffer_rgba())[:, :, 3] >= 128)
+        if not rows.size:
+            boxes.append(None)
+            continue
+        if min(rows.min(), cols.min()) == 0 or rows.max() == height - 1 or cols.max() == width - 1:
+            raise RuntimeError(f"the ink of {text.get_text()!r} reaches the edge of its canvas")
+        boxes.append(((x0 + cols.min()) * scale, (y0 + height - 1 - rows.max()) * scale,
+                      (x0 + cols.max() + 1) * scale, (y0 + height - rows.min()) * scale))
+    return boxes
+
+
+def _unfold_ink_overlap(a, b) -> tuple:
+    """Overlap ``(x, y)`` in points of two ink boxes (negative: the gap between them)."""
+    return min(a[2], b[2]) - max(a[0], b[0]), min(a[3], b[3]) - max(a[1], b[1])
+
+
+def _unfold_drawn_texts(fig, dpi: float = UNFOLD_INK_DPI) -> list:
+    """Every text a page draws, as ``[(Text, kind, axes index or None)]``, after drawing the page
+    at ``dpi`` (axis labels are placed in pixels): the figure texts (page title, notes, the
+    header lines, the caption of the level panels) and, for every axes (colorbar and secondary
+    axes included), its title, texts, axis labels, the tick labels that are drawn and the legend.
+    kind: 'title' (axes titles and figure texts), 'level' (labels of a level panel), 'arm' (k,
+    child-point, 'path' and star labels of the star-arm panel), 'vertex' (labels of a band panel,
+    below and above it) or 'other' (y ticks, axis labels, colorbar, legend)."""
+    from matplotlib.text import Text
+
+    fig.set_dpi(dpi)
+    fig.canvas.draw()
+    out = []
+
+    def add(text, kind, n):
+        if isinstance(text, Text) and text.get_visible() and text.get_text().strip():
+            out.append((text, kind, n))
+
+    for text in fig.texts:
+        add(text, "title", None)
+    owners = []  # (axes, kind of its labels, index of the axes it belongs to)
+    for n, ax in enumerate(fig.axes):
+        title = ax.get_title()
+        if title.startswith("every arm"):
+            kind = "arm"
+        elif "\n" in title and "child" in title:
+            kind = "level"
+        else:
+            kind = "vertex" if title else "other"
+        owners.append((ax, kind, n))
+        owners += [(child, kind, n) for child in ax.child_axes]  # child points above a panel
+    for ax, kind, n in owners:
+        for text in (ax.title, ax._left_title, ax._right_title):
+            add(text, "title", n)
+        for text in ax.texts:
+            add(text, kind, n)
+        if not ax.axison:
+            continue
+        for axis in (ax.xaxis, ax.yaxis):
+            if not axis.get_visible():
+                continue
+            add(axis.label, "other", n)
+            # x labels of the band and star-arm panels; not the 0 1 2 3 under a level panel
+            tick_kind = kind if axis is ax.xaxis and kind in ("arm", "vertex") else "other"
+            for tick in axis._update_ticks():
+                for label in (tick.label1, tick.label2):
+                    add(label, tick_kind, n)
+        legend = ax.get_legend()
+        if legend is not None:
+            for text in legend.get_texts():
+                add(text, "other", n)
+    return out
+
+
+def _unfold_figure_layout(run, font: str | None = None) -> tuple:
+    """Problems of the figure layout of an UnfoldRun, from the ink of every text (both pages, Agg;
+    see _unfold_ink_boxes), so that the result does not depend on the matplotlib version:
+
+    - every text (titles, notes, labels of all panels, legend) lies inside its page, and no two
+      texts of a page overlap;
+    - labels of a level panel (page 2) lie inside their own panel (between its left and right
+      edges), at least 1 pt below its top and 1 pt apart (the PDF backend draws each mathtext
+      label up to 1 pt above Agg, by a different amount for each label: the layout leaves that
+      room).
+
+    Distances are measured to UNFOLD_INK_TOL (the rasterization of the glyph positions).  With
+    ``font`` (e.g. 'DejaVu Sans', the fallback where Arial is not installed, as on Linux) the
+    figures are laid out and drawn in that font instead of the module's own choice.
+
+    Returns ``(problems, counts of the texts per kind, smallest gap between two labels of a level
+    panel in pt, smallest distance of the ink of a level label from the right edge of its panel
+    in pt)``."""
+    import matplotlib
+
+    from crystod import phonon_unfold_plot as figure
+
+    plt = figure._style()
+    problems, counts, closest, margin = [], {}, np.inf, np.inf
+    tol = UNFOLD_INK_TOL
+    with matplotlib.rc_context({"font.family": [font]} if font else {}):
+        pages = [figure._page_bands(plt, run, run.weight_min),
+                 figure._page_irreps(plt, run, run.weight_min)]
+        try:
+            for page, fig in enumerate(pages, start=1):
+                items = _unfold_drawn_texts(fig)
+                width, height = fig.get_size_inches() * 72.0
+                texts = [text for text, _kind, _n in items]
+                inks = _unfold_ink_boxes(fig, texts)
+                for _text, kind, _n in items:
+                    counts[kind] = counts.get(kind, 0) + 1
+                axes = list(fig.axes)
+                boxes = [(b.x0 * width, b.y0 * height, b.x1 * width, b.y1 * height)
+                         for b in (ax.get_position() for ax in axes)]
+                levels = [i for i, ax in enumerate(axes)
+                          if "\n" in ax.get_title() and "child" in ax.get_title()]
+                for i in levels:
+                    x0, y0, x1, y1 = boxes[i]
+                    name = axes[i].get_title().splitlines()[0]
+                    own = [(text, e) for (text, kind, n), e in zip(items, inks)
+                           if kind == "level" and n == i and e is not None]
+                    for text, e in own:
+                        margin = min(margin, x1 - e[2])  # the panel's own right edge
+                        if (e[0] < x0 - tol or e[2] > x1 + tol or e[1] < y0 - tol
+                                or e[3] > y1 - UNFOLD_PDF_LIFT + tol):
+                            problems.append(
+                                f"page {page}: label {text.get_text()!r} of the level panel "
+                                f"{name!r} lies outside it (ink x {e[0]:.2f}-{e[2]:.2f}, y "
+                                f"{e[1]:.2f}-{e[3]:.2f} pt; panel x {x0:.2f}-{x1:.2f}, y "
+                                f"{y0:.2f}-{y1:.2f} pt, top less {UNFOLD_PDF_LIFT:g} pt)")
+                    for a in range(len(own)):
+                        for b in range(a + 1, len(own)):
+                            ox, oy = _unfold_ink_overlap(own[a][1], own[b][1])
+                            if ox > 0:
+                                closest = min(closest, -oy)
+                                if -oy < UNFOLD_PDF_LIFT - tol:
+                                    problems.append(
+                                        f"page {page}: labels {own[a][0].get_text()!r} and "
+                                        f"{own[b][0].get_text()!r} of the level panel {name!r} "
+                                        f"are {-oy:.2f} pt apart")
+                found = [(text, kind, e) for (text, kind, _n), e in zip(items, inks)
+                         if e is not None]
+                for text, kind, e in found:
+                    if e[0] < -tol or e[1] < -tol or e[2] > width + tol or e[3] > height + tol:
+                        problems.append(
+                            f"page {page}: {kind} text {text.get_text()!r} leaves the page (ink "
+                            f"x {e[0]:.1f}-{e[2]:.1f}, y {e[1]:.1f}-{e[3]:.1f} pt; page "
+                            f"{width:.1f} x {height:.1f} pt)")
+                ink = np.array([e for _text, _kind, e in found], dtype=float).reshape(-1, 4)
+                ox = np.minimum(ink[:, None, 2], ink[None, :, 2]) - np.maximum(ink[:, None, 0],
+                                                                                ink[None, :, 0])
+                oy = np.minimum(ink[:, None, 3], ink[None, :, 3]) - np.maximum(ink[:, None, 1],
+                                                                                ink[None, :, 1])
+                for a, b in zip(*np.nonzero(np.triu((ox > tol) & (oy > tol), 1))):
+                    problems.append(
+                        f"page {page}: the {found[a][1]} text {found[a][0].get_text()!r} and the "
+                        f"{found[b][1]} text {found[b][0].get_text()!r} overlap by "
+                        f"{ox[a, b]:.2f} x {oy[a, b]:.2f} pt")
+        finally:
+            for fig in pages:
+                plt.close(fig)
+    return problems, counts, closest, margin
+
+
+def _test_51_self() -> None:
+    """Check 10: the Pnma child onto itself (M = I), CrystOD's labels incl. time-reversal units."""
+    from crystod.phonon import label_phonon_modes
+
+    with tempfile.TemporaryDirectory() as tmp:
+        source = os.path.join(PHONON_UNFOLD_DIR, "CaTiO3_Pnma", "child")
+        for part in ("child", "same"):
+            shutil.copytree(source, os.path.join(tmp, part))
+        code, out = run_phonon(["--unfold", "--child-poscar", "child/62_PPOSCAR_CaTiO3",
+                                "--child-dim", "2", "2", "2",
+                                "--parent-poscar", "same/62_PPOSCAR_CaTiO3",
+                                "--parent-dim", "2", "2", "2", "--npoints", "11",
+                                "--export-npz", "same.npz"], cwd=tmp)
+        ok = code == 0 and "Traceback" not in out and os.path.isfile(os.path.join(tmp, "same.npz"))
+        report("Pnma child onto the Pnma structure itself exit 0, M (rows) 1 0 0  0 1 0  0 0 1, "
+               "seekpath path GM-X-S-Y-GM-Z-U-R-T-Z|X-U|Y-T|S-R",
+               ok and "M (rows)       1 0 0  0 1 0  0 0 1" in out
+               and "path           GM-X-S-Y-GM-Z-U-R-T-Z|X-U|Y-T|S-R (seekpath" in out, out)
+        if not ok:
+            return
+        # 32. 60 parent levels at GM (one line of 1165 columns before fix round 6)
+        _unfold_check_wrapping("Pnma onto itself (--npoints 11)", out)
+        z = np.load(os.path.join(tmp, "same.npz"), allow_pickle=False)
+        dev = float(np.abs(z["weights_canonical"] - 1.0).max())
+        report(f"every canonical weight is 1 ({dev:.1e})", dev <= 1e-8)
+        child_poscar = os.path.join(source, "62_PPOSCAR_CaTiO3")
+        child = _unfold_load(child_poscar, (2, 2, 2), os.path.join(source, "FORCE_SETS"))
+        k_path, labels = z["k_parent"], z["group_label"]
+        groups, freqs = z["degenerate_group"], z["frequencies"]
+        vertices = {}
+        for name, kv in zip(z["path_vertex_labels"], z["path_vertex_k_parent"]):
+            vertices.setdefault(tuple(float(v) for v in np.round(kv, 10)), str(name))
+        counts = {"single": 0, "pair": 0, "accidental": 0}
+        problems, seen = [], {}
+        for kv, vname in vertices.items():
+            hits = np.where(np.abs(k_path - np.array(kv)).max(axis=1) < 1e-10)[0]
+            seen[vname] = hits
+            modes = label_phonon_modes(child, kv, degeneracy_tolerance=UNFOLD_GROUP_TOL)
+            for ik in hits:
+                for mode in modes:
+                    band = np.array(mode.band_indices) - 1
+                    members = np.where(groups[ik] == groups[ik, band[0]])[0]
+                    same = sorted(members.tolist()) == sorted(band.tolist())
+                    df = abs(float(freqs[ik, band].mean()) - mode.frequency)
+                    ours = str(labels[ik, band[0]])
+                    names = sorted(mode.labels, key=_unfold_irrep_key)
+                    if len(names) == 1:
+                        kind, good = "single", ours == names[0]
+                    elif vname == "GM" and abs(mode.frequency) < 0.05:
+                        kind, good = "accidental", ours == "mixed" or "/" in ours
+                    elif len(names) == 2:  # a time-reversal pair: one unit 'a+b'
+                        kind, good = "pair", ours == "+".join(names)
+                    else:
+                        kind, good = "unexpected", False
+                    counts[kind] = counts.get(kind, 0) + 1
+                    if not (same and df <= 1e-4 and good):
+                        problems.append(f"{vname} k index {ik} bands {mode.band_indices} "
+                                        f"{mode.frequency:.4f} {names}: ours {ours} "
+                                        f"(same group {same}, df {df:.1e})")
+        report(f"Pnma onto itself: every level of label_phonon_modes at the {len(vertices)} "
+               f"path vertices (all occurrences: {counts['single']} single irreps, "
+               f"{counts['pair']} time-reversal pairs, {counts['accidental']} accidental "
+               "acoustic) is one of our groups with that label",
+               not problems and counts["pair"] > 0, "\n".join(problems[:15]))
+        for unit, point in (("S1+S2", "S"), ("U2++U3+", "U"), ("R1+R2", "R")):
+            hits = seen.get(point, [])
+            report(f"time-reversal unit {unit} labeled at {point}",
+                   len(hits) > 0 and all(unit in labels[ik].tolist() for ik in hits))
+
+        # 26. figure layout, measured on the ink of every text of both pages: a crowded case (60
+        # parent bands: 57 labeled levels, 55 labels at GM; 13 path vertices) and an fcc parent
+        # (Si Fd-3m onto itself: 26 arms of the stars of the path vertices), each in the font the
+        # module chooses (Arial where installed) and in DejaVu Sans (the fallback on Linux)
+        import contextlib
+        import io
+
+        import matplotlib
+
+        from crystod import phonon_unfold_plot as figure
+        from crystod.phonon_unfold import build_parser, run
+
+        args = build_parser().parse_args([
+            "--child-poscar", os.path.join(tmp, "child", "62_PPOSCAR_CaTiO3"), "--child-dim",
+            "2 2 2", "--parent-poscar", os.path.join(tmp, "same", "62_PPOSCAR_CaTiO3"),
+            "--parent-dim", "2 2 2", "--npoints", "11", "--output", os.path.join(tmp, "api")])
+        with contextlib.redirect_stdout(io.StringIO()):
+            unfold_run = run(args)
+        si_dir = os.path.join(ROOT, "example", "28_phonon_irrep", "Si_Fd-3m")
+        for part in ("si_child", "si_same"):
+            os.makedirs(os.path.join(tmp, part))
+            for name in ("227_PPOSCAR_Si", "FORCE_SETS"):
+                shutil.copy2(os.path.join(si_dir, name), os.path.join(tmp, part, name))
+        args = build_parser().parse_args([
+            "--child-poscar", os.path.join(tmp, "si_child", "227_PPOSCAR_Si"), "--child-dim",
+            "4 4 4", "--parent-poscar", os.path.join(tmp, "si_same", "227_PPOSCAR_Si"),
+            "--parent-dim", "4 4 4", "--npoints", "11", "--output", os.path.join(tmp, "si")])
+        with contextlib.redirect_stdout(io.StringIO()):
+            si_run = run(args)
+        report(f"Si Fd-3m onto itself: {len(si_run.arms.star)} arms of the stars of the path "
+               "vertices (26 expected)", len(si_run.arms.star) == 26)
+        for case, case_run, needed in (("the Pnma self-unfolding", unfold_run, ("level", 100)),
+                                       ("Si Fd-3m onto itself", si_run, ("arm", 26 * 2))):
+            for font in (None, "DejaVu Sans"):
+                problems, counts, closest, margin = _unfold_figure_layout(case_run, font)
+                kind, least = needed
+                shown = ", ".join(f"{counts.get(k, 0)} {k}" for k in ("title", "vertex", "arm",
+                                                                       "level", "other"))
+                gap = (f"; level labels at least {closest:.2f} pt apart and {margin:.2f} pt "
+                       "inside the right edge of their panel" if np.isfinite(closest) else "")
+                report(f"figures of {case} ({font or 'module font'}, matplotlib "
+                       f"{matplotlib.__version__}; ink of every text to {UNFOLD_INK_TOL:g} pt): no "
+                       f"text leaves its page, no two texts overlap, level labels inside their "
+                       f"own panels with {UNFOLD_PDF_LIFT:g} pt to spare at the top ({shown} "
+                       f"texts{gap})",
+                       not problems and counts.get(kind, 0) >= least
+                       and all(counts.get(k, 0) > 0 for k in ("title", "vertex", "arm")),
+                       "\n".join(problems[:15]))
+        # control: the measurement sees two labels set 0.5 em apart as overlapping
+        plt = figure._style()
+        fig = plt.figure(figsize=(1.0, 1.0))
+        try:
+            pair = [fig.text(0.2, 0.5, r"$\Gamma_{4}^{-}$", fontsize=5.5),
+                    fig.text(0.2, 0.5 + 0.5 * 5.5 / 72.0, r"$\Gamma_{3}^{+}$", fontsize=5.5)]
+            ox, oy = _unfold_ink_overlap(*_unfold_ink_boxes(fig, pair))
+        finally:
+            plt.close(fig)
+        report(f"control of check 26: two labels 0.5 em apart overlap by {oy:.2f} pt in the ink "
+               "measurement", ox > 0 and oy > 0.5)
+
+
+def _unfold_old_classes(pset, child_ops) -> list:
+    """The rule before fix round 1 (control of check 25): units linked when they share an irrep of
+    H(k), the child operations fixing k, only (no induction to the little group of K)."""
+    position = {int(j): a for a, j in enumerate(pset.little_ops)}
+    H = [position[j] for j in child_ops if j in position]
+    n = len(pset.units)
+    if not H or n < 2:
+        return []
+    chi = np.asarray(pset.unit_characters)[:, H]
+    link = np.real(chi @ chi.conj().T) / len(H) > 1e-6
+    classes, seen = [], set()
+    for i in range(n):
+        if i in seen:
+            continue
+        stack, component = [i], set()
+        while stack:
+            a = stack.pop()
+            if a not in component:
+                component.add(a)
+                stack.extend(int(b) for b in np.flatnonzero(link[a]) if b not in component)
+        seen |= component
+        if len(component) > 1:
+            classes.append(tuple(pset.units[u] for u in sorted(component)))
+    return classes
+
+
+def _unfold_levels_across_sets(bands, irreps, sets_of) -> list:
+    """Degenerate child levels (P_g >= 0.02) of exact degeneracy (spread <= 1e-8 THz) whose weight
+    lies in units of more than one set (a set: units the child symmetry cannot separate; a unit
+    outside every set is its own set).  One child level is one irrep of the little group of
+    K = M k (with its time-reversal partner), so its weight must lie in one set."""
+    found = []
+    for ik in range(len(bands.k_parent)):
+        cls_of = {u: i for i, c in enumerate(sets_of(ik)) for u in c}
+        for g in _unfold_groups(bands.frequencies[ik]):
+            Pg = float(bands.weights_canonical[ik, g].sum())
+            if Pg < 0.02 or np.ptp(bands.frequencies[ik, g]) > 1e-8:
+                continue
+            w = irreps.weights[ik, g].sum(axis=0) / Pg
+            units = [irreps.units[u] for u in np.flatnonzero(w > 1e-6)]
+            if len({cls_of.get(u, u) for u in units}) > 1:
+                found.append((ik, float(bands.frequencies[ik, g].mean()), len(g), units))
+    return found
+
+
+def _test_51_classes() -> None:
+    """Check 25: the sets of parent irreps the child symmetry cannot separate (label rule (b))."""
+    from crystod.phonon_unfold import (
+        find_parent_mapping,
+        irrep_resolve,
+        load_unfold_inputs,
+        make_parent_path,
+        unfold,
+    )
+
+    expected = {
+        "CaTiO3": {(0.0, 0.25, 0.0): [("DT1", "DT2", "DT5")],
+                   (0.25, 0.5, 0.25): [("S1", "S2"), ("S3", "S4")],
+                   (0.0, 0.5, 0.0): []},
+        "AlF3": {(0.25, 0.25, 0.25): [("LD1", "LD2")]},
+    }
+    for case in UNFOLD_CASES:
+        child, parent = _unfold_path(case, "child"), _unfold_path(case, "parent")
+        inputs = load_unfold_inputs(child, (2, 2, 2), parent)
+        mapping = find_parent_mapping(child, parent, child_cell=inputs.child_cell,
+                                      parent_cell=inputs.parent_cell)
+        path = make_parent_path(mapping)
+        bands = unfold(inputs.child_phonon, mapping, path.kpoints)
+        irreps = irrep_resolve(bands, mapping, path=path)
+        across = _unfold_levels_across_sets(bands, irreps, lambda ik: irreps.inseparable[ik])
+        basis = irreps.basis
+        old = _unfold_levels_across_sets(
+            bands, irreps,
+            lambda ik: _unfold_old_classes(basis.projector_set(path.kpoints[ik]), basis.child_ops))
+        report(f"{case}: every exactly degenerate child level along the path lies in one set the "
+               f"child symmetry cannot separate ({len(across)} across sets; control: "
+               f"{len(old)} with the sets of the operations fixing k alone)",
+               not across and len(old) > 0, "\n".join(str(x) for x in across[:10]))
+        bad = []
+        for k, sets in expected[case].items():
+            hits = np.flatnonzero(np.abs(path.kpoints - np.array(k)).max(axis=1) < 1e-12)
+            got = [sorted(irreps.inseparable[ik]) for ik in hits]
+            if not len(hits) or any(g != sorted(sets) for g in got):
+                bad.append(f"k = {k}: {got} instead of {sets}")
+        report(f"{case}: the sets at " + ", ".join(str(k) for k in expected[case]) + " ("
+               + "; ".join(" ".join("{" + ", ".join(c) + "}" for c in v) or "none"
+                           for v in expected[case].values()) + ")", not bad, "\n".join(bad))
+        report(f"{case}: no weight in parent irreps forbidden by the child symmetry, every "
+               f"degenerate group checked ({irreps.checks['forbidden_weight']:.1e} over "
+               f"{int(irreps.checks['selection_groups'])} groups), integer multiplicities behind "
+               f"the sets ({irreps.checks['class_multiplicity']:.1e})",
+               irreps.checks["forbidden_weight"] <= 1e-10
+               and irreps.checks["class_multiplicity"] <= 1e-8)
+        if case == "CaTiO3":  # the level of the verifier's example: a two-dimensional Y2 level
+            ik = int(np.flatnonzero(np.abs(path.kpoints - np.array([0.0, 0.25, 0.0])).max(axis=1)
+                                    < 1e-12)[0])
+            g = [grp for grp in _unfold_groups(bands.frequencies[ik])
+                 if abs(float(bands.frequencies[ik, grp].mean()) - 3.8370) < 5e-4]
+            ok = len(g) == 1 and len(g[0]) == 2
+            if ok:
+                w = irreps.weights[ik, g[0]].sum(axis=0)
+                f = {irreps.units[u]: float(w[u] / w.sum()) for u in np.flatnonzero(w > 1e-6)}
+                ok = (sorted(f) == ["DT1", "DT5"] and abs(f["DT5"] - 0.869) < 1e-3
+                      and irreps.group_label[ik, g[0][0]] == "DT5")
+            report("CaTiO3 k = (0, 1/4, 0) -> child Y: the twofold level at 3.837 THz holds DT5 "
+                   "0.869 and DT1 0.131, in one set, labeled DT5", ok)
+
+
+def _test_51_settings() -> None:
+    """Checks 11, 11b, 12: the AlF3 settings, a CaTiO3 setting with the condensed M on the path,
+    invalid --trans-mat values."""
+    with tempfile.TemporaryDirectory() as tmp:
+        alf = os.path.join(tmp, "AlF3")
+        os.makedirs(alf)
+        _unfold_copy_case("AlF3", alf)
+        code_a, out_a = run_phonon(_unfold_command("AlF3", "--npoints", "11",
+                                                   "--export-npz", "a.npz"), cwd=alf)
+        ok_a = code_a == 0 and "Traceback" not in out_a
+        if ok_a:
+            _unfold_check_wrapping("AlF3, the professor's command (--npoints 11)", out_a)
+        report("AlF3 R-3c onto Pm-3m exit 0: crystod-group setting M (rows) -1 -1 0  -1 0 -1  "
+               "0 -1 -1, p = (0, 0, 0)",
+               ok_a and "M (rows)       -1 -1 0  -1 0 -1  0 -1 -1" in out_a
+               and "origin shift   p = (0, 0, 0)" in out_a, out_a)
+        code_b, out_b = run_phonon(_unfold_command("AlF3", "--trans-mat", "1", "1", "0", "0", "1",
+                                                   "1", "1", "0", "1", "--npoints", "11",
+                                                   "--export-npz", "b.npz"), cwd=alf)
+        ok_b = code_b == 0 and "Traceback" not in out_b
+        setting = [line for line in out_b.splitlines() if line.startswith("setting ")]
+        report("AlF3 --trans-mat 1 1 0 0 1 1 1 0 1 exit 0: M (rows) 1 1 0  0 1 1  1 0 1, "
+               "--trans-mat in the setting line",
+               ok_b and "M (rows)       1 1 0  0 1 1  1 0 1" in out_b and bool(setting)
+               and "--trans-mat 1 1 0  0 1 1  1 0 1" in setting[0], out_b)
+        if ok_b:
+            _unfold_check_wrapping("AlF3 --trans-mat 1 1 0  0 1 1  1 0 1 (--npoints 11)", out_b)
+        if ok_a:
+            a = np.load(os.path.join(alf, "a.npz"), allow_pickle=False)
+            _unfold_guard(_unfold_gamma_checks, "AlF3", out_a, {key: a[key] for key in a.files})
+            _unfold_guard(_unfold_davg_checks, "AlF3", {key: a[key] for key in a.files})
+        if ok_a and ok_b:
+            a = np.load(os.path.join(alf, "a.npz"), allow_pickle=False)
+            b = np.load(os.path.join(alf, "b.npz"), allow_pickle=False)
+            fa, fb = a["frequencies"], b["frequencies"]
+            big = np.abs(fa) >= 0.01
+            df = float(np.abs(fa - fb)[big].max())
+            dff = float(np.abs(_unfold_ff(fa) - _unfold_ff(fb)).max())
+            ga = _unfold_group_sums(fa, a["weights_canonical"])
+            gb = _unfold_group_sums(fa, b["weights_canonical"])
+            dg = max(float(np.abs(x - y).max()) for x, y in zip(ga, gb))
+            report(f"the two AlF3 settings (related by a child operation) give the same spectra "
+                   f"at every path k (frequencies {df:.1e} THz, f|f| {dff:.1e} THz^2, group "
+                   f"weights {dg:.1e})",
+                   np.array_equal(a["k_parent"], b["k_parent"]) and df <= 1e-6 and dff <= 1e-6
+                   and dg <= 1e-8)
+
+        cat = os.path.join(tmp, "CaTiO3")
+        os.makedirs(cat)
+        _unfold_copy_case("CaTiO3", cat)
+        code, out = run_phonon(_unfold_command("CaTiO3", "--trans-mat", "1 1 0  0 0 2  1 -1 0",
+                                               "--npoints", "11"), cwd=cat)
+        rows = {}
+        for line in _unfold_block(out, "* Star arms of the path vertices *").splitlines():
+            m = re.match(r"^(\S+)\s+(\(.*?\))\s+(\(.*?\))\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$", line)
+            if m:
+                rows[(m.group(1), m.group(2))] = m.groups()
+        row_m = rows.get(("M", "(1/2, 1/2, 0)"), ())
+        row_x = rows.get(("X", "(0, 0, 1/2)"), ())
+        report("CaTiO3 --trans-mat \"1 1 0  0 0 2  1 -1 0\" exit 0: the condensed M (1/2, 1/2, 0) "
+               "lies on the path, X (0, 0, 1/2) folds onto the child GM",
+               code == 0 and "Traceback" not in out and len(row_m) == 7 and len(row_x) == 7
+               and row_m[4] == "yes" and row_m[5] == "path" and row_x[4] == "yes", out)
+        report("the NOTE names X (0, 0, 1/2) as the condensed arm off the path",
+               "NOTE: the condensed arm X (0, 0, 1/2) is not on the band path" in out, out)
+        if code == 0:
+            _unfold_check_wrapping("CaTiO3 --trans-mat 1 1 0  0 0 2  1 -1 0 (--npoints 11)", out,
+                                   notes=1)
+        for args, expected_code, needle in (
+                (["--trans-mat", "2", "0", "0", "0", "1", "0", "0", "0", "1"], 1,
+                 "is not one of the 24 equivalent settings"),
+                (["--trans-mat", "1", "0", "0", "0", "1", "0", "0", "0"], 2,
+                 "requires nine integers"),
+                (["--trans-mat", "1/2", "0", "0", "0", "2", "0", "0", "0", "1"], 2,
+                 "integer entries")):
+            code, out = run_phonon(_unfold_command("CaTiO3", *args), cwd=cat)
+            report(f"--trans-mat {' '.join(args[1:])} refused (exit {expected_code}: {needle})",
+                   code == expected_code and needle in out and "Traceback" not in out, out)
+
+
+def _test_51_errors() -> None:
+    """Checks 13-17: --nac, missing and shared force files, no parent forces, option guards."""
+    with tempfile.TemporaryDirectory() as tmp:
+        full = os.path.join(tmp, "full")
+        os.makedirs(full)
+        _unfold_copy_case("CaTiO3", full)
+        code, out = run_phonon(_unfold_command("CaTiO3", "--nac"), cwd=full)
+        report("--unfold --nac refused (exit 2)", code == 2 and "--nac is not supported by "
+               "--unfold" in out and "Traceback" not in out, out)
+
+        for part, needle in (("child", "ERROR: FORCE_SETS not found next to "
+                                       "'child/62_PPOSCAR_CaTiO3'"),
+                             ("parent", "ERROR: FORCE_SETS not found next to "
+                                        "'parent/221_PPOSCAR_CaTiO3'")):
+            case_dir = os.path.join(tmp, f"no_{part}_forces")
+            os.makedirs(case_dir)
+            _unfold_copy_case("CaTiO3", case_dir)
+            os.remove(os.path.join(case_dir, part, "FORCE_SETS"))
+            code, out = run_phonon(_unfold_command("CaTiO3"), cwd=case_dir)
+            report(f"missing {part} FORCE_SETS: one-line ERROR (exit 1)",
+                   code == 1 and needle in out and "Traceback" not in out, out)
+
+        both = os.path.join(tmp, "both")
+        os.makedirs(both)
+        for name in ("child/62_PPOSCAR_CaTiO3", "child/FORCE_SETS", "parent/221_PPOSCAR_CaTiO3"):
+            shutil.copy(os.path.join(full, name), both)
+        code, out = run_phonon(["--unfold", "--child-poscar", "62_PPOSCAR_CaTiO3", "--child-dim",
+                                "2", "2", "2", "--parent-poscar", "221_PPOSCAR_CaTiO3",
+                                "--parent-dim", "2", "2", "2"], cwd=both)
+        report("child and parent POSCAR next to one FORCE_SETS with --parent-dim: ERROR (exit 1) "
+               "naming the per-structure files",
+               code == 1 and "would both read" in out and "FORCE_SETS_62_PPOSCAR_CaTiO3 and "
+               "FORCE_SETS_221_PPOSCAR_CaTiO3" in out and "Traceback" not in out, out)
+
+        # 15b. the professor's command literally: POSCAR_child, POSCAR_parent and their force files
+        # under macer's names in one directory, next to a stray FORCE_SETS of the parent (the file
+        # macer's last run leaves), which the child must not read
+        literal = os.path.join(tmp, "literal")
+        os.makedirs(literal)
+        for source, name in (("child/62_PPOSCAR_CaTiO3", "POSCAR_child"),
+                             ("child/FORCE_SETS", "FORCE_SETS_POSCAR_child"),
+                             ("parent/221_PPOSCAR_CaTiO3", "POSCAR_parent"),
+                             ("parent/FORCE_SETS", "FORCE_SETS_POSCAR_parent"),
+                             ("parent/FORCE_SETS", "FORCE_SETS")):
+            shutil.copy(os.path.join(full, source), os.path.join(literal, name))
+        code, out = run_phonon(["--unfold", "--child-poscar", "POSCAR_child", "--child-dim", "2",
+                                "2", "2", "--parent-poscar", "POSCAR_parent", "--parent-dim", "2",
+                                "2", "2"], cwd=literal)
+        report("the professor's command literally, POSCAR_child and POSCAR_parent in one directory "
+               "with FORCE_SETS_POSCAR_child and FORCE_SETS_POSCAR_parent (and a stray FORCE_SETS "
+               "of the parent): exit 0, each structure reads its own force file",
+               code == 0 and "Traceback" not in out
+               and "child forces   FORCE_SETS_POSCAR_child, supercell 2 2 2" in out
+               and "parent forces  FORCE_SETS_POSCAR_parent, supercell 2 2 2" in out
+               and "M (rows)       1 0 1  0 2 0  -1 0 1" in out
+               and os.path.isfile(os.path.join(literal, "phonon_unfold.pdf")), out)
+
+        code, out = run_phonon(_unfold_command("CaTiO3", "--no-irreps", "-o", "nodata",
+                                               "--npoints", "11", parent_dim=False), cwd=full)
+        pdf, dat = os.path.join(full, "nodata.pdf"), os.path.join(full, "nodata.dat")
+        ok = code == 0 and "Traceback" not in out and os.path.isfile(pdf) and os.path.isfile(dat)
+        report("no --parent-dim, --no-irreps, -o nodata: exit 0, nodata.pdf and nodata.dat", ok,
+               out)
+        if ok:
+            rows = _unfold_dat(dat)[0]
+            report("without parent forces and irreps: 1-page PDF, no irreps block, 'parent "
+                   "forces  - (no --parent-dim', every dat label '-'",
+                   _unfold_pdf_pages(pdf) == 1
+                   and "* Unfolded irreps at special points *" not in out
+                   and "parent forces  - (no --parent-dim" in out and len(rows) > 0
+                   and all(r[9] == "-" and float(r[10]) == 0.0 for r in rows), out)
+            _unfold_check_wrapping("no --parent-dim, --no-irreps", out)
+
+        for args, needle in (
+                (["--irreps", "--dim", "2", "2", "2", "-c", "X", "--parent-poscar", "Y"],
+                 "only used with --unfold"),
+                (_unfold_command("CaTiO3", "--qpoint", "R"), "is not used by --unfold"),
+                (["--unfold", "--child-poscar", "child/62_PPOSCAR_CaTiO3", "--child-dim", "2", "2",
+                  "2"], "requires --parent-poscar")):
+            code, out = run_phonon(args, cwd=full)
+            report(f"option guard: {needle} (exit 2)",
+                   code == 2 and needle in out and "Traceback" not in out, out)
+
+        # 29. force data of another supercell, a truncated FORCE_SETS, the tolerance range, the
+        #     same POSCAR as child and parent, -o naming a directory (fix round 3)
+        args = _unfold_command("CaTiO3")
+        for option, given, needle in (
+                ("--child-dim", ["1", "1", "1"],
+                 "ERROR: --child-dim 1 1 1 gives a supercell of 20 atoms, but the child force data "
+                 "'child/FORCE_SETS' are for 160 atoms (8 cells of the POSCAR, e.g. --child-dim "
+                 "2 2 2)."),
+                ("--parent-dim", ["4", "4", "4"],
+                 "ERROR: --parent-dim 4 4 4 gives a supercell of 320 atoms, but the parent force "
+                 "data 'parent/FORCE_SETS' are for 40 atoms (8 cells of the POSCAR, e.g. "
+                 "--parent-dim 2 2 2).")):
+            at = args.index(option) + 1
+            code, out = run_phonon(args[:at] + given + args[at + 3:], cwd=full)
+            report(f"{option} {' '.join(given)} against 2x2x2 force data: the one-line ERROR "
+                   "naming the DIM and the atom counts (exit 1)",
+                   code == 1 and needle in out and "Traceback" not in out, out)
+        cut = os.path.join(tmp, "truncated")
+        os.makedirs(cut)
+        _unfold_copy_case("CaTiO3", cut)
+        with open(os.path.join(cut, "child", "FORCE_SETS")) as handle:
+            lines = handle.read().splitlines()
+        with open(os.path.join(cut, "child", "FORCE_SETS"), "w") as handle:
+            handle.write("\n".join(lines[: len(lines) // 2]) + "\n")
+        code, out = run_phonon(args, cwd=cut)
+        report("a truncated FORCE_SETS: one-line ERROR (exit 1), no recursion message",
+               code == 1 and "the file ends early or is not in phonopy's format" in out
+               and "recursion" not in out and "Traceback" not in out, out)
+        for value in ("0", "-1", "2"):
+            code, out = run_phonon(args + ["--tolerance", value], cwd=full)
+            report(f"--tolerance {value} refused: (0, 0.5] (exit 2)",
+                   code == 2 and "--tolerance must lie in (0, 0.5] for --unfold" in out
+                   and "Traceback" not in out, out)
+        code, out = run_phonon(["--unfold", "--child-poscar", "child/62_PPOSCAR_CaTiO3",
+                                "--child-dim", "2", "2", "2", "--parent-poscar",
+                                "child/62_PPOSCAR_CaTiO3", "--parent-dim", "2", "2", "2"],
+                               cwd=full)
+        report("the same POSCAR as child and parent: ERROR naming the file once and a copy in "
+               "another directory (exit 1)",
+               code == 1 and "are the same file 'child/62_PPOSCAR_CaTiO3'" in out
+               and "--parent-poscar same/62_PPOSCAR_CaTiO3" in out and "Traceback" not in out,
+               out)
+        os.makedirs(os.path.join(full, "sub"))
+        code, out = run_phonon(_unfold_command("CaTiO3", "--no-irreps", "--npoints", "3", "-o",
+                                               "sub/", "--export-npz", "sub/", parent_dim=False),
+                               cwd=full)
+        report("-o sub/ and --export-npz sub/: sub/phonon_unfold.pdf, .dat and .npz, no hidden "
+               "file", code == 0 and sorted(os.listdir(os.path.join(full, "sub")))
+               == ["phonon_unfold.dat", "phonon_unfold.npz", "phonon_unfold.pdf"], out)
+
+        # 31. refused and broken input (fix round 5): --threshold (the cutoff of the soft parent
+        #     levels is fixed), a tolerance far below the round-off of the cells (spglib cannot
+        #     standardize them), force data with a NaN or an infinite force
+        code, out = run_phonon(args + ["--threshold", "-0.5"], cwd=full)
+        report("--threshold refused by --unfold as --nac is (exit 2)",
+               code == 2 and "--threshold is not used by --unfold" in out
+               and "Traceback" not in out, out)
+        code, out = run_phonon(args + ["--tolerance", "1e-16"], cwd=full)
+        report("--tolerance 1e-16: one line, the ERROR naming --tolerance and asking for a larger "
+               "value (exit 1; no spglib message, no traceback)",
+               code == 1 and len(out.strip().splitlines()) == 1
+               and out.startswith("ERROR: spglib failed in the setting search at --tolerance "
+                                  "1e-16") and "give a larger --tolerance" in out, out)
+        for part, token in (("child", "nan"), ("parent", "inf")):
+            bad = os.path.join(tmp, f"{token}_{part}")
+            os.makedirs(bad)
+            _unfold_copy_case("CaTiO3", bad)
+            path = os.path.join(bad, part, "FORCE_SETS")
+            with open(path) as handle:
+                lines = handle.read().splitlines()
+            # type-1 FORCE_SETS: natom, displacements, blank, atom, displacement, then the forces
+            lines[5] = "  " + "  ".join([token] + lines[5].split()[1:])
+            with open(path, "w") as handle:
+                handle.write("\n".join(lines) + "\n")
+            code, out = run_phonon(args, cwd=bad)
+            report(f"a {part} FORCE_SETS with a force '{token}': the one-line ERROR naming "
+                   f"{part}/FORCE_SETS before any block (exit 1)",
+                   code == 1 and out.strip() == (
+                       f"ERROR: the {part} force data '{part}/FORCE_SETS' give force constants "
+                       "with NaN or infinite entries; check the forces in that file."), out)
+
+
+def _unfold_wrapped_lines(out: str) -> list:
+    """The NOTEs and the explanations in parentheses under the tables of an --unfold output, each
+    with its continuation lines: ``[(kind, [lines])]``, kind 'NOTE' (``'  NOTE: '``, continuation
+    indented by 8 spaces) or 'legend' (``'  ('``, continuation indented by 3 spaces)."""
+    lines = out.splitlines()
+    found, i = [], 0
+    while i < len(lines):
+        if lines[i].startswith("  NOTE: "):
+            kind, more = "NOTE", r" {8}\S"
+        elif lines[i].startswith("  ("):
+            kind, more = "legend", r" {3}\S"
+        else:
+            i += 1
+            continue
+        block = [lines[i]]
+        while i + 1 < len(lines) and re.match(more, lines[i + 1]):
+            i += 1
+            block.append(lines[i])
+        found.append((kind, block))
+        i += 1
+    return found
+
+
+def _unfold_check_wrapping(label: str, out: str, notes: int = 0) -> None:
+    """Check 32: no line of an --unfold output is wider than 100 columns (fix round 5: the NOTEs
+    and the explanations in parentheses; fix round 6: every row, list and table as well), with at
+    least ``notes`` NOTEs and one explanation among the lines."""
+    blocks = _unfold_wrapped_lines(out)
+    lines = out.splitlines()
+    long = [line for line in lines if len(line) > 100]
+    n_notes = sum(1 for kind, _block in blocks if kind == "NOTE")
+    report(f"{label}: every one of its {len(lines)} output lines within 100 columns (the longest "
+           f"{max(map(len, lines), default=0)}; {n_notes} NOTEs and {len(blocks) - n_notes} "
+           "explanations in parentheses among them)",
+           bool(lines) and not long and n_notes >= notes and len(blocks) > n_notes,
+           "\n".join(long) or out)
+
+
+def _unfold_row(lines, key: str) -> list:
+    """Check 35: the lines of the row ``key`` of an --unfold block (the key padded to 15 columns,
+    then the continuation lines indented by 15 spaces)."""
+    at = next((i for i, line in enumerate(lines) if line.startswith(f"{key:<15}")), None)
+    if at is None:
+        return []
+    row = [lines[at]]
+    while at + len(row) < len(lines) and lines[at + len(row)].startswith(" " * 15):
+        row.append(lines[at + len(row)])
+    return row
+
+
+def _unfold_weights_legend(out: str) -> str:
+    """Check 36: the explanation under the child GM weights table(s) of an --unfold output, its
+    lines joined by single spaces ('' when there is none)."""
+    return next((" ".join(line.strip() for line in block)
+                 for kind, block in _unfold_wrapped_lines(out)
+                 if kind == "legend" and block[0].startswith("  (columns: weight P_g(k)")), "")
+
+
+def _unfold_table_problems(block: str, first: str, columns) -> tuple:
+    """Check 33: rows of a table of an --unfold block (header line starting with ``first``, the
+    cells starting at the header's ``columns``) whose cells do not start at their column or are
+    not followed by at least two spaces; returns ``(number of rows, problems)``."""
+    lines = block.splitlines()
+    at = next((i for i, line in enumerate(lines) if line.startswith(first)), None)
+    if at is None:
+        return 0, [f"no header line {first!r}"]
+    starts = [0] + [lines[at].find(name) for name in columns]
+    if min(starts[1:]) < 0:
+        return 0, [f"header {lines[at]!r} lacks one of {columns}"]
+    rows, problems = 0, []
+    for line in lines[at + 1:]:
+        if not line.strip() or line.startswith(" "):
+            break
+        rows += 1
+        cells = [line[a:b] for a, b in zip(starts, starts[1:])] + [line[starts[-1]:]]
+        if not all(c[:1].strip() and "  " not in c.strip() for c in cells) or not all(
+                c.endswith("  ") for c in cells[:-1]):
+            problems.append(line)
+    return rows, problems
+
+
+def _test_51_format() -> None:
+    """Checks 32-37 (fix rounds 5-8): NOTEs wrapped to 100 columns in every block and no
+    output line wider than 100 columns, a child whose force constants lack its symmetry, the
+    columns of the path and star-arm tables at irrational k (an R-3c parent), the M lines of a
+    reduced cell, the help texts, no line break inside the parentheses of the cells and labels
+    rows, the explanation under the child GM weights and the Output files line with
+    --no-irreps."""
+    import contextlib
+    import copy
+    import io
+    from types import SimpleNamespace
+
+    import spglib
+    from phonopy.file_IO import write_FORCE_CONSTANTS
+    from phonopy.interface.vasp import write_vasp
+    from phonopy.structure.atoms import PhonopyAtoms
+
+    from crystod import phonon_unfold as unfold_module
+    from crystod.vasp_io import read_poscar_cell
+
+    # 32. the NOTE wrapper on the longest NOTE seen before fix round 5 (158 columns: the weight
+    #     forbidden by the child symmetry), and the setup, path and child GM printers with a NOTE
+    #     of 230 columns appended to the notes of each block
+    text = ("NOTE: weight forbidden by the child symmetry reaches 1.0e+00 (child levels in parent "
+            "irreps that share no irrep of the child operations fixing k with them).")
+    lines = unfold_module._note(text)
+    report(f"the NOTE wrapper: a NOTE of {len(text) + 2} columns in {len(lines)} lines within 100 "
+           "columns, 'NOTE:' once, continuation lines under its text, no word lost",
+           len(lines) == 2 and all(len(line) <= 100 for line in lines)
+           and lines[0].startswith("  NOTE: weight") and lines[1].startswith(" " * 8)
+           and not lines[1].startswith(" " * 9)
+           and " ".join(line.strip() for line in lines) == text, "\n".join(lines))
+    child, parent = _unfold_path("CaTiO3", "child"), _unfold_path("CaTiO3", "parent")
+    with contextlib.redirect_stdout(io.StringIO()):
+        inputs = unfold_module.load_unfold_inputs(child, (2, 2, 2), parent)
+        mapping = unfold_module.find_parent_mapping(child, parent, child_cell=inputs.child_cell,
+                                                    parent_cell=inputs.parent_cell)
+        path = unfold_module.make_parent_path(mapping, npoints=3)
+        gamma = unfold_module.gamma_origin(inputs.child_phonon, mapping, path=path)
+    long_note = "NOTE: " + " ".join(["a long note"] * 20)
+    mapping.notes.append(long_note)
+    path.note = long_note
+    gamma.notes.append(long_note)
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        unfold_module._print_setup(inputs, mapping)
+        unfold_module._print_path(path)
+        unfold_module._print_gamma(gamma, mapping, None, False, unfold_module.WEIGHT_MIN)
+    ours = [block for kind, block in _unfold_wrapped_lines(buffer.getvalue())
+            if kind == "NOTE" and "a long note" in block[0]]
+    report(f"the setup, path and child GM blocks print a NOTE of {len(long_note) + 2} columns "
+           "wrapped to 100 columns, the whole text kept",
+           len(ours) == 3 and all(len(line) <= 100 for block in ours for line in block)
+           and all(" ".join(line.strip() for line in block) == long_note for block in ours),
+           buffer.getvalue())
+
+    # 35. no line break inside a parenthesis that fits the 85 columns after the key (fix round
+    #     7): the parent symbols of the cells row (an 8-atom R-3c parent left 'F)' alone on a
+    #     line before, a 20-atom Pnma parent split as '(Ca Ca Ca Ca' / 'Ti ... O)'); a longer list
+    #     (160 atoms) in whole symbols within 100 columns; '(12 mismatches);' of the labels row
+    for symbols in (["Al"] * 2 + ["F"] * 6, ["Ca"] * 4 + ["Ti"] * 4 + ["O"] * 12,
+                    (["Ca"] * 4 + ["Ti"] * 4 + ["O"] * 12) * 8):
+        model = copy.copy(mapping)
+        model.parent_cell = PhonopyAtoms(symbols=symbols, cell=np.eye(3) * 10.0,
+                                         scaled_positions=np.zeros((len(symbols), 3)))
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            unfold_module._print_setup(inputs, model)
+        row = _unfold_row(buffer.getvalue().splitlines(), "cells")
+        group = "(" + " ".join(symbols) + ")"
+        text = (f"N = {model.N} parent cell{'s' if model.N != 1 else ''} in the child cell; "
+                f"n_child = {len(model.child_cell)}, n_parent = {len(symbols)} atoms {group}")
+        report(f"cells row, a parent of {len(symbols)} atoms (symbols {len(group)} columns): "
+               + ("the parenthesis whole on one line" if len(group) <= 85
+                  else f"whole symbols on {len(row)} lines")
+               + ", every line within 100 columns, no line a lone '(' or ')'",
+               bool(row) and " ".join(line[15:] for line in row) == text
+               and all(len(line) <= 100 for line in row)
+               and not any(line[15:].startswith(")") or line.strip() in ("(", ")") for line in row)
+               and (len(group) > 85 or any(group in line for line in row)),
+               "\n".join(row) or buffer.getvalue())
+    summary = SimpleNamespace(
+        bands=SimpleNamespace(frequencies=np.zeros((1, 3)), weights_canonical=np.ones((1, 3)),
+                              sum_rule_max_deviation=0.0, group_weight=np.ones((1, 3)),
+                              degenerate_group=np.zeros((1, 3), dtype=int)),
+        domain_average=SimpleNamespace(n_arms_unfolded=1, n_domains=1,
+                                       sum_rule_max_deviation=0.0,
+                                       orbit_spectral_max_deviation=(0.0, 0.0)),
+        irreps=SimpleNamespace(
+            checks=dict.fromkeys(("completeness", "idempotency", "hermiticity",
+                                  "per_irrep_sum_rule", "forbidden_weight"), 0.0),
+            parent_labels=None, group_label=np.full((1, 3), "GM1+"),
+            cache={"labeled_directly": 12345, "runs": 1234, "mismatches": 12}),
+        mapping=SimpleNamespace(parent_cell=[None]), weight_min=0.02, timings={"total": 1.0})
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        unfold_module._print_summary(summary, 1)
+    row = _unfold_row(buffer.getvalue().splitlines(), "labels")
+    report("labels row of the summary: '(12 mismatches);' whole on one line where the clause "
+           "before it fills the line (12345 k, 1234 runs), every line within 100 columns",
+           any("(12 mismatches);" in line for line in row)
+           and all(len(line) <= 100 for line in buffer.getvalue().splitlines()),
+           buffer.getvalue())
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # a child whose force constants lack its symmetry (symmetric random noise on the AlF3
+        # force constants, read with --child-readfc as phonopy leaves them): the NOTEs on the
+        # forbidden weight and on the arm classes
+        broken = os.path.join(tmp, "broken")
+        os.makedirs(broken)
+        _unfold_copy_case("AlF3", broken)
+        child_dir = os.path.join(broken, "child")
+        fc = _unfold_full_fc(_unfold_load(os.path.join(child_dir, "167_PPOSCAR_AlF3"), (2, 2, 2),
+                                          os.path.join(child_dir, "FORCE_SETS")))
+        noise = 0.05 * np.random.default_rng(UNFOLD_SEED + 5).normal(size=fc.shape)
+        write_FORCE_CONSTANTS(fc + noise + noise.transpose(1, 0, 3, 2),
+                              filename=os.path.join(child_dir, "FORCE_CONSTANTS"))
+        command = ["--unfold", "--child-poscar", "child/167_PPOSCAR_AlF3", "--child-dim", "2", "2",
+                   "2", "--child-readfc", "--parent-poscar", "parent/221_PPOSCAR_AlF3",
+                   "--npoints", "3"]
+        code, out = run_phonon(command, cwd=broken)
+        report("model: the AlF3 child with force constants that lack its symmetry "
+               "(--child-readfc) exit 0, with the NOTEs on the forbidden weight and the arm "
+               "classes",
+               code == 0 and "Traceback" not in out
+               and "NOTE: weight forbidden by the child symmetry reaches" in out
+               and "NOTE: arms of one class differ by" in out, out)
+        _unfold_check_wrapping("model with force constants that lack the child symmetry", out,
+                               notes=2)
+        fc[0, 1, 0, 0] = np.nan
+        write_FORCE_CONSTANTS(fc, filename=os.path.join(child_dir, "FORCE_CONSTANTS"))
+        code, out = run_phonon(command, cwd=broken)
+        report("a child FORCE_CONSTANTS with a NaN entry: the one-line ERROR naming it (exit 1)",
+               code == 1 and out.strip() == (
+                   "ERROR: the child force data 'child/FORCE_CONSTANTS' give force constants "
+                   "with NaN or infinite entries; check the force constants in that file."), out)
+
+        # 33. the AlF3 child onto its own structure in the 24-atom hexagonal cell: a reduced
+        #     parent (the M line keeps its 15-column key) and a path with irrational k
+        hexagonal = os.path.join(tmp, "hexagonal")
+        os.makedirs(os.path.join(hexagonal, "parent"))
+        shutil.copytree(os.path.join(PHONON_UNFOLD_DIR, "AlF3_R-3c", "child"),
+                        os.path.join(hexagonal, "child"))
+        cell = read_poscar_cell(_unfold_path("AlF3", "child"))
+        lattice, positions, numbers = spglib.standardize_cell(
+            (np.array(cell.cell), np.array(cell.scaled_positions), np.array(cell.numbers)),
+            to_primitive=False, symprec=1e-5)
+        write_vasp(os.path.join(hexagonal, "parent", "POSCAR_hexagonal"),
+                   PhonopyAtoms(numbers=list(numbers), cell=lattice, scaled_positions=positions))
+        code, out = run_phonon(["--unfold", "--child-poscar", "child/167_PPOSCAR_AlF3",
+                                "--child-dim", "2", "2", "2", "--parent-poscar",
+                                "parent/POSCAR_hexagonal", "--npoints", "3", "--no-irreps"],
+                               cwd=hexagonal)
+        setup = _unfold_block(out, "* Unfolding setup *").splitlines()
+        m_line = next((i for i, line in enumerate(setup) if line.startswith("M (rows)")), None)
+        report("AlF3 onto its hexagonal cell (reduced to 8 atoms): exit 0; 'M (rows)' in the "
+               "15-column key field, its explanation and the unfolding cells on the next lines",
+               code == 0 and "Traceback" not in out and len(numbers) == 24 and m_line is not None
+               and m_line + 2 < len(setup) and setup[m_line].startswith("M (rows)       ")
+               and not any(line.startswith("M (rows,") for line in setup)
+               and setup[m_line + 1] == " " * 15 + "(A_child = M A_parent, k_child = M "
+               "k_parent; the form --trans-mat takes)"
+               and setup[m_line + 2] == " " * 15 + "(of the unfolding cells: the parent "
+               "primitive cell -> the child cell)", out)
+        n_path, bad_path = _unfold_table_problems(
+            _unfold_block(out, "* Unfolding path *"), "vertex",
+            ("k (parent)", "K = M k (child)", "child point"))
+        n_arms, bad_arms = _unfold_table_problems(
+            _unfold_block(out, "* Star arms of the path vertices *"), "star",
+            ("arm k (parent)", "K = M k mod 1", "child point", "to child GM", "path", "class"))
+        irrational = re.search(r"\(-?0\.\d{4},", out) is not None
+        report(f"irrational k of an R-3c parent: the {n_path} path rows and {n_arms} star-arm rows "
+               "keep every cell in its column and two spaces before the next",
+               irrational and n_path >= 10 and n_arms >= 20 and not bad_path and not bad_arms,
+               "\n".join(bad_path + bad_arms) or out)
+        _unfold_check_wrapping("AlF3 onto its hexagonal cell", out)
+        cells = _unfold_row(setup, "cells")
+        report("AlF3 onto its hexagonal cell: the 8 parent symbols '(Al Al F F F F F F)' whole on "
+               "one line of the cells row (check 35)",
+               any("(Al Al F F F F F F)" in line for line in cells), "\n".join(cells) or out)
+        # 36. --no-irreps: the weights cells hold the weights alone, and the explanation under
+        #     them names no label and no '-' (fix round 7)
+        report("--no-irreps: the explanation under the child GM weights names no label and no "
+               "'-' (the cells hold the weights alone)",
+               _unfold_weights_legend(out) == "(columns: weight P_g(k) of the child level at each "
+               "folding k; the weights of a level add up to its number of modes)"
+               and "its label there" not in out, _unfold_block(out, "* Child GM mode origin *"))
+        # 37. --no-irreps: the Output files line names the weights alone, as the .dat header
+        #     says 'no labels (--no-irreps)' (fix round 8)
+        files_block = _unfold_block(out, "* Output files *")
+        with open(os.path.join(hexagonal, "phonon_unfold.dat")) as handle:
+            header = "".join(line for line in handle if line.startswith("#"))
+        report("--no-irreps: * Output files * says '  Weights written to: phonon_unfold.dat', "
+               "never 'Weights and labels', as the .dat header says 'no labels (--no-irreps)'",
+               "  Weights written to: phonon_unfold.dat" in files_block.splitlines()
+               and "Weights and labels" not in out and "no labels (--no-irreps)" in header,
+               files_block or out)
+
+    # 34. the help texts: the crystod epilog lists --unfold, --weight-min states its rule
+    code, out = run_cli(["--help"])
+    report("crystod --help lists --unfold among the modes of crystod-phonon",
+           code == 0 and "--vibration/--subgroup/--unfold/--visualize)" in out, out)
+    code, out = run_phonon(["--help"])
+    start = out.find("  --weight-min W")
+    text = out[start:out.find("\n  -", start + 1)] if start >= 0 else ""
+    report("crystod-phonon --help: --weight-min per mode on page 1 and per degenerate group on "
+           "page 2, in the labels and the tables (lines within 100 columns); no 'labelled'",
+           code == 0 and "Page 1 draws every child mode" in text
+           and "of each degenerate group" in text
+           and all(len(line) <= 100 for line in text.splitlines()) and "labelled" not in out,
+           text or out)
+
+
+def _test_51_ties() -> None:
+    """Check 30: exact ties of the label rule are decided by the natural order of the irreps after
+    rounding the shares to 1e-9, never by round-off (fix round 3)."""
+    from types import SimpleNamespace
+
+    from crystod.phonon_unfold_irreps import _group_labels
+
+    units = ["M1+", "M2+", "M3+", "M4+"]
+    pset = SimpleNamespace(units=units, unit_members=[(0,), (1,), (2,), (3,)],
+                           present_names=units)
+    got = {}
+    for eps in (1e-12, -1e-12):
+        # two irreps with 50 % each
+        w = np.array([[0.5 - eps, 0.5 + eps, 0.0, 0.0]])
+        single = _group_labels(pset, [], w, np.array([1.0]), np.array([1.0]), 0.02, 1e-4)[0][0]
+        # two sets of two irreps with 50 % each, no irrep with 50 %
+        w = np.array([[0.3, 0.2 + eps, 0.3, 0.2 - eps]])
+        sets = _group_labels(pset, [(0, 1), (2, 3)], w, np.array([1.0]), np.array([1.0]),
+                             0.02, 1e-4)[0][0]
+        got[eps] = (single, sets)
+    report(f"label ties: 50/50 between two irreps -> {got[1e-12][0]} for both signs of a 1e-12 "
+           f"round-off, between two sets -> {got[1e-12][1]} (natural order)",
+           got[1e-12] == got[-1e-12] == ("M1+", "M1+/M2+"), str(got))
+
+def _test_51_regression() -> None:
+    """Check 19: groups at R and M equal the numbers of the demo engine (stored constants)."""
+    from crystod.phonon_unfold import find_parent_mapping, load_unfold_inputs, unfold
+
+    for case in UNFOLD_CASES:
+        child, parent = _unfold_path(case, "child"), _unfold_path(case, "parent")
+        inputs = load_unfold_inputs(child, (2, 2, 2), parent)
+        mapping = find_parent_mapping(child, parent, child_cell=inputs.child_cell,
+                                      parent_cell=inputs.parent_cell)
+        names = ("R", "M")
+        bands = unfold(inputs.child_phonon, mapping,
+                       np.array([UNFOLD_REGRESSION_K[name] for name in names]))
+        for ik, name in enumerate(names):
+            got = []
+            for g in _unfold_groups(bands.frequencies[ik]):
+                Pg = float(bands.weights_canonical[ik, g].sum())
+                if Pg >= 0.5:
+                    got.append((float(bands.frequencies[ik, g].mean()), Pg, len(g)))
+            want = UNFOLD_REGRESSION[case][name]
+            same = len(got) == len(want) and all(a[2] == b[2] for a, b in zip(got, want))
+            df = max((abs(a[0] - b[0]) for a, b in zip(got, want)), default=np.inf)
+            dp = max((abs(a[1] - b[1]) for a, b in zip(got, want)), default=np.inf)
+            report(f"{case} at {name} {UNFOLD_REGRESSION_K[name]}: the {len(want)} groups with "
+                   f"P_g >= 0.5 equal the demo engine (frequencies {df:.1e} THz, P_g {dp:.1e})",
+                   same and df <= 1e-4 and dp <= 1e-6, f"got {got}\nwant {want}")
+
+
+def _test_51_namespace() -> None:
+    """Check 20: the curated API (crystod.phonon) of --unfold."""
+    names = ("load_unfold_inputs", "find_parent_mapping", "parent_mapping_from_setting",
+             "make_parent_path", "unfold", "star_arms", "domain_average", "irrep_resolve",
+             "gamma_origin", "UnfoldInputs", "ParentMapping", "ParentPath", "UnfoldedBands",
+             "DomainAverage", "UnfoldedIrreps", "GammaOrigin")
+    probe = (
+        "import sys\n"
+        "import crystod.phonon as phonon\n"
+        "heavy = [m for m in ('phonopy', 'spgrep', 'pymatgen', 'matplotlib', 'requests')\n"
+        "         if m in sys.modules]\n"
+        "print('HEAVY:' + ','.join(heavy))\n"
+        f"names = {names!r}\n"
+        "print('UNLISTED:' + ','.join(n for n in names if n not in phonon.__all__))\n"
+        "print('UNRESOLVED:' + ','.join(n for n in names if getattr(phonon, n, None) is None))\n"
+        "try:\n"
+        "    phonon.find_parent_mapping('missing', 'missing')\n"
+        "    print('NOERROR')\n"
+        "except ValueError as exc:\n"
+        "    print('VALUEERROR:' + str(exc))\n"
+        "except SystemExit as exc:\n"
+        "    print('SYSTEMEXIT:' + str(exc))\n"
+        "try:\n"  # spglib fails at a tolerance far below the round-off of the cells
+        f"    phonon.find_parent_mapping({_unfold_path('CaTiO3', 'child')!r},\n"
+        f"                               {_unfold_path('CaTiO3', 'parent')!r}, tolerance=1e-16)\n"
+        "    print('TOLERANCE-ACCEPTED')\n"
+        "except ValueError as exc:\n"
+        "    print('TOLERANCE:' + str(exc))\n"
+        "except BaseException as exc:\n"
+        "    print('OTHER:' + type(exc).__name__)\n"
+    )
+    code, out = run_python(probe)
+    report("import crystod.phonon pulls in no phonopy/spgrep/pymatgen/matplotlib/requests",
+           code == 0 and "HEAVY:\n" in out, out)
+    report(f"crystod.phonon lists and resolves the {len(names)} names of --unfold",
+           "UNLISTED:\n" in out and "UNRESOLVED:\n" in out, out)
+    report("phonon.find_parent_mapping('missing', 'missing') raises ValueError (not SystemExit)",
+           "VALUEERROR:" in out and "SYSTEMEXIT:" not in out and "NOERROR" not in out, out)
+    report("phonon.find_parent_mapping(..., tolerance=1e-16) raises a one-line ValueError naming "
+           "--tolerance, without spglib's messages (fix round 5)",
+           "TOLERANCE:spglib failed in the setting search at --tolerance 1e-16" in out
+           and "OTHER:" not in out and "TOLERANCE-ACCEPTED" not in out and "spglib:" not in out,
+           out)
+
+
+def _unfold_demo_case(case: str, child_dir: str, parent_dir: str, trans_mat, demo: str,
+                      holder: dict) -> None:
+    """Checks 21-22 on the demo data: the API run equals the demo's npz files (the parent
+    phonopy object goes into ``holder['parent']`` for check 23)."""
+    from crystod.phonon_unfold import (domain_average, find_parent_mapping, irrep_resolve,
+                                       load_unfold_inputs, make_parent_path, unfold)
+
+    child = os.path.join(UNFOLD_DEMO_DIR, child_dir, "phonon_band_mace", "POSCAR")
+    parent = os.path.join(UNFOLD_DEMO_DIR, parent_dir, "phonon_band_mace_4x4x4", "POSCAR")
+    inputs = load_unfold_inputs(child, (2, 2, 2), parent, (4, 4, 4), child_readfc=True,
+                                parent_readfc=True)
+    holder["parent"] = inputs.parent_phonon
+    mapping = find_parent_mapping(child, parent, child_cell=inputs.child_cell,
+                                  parent_cell=inputs.parent_cell, trans_mat=trans_mat)
+    path = make_parent_path(mapping, band="0 0 0  0 1/2 0  1/2 1/2 0  0 0 0  1/2 1/2 1/2  "
+                                          "0 1/2 0, 1/2 1/2 0  1/2 1/2 1/2",
+                            band_labels="GM X M GM R X M R", npoints=51)
+    bands = unfold(inputs.child_phonon, mapping, path.kpoints)
+    davg = domain_average(inputs.child_phonon, mapping, path.kpoints)
+    f_par, _ = _unfold_qpoints(inputs.parent_phonon, path.kpoints)
+    ref = np.load(os.path.join(UNFOLD_DEMO_DIR, "unfold_demo", f"unfold_{demo}.npz"),
+                  allow_pickle=False)
+    same_shape = (path.kpoints.shape == ref["k_parent"].shape
+                  and bands.frequencies.shape == ref["freqs"].shape)
+    if not same_shape:
+        report(f"demo {case}: the demo path and band count", False,
+               f"{path.kpoints.shape} {ref['k_parent'].shape}")
+        return
+    dk = float(np.abs(path.kpoints - ref["k_parent"]).max())
+    df = float(np.abs(bands.frequencies - ref["freqs"]).max())
+    dw = float(np.abs(bands.weights_canonical - ref["weights_canonical"]).max())
+    dp = float(np.abs(f_par - ref["parent_freqs"]).max())
+    report(f"demo {case} (FORCE_CONSTANTS, 4x4x4 parent): k path {dk:.1e}, frequencies {df:.1e} "
+           f"THz, canonical weights {dw:.1e}, parent frequencies {dp:.1e} THz = demo npz",
+           dk <= 1e-12 and df <= 1e-8 and dw <= 1e-8 and dp <= 1e-8)
+    n_k, n3 = len(path.kpoints), 3 * len(mapping.parent_cell)
+    ours = np.bincount(davg.path_index, weights=davg.weights.sum(axis=1), minlength=n_k)
+    theirs = np.bincount(ref["davg_path_index"], weights=ref["davg_weights"].sum(axis=1),
+                         minlength=n_k)
+    rows = (np.array_equal(davg.path_index, ref["davg_path_index"])
+            and np.array_equal(davg.multiplicity, ref["davg_multiplicity"]))
+    dd = float(np.abs(davg.weights - ref["davg_weights"]).max()) if rows else np.inf
+    s_ours, s_theirs = float(np.abs(ours - n3).max()), float(np.abs(theirs - n3).max())
+    report(f"demo {case}: domain average = demo ({len(davg.path_index)} class rows, n_arms "
+           f"equal, sum rule {s_ours:.1e} (demo {s_theirs:.1e}), weights {dd:.1e})",
+           np.array_equal(davg.n_arms, ref["davg_n_arms"]) and rows and dd <= 1e-8
+           and s_ours <= 1e-8 and s_theirs <= 1e-8)
+
+    irreps = irrep_resolve(bands, mapping, path=path, parent_phonon=inputs.parent_phonon)
+    ref_i = np.load(os.path.join(UNFOLD_DEMO_DIR, "unfold_demo", f"irrep_{demo}.npz"),
+                    allow_pickle=False)
+    names, code, dominant = ref_i["names"], ref_i["label_code"], ref_i["dominant"]
+    counts = {"one irrep": 0, "mixed -> set": 0, "mixed -> mixed": 0, "-": 0}
+    problems = []
+    for ik in range(n_k):
+        for J in range(bands.frequencies.shape[1]):
+            label, members = str(irreps.group_label[ik, J]), irreps.group_members[ik][J]
+            c = int(code[ik, J])
+            if c >= 0:
+                good, kind = label == str(names[c]), "one irrep"
+            elif c == -1:
+                if label == "mixed":
+                    good, kind = True, "mixed -> mixed"
+                else:
+                    good, kind = str(names[dominant[ik, J]]) in members, "mixed -> set"
+            else:
+                good, kind = label == "-", "-"
+            counts[kind] += 1
+            if not good:
+                problems.append(f"k {ik} mode {J + 1}: demo code {c} "
+                                f"({names[c] if c >= 0 else names[dominant[ik, J]]}), ours {label}")
+    parent_same = np.array_equal(irreps.parent_labels, names[ref_i["parent_code"]])
+    report(f"demo {case}: labels = demo where it has one irrep ({counts['one irrep']}), demo "
+           f"'mixed' -> a set holding its dominant irrep ({counts['mixed -> set']}) or mixed "
+           f"({counts['mixed -> mixed']}), '-' ({counts['-']}); parent labels equal",
+           not problems and parent_same, "\n".join(problems[:15]))
+
+
+def _test_51_demo() -> None:
+    """Checks 21-23: only with the demo data of example/test_unfold (untracked, read only)."""
+    demo = os.path.join(UNFOLD_DEMO_DIR, "unfold_demo")
+    cases = (("CaTiO3", "CaTiO3_Pbnm", "CaTiO3_Pm-3m", None, "CaTiO3_Pnma_to_Pm-3m"),
+             ("AlF3", "AlF3_R-3c", "AlF3_Pm-3m", [1, 1, 0, 0, 1, 1, 1, 0, 1],
+              "AlF3_R-3c_to_Pm-3m"))
+    needed = []
+    for _case, child_dir, parent_dir, _t, name in cases:
+        needed += [os.path.join(demo, f"unfold_{name}.npz"),
+                   os.path.join(demo, f"irrep_{name}.npz"),
+                   os.path.join(UNFOLD_DEMO_DIR, child_dir, "phonon_band_mace", "FORCE_CONSTANTS"),
+                   os.path.join(UNFOLD_DEMO_DIR, parent_dir, "phonon_band_mace_4x4x4",
+                                "FORCE_CONSTANTS")]
+    if not all(os.path.isfile(path) for path in needed):
+        print("  [SKIP] checks against the demo (example/test_unfold with its unfold_demo/ "
+              "results not present)")
+        return
+    rng = np.random.default_rng(UNFOLD_SEED + 1)
+    for case, child_dir, parent_dir, trans_mat, name in cases:
+        holder = {}
+        _unfold_guard(_unfold_demo_case, case, child_dir, parent_dir, trans_mat, name, holder)
+        if holder.get("parent") is None:  # the load failed; the guard has reported it
+            continue
+        for M, text in ((np.diag([1, 1, 4]), "diag(1,1,4)"),
+                        (np.array([[2, 1, 0], [0, 2, 0], [0, 0, 1]]), "2 1 0  0 2 0  0 0 1")):
+            _unfold_guard(_unfold_identity, f"({case} 4x4x4 parent, M = {text})",
+                          holder["parent"], M, rng)
+
+
+def test_51_phonon_unfold() -> None:
+    print("\n[51] crystod-phonon --unfold (CaTiO3 Pnma and AlF3 R-3c onto Pm-3m, 2x2x2 FORCE_SETS)")
+    fixtures = []
+    for directory, child, parent in UNFOLD_CASES.values():
+        for poscar in (child, parent):
+            fixtures.append(os.path.join(PHONON_UNFOLD_DIR, directory, poscar))
+            fixtures.append(os.path.join(PHONON_UNFOLD_DIR, directory, os.path.dirname(poscar),
+                                         "FORCE_SETS"))
+    missing = [path for path in fixtures if not os.path.isfile(path)]
+    if missing:
+        report("example data found", False, PHONON_UNFOLD_DIR + "\n" + "\n".join(missing))
+        return
+    for part in (_test_51_cli, _test_51_ideal, _test_51_self, _test_51_classes, _test_51_settings,
+                 _test_51_errors, _test_51_format, _test_51_ties, _test_51_regression,
+                 _test_51_namespace, _test_51_demo):
+        _unfold_guard(part)
+
+
+# ---------------------------------------------------------------- 52. --visualize
+
+
+def _visualize_data(html_path: str) -> dict:
+    """The ``var DATA`` payload of a phonon mode viewer page."""
+    text = open(html_path, encoding="utf-8").read()
+    match = re.search(r"var DATA = (\{.*?\});\n", text)
+    return json.loads(match.group(1)) if match else {}
+
+
+def _visualize_blocks(out: str) -> list[str]:
+    """The q points of the ``* Phonon modes at q = NAME (...) *`` blocks, in order."""
+    return re.findall(r"^\* Phonon modes at q = (\S+) \(", out, flags=re.M)
+
+
+def _visualize_case(source: str, files: tuple, tmp: str, args: list[str]) -> tuple[int, str]:
+    for name in files:
+        shutil.copy(os.path.join(source, name), tmp)
+    return run_phonon(["--visualize", "--dim", "4 4 4"] + args, cwd=tmp)
+
+
+def _test_52_scf3() -> None:
+    import yaml
+
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = _visualize_case(PHONON_VISUALIZE_DIR, ("221_PPOSCAR_ScF3", "FORCE_SETS"),
+                                    tmp, ["-c", "221_PPOSCAR_ScF3"])
+        html = os.path.join(tmp, "phonon_visualize.html")
+        band_yaml = os.path.join(tmp, "band_vector.yaml")
+        report("ScF3: exit 0, both files named in '* Output files *'",
+               code == 0 and "Phonon band structure with eigenvectors written to: "
+               "band_vector.yaml" in out and "Phonon mode viewer written to: "
+               "phonon_visualize.html" in out and os.path.isfile(html)
+               and os.path.isfile(band_yaml), out)
+        report("ScF3: one modes block per special point, in path order GM, X, M, R",
+               _visualize_blocks(out) == ["GM", "X", "M", "R"], out)
+        report("ScF3: the GM table has the Mulliken and Activity columns (T1u acoustic, "
+               "T2u silent, T1u IR)",
+               "Band  Freq (THz)  Irrep    Comp.  Mulliken  Activity" in out
+               and re.search(r"^\s+1\s+0\.0000\s+GM4-\(3\)\s+1\s+T1u\s+acoustic$", out, re.M)
+               and re.search(r"^\s+4\s+4\.2122\s+GM5-\(3\)\s+1\s+T2u\s+silent$", out, re.M)
+               and re.search(r"^\s+7\s+6\.2446\s+GM4-\(3\)\s+1\s+T1u\s+IR$", out, re.M), out)
+        match = re.search(r"k path \(seekpath\): (.+?)  \((\d+) q points\)", out)
+        n_printed = int(match.group(2)) if match else -1
+        if not os.path.isfile(band_yaml):
+            return
+        data = yaml.safe_load(open(band_yaml))
+        natom = data.get("natom")
+        report(f"band_vector.yaml: nqpoint {data.get('nqpoint')} == the {n_printed} q points "
+               "of '* Band path *', one entry per q point",
+               data.get("nqpoint") == n_printed == len(data.get("phonon", [])) == 306,
+               str({k: data.get(k) for k in ("nqpoint", "npath", "natom")}))
+        complete = all(
+            len(point["band"]) == 3 * natom
+            and all(len(band["eigenvector"]) == natom
+                    and all(len(atom) == 3 and all(len(c) == 2 for c in atom)
+                            for atom in band["eigenvector"])
+                    for band in point["band"])
+            for point in data["phonon"])
+        report(f"band_vector.yaml: every band carries an eigenvector of {natom} x 3 "
+               "[re, im] entries", complete)
+        report("band_vector.yaml: ISO-IR vertex labels per leg (phonopy 'labels')",
+               data.get("labels") == [["GM", "X"], ["X", "M"], ["M", "GM"], ["GM", "R"],
+                                      ["R", "X"], ["R", "M"]], str(data.get("labels")))
+        first = data["phonon"][0]["band"]
+        vectors = np.array([[c[0] + 1j * c[1] for atom in band["eigenvector"] for c in atom]
+                            for band in first])
+        report("band_vector.yaml: the eigenvectors at GM are orthonormal",
+               np.allclose(vectors @ vectors.conj().T, np.eye(3 * natom), atol=1e-8))
+
+        page = _visualize_data(html)
+        text = open(html, encoding="utf-8").read()
+        names = [point.get("name") for point in page.get("points", [])]
+        labels = {mode["irrep"] for point in page.get("points", []) for mode in point["modes"]}
+        gamma = page["points"][0]["modes"] if page.get("points") else []
+        report("page: the q buttons GM (0, 0, 0), X (0, 1/2, 0), M (1/2, 1/2, 0), "
+               "R (1/2, 1/2, 1/2)",
+               names == ["GM", "X", "M", "R"]
+               and [p["qText"] for p in page["points"]]
+               == ["(0, 0, 0)", "(0, 1/2, 0)", "(1/2, 1/2, 0)", "(1/2, 1/2, 1/2)"], str(names))
+        report("page: the set labels of phonon_irreps.yaml (GM4-(3), GM5-(3), X3-, R4+(3)) "
+               "and at GM the Mulliken symbols and activities",
+               {"GM4-(3)", "GM5-(3)", "X3-", "R4+(3)"} <= labels
+               and {(m.get("mulliken"), m.get("activity")) for m in gamma}
+               == {("T1u", "acoustic"), ("T2u", "silent"), ("T1u", "IR")}, str(sorted(labels)))
+        yaml_r = [entry for entry in data["phonon"]
+                  if np.allclose(entry["q-position"], [0.5, 0.5, 0.5])]
+        page_r = [m["freq"] for m in page["points"][3]["modes"]] if len(names) == 4 else []
+        report("page and band_vector.yaml agree on the R frequencies (1e-4 THz)",
+               bool(yaml_r) and np.allclose([b["frequency"] for b in yaml_r[0]["band"]],
+                                            page_r, atol=1e-4), str(page_r))
+        report("page: every labeled point sits on a tick of the dispersion",
+               all(any(abs(p["x"] - t) < 1e-4 for t in page["band"]["ticks"])
+                   for p in page.get("points", [])), str(page.get("band", {}).get("ticks")))
+        externals = re.findall(r"""(?:src|href)=["'](https?://[^"']+)""", text)
+        report("page: standalone (plotly 2.32.0 from its CDN the only external resource), "
+               f"{len(text) // 1000} kB",
+               [u for u in externals if "plot.ly" not in u and "doi.org" not in u
+                and "henriquemiranda" not in u] == []
+               and "https://cdn.plot.ly/plotly-2.32.0.min.js" in externals
+               and len(text) < 300_000, str(externals))
+
+        # -o renames the page only; band_vector.yaml keeps its name
+        os.remove(html)
+        os.remove(band_yaml)
+        code, out = run_phonon(["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3",
+                                "-o", "my.html"], cwd=tmp)
+        report("-o my.html renames the page only (band_vector.yaml keeps its name)",
+               code == 0 and os.path.isfile(os.path.join(tmp, "my.html"))
+               and not os.path.isfile(html) and os.path.isfile(band_yaml)
+               and "Phonon mode viewer written to: my.html" in out, out)
+
+        code, out = run_phonon(["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3",
+                                "--qpoint", "R", "-o", "R.html"], cwd=tmp)
+        page = _visualize_data(os.path.join(tmp, "R.html")) if code == 0 else {}
+        report("--qpoint R: one modes block, a page with R only (at its dispersion vertex)",
+               code == 0 and _visualize_blocks(out) == ["R"]
+               and [p["name"] for p in page.get("points", [])] == ["R"]
+               and page["points"][0]["x"] is not None, out)
+
+        code, out = run_phonon(["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3",
+                                "--bond", "Sc", "F", "2.3", "-o", "bond.html"], cwd=tmp)
+        bond_html = os.path.join(tmp, "bond.html")
+        page = _visualize_data(bond_html) if code == 0 else {}
+        faces = [len(poly["faces"]) for point in page.get("points", [])
+                 for poly in point["polyhedra"]]
+        bonds = [len(bond["pairs"]) for point in page.get("points", [])
+                 for bond in point["bonds"]]
+        report("--bond Sc F 2.3: Sc-F bonds and ScF6 octahedra (8 faces each) at every "
+               "point, the Bonds row and the show-bonds/show-polyhedra controls",
+               code == 0 and len(faces) == 4 and all(f > 0 and f % 8 == 0 for f in faces)
+               and all(bonds) and "Sc&ndash;F &le; 2.3 &Aring;" in open(bond_html).read()
+               and 'id="show-poly"' in open(bond_html).read(), f"{faces} {bonds}\n{out}")
+
+        code, out = run_phonon(["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3",
+                                "--band", "0 0 0  1/2 0 0", "--band-labels", "GM X",
+                                "-o", "band.html"], cwd=tmp)
+        data = yaml.safe_load(open(band_yaml)) if code == 0 else {}
+        report("--band '0 0 0  1/2 0 0' --band-labels 'GM X': the two-point path in the "
+               "terminal, on the page and in band_vector.yaml",
+               code == 0 and "k path (--band): GM-X  (51 q points)" in out
+               and _visualize_blocks(out) == ["GM", "X"]
+               and data.get("nqpoint") == 51 and data.get("labels") == [["GM", "X"]], out)
+
+        code, out = run_phonon(["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3",
+                                "--qpoint", "0.3", "0.1", "0.2", "-o", "gp.html"], cwd=tmp)
+        report("a general q (3/10, 1/10, 1/5): no dispersion marker, and the NOTE on its "
+               "large display cell (10 x 10 x 5 cells, 2651 atoms)",
+               code == 0 and "q point is not a labeled vertex of the path" in out
+               and "the display cell of q = (3/10, 1/10, 1/5) holds 2651 atoms; the page "
+               "may be slow" in out, out)
+
+
+def _test_52_srtio3() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = _visualize_case(PHONON_IRREP_DIR, ("221_PPOSCAR_SrTiO3", "FORCE_SETS"),
+                                    tmp, ["-c", "221_PPOSCAR_SrTiO3"])
+        html = os.path.join(tmp, "phonon_visualize.html")
+        page = _visualize_data(html) if code == 0 else {}
+        r_point = [p for p in page.get("points", []) if p["name"] == "R"]
+        imaginary = [m for m in (r_point[0]["modes"] if r_point else [])
+                     if m["freq"] < page.get("threshold", 0)]
+        report("SrTiO3: the imaginary R5-(3) triplet at -1.0867 THz (terminal and page)",
+               code == 0 and re.search(r"^\s+1\s+-1\.0867\s+R5-\(3\)\s+1$", out, re.M)
+               and [(m["band"], m["irrep"], m["freq"]) for m in imaginary]
+               == [(1, "R5-(3)", -1.0867), (2, "R5-(3)", -1.0867), (3, "R5-(3)", -1.0867)],
+               out)
+        text = open(html, encoding="utf-8").read() if code == 0 else ""
+        report("SrTiO3: imaginary rows get the red class (threshold -0.1 THz, "
+               "tr.mode-row.imaginary in #e34948)",
+               page.get("threshold") == -0.1
+               and "tr.mode-row.imaginary td { color: #e34948; }" in text
+               and "(isImaginary(mode.freq) ? ' imaginary' : '')" in text)
+
+
+def _test_52_reconstruction() -> None:
+    script = (
+        "import phonopy\n"
+        "from crystod import phonon\n"
+        "from crystod.phonon_visualize import _check_reconstruction\n"
+        "from crystod.vasp_io import read_poscar_cell\n"
+        "ph = phonopy.load(supercell_matrix=[4, 4, 4], primitive_matrix='auto',\n"
+        "                  unitcell=read_poscar_cell({poscar!r}), {force}={force_file!r},\n"
+        "                  is_nac=False)\n"
+        "data = phonon.phonon_viewer_data(ph, conventional={conventional}{bonds})\n"
+        "worst, count = _check_reconstruction(ph, data)\n"
+        "print('POINTS', ' '.join(p.name for p in data.points))\n"
+        "print('WORST', worst, 'MODES', count)\n"
+    )
+    cases = (
+        ("ScF3 (primitive display cells)", PHONON_VISUALIZE_DIR, "221_PPOSCAR_ScF3",
+         "force_sets_filename", "FORCE_SETS", False, "", 48),
+        ("Si --conventional --bond Si Si 2.5 (FORCE_CONSTANTS)", PHONON_VECTOR_DIR,
+         "227_PPOSCAR_Si", "force_constants_filename", "FORCE_CONSTANTS", True,
+         ", bonds=[('Si', 'Si', 2.5)]", 30),
+    )
+    for title, directory, poscar, force, force_file, conventional, bonds, expected in cases:
+        code, out = run_python(script.format(
+            poscar=os.path.join(directory, poscar), force=force,
+            force_file=os.path.join(directory, force_file), conventional=conventional,
+            bonds=bonds))
+        match = re.search(r"WORST (\S+) MODES (\d+)", out)
+        report(f"reconstruction, {title}: the page's Re[u_a exp(2 pi i q.T)] equals "
+               "phonopy's modulation atom by atom (relative < 1e-6, every mode and q)",
+               code == 0 and match is not None and float(match.group(1)) < 1e-6
+               and int(match.group(2)) == expected, out)
+
+
+def _test_52_options() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = _visualize_case(PHONON_VECTOR_DIR, ("227_PPOSCAR_Si", "FORCE_CONSTANTS"),
+                                    tmp, ["-c", "227_PPOSCAR_Si", "--readfc", "--qpoint", "GM"])
+        report("--readfc (Si FORCE_CONSTANTS): GM5+(3) T2g Raman at 14.9571 THz",
+               code == 0 and "Supercell: 4 x 4 x 4 (FORCE_CONSTANTS)" in out
+               and re.search(r"^\s+4\s+14\.9571\s+GM5\+\(3\)\s+1\s+T2g\s+Raman$", out, re.M),
+               out)
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = _visualize_case(PHONON_FATBAND_DIR,
+                                    ("221_PPOSCAR_ScF3", "FORCE_SETS", "BORN"), tmp,
+                                    ["-c", "221_PPOSCAR_ScF3", "--nac", "--qpoint", "GM"])
+        page = _visualize_data(os.path.join(tmp, "phonon_visualize.html")) if code == 0 else {}
+        report("--nac (BORN of example/30): the NAC line, the TO note, NAC yes on the page",
+               code == 0 and "NAC: Born effective charges and dielectric tensor read from "
+               "BORN." in out and "the labels and patterns are those of the TO modes" in out
+               and "<td>NAC</td><td>yes</td>" in open(
+                   os.path.join(tmp, "phonon_visualize.html")).read()
+               and [p["name"] for p in page.get("points", [])] == ["GM"], out)
+    with tempfile.TemporaryDirectory() as tmp:
+        for name in ("221_PPOSCAR_ScF3", "FORCE_SETS"):
+            shutil.copy(os.path.join(PHONON_VISUALIZE_DIR, name), tmp)
+        for args, expected in (
+            (["--visualize", "-c", "221_PPOSCAR_ScF3"], "--visualize requires --dim."),
+            (["--irreps", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3", "--bond", "Sc", "F", "2.3"],
+             "--bond is only available with --visualize."),
+            (["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3", "--qpoint", "Q"],
+             "ERROR: Unknown q-point label 'Q'. Available labels: GM, R, X, M"),
+            (["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3", "--amplitude", "0.3"],
+             "--amplitude is not used by --visualize."),
+            (["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3", "--bond", "Sc", "F",
+              "x"], "--bond expects a numeric maximum length in Angstroms, got 'x'."),
+        ):
+            code, out = run_phonon(args, cwd=tmp)
+            shown = " ".join(arg for arg in args if arg not in ("-c", "221_PPOSCAR_ScF3"))
+            report(f"error: {shown} -> {expected}",
+                   code != 0 and expected in out and "Traceback" not in out, out)
+        code, out = run_phonon(["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_ScF3",
+                                "--readfc"], cwd=tmp)
+        report("--readfc without FORCE_CONSTANTS stops with one line",
+               code != 0 and "FORCE_CONSTANTS not found in the current directory" in out
+               and "Traceback" not in out, out)
+
+
+def _test_52_api() -> None:
+    script = (
+        "from crystod import phonon\n"
+        "from crystod import phonon_visualize, phonon_subgroups\n"
+        "names = ['phonon_viewer_data', 'write_phonon_viewer_html', 'write_band_vector_yaml',\n"
+        "         'PhononViewer', 'ViewerPoint', 'ViewerMode']\n"
+        "print('EXPORTED', all(n in phonon.__all__ for n in names))\n"
+        "print('CLASSES', phonon.ViewerMode is phonon_visualize.ViewerMode,\n"
+        "      phonon.PhononMode is phonon_subgroups.PhononMode)\n"
+        "import phonopy\n"
+        "from crystod.vasp_io import read_poscar_cell\n"
+        "ph = phonopy.load(supercell_matrix=[4, 4, 4], primitive_matrix='auto',\n"
+        "                  unitcell=read_poscar_cell({poscar!r}), force_sets_filename={fs!r},\n"
+        "                  is_nac=False)\n"
+        "try:\n"
+        "    phonon.phonon_viewer_data(ph, qpoint=['Q'])\n"
+        "except ValueError as exc:\n"
+        "    print('VALUEERROR', exc)\n"
+        "data = phonon.phonon_viewer_data(ph, qpoint=['X'])\n"
+        "phonon.write_phonon_viewer_html(data, 'api.html')\n"
+        "print('NQ', phonon.write_band_vector_yaml(ph, filename='api.yaml'))\n"
+        "mode = data.points[0].modes[2]\n"
+        "print('MODE', data.points[0].name, mode.band, mode.irrep, mode.component, mode.u.shape)\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_python(script.format(
+            poscar=os.path.join(PHONON_VISUALIZE_DIR, "221_PPOSCAR_ScF3"),
+            fs=os.path.join(PHONON_VISUALIZE_DIR, "FORCE_SETS")), cwd=tmp)
+        report("API: crystod.phonon exports the viewer (PhononViewer, ViewerPoint, "
+               "ViewerMode next to phonon_subgroups' PhononMode)",
+               code == 0 and "EXPORTED True" in out and "CLASSES True True" in out, out)
+        report("API: an unknown q label raises ValueError, not SystemExit",
+               "VALUEERROR Unknown q-point label 'Q'" in out, out)
+        report("API: phonon_viewer_data + write_phonon_viewer_html + write_band_vector_yaml "
+               "(X point, band 3 = X4-, 306 q points)",
+               code == 0 and "NQ 306" in out and "MODE X 3 X4- 1 (4, 3)" in out
+               and os.path.isfile(os.path.join(tmp, "api.html"))
+               and os.path.isfile(os.path.join(tmp, "api.yaml")), out)
+
+
+def _visualize_set_texts(band_sets) -> list[str]:
+    """The irrep text of every band (frequency order) from the ``band_sets`` of a
+    ``phonon_irreps*.yaml`` entry, as the viewer writes it (``DT5(2)``, ``DT1``)."""
+    texts: dict[int, str] = {}
+    for band_set in band_sets:
+        labels = band_set.get("irrep_label") or []
+        text = " + ".join(re.sub(r"\(1\)$", "", str(label)) for label in labels) or "?"
+        for index in band_set["band_indices"]:
+            texts[int(index)] = text
+    return [texts[index] for index in sorted(texts)]
+
+
+def _test_52_all_irreps() -> None:
+    from crystod.phonon_irreps import read_phonon_irreps
+
+    midpoints = [("DT", "GM-X"), ("Z", "X-M"), ("SM", "M-GM"), ("LD", "GM-R"), ("S", "R-X"),
+                 ("T", "R-M")]
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = _visualize_case(PHONON_IRREP_DIR, ("221_PPOSCAR_SrTiO3", "FORCE_SETS"), tmp,
+                                    ["-c", "221_PPOSCAR_SrTiO3", "--bond", "Ti", "O", "2.1",
+                                     "--all-irreps"])
+        html = os.path.join(tmp, "phonon_visualize_all.html")
+        report("--all-irreps (SrTiO3, --bond Ti O 2.1): exit 0, phonon_visualize_all.html and "
+               "band_vector.yaml written (no phonon_visualize.html)",
+               code == 0 and os.path.isfile(html)
+               and os.path.isfile(os.path.join(tmp, "band_vector.yaml"))
+               and not os.path.isfile(os.path.join(tmp, "phonon_visualize.html"))
+               and "Phonon mode viewer written to: phonon_visualize_all.html" in out, out)
+        report("--all-irreps: '* Band path *' lists the six segment midpoints of Pm-3m",
+               "  Segment midpoints: DT (GM-X), Z (X-M), SM (M-GM), LD (GM-R), S (R-X), T (R-M)"
+               in out, out)
+        report("--all-irreps: one modes block per special point, then per midpoint, in path "
+               "order", _visualize_blocks(out) == ["GM", "X", "M", "R", "DT", "Z", "SM", "LD", "S",
+                                                   "T"], str(_visualize_blocks(out)))
+        block = re.search(r"^\* Phonon modes at q = DT \(0, 1/4, 0\) \*\n(.*?)\n\n", out,
+                          re.M | re.S)
+        report("--all-irreps: the DT (0, 1/4, 0) block (DT5(2) at 2.1278 THz, its segment GM-X, "
+               "1 x 4 x 1 primitive cells)",
+               block is not None and "  Segment: GM-X" in block.group(1)
+               and "  Display cell: primitive, 1 x 4 x 1 cells" in block.group(1)
+               and re.search(r"^\s+1\s+2\.1278\s+DT5\(2\)\s+1$", block.group(1), re.M)
+               is not None, block.group(0) if block else out)
+        page = _visualize_data(html) if code == 0 else {}
+        points = page.get("points", [])
+        page_mid = [p for p in points if p.get("segment")]
+        ticks = page.get("band", {}).get("ticks", [])
+        mids = [(a + b) / 2 for a, b in zip(ticks, ticks[1:])]
+        report("page: ten q buttons, the midpoints with their segment, each with a dot in the "
+               "middle of its leg of the dispersion",
+               len(points) == 10 and [(p["name"], p["segment"]) for p in page_mid] == midpoints
+               and all(p["x"] is not None and any(abs(p["x"] - m) < 1e-4 for m in mids)
+                       for p in page_mid)
+               and "Segment midpoints</div>" in open(html, encoding="utf-8").read(),
+               str([(p.get("name"), p.get("segment"), p.get("x")) for p in points]))
+        dt = [p for p in page_mid if p["name"] == "DT"]
+        report("page: DT (0, 1/4, 0) with its 1 x 4 x 1 cell of 20 atoms (boundary images and "
+               "bonded O apart) and its Ti-O bonds and TiO6 polyhedra",
+               bool(dt) and dt[0]["qText"] == "(0, 1/4, 0)"
+               and dt[0]["cell"] == "primitive, 1 x 4 x 1 cells"
+               and len({(a, tuple(t)) for a, t in zip(dt[0]["atoms"]["a"], dt[0]["atoms"]["T"])
+                        if all(0 <= v < n for v, n in zip(t, (1, 4, 1)))}) == 20
+               and dt[0]["bonds"] and dt[0]["polyhedra"], str(dt[0]["cell"] if dt else points))
+
+        # the labels of the pair command, band by band at every midpoint
+        code2, out2 = run_phonon(["--irreps", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+                                  "--all-irreps"], cwd=tmp)
+        yaml_path = os.path.join(tmp, "phonon_irreps_all.yaml")
+        entries = []
+        if code2 == 0 and os.path.isfile(yaml_path):
+            entries = [e for e in read_phonon_irreps(yaml_path)["irreps"] if "segment" in e]
+        problems = []
+        for entry in entries:
+            match = [p for p in page_mid if np.allclose(p["q"], entry["q_position"], atol=1e-8)]
+            if not match:
+                problems.append(f"{entry['q_label']} {entry['q_position']}: not on the page")
+                continue
+            point = match[0]
+            labels = [m["irrep"] for m in point["modes"]]
+            if (point["name"], point["segment"]) != (entry["q_label"], entry["segment"]):
+                problems.append(f"{point['name']} {point['segment']} != {entry['q_label']} "
+                                f"{entry['segment']}")
+            if labels != _visualize_set_texts(entry["band_sets"]):
+                problems.append(f"{point['name']}: {labels} != "
+                                f"{_visualize_set_texts(entry['band_sets'])}")
+            freqs = {int(i): s["frequency"] for s in entry["band_sets"] for i in s["band_indices"]}
+            if not np.allclose([m["freq"] for m in point["modes"]],
+                               [freqs[i] for i in sorted(freqs)], atol=1e-4):
+                problems.append(f"{point['name']}: frequencies differ")
+        report("page labels == phonon_irreps_all.yaml of --irreps --all-irreps, band by band, "
+               "at the six midpoints (and the frequencies, 1e-4 THz)",
+               code2 == 0 and len(entries) == 6 and not problems,
+               "\n".join(problems) + "\n" + out2)
+
+        code, out = run_phonon(["--visualize", "--dim", "4 4 4", "-c", "221_PPOSCAR_SrTiO3",
+                                "--all-irreps", "--qpoint", "R"], cwd=tmp)
+        message = "--all-irreps is not used with --qpoint (--qpoint shows one point)."
+        report("error: --all-irreps --qpoint R -> exit 2 with '" + message + "'",
+               code == 2 and message in out and "Traceback" not in out, out)
+        code, out = run_module("crystod.phonon_visualize",
+                               ["--dim", "4 4 4", "--poscar", "221_PPOSCAR_SrTiO3",
+                                "--all-irreps", "--qpoint", "R"], cwd=tmp)
+        report("python -m crystod.phonon_visualize --all-irreps --qpoint R: the same refusal",
+               code == 2 and message in out and "Traceback" not in out, out)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = _visualize_case(PHONON_VISUALIZE_DIR, ("221_PPOSCAR_ScF3", "FORCE_SETS"), tmp,
+                                    ["-c", "221_PPOSCAR_ScF3", "--band",
+                                     "0 0 0  0 1/2 0  1/2 1/2 0", "--all-irreps"])
+        report("--all-irreps with --band: the midpoints of its legs (DT of GM-X, Z of X-M)",
+               code == 0 and "  Segment midpoints: DT (GM-X), Z (X-M)" in out
+               and _visualize_blocks(out) == ["GM", "X", "M", "DT", "Z"], out)
+
+
+def _test_52_all_irreps_si() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = _visualize_case(PHONON_VECTOR_DIR, ("227_PPOSCAR_Si", "FORCE_CONSTANTS"), tmp,
+                                    ["-c", "227_PPOSCAR_Si", "--readfc", "--all-irreps"])
+        skipped = [
+            "NOTE: the midpoint SM (9/16, 1/8, 9/16) of X-U is not drawn: its display cell would "
+            "hold 4096 atoms (give --qpoint 9/16 1/8 9/16 to draw it)",
+            "NOTE: the midpoint SM (3/16, 3/16, 3/8) of K-GM is not drawn: its display cell would "
+            "hold 4096 atoms (give --qpoint 3/16 3/16 3/8 to draw it)",
+        ]
+        html = os.path.join(tmp, "phonon_visualize_all.html")
+        text = open(html, encoding="utf-8").read() if code == 0 else ""
+        report("Si --readfc --all-irreps: the two SM midpoints with 16-denominator cells (4096 "
+               "atoms) are skipped with a NOTE (terminal and page), the others drawn",
+               code == 0 and all(note in out for note in skipped)
+               and all(note[len("NOTE: "):] in text for note in skipped)
+               and "  Segment midpoints: DT (GM-X), LD (GM-L), Q (L-W), V (W-X)" in out
+               and _visualize_blocks(out) == ["GM", "X", "U|K", "L", "W", "DT", "LD", "Q", "V"],
+               out)
+        block = re.search(r"^\* Phonon modes at q = DT \(1/4, 0, 1/4\) \*\n(.*?)\n\n", out,
+                          re.M | re.S)
+        report("Si: the GM-X midpoint DT (1/4, 0, 1/4) on 4 x 1 x 4 primitive cells (32 atoms), "
+               "the W-X midpoint V (1/2, 1/8, 5/8) on 2 x 8 x 8",
+               block is not None and "  Segment: GM-X" in block.group(1)
+               and "  Display cell: primitive, 4 x 1 x 4 cells" in block.group(1)
+               and re.search(r"^\* Phonon modes at q = V \(1/2, 1/8, 5/8\) \*\n(?:.*\n)*?  "
+                             r"Segment: W-X\n  Display cell: primitive, 2 x 8 x 8 cells$",
+                             out, re.M) is not None, out)
+
+
+def _test_52_all_irreps_api() -> None:
+    script = (
+        "import phonopy\n"
+        "from crystod import phonon\n"
+        "from crystod.phonon_visualize import _button_labels, _check_reconstruction\n"
+        "from crystod.vasp_io import read_poscar_cell\n"
+        "def load(poscar, **force):\n"
+        "    return phonopy.load(supercell_matrix=[4, 4, 4], primitive_matrix='auto',\n"
+        "                        unitcell=read_poscar_cell(poscar), is_nac=False, **force)\n"
+        "ph = load({srtio3!r}, force_sets_filename={fs!r})\n"
+        "try:\n"
+        "    phonon.phonon_viewer_data(ph, qpoint=['R'], all_irreps=True)\n"
+        "except ValueError as exc:\n"
+        "    print('VALUEERROR', exc)\n"
+        "data = phonon.phonon_viewer_data(ph, all_irreps=True, bonds=[('Ti', 'O', 2.1)])\n"
+        "worst, count = _check_reconstruction(ph, data)\n"
+        "print('ALL', data.all_irreps)\n"
+        "print('POINTS', ' '.join(f'{{p.name}}:{{p.segment}}:{{p.is_midpoint}}' for p in data.points))\n"
+        "print('WORST', worst, 'MODES', count)\n"
+        "phonon.write_phonon_viewer_html(data)\n"
+        "ph = load({si!r}, force_constants_filename={fc!r})\n"
+        "data = phonon.phonon_viewer_data(ph, all_irreps=True, conventional=True)\n"
+        "worst, count = _check_reconstruction(ph, data)\n"
+        "print('SI', ' '.join(f'{{p.name}}:{{p.segment}}' for p in data.points))\n"
+        "print('LABELS', [label for label in _button_labels(data.points) if label])\n"
+        "print('SICELLS', [p.cell_description for p in data.points if p.name == 'SM'])\n"
+        "print('SIWORST', worst, 'MODES', count)\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        code, out = run_python(script.format(
+            srtio3=os.path.join(PHONON_IRREP_DIR, "221_PPOSCAR_SrTiO3"),
+            fs=os.path.join(PHONON_IRREP_DIR, "FORCE_SETS"),
+            si=os.path.join(PHONON_VECTOR_DIR, "227_PPOSCAR_Si"),
+            fc=os.path.join(PHONON_VECTOR_DIR, "FORCE_CONSTANTS")), cwd=tmp)
+        report("API: all_irreps together with qpoint raises ValueError",
+               "VALUEERROR all_irreps is not used with qpoint" in out, out)
+        report("API: phonon_viewer_data(all_irreps=True) gives the special points, then the "
+               "midpoints with segment set (None at a special point); write_phonon_viewer_html "
+               "names the page phonon_visualize_all.html",
+               code == 0 and "ALL True" in out
+               and "POINTS GM:None:False X:None:False M:None:False R:None:False DT:GM-X:True "
+               "Z:X-M:True SM:M-GM:True LD:GM-R:True S:R-X:True T:R-M:True" in out
+               and os.path.isfile(os.path.join(tmp, "phonon_visualize_all.html")), out)
+        match = re.search(r"WORST (\S+) MODES (\d+)", out)
+        report("reconstruction, SrTiO3 --all-irreps --bond Ti O 2.1: the page's fields equal "
+               "phonopy's modulation at every point and midpoint (relative < 1e-6, 150 modes)",
+               match is not None and float(match.group(1)) < 1e-6
+               and int(match.group(2)) == 150, out)
+        match = re.search(r"SIWORST (\S+) MODES (\d+)", out)
+        report("Si --conventional --all-irreps: the two SM midpoints are drawn (8 x 1 x 8 and "
+               "8 x 8 x 1 conventional cells), their buttons 'SM (X-U)' and 'SM (K-GM)', and "
+               "the reconstruction holds (66 modes)",
+               match is not None and float(match.group(1)) < 1e-6
+               and int(match.group(2)) == 66
+               and "SM:X-U SM:K-GM" in out and "LABELS ['SM (X-U)', 'SM (K-GM)']" in out
+               and "SICELLS ['conventional (F centring), 8 x 1 x 8 cells', 'conventional "
+               "(F centring), 8 x 8 x 1 cells']" in out, out)
+
+
+def test_52_phonon_visualize() -> None:
+    print("\n[52] crystod-phonon --visualize (ScF3, SrTiO3, Si; phonon mode viewer + "
+          "band_vector.yaml)")
+    fixtures = [os.path.join(PHONON_VISUALIZE_DIR, name)
+                for name in ("221_PPOSCAR_ScF3", "FORCE_SETS")]
+    fixtures += [os.path.join(PHONON_IRREP_DIR, name)
+                 for name in ("221_PPOSCAR_SrTiO3", "FORCE_SETS")]
+    fixtures += [os.path.join(PHONON_VECTOR_DIR, name)
+                 for name in ("227_PPOSCAR_Si", "FORCE_CONSTANTS")]
+    fixtures += [os.path.join(PHONON_FATBAND_DIR, name)
+                 for name in ("221_PPOSCAR_ScF3", "FORCE_SETS", "BORN")]
+    missing = [path for path in fixtures if not os.path.isfile(path)]
+    if missing:
+        report("example data found", False, "\n".join(missing))
+        return
+    for part in (_test_52_scf3, _test_52_srtio3, _test_52_reconstruction, _test_52_options,
+                 _test_52_api, _test_52_all_irreps, _test_52_all_irreps_si,
+                 _test_52_all_irreps_api):
+        _unfold_guard(part)
+
+
+# ---------------------------------------------------------------- 53. crystod-slab
+# a row of the * Slabs * table: # h k l shift atoms thickness vacuum area [formula]
+# [charge] polar symmetric status (the formula column leaves the table when it is
+# too wide; the charge column is there only when a slab is charged)
+_SLAB_ROW = re.compile(
+    r"\s*(\d+)\s+(-?\d+) +(-?\d+) +(-?\d+)\s+(\d+\.\d{3})\s+(\d+)\s+(\d+\.\d{2})"
+    r"\s+(-?\d+\.\d{2})\s+(\d+\.\d{2})(?:\s+([A-Z][A-Za-z0-9]*))?(?:\s+([+-]\d+(?:\.\d+)?|0))?"
+    r"\s+(yes|no|\?)\s+(yes|no)\s+(\S.*?)\s*")
+
+_CU_FCC_POSCAR = """Cu fcc, primitive cell (a = 3.615 A)
+1.0
+   0.0000000000   1.8075000000   1.8075000000
+   1.8075000000   0.0000000000   1.8075000000
+   1.8075000000   1.8075000000   0.0000000000
+Cu
+1
+Direct
+   0.0000000000   0.0000000000   0.0000000000
+"""
+
+# the slabs built by pymatgen directly (SlabGenerator.get_slabs with the
+# defaults of crystod-slab, or the options of a case), the reference of every
+# number section 53 checks; the Miller-index families from spglib's rotations
+# directly; needs P (the example POSCARs by name) and CU (a 1-atom fcc Cu POSCAR)
+_SLAB_REFERENCE = """
+import itertools, json, math, warnings
+warnings.simplefilter("ignore")
+import numpy as np
+import spglib
+from pymatgen.analysis.structure_matcher import StructureMatcher
+from pymatgen.core import Structure
+from pymatgen.core.surface import SlabGenerator, get_symmetrically_distinct_miller_indices
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+
+
+def reference(path, indices=None, max_index=None, conventional=False, symmetrize=False,
+              size=10, vacuum=15, post=None, **options):
+    structure = Structure.from_file(path)
+    n_input = len(structure)
+    if conventional:
+        structure = SpacegroupAnalyzer(
+            structure, symprec=0.1).get_conventional_standard_structure()
+    if max_index is not None:
+        indices = get_symmetrically_distinct_miller_indices(structure, max_index)
+    indices = [tuple(int(i) for i in index) for index in indices]
+    guesses = structure.composition.oxi_state_guesses()
+    states = ({str(element): value for element, value in guesses[0].items()}
+              if guesses and any(guesses[0].values()) else None)
+    options.setdefault("center_slab", True)
+    options.setdefault("primitive", True)
+    rows = []
+    for hkl in indices:
+        generator = SlabGenerator(structure, hkl, size, vacuum, **options)
+        slabs = generator.get_slabs(symmetrize=symmetrize, tol=0.1, ftol=0.1)
+        for termination, slab in enumerate(slabs, start=1):
+            if post == "orthogonal_c":
+                slab = slab.get_orthogonal_c_slab()
+            polar = charge = None
+            if states is not None:
+                decorated = slab.copy()
+                decorated.add_oxidation_state_by_element(states)
+                polar = bool(decorated.is_polar())
+                charge = float(sum(states[el.symbol] * n for el, n in slab.composition.items()))
+            heights = slab.cart_coords @ slab.normal
+            thickness = float(heights.max() - heights.min())
+            a, b, c = slab.lattice.matrix
+            rows.append({"hkl": hkl, "t": termination, "atoms": len(slab), "polar": polar,
+                         "symmetric": bool(slab.is_symmetric(symprec=0.1)),
+                         "shift": float(slab.shift), "thickness": thickness,
+                         "vacuum": abs(float(c @ slab.normal)) - thickness,
+                         "area": float(slab.surface_area), "charge": charge,
+                         "c_normal": bool(np.linalg.norm(np.cross(c, slab.normal)) < 1e-6),
+                         "oriented_area": float(np.linalg.norm(np.cross(
+                             *slab.oriented_unit_cell.lattice.matrix[:2]))),
+                         "counts": {el.symbol: int(n) for el, n in slab.composition.items()}})
+    return {"indices": indices, "states": states, "rows": rows, "n_input": n_input,
+            "n_cell": len(structure),
+            "guesses": [{str(e): v for e, v in g.items()} for g in guesses]}
+
+
+def families(path, n):
+    # the orbits of the indices with |h|,|k|,|l| <= n under spglib's rotations of the
+    # cell and the inversion: h R for every rotation R, and -h R
+    structure = Structure.from_file(path)
+    cell = (structure.lattice.matrix, structure.frac_coords, [site.specie.Z for site in structure])
+    rotations = spglib.get_symmetry(cell, symprec=0.1)["rotations"]
+    orbits = []
+    for index in itertools.product(range(-n, n + 1), repeat=3):
+        if not any(index):
+            continue
+        divisor = math.gcd(*index)
+        index = tuple(i // divisor for i in index)
+        if any(index in orbit for orbit in orbits):
+            continue
+        orbits.append(sorted({tuple(int(x) for x in sign * np.array(index) @ rotation)
+                              for rotation in rotations for sign in (1, -1)}))
+    return orbits
+
+
+matcher = StructureMatcher(primitive_cell=False, scale=False, attempt_supercell=False)
+
+
+def same_surface(path, first, second):
+    # the slabs of two indices (8 A + 8 A, every termination) are the same set
+    structure = Structure.from_file(path)
+    one, two = (SlabGenerator(structure, index, 8, 8).get_slabs() for index in (first, second))
+    return len(one) == len(two) and all(any(matcher.fit(a, b) for b in two) for a in one)
+
+
+sto = P["221_PPOSCAR_SrTiO3"]
+cases = {
+    "SrTiO3": reference(sto, max_index=1),
+    "SrTiO3_sym": reference(sto, max_index=1, symmetrize=True),
+    "NaCl": reference(P["225_PPOSCAR_NaCl"], max_index=1, conventional=True),
+    "NaCl_primitive": reference(P["225_PPOSCAR_NaCl"], max_index=1),
+    "ZnO": reference(P["186_PPOSCAR_ZnO"], indices=[(0, 0, 1), (1, 0, 0)]),
+    "ScF3_sym": reference(P["221_PPOSCAR_ScF3"], indices=[(1, 0, 0)], symmetrize=True),
+    "Cu": reference(CU, indices=[(1, 0, 0)], conventional=True),
+    "options_c": reference(sto, indices=[(1, 1, 0)], post="orthogonal_c", max_normal_search=1),
+    "options_planes": reference(sto, indices=[(1, 0, 0)], size=4, vacuum=6, in_unit_planes=True,
+                                center_slab=False, primitive=False),
+    "lll_plain": reference(sto, indices=[(3, 3, 2)], size=5, vacuum=5),
+    "lll_pymatgen": reference(sto, indices=[(3, 3, 2)], size=5, vacuum=5, lll_reduce=True),
+    "lll_default": reference(sto, indices=[(1, 1, 1)], lll_reduce=True),
+}
+alf3, zns2, p1 = P["167_PPOSCAR_AlF3"], P["205_PPOSCAR_ZnS2"], P["1_PPOSCAR_RbBe2F5"]
+cases["families"] = {
+    "AlF3": families(alf3, 1), "ZnS2": families(zns2, 2), "RbBe2F5": families(p1, 1),
+    "AlF3_pymatgen": [list(map(int, i)) for i in get_symmetrically_distinct_miller_indices(
+        Structure.from_file(alf3), 1)],
+    "ZnS2_pymatgen": [list(map(int, i)) for i in get_symmetrically_distinct_miller_indices(
+        Structure.from_file(zns2), 2)],
+}
+cases["surfaces"] = {
+    "AlF3 (1 1 0) = (1 0 1)": same_surface(alf3, (1, 1, 0), (1, 0, 1)),
+    "AlF3 (1 0 0) = (0 0 1)": same_surface(alf3, (1, 0, 0), (0, 0, 1)),
+    "ZnS2 (2 1 0) = (1 2 0)": same_surface(zns2, (2, 1, 0), (1, 2, 0)),
+}
+print("REFERENCE " + json.dumps(cases))
+"""
+
+# the POSCAR files of crystod-slab runs against the slabs of the crystod.slab
+# API and of pymatgen; needs CASES, a list of (directory, bulk POSCAR,
+# generate_slabs keyword arguments)
+_SLAB_FILES = """
+import json, os, warnings
+warnings.simplefilter("ignore")
+import numpy as np
+from pymatgen.analysis.structure_matcher import StructureMatcher
+from pymatgen.core import Structure
+from pymatgen.core.surface import Slab, SlabGenerator
+from crystod import slab as api
+
+matcher = StructureMatcher(primitive_cell=False, scale=False, attempt_supercell=False)
+result = []
+for directory, bulk, kwargs in CASES:
+    records = api.generate_slabs(api.load_structure(bulk), **kwargs)
+    plain = Structure.from_file(bulk)
+    for record in records:
+        path = os.path.join(directory, api.slab_filename(record))
+        direct = SlabGenerator(plain, record.miller_index, 10, 15, center_slab=True,
+                               primitive=True).get_slabs(
+            symmetrize=kwargs.get("symmetrize", False), tol=0.1, ftol=0.1)
+        direct = direct[record.termination - 1] if record.termination <= len(direct) else None
+        entry = {"case": os.path.basename(directory), "file": api.slab_filename(record),
+                 "exists": os.path.isfile(path), "hkl": record.miller_index,
+                 "t": record.termination, "shift": record.shift, "atoms": record.n_atoms,
+                 "bulk": record.bulk_formula, "formula": record.formula,
+                 "symmetrized": record.symmetrized,
+                 "api_vs_pymatgen": direct is not None and bool(matcher.fit(record.slab, direct))}
+        if entry["exists"]:
+            with open(path, encoding="utf-8") as handle:
+                lines = handle.read().splitlines()
+            written = Structure.from_file(path)
+            entry["file_vs_api"] = bool(matcher.fit(written, record.slab))
+            entry["lattice"] = float(np.abs(written.lattice.matrix
+                                            - record.slab.lattice.matrix).max())
+            entry["comment"] = lines[0]
+            entry["species"] = lines[5].split()
+            entry["counts"] = [int(n) for n in lines[6].split()]
+            entry["sites"] = len(written)
+            rebuilt = Slab(written.lattice, written.species, written.frac_coords,
+                           record.slab.miller_index, record.slab.oriented_unit_cell,
+                           record.slab.shift, record.slab.scale_factor,
+                           reorient_lattice=False)
+            entry["symmetric"] = bool(rebuilt.is_symmetric(symprec=0.1))
+            decorated = rebuilt.copy()
+            decorated.add_oxidation_state_by_element(records.oxidation_states)
+            entry["polar"] = bool(decorated.is_polar())
+        result.append(entry)
+print("FILES " + json.dumps(result))
+"""
+
+
+def _slab_rows(out: str) -> list[dict]:
+    """The rows of the ``* Slabs *`` table of a crystod-slab run (any of its layouts)."""
+    if "\n* Slabs *\n" not in out:
+        return []
+    block = out.split("\n* Slabs *\n", 1)[1].split("\n* Output files *", 1)[0]
+    rows = []
+    for line in block.splitlines():
+        match = _SLAB_ROW.fullmatch(line)
+        if match:
+            g = match.groups()
+            rows.append({"number": int(g[0]), "hkl": (int(g[1]), int(g[2]), int(g[3])),
+                         "shift": float(g[4]), "atoms": int(g[5]), "thickness": float(g[6]),
+                         "vacuum": float(g[7]), "area": float(g[8]), "formula": g[9],
+                         "charge": None if g[10] is None else float(g[10]),
+                         "polar": g[11], "symmetric": g[12], "status": g[13]})
+    return rows
+
+
+def _slab_counts(formula: str) -> dict[str, int]:
+    """``{"Sr": 5, "Ti": 5, "O": 15}`` from ``"Sr5Ti5O15"``."""
+    return {element: int(n or 1) for element, n in re.findall(r"([A-Z][a-z]?)(\d*)", formula)}
+
+
+def _slab_mismatch(rows: list[dict], reference: list[dict]) -> list[str]:
+    """How a printed slab table differs from the slabs pymatgen builds directly
+    (number and order of the slabs, index, atoms, polarity, symmetry, shift,
+    thickness, vacuum, area, formula and, when printed, the net charge, at the
+    printed precision)."""
+    if len(rows) != len(reference):
+        return [f"{len(rows)} rows printed, pymatgen gives {len(reference)} slabs"]
+    flag = {True: "yes", False: "no", None: "?"}
+    wrong = []
+    for number, (row, ref) in enumerate(zip(rows, reference), start=1):
+        expected = (number, tuple(ref["hkl"]), ref["atoms"], flag[ref["polar"]],
+                    flag[ref["symmetric"]])
+        got = (row["number"], row["hkl"], row["atoms"], row["polar"], row["symmetric"])
+        close = all(abs(row[key] - ref[key]) <= tol for key, tol in
+                    (("shift", 5.1e-4), ("thickness", 5.1e-3), ("vacuum", 5.1e-3),
+                     ("area", 5.1e-3)))
+        formula = row["formula"] is None or _slab_counts(row["formula"]) == ref["counts"]
+        charge = (row["charge"] is None or ref.get("charge") is not None
+                  and abs(row["charge"] - ref["charge"]) < 5e-3)
+        if got != expected or not close or not formula or not charge:
+            wrong.append(f"#{number}: printed {row}\n    pymatgen {ref}")
+    return wrong
+
+
+def test_53_slab() -> None:
+    print("\n[53] crystod-slab (surface slabs: terminations, polarity and face symmetry "
+          "against pymatgen)")
+    import filecmp
+
+    names = ("221_PPOSCAR_SrTiO3", "225_PPOSCAR_NaCl", "186_PPOSCAR_ZnO", "221_PPOSCAR_ScF3",
+             "167_PPOSCAR_AlF3", "205_PPOSCAR_ZnS2", "1_PPOSCAR_RbBe2F5",
+             "123_PPOSCAR_YBa2Cu3O6")
+    sources = {name: os.path.join(ROOT, "example", "test_POSCARs", name) for name in names}
+    missing = [path for path in sources.values() if not os.path.isfile(path)]
+    if missing:
+        report("example data found", False, "\n".join(missing))
+        return
+    sto = "221_PPOSCAR_SrTiO3"
+    outputs: list[tuple[str, str]] = []      # every run, for the line-width check
+
+    def slab(args: list[str], cwd: str, stdin: str | None = None) -> tuple[int, str]:
+        code, out = run_slab(args, cwd=cwd, stdin=stdin)
+        label = "crystod-slab " + " ".join(args)
+        outputs.append((label + (f" <<< {stdin!r}" if stdin is not None else ""), out))
+        return code, out
+
+    def slab_files(directory: str) -> list[str]:
+        return sorted(name for name in os.listdir(directory) if name.startswith("POSCAR_slab_"))
+
+    def file_name(bulk: str, ref: dict, kind: str = "t") -> str:
+        h, k, l = ref["hkl"]
+        return f"POSCAR_slab_{bulk}_{h}{k}{l}_{kind}{ref['t']}"
+
+    def refused(code: int, out: str) -> bool:
+        return code != 0 and "ERROR:" in out and "Traceback" not in out
+
+    def same_files(first: str, second: str) -> bool:
+        names = slab_files(first)
+        return (bool(names) and names == slab_files(second)
+                and all(filecmp.cmp(os.path.join(first, name), os.path.join(second, name),
+                                    shallow=False) for name in names))
+
+    def without(rows: list[dict], *keys: str) -> list[dict]:
+        return [{key: value for key, value in row.items() if key not in keys} for row in rows]
+
+    def indices_line(out: str) -> str:
+        block = out.split("\n* Miller indices *\n", 1)[-1].split("\n\n", 1)[0]
+        return " ".join(block.split())
+
+    with tempfile.TemporaryDirectory() as tmp:
+        def workdir(name: str) -> str:
+            directory = os.path.join(tmp, name)
+            os.makedirs(directory)
+            for source in sources.values():
+                shutil.copy(source, directory)
+            return directory
+
+        cu = os.path.join(tmp, "POSCAR_Cu")
+        with open(cu, "w", encoding="utf-8") as handle:
+            handle.write(_CU_FCC_POSCAR)
+        code, out = run_python(f"P = {sources!r}\nCU = {cu!r}\n" + _SLAB_REFERENCE, cwd=tmp)
+        ref = (json.loads(out.split("REFERENCE ", 1)[1].splitlines()[0])
+               if code == 0 and "REFERENCE " in out else None)
+        report("pymatgen reference: the slabs built by SlabGenerator.get_slabs directly",
+               ref is not None, out)
+        if ref is None:
+            return
+
+        # ---- SrTiO3 --max-index 1
+        plain = workdir("max_index")
+        code, out_plain = slab(["-c", sto, "--max-index", "1"], plain)
+        rows_plain = _slab_rows(out_plain)
+        expected = ref["SrTiO3"]
+        report("SrTiO3 --max-index 1 exit 0", code == 0 and "Traceback" not in out_plain,
+               out_plain)
+        report("SrTiO3 --max-index 1: the indices (1 1 1) (1 1 0) (1 0 0) under m-3m, as "
+               "pymatgen's get_symmetrically_distinct_miller_indices",
+               expected["indices"] == [[1, 1, 1], [1, 1, 0], [1, 0, 0]]
+               and "\n indices with |h|,|k|,|l| <= 1, distinct under the Laue group m-3m: "
+               "(1 1 1) (1 1 0) (1 0 0)\n" in out_plain,
+               f"pymatgen: {expected['indices']}\n{out_plain}")
+        atoms = [row["atoms"] for row in expected["rows"]]
+        report("SrTiO3 --max-index 1: 3 slabs of 25, 20 and 15 atoms (pymatgen: "
+               f"{', '.join(map(str, atoms))})",
+               [row["atoms"] for row in rows_plain] == atoms == [25, 20, 15], out_plain)
+        polar = {tuple(row["hkl"]): row["polar"] for row in expected["rows"]}
+        report("SrTiO3: (1 0 0) non-polar, (1 1 0) and (1 1 1) polar (Slab.is_polar with the "
+               "guessed Sr+2 Ti+4 O-2; pymatgen directly: same)",
+               polar == {(1, 1, 1): True, (1, 1, 0): True, (1, 0, 0): False}
+               and [row["polar"] for row in rows_plain] == ["yes", "yes", "no"]
+               and "oxidation states for the dipole: Sr+2 Ti+4 O-2 (guessed)" in out_plain,
+               f"pymatgen: {polar}\n{out_plain}")
+        wrong = _slab_mismatch(rows_plain, expected["rows"])
+        report("SrTiO3: every column of the table equals pymatgen directly (shift, atoms, "
+               "thickness, vacuum, area, formula, polar, symmetric), no charge column", not wrong
+               and all(row["charge"] is None for row in rows_plain),
+               "\n".join(wrong) + "\n" + out_plain)
+        report("SrTiO3: the settings name the minimum slab height (whole oriented cells), and "
+               "the legend says the atoms span it less the gap at the cut",
+               "\n minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive "
+               "in-plane cell: yes\n" in out_plain
+               and "the atoms span them less the gap at the cut" in " ".join(out_plain.split())
+               and all(row["thickness"] < 10 for row in rows_plain if row["hkl"] != (1, 1, 1)),
+               out_plain)
+        names_plain = [file_name("SrTiO3", row) for row in expected["rows"]]
+        report("SrTiO3: three files written, listed under * Output files * as #n -> name",
+               slab_files(plain) == sorted(names_plain) == sorted(
+                   ["POSCAR_slab_SrTiO3_111_t1", "POSCAR_slab_SrTiO3_110_t1",
+                    "POSCAR_slab_SrTiO3_100_t1"])
+               and all(f"\n #{n} -> {name}\n" in out_plain
+                       for n, name in enumerate(names_plain, start=1)),
+               f"{slab_files(plain)}\n{out_plain}")
+
+        # ---- the Miller-index families: the crystal's Laue group in the cell's own axes
+        families = ref["families"]
+        for name, max_index, laue, must in (
+                ("167_PPOSCAR_AlF3", 1, "-3m", (1, 1, -1)),
+                ("205_PPOSCAR_ZnS2", 2, "m-3", (1, 2, 0)),
+                ("1_PPOSCAR_RbBe2F5", 1, "-1", (0, 1, 0))):
+            code, out = slab(["-c", name, "--max-index", str(max_index), "--no-files"],
+                             plain)
+            line = indices_line(out)
+            listed = [tuple(int(i) for i in found.split())
+                      for found in re.findall(r"\((-?\d+ -?\d+ -?\d+)\)", line.split(":", 1)[-1])]
+            orbits = [set(map(tuple, orbit)) for orbit in families[name.split("_")[-1]]]
+            hits = [sum(index in orbit for index in listed) for orbit in orbits]
+            family = next((orbit for orbit in orbits if must in orbit), set())
+            report(f"{name} --max-index {max_index}: one index per family of spglib's rotations "
+                   f"and the inversion ({len(orbits)} families, Laue group {laue}), the family "
+                   f"of {must} among them",
+                   code == 0 and hits == [1] * len(orbits) and len(listed) == len(orbits)
+                   and any(index in family for index in listed)
+                   and f"distinct under the Laue group {laue}:" in line,
+                   f"listed {listed}\nspglib families {orbits}\n{out}")
+        report("pymatgen's get_symmetrically_distinct_miller_indices, as the reference sees it: "
+               "AlF3 (R-3c, rhombohedral axes) (1 1 0) and (1 0 1) both listed and the same "
+               "surface, (1 1 -1) missing; ZnS2 (Pa-3) (1 2 0) missing, a surface of its own",
+               [1, 1, 0] in families["AlF3_pymatgen"] and [1, 0, 1] in families["AlF3_pymatgen"]
+               and [1, 1, -1] not in families["AlF3_pymatgen"]
+               and [1, 2, 0] not in families["ZnS2_pymatgen"]
+               and ref["surfaces"] == {"AlF3 (1 1 0) = (1 0 1)": True,
+                                       "AlF3 (1 0 0) = (0 0 1)": True,
+                                       "ZnS2 (2 1 0) = (1 2 0)": False},
+               json.dumps(families) + json.dumps(ref["surfaces"]))
+
+        # ---- --max-atoms, --no-polar
+        limited = workdir("max_atoms")
+        code, out = slab(["-c", sto, "--max-index", "1", "--max-atoms", "16"], limited)
+        statuses = [f"skipped: {n} > 16 atoms" if n > 16 else "written" for n in atoms]
+        report("--max-atoms 16: the 25- and 20-atom slabs listed as 'skipped: N > 16 atoms'",
+               code == 0 and [row["status"] for row in _slab_rows(out)] == statuses
+               == ["skipped: 25 > 16 atoms", "skipped: 20 > 16 atoms", "written"]
+               and "maximum atoms per slab: 16" in out, out)
+        report("--max-atoms 16: only the 15-atom slab is written",
+               slab_files(limited) == [file_name("SrTiO3", row) for row in expected["rows"]
+                                       if row["atoms"] <= 16] == ["POSCAR_slab_SrTiO3_100_t1"],
+               str(slab_files(limited)))
+        nonpolar = workdir("no_polar")
+        code, out = slab(["-c", sto, "--max-index", "1", "--no-polar"], nonpolar)
+        statuses = ["skipped: polar" if row["polar"] else "written" for row in expected["rows"]]
+        report("--no-polar: the polar (1 1 1) and (1 1 0) slabs listed as 'skipped: polar', "
+               "only the (1 0 0) file written",
+               code == 0 and [row["status"] for row in _slab_rows(out)] == statuses
+               and "polar slabs: skipped" in out
+               and slab_files(nonpolar) == [file_name("SrTiO3", row) for row in expected["rows"]
+                                            if not row["polar"]]
+               == ["POSCAR_slab_SrTiO3_100_t1"], f"{slab_files(nonpolar)}\n{out}")
+
+        # ---- --symmetrize (and --output-dir)
+        symmetrized = workdir("symmetrize")
+        target = os.path.join(symmetrized, "sub", "dir")
+        code, out = slab(["-c", sto, "--index", "1", "0", "0", "--symmetrize",
+                          "--output-dir", os.path.join("sub", "dir")], symmetrized)
+        rows = _slab_rows(out)
+        sym_ref = [row for row in ref["SrTiO3_sym"]["rows"] if row["hkl"] == [1, 0, 0]]
+        wrong = _slab_mismatch(rows, sym_ref)
+        report(f"--symmetrize --index 1 0 0: {len(sym_ref)} slabs (pymatgen get_slabs("
+               "symmetrize=True)), all symmetric, non-polar and neutral (no charge column), "
+               "the table equal to pymatgen",
+               code == 0 and len(rows) >= 1 and not wrong
+               and all(row["symmetric"] == "yes" and row["polar"] == "no"
+                       and row["charge"] is None for row in rows)
+               and all(abs(row["charge"]) < 1e-9 for row in sym_ref)
+               and "polar slabs: symmetrized terminations" in out, "\n".join(wrong) + "\n" + out)
+        report("--output-dir sub/dir: created and used (' directory: sub/dir'), nothing in the "
+               "working directory; the symmetrized slabs named _s1, _s2",
+               os.path.isdir(target) and slab_files(target)
+               == sorted(file_name("SrTiO3", row, "s") for row in sym_ref)
+               == ["POSCAR_slab_SrTiO3_100_s1", "POSCAR_slab_SrTiO3_100_s2"]
+               and not slab_files(symmetrized) and "\n directory: sub/dir\n" in out,
+               f"{slab_files(target) if os.path.isdir(target) else 'no sub/dir'}\n{out}")
+        sym_all = ref["SrTiO3_sym"]["rows"]
+        code, out = slab(["-c", sto, "--max-index", "1", "--symmetrize", "--no-files"],
+                         symmetrized)
+        rows = _slab_rows(out)
+        wrong = _slab_mismatch(rows, sym_all)
+        charged = [n for n, row in enumerate(sym_all, start=1) if abs(row["charge"]) > 1e-9]
+        report("--symmetrize --max-index 1: the charge column (net formal charge per cell from "
+               "the guessed states) equals pymatgen's slabs: +4/-4 for (1 1 1) and (1 1 0), 0 for "
+               "(1 0 0), and a NOTE names the charged slabs",
+               code == 0 and not wrong and charged == [1, 2, 3, 4]
+               and [row["charge"] for row in rows] == [row["charge"] for row in sym_all]
+               and "NOTE: #1-#4: non-stoichiometric, with a net formal charge" in out
+               and "charge: net formal charge per cell (e) from the oxidation states."
+               in " ".join(out.split()), "\n".join(wrong) + "\n" + out)
+
+        # ---- the files: s/t names, an identical file kept, a different one refused
+        files = workdir("overwrite")
+        slab(["-c", sto, "--index", "1", "0", "0"], files)
+        code, out = slab(["-c", sto, "--index", "1", "0", "0", "--symmetrize"], files)
+        report("a plain and a --symmetrize run in one directory: _t1 and _s1, _s2, nothing "
+               "replaced",
+               code == 0 and slab_files(files) == ["POSCAR_slab_SrTiO3_100_s1",
+                                                   "POSCAR_slab_SrTiO3_100_s2",
+                                                   "POSCAR_slab_SrTiO3_100_t1"]
+               and filecmp.cmp(os.path.join(files, "POSCAR_slab_SrTiO3_100_t1"),
+                               os.path.join(plain, "POSCAR_slab_SrTiO3_100_t1"), shallow=False),
+               f"{slab_files(files)}\n{out}")
+        code, out = slab(["-c", sto, "--index", "1", "0", "0"], files)
+        report("the same run again: ' #1 -> POSCAR_slab_SrTiO3_100_t1 (kept: identical file "
+               "already there)'",
+               code == 0 and "\n #1 -> POSCAR_slab_SrTiO3_100_t1 (kept: identical file already "
+               "there)\n" in out, out)
+        victim = os.path.join(files, "POSCAR_slab_SrTiO3_100_t1")
+        with open(victim, "w", encoding="utf-8") as handle:
+            handle.write("a different file\n")
+        code, out = slab(["-c", sto, "--index", "1", "0", "0"], files)
+        with open(victim, encoding="utf-8") as handle:
+            kept = handle.read() == "a different file\n"
+        report("a different file of the same name: refused ('already exists with different "
+               "content (--force replaces it)'), the file left alone",
+               refused(code, out) and "ERROR: POSCAR_slab_SrTiO3_100_t1 already exists with "
+               "different content (--force replaces it)." in out
+               and kept, out)
+        code, out = slab(["-c", sto, "--index", "1", "0", "0", "--force"], files)
+        report("--force: ' #1 -> POSCAR_slab_SrTiO3_100_t1 (replaced)', the slab written again",
+               code == 0 and "\n #1 -> POSCAR_slab_SrTiO3_100_t1 (replaced)\n" in out
+               and filecmp.cmp(victim, os.path.join(plain, "POSCAR_slab_SrTiO3_100_t1"),
+                               shallow=False), out)
+        code, out = slab(["-c", sto, "--index", "1", "1", "10", "--index", "11", "1", "0",
+                          "--slab-size", "1", "--vacuum-size", "5"], files)
+        report("indices of 10 or more: the components separated by _ "
+               "(POSCAR_slab_SrTiO3_1_1_10_t1, ..._11_1_0_t1), two files",
+               code == 0 and "POSCAR_slab_SrTiO3_1_1_10_t1" in slab_files(files)
+               and "POSCAR_slab_SrTiO3_11_1_0_t1" in slab_files(files), out)
+        ybco = workdir("ybco")
+        code, out = slab(["-c", "123_PPOSCAR_YBa2Cu3O6", "--index", "0", "0", "1",
+                          "--max-atoms", "12"], ybco)
+        report("YBa2Cu3O6: the formula of the file names and the Structure line is ungrouped "
+               "(Ba2YCu3O6, not pymatgen's Ba2Y(CuO2)3), no parenthesis in a file name",
+               code == 0 and "123_PPOSCAR_YBa2Cu3O6: Ba2YCu3O6, P4/mmm (No. 123)" in out
+               and slab_files(ybco)
+               and all(re.fullmatch(r"POSCAR_slab_Ba2YCu3O6_001_t\d", name)
+                       for name in slab_files(ybco)), f"{slab_files(ybco)}\n{out}")
+
+        # ---- NaCl: a primitive fcc POSCAR, with and without --conventional
+        nacl = workdir("nacl")
+        code, out = slab(["-c", "225_PPOSCAR_NaCl", "--conventional", "--max-index", "1",
+                          "--no-files"], nacl)
+        rows = _slab_rows(out)
+        by_index = {row["hkl"]: row for row in rows}
+        tasker = (by_index.get((1, 1, 1), {}).get("polar") == "yes"
+                  and all(by_index.get(index, {}).get("polar") == "no"
+                          and by_index.get(index, {}).get("symmetric") == "yes"
+                          for index in ((1, 1, 0), (1, 0, 0))))
+        wrong = _slab_mismatch(rows, ref["NaCl"]["rows"])
+        report("NaCl --conventional --max-index 1: (1 1 1) polar, (1 1 0) and (1 0 0) "
+               "non-polar and symmetric (Tasker III and I), the table equal to pymatgen",
+               code == 0 and len(rows) == 3 and tasker and not wrong,
+               "\n".join(wrong) + "\n" + out)
+        report(f"--conventional: 'standardized conventional cell: {ref['NaCl']['n_cell']} atoms "
+               f"(input: {ref['NaCl']['n_input']})' (pymatgen), no NOTE",
+               (ref["NaCl"]["n_cell"], ref["NaCl"]["n_input"]) == (8, 2)
+               and "standardized conventional cell: 8 atoms (input: 2)" in out
+               and "NOTE: the cell is not the conventional" not in out, out)
+        code, out = slab(["-c", "225_PPOSCAR_NaCl", "--max-index", "1", "--no-files"], nacl)
+        rows = _slab_rows(out)
+        primitive = ref["NaCl_primitive"]
+        shown = " ".join("(" + " ".join(map(str, index)) + ")" for index in primitive["indices"])
+        wrong = _slab_mismatch(rows, primitive["rows"])
+        report("NaCl without --conventional: the NOTE 'the cell is not the conventional standard "
+               "cell (8 atoms); textbook Miller indices need --conventional.'",
+               code == 0 and "NOTE: the cell is not the conventional standard cell (8 atoms); "
+               "textbook Miller indices need --conventional." in " ".join(out.split()), out)
+        report(f"NaCl without --conventional: the indices of the primitive axes {shown} and their "
+               "slabs, as pymatgen",
+               indices_line(out).endswith(f"m-3m: {shown}") and not wrong,
+               "\n".join(wrong) + "\n" + out)
+
+        # ---- ZnO: four-index (h k i l) input
+        four = workdir("zno_four")
+        three = workdir("zno_three")
+        code4, out4 = slab(["-c", "186_PPOSCAR_ZnO", "--index", "0", "0", "0", "1",
+                            "--index", "1", "0", "-1", "0"], four)
+        code3, out3 = slab(["-c", "186_PPOSCAR_ZnO", "--index", "0", "0", "1",
+                            "--index", "1", "0", "0"], three)
+        rows4, rows3 = _slab_rows(out4), _slab_rows(out3)
+        report("ZnO --index 0 0 0 1 --index 1 0 -1 0 equals --index 0 0 1 --index 1 0 0 "
+               "(same table, byte-identical files)",
+               code4 == 0 and code3 == 0 and rows4 and rows4 == rows3 and same_files(four, three),
+               out4 + "\n" + out3)
+        report("ZnO: the four-index input shown as '(0 0 0 1) = (0 0 1) (1 0 -1 0) = (1 0 0)'",
+               "indices given: (0 0 0 1) = (0 0 1) (1 0 -1 0) = (1 0 0)" in out4
+               and "NOTE: four-index" not in out4, out4)
+        wrong = _slab_mismatch(rows3, ref["ZnO"]["rows"])
+        report("ZnO: the slabs equal pymatgen's; every (0 0 1) termination polar (Tasker III)",
+               not wrong and any(row["hkl"] == (0, 0, 1) for row in rows3)
+               and all(row["polar"] == "yes" for row in rows3 if row["hkl"] == (0, 0, 1)),
+               "\n".join(wrong) + "\n" + out3)
+        code, out = slab(["-c", "186_PPOSCAR_ZnO", "--index", "1", "0", "0", "1"], four)
+        report("--index 1 0 0 1 refused: i = 0 is not -(h + k) = -1",
+               refused(code, out) and "is not a Miller-Bravais index (h k i l): i = 0, but "
+               "-(h + k) = -1" in out, out)
+        with open(os.path.join(four, "hexagonal.txt"), "w", encoding="utf-8") as handle:
+            handle.write("0 0 0 1\n1 0 -1 0\n")
+        code, out = slab(["-c", "186_PPOSCAR_ZnO", "--index-list", "hexagonal.txt",
+                          "--no-files"], four)
+        report("--index-list with four-index lines: shown as '(0 0 0 1) = (0 0 1) (1 0 -1 0) "
+               "= (1 0 0)', the same slabs as --index",
+               code == 0 and "indices from hexagonal.txt: (0 0 0 1) = (0 0 1) (1 0 -1 0) = "
+               "(1 0 0)" in out and "the redundant i = -(h + k) is dropped" in out
+               and without(_slab_rows(out), "status") == without(rows4, "status"), out)
+        code, out = slab(["-c", "186_PPOSCAR_ZnO", "--index", "0", "0", "1", "--symmetrize",
+                          "--slab-size", "20"], four)
+        report("ZnO (0 0 1) --symmetrize: no slab, and the NOTE says that no operation of the "
+               "bulk (6mm) turns the normal over; ' none (no slab was generated)'",
+               code == 0 and "no slab was generated" in out
+               and "no operation of the bulk turns this normal over, so a thicker slab will not "
+               "help" in " ".join(out.split())
+               and "\n* Output files *\n none (no slab was generated)\n" in out, out)
+
+        # ---- --index-list
+        listed = workdir("index_list")
+        with open(os.path.join(listed, "indices.txt"), "w", encoding="utf-8") as handle:
+            handle.write("# SrTiO3: two low-index surfaces\n1 0 0\n\n1,1,0   # the comma form\n")
+        code, out = slab(["-c", sto, "--index-list", "indices.txt"], listed)
+        rows = _slab_rows(out)
+        report("--index-list (space and comma forms, comment and blank lines): (1 0 0) (1 1 0)",
+               code == 0 and "indices from indices.txt: (1 0 0) (1 1 0)" in out, out)
+        expected_rows = ([row for row in rows_plain if row["hkl"] == (1, 0, 0)]
+                         + [row for row in rows_plain if row["hkl"] == (1, 1, 0)])
+        report("--index-list: the same slabs and the same files as those indices of "
+               "--max-index 1",
+               without(rows, "number") == without(expected_rows, "number") and rows
+               and all(filecmp.cmp(os.path.join(listed, name), os.path.join(plain, name),
+                                   shallow=False) for name in slab_files(listed))
+               and slab_files(listed) == ["POSCAR_slab_SrTiO3_100_t1",
+                                          "POSCAR_slab_SrTiO3_110_t1"],
+               f"{slab_files(listed)}\n{out}")
+        with open(os.path.join(listed, "bad.txt"), "w", encoding="utf-8") as handle:
+            handle.write("1 0 0\n# a comment\n1 x 0\n")
+        code, out = slab(["-c", sto, "--index-list", "bad.txt"], listed)
+        report("--index-list with a bad line: ERROR naming the file and line 3",
+               refused(code, out) and "bad.txt, line 3:" in out and "'x'" in out, out)
+
+        # ---- --oxidation, --no-files
+        given = workdir("oxidation")
+        code, out = slab(["-c", sto, "--max-index", "1", "--oxidation", "Sr=2", "Ti=4", "O=-2",
+                          "--no-files"], given)
+        rows = _slab_rows(out)
+        report("--oxidation Sr=2 Ti=4 O=-2 equals pymatgen's guess: the same table "
+               "('Sr+2 Ti+4 O-2 (given)')",
+               code == 0 and ref["SrTiO3"]["states"] == {"Sr": 2.0, "Ti": 4.0, "O": -2.0}
+               and without(rows, "status") == without(rows_plain, "status")
+               and "oxidation states for the dipole: Sr+2 Ti+4 O-2 (given)" in out, out)
+        report("--no-files: the table is printed (every status 'not written (--no-files)'), "
+               "' none (--no-files)', no file written",
+               len(rows) == 3 and all(row["status"] == "not written (--no-files)" for row in rows)
+               and "\n* Output files *\n none (--no-files)\n" in out and not slab_files(given),
+               f"{slab_files(given)}\n{out}")
+        report("--no-files: the citations are printed",
+               "If you use crystod-slab in your research, please cite:" in out
+               and "10.1021/acsami.5c17978" in out, out)
+        code, out = slab(["-c", sto, "--max-index", "1", "--oxidation", "Sr=0", "Ti=0", "O=0",
+                          "--no-files"], given)
+        report("--oxidation with every state 0: polarity unknown ('?'), said in the settings "
+               "and a NOTE",
+               code == 0 and all(row["polar"] == "?" for row in _slab_rows(out))
+               and "oxidation states for the dipole: none (polarity unknown: --oxidation gives "
+               "every element 0)" in out
+               and "NOTE: polarity unknown (every oxidation state given is 0)" in out, out)
+
+        # ---- a metal: no oxidation states
+        metal = workdir("metal")
+        shutil.copy(cu, metal)
+        code, out = slab(["-c", "POSCAR_Cu", "--conventional", "--index", "1", "0", "0",
+                          "--no-polar"], metal)
+        rows = _slab_rows(out)
+        wrong = _slab_mismatch(rows, ref["Cu"]["rows"])
+        report("metal Cu (pymatgen guesses only Cu 0): polarity '?', 'none (polarity unknown)', "
+               "the table equal to pymatgen",
+               ref["Cu"]["states"] is None and code == 0 and rows
+               and all(row["polar"] == "?" for row in rows) and not wrong
+               and "oxidation states for the dipole: none (polarity unknown)" in out,
+               f"pymatgen guesses: {ref['Cu']['guesses']}\n" + "\n".join(wrong) + "\n" + out)
+        report("metal Cu with --no-polar: NOTE 'polarity unknown (no oxidation states): slabs "
+               "kept' and the slabs written",
+               "NOTE: polarity unknown (no oxidation states): slabs kept" in out
+               and rows and len(slab_files(metal)) == len(rows)
+               and all(row["status"] == "written" for row in rows), out)
+
+        # ---- the options passed on to pymatgen
+        options = workdir("options")
+        code, out = slab(["-c", sto, "--index", "1", "1", "0", "--lll-reduce", "--orthogonal-c",
+                          "--max-normal-search", "1", "--no-files"], options)
+        wrong = _slab_mismatch(_slab_rows(out), ref["options_c"]["rows"])
+        report("--lll-reduce --orthogonal-c --max-normal-search 1: the settings lines, the table "
+               "equal to SlabGenerator(max_normal_search=1) + get_orthogonal_c_slab",
+               code == 0 and not wrong and all(row["c_normal"] for row in
+                                               ref["options_c"]["rows"])
+               and "reduced in-plane cell (--lll-reduce): yes" in out
+               and "c perpendicular to the surface: yes" in out
+               and "max normal search: 1" in out, "\n".join(wrong) + "\n" + out)
+        code, out = slab(["-c", sto, "--index", "1", "0", "0", "--in-unit-planes",
+                          "--slab-size", "4", "--vacuum-size", "6", "--no-center",
+                          "--no-primitive", "--no-files"], options)
+        wrong = _slab_mismatch(_slab_rows(out), ref["options_planes"]["rows"])
+        report("--in-unit-planes --slab-size 4 --vacuum-size 6 --no-center --no-primitive: "
+               "'4 d_hkl lattice planes', the table equal to SlabGenerator(in_unit_planes=True, "
+               "center_slab=False, primitive=False)",
+               code == 0 and not wrong
+               and "minimum slab height: 4 d_hkl lattice planes   minimum vacuum: 6 d_hkl "
+               "lattice planes" in out and "centered: no" in out
+               and "primitive in-plane cell: no" in out, "\n".join(wrong) + "\n" + out)
+        code, out = slab(["-c", sto, "--index", "3", "3", "2", "--slab-size", "5",
+                          "--vacuum-size", "5", "--lll-reduce", "--no-files"], options)
+        rows = _slab_rows(out)
+        lll_plain, lll_pymatgen = ref["lll_plain"]["rows"], ref["lll_pymatgen"]["rows"]
+        wrong = _slab_mismatch(rows, lll_plain)
+        def multiple(row: dict) -> bool:     # the area a whole number of oriented cells
+            ratio = row["area"] / row["oriented_area"]
+            return abs(ratio - round(ratio)) < 1e-6 and round(ratio) >= 1
+
+        report("--lll-reduce on (3 3 2) at 5 A + 5 A: the in-plane cell stays in the surface "
+               "(area 73.00 = the oriented cell's a x b, the numbers of the unreduced slab), "
+               "where pymatgen's own LLL tilts it (an area that is no multiple of a x b)",
+               code == 0 and not wrong and rows
+               and all(abs(row["area"] - lll_plain[0]["oriented_area"]) < 5.1e-3 for row in rows)
+               and all(multiple(row) for row in lll_plain)
+               and not all(multiple(row) for row in lll_pymatgen)
+               and all(row["vacuum"] >= 5 for row in rows), "\n".join(wrong) + "\n"
+               + json.dumps(lll_pymatgen) + "\n" + out)
+        code, out = slab(["-c", sto, "--index", "1", "1", "1", "--lll-reduce", "--no-files"],
+                         options)
+        wrong = _slab_mismatch(_slab_rows(out), ref["lll_default"]["rows"])
+        report("--lll-reduce on (1 1 1) at the defaults: the table equal to pymatgen's "
+               "lll_reduce=True, where its cell stays in the surface",
+               code == 0 and not wrong and all(multiple(row)
+                                               for row in ref["lll_default"]["rows"]),
+               "\n".join(wrong) + "\n" + out)
+
+        # ---- the dialogue
+        asked = workdir("dialogue")
+        direct = workdir("dialogue_options")
+        code, out = slab(["-c", sto], asked, stdin="3\n1\n\n\n\nno\nyes\n")
+        code_cli, out_cli = slab(["-c", sto, "--max-index", "1", "--symmetrize"], direct)
+        questions = ("Choice [1-4]: 3", "Maximum Miller index [1]: 1",
+                     "Minimum slab height in Angstrom [10]: \n",
+                     "Minimum vacuum height in Angstrom [15]: \n",
+                     "Maximum number of atoms per slab [no limit]: \n",
+                     "Allow polar slabs? yes/no [yes]: no", "yes/no [no]: yes")
+        report("dialogue (3, 1, Enter x 3, no, yes): exit 0, the questions with their defaults",
+               code == 0 and all(question in out for question in questions)
+               and "\n* Miller indices *\n How should the Miller indices be given?\n" in out,
+               out)
+        report("dialogue: * Equivalent command line * 'crystod-slab -c 221_PPOSCAR_SrTiO3 "
+               "--max-index 1 --symmetrize'",
+               "\n* Equivalent command line *\n crystod-slab -c 221_PPOSCAR_SrTiO3 --max-index 1 "
+               "--symmetrize\n" in out, out)
+        wrong = _slab_mismatch(_slab_rows(out_cli), ref["SrTiO3_sym"]["rows"])
+        report("dialogue: the rest of the output and the files equal those of --max-index 1 "
+               "--symmetrize, whose table equals pymatgen",
+               code_cli == 0 and "\n* Structure *" in out
+               and out.split("\n* Structure *", 1)[1] == out_cli.split("\n* Structure *", 1)[1]
+               and same_files(asked, direct) and not wrong,
+               "\n".join(wrong) + "\n" + out + "\n" + out_cli)
+        code, out = slab(["-c", sto, "--no-files"], asked,
+                         stdin="1\n(1 1 0)\n10.0000004\n15.1234567\n\n\n")
+        report("dialogue, choice 1 answered '(1 1 0)' and exact sizes: the equivalent command "
+               "line has '--index 1 1 0 --slab-size 10.0000004 --vacuum-size 15.1234567'",
+               code == 0 and "crystod-slab -c 221_PPOSCAR_SrTiO3 --index 1 1 0 --slab-size "
+               "10.0000004 --vacuum-size 15.1234567" in out
+               and "minimum slab height: 10.0000004 A" in out, out)
+        quit_dir = workdir("dialogue_quit")
+        code, out = slab(["-c", sto], quit_dir, stdin="4\n")
+        report("dialogue: choice 4 quits with exit 0, no table, no file",
+               code == 0 and "quit: nothing was done." in out and "* Slabs *" not in out
+               and not slab_files(quit_dir) and "Traceback" not in out, out)
+        code, out = slab(["-c", sto], quit_dir, stdin="")
+        report("dialogue: the end of the input is an ERROR",
+               refused(code, out) and "the input ended" in out and "* Slabs *" not in out, out)
+        code, out = slab(["-c", sto], quit_dir, stdin="7\n7\n7\n")
+        report("dialogue: three invalid answers end in an ERROR",
+               refused(code, out) and "after 3 tries" in out
+               and out.count("choose 1, 2, 3 or 4") == 3, out)
+        code, out = slab([], quit_dir, stdin=f"{sto}\n4\n")
+        report("dialogue without -c and without ./POSCAR: 'Structure file [POSCAR]:' asked first",
+               code == 0 and f"Structure file [POSCAR]: {sto}\n" in out
+               and "quit: nothing was done." in out, out)
+        with open(os.path.join(quit_dir, "bad.vasp"), "w", encoding="utf-8") as handle:
+            handle.write("not a structure\n")
+        code, out = slab([], quit_dir, stdin=f"bad.vasp\n{sto}\n4\n")
+        report("dialogue: a structure file that cannot be read is asked for again",
+               code == 0 and "Structure file [POSCAR]: bad.vasp\n   not valid: cannot read "
+               "bad.vasp as a POSCAR or CIF" in out and "quit: nothing was done." in out, out)
+        code, out = slab(["-c", "bad.vasp"], quit_dir, stdin="3\n1\n\n\n\n\n")
+        report("dialogue: a bad -c file is refused before the first question",
+               refused(code, out) and "cannot read bad.vasp as a POSCAR or CIF" in out
+               and "* Miller indices *" not in out, out)
+        code, out = slab(["-c", sto, "--oxidation", "Sr=2"], quit_dir, stdin="3\n1\n\n\n\n\n")
+        report("dialogue: incomplete --oxidation states are refused before the first question",
+               refused(code, out) and "no oxidation state for Ti, O" in out
+               and "* Miller indices *" not in out, out)
+
+        # ---- refused input
+        errors = workdir("errors")
+        with open(os.path.join(errors, "afile"), "w", encoding="utf-8") as handle:
+            handle.write("a file\n")
+        for label, args, phrase in (
+                ("--index and --max-index together",
+                 ["--index", "1", "0", "0", "--max-index", "1"],
+                 "give one index source, --index, --index-list or --max-index (got --index and "
+                 "--max-index)"),
+                ("--max-index 0", ["--max-index", "0"],
+                 "the maximum Miller index must be a positive integer (got 0)"),
+                ("--slab-size 0", ["--max-index", "1", "--slab-size", "0"],
+                 "the minimum slab height (--slab-size) must be positive"),
+                ("--vacuum-size -5", ["--max-index", "1", "--vacuum-size", "-5"],
+                 "the minimum vacuum height (--vacuum-size) must be positive"),
+                ("--index 0 0 0", ["--index", "0", "0", "0"], "(0 0 0) is not a plane"),
+                ("--index 1 0 (two integers)", ["--index", "1", "0"],
+                 "a Miller index is h k l, or h k i l on hexagonal axes; got '1 0'."),
+                ("--index 1 0 0 1 1 0 (two indices)", ["--index", "1", "0", "0", "1", "1", "0"],
+                 "--index takes one Miller index; got '1 0 0 1 1 0' (for several: --index 1 0 0 "
+                 "--index 1 1 0)."),
+                ("a missing list file", ["--index-list", "no_such_list"],
+                 "no index list file no_such_list"),
+                ("a list file that is a directory", ["--index-list", "."],
+                 ". is a directory, not an index list file"),
+                ("--oxidation Sr=2 (no state for Ti and O)",
+                 ["--max-index", "1", "--oxidation", "Sr=2"],
+                 "no oxidation state for Ti, O (--oxidation needs one per element: Sr=Q Ti=Q "
+                 "O=Q)."),
+                ("--oxidation Sr=2 Ti=3 O=-2 (a charged bulk)",
+                 ["--max-index", "1", "--oxidation", "Sr=2", "Ti=3", "O=-2"],
+                 "oxidation states Sr+2 Ti+3 O-2 (--oxidation) leave SrTiO3 charged (-1 e per "
+                 "formula unit)."),
+                ("--oxidation Sr2 (not EL=Q)", ["--max-index", "1", "--oxidation", "Sr2"],
+                 "are EL=Q pairs"),
+                ("--oxidation Xx=1 (not an element)", ["--max-index", "1", "--oxidation", "Xx=1"],
+                 "'Xx' is not an element"),
+                ("--max-atoms 0", ["--max-index", "1", "--max-atoms", "0"],
+                 "--max-atoms must be a positive integer"),
+                ("--output-dir under a file", ["--max-index", "1", "--output-dir", "afile/sub"],
+                 "--output-dir afile/sub: afile is not a directory."),
+        ):
+            code, out = slab(["-c", sto] + args, errors)
+            report(f"refused cleanly: {label}",
+                   refused(code, out) and phrase in out and "* Slabs *" not in out, out)
+        for args in (["-c", "no_such_POSCAR", "--max-index", "1"], ["-c", "no_such_POSCAR"]):
+            code, out = slab(args, errors, stdin="3\n")
+            report(f"refused cleanly: crystod-slab {' '.join(args)} (a missing POSCAR; before "
+                   "the dialogue)",
+                   refused(code, out) and "no structure file no_such_POSCAR" in out
+                   and "* Miller indices *" not in out, out)
+        code, out = slab(["-c", ".", "--max-index", "1"], errors)
+        report("refused cleanly: -c . (a directory, not a structure file)",
+               refused(code, out) and ". is a directory, not a structure file." in out, out)
+        report("refused runs write nothing", not slab_files(errors), str(slab_files(errors)))
+
+        # ---- --example, --help, crystod --slab
+        bundled = os.path.join(tmp, "example")
+        os.makedirs(bundled)
+        code, out = slab(["--example"], bundled)
+        report("crystod-slab --example lists SrTiO3 and ScF3 with their command lines",
+               code == 0 and re.search(r"^ +SrTiO3 ", out, re.M) is not None
+               and re.search(r"^ +ScF3 ", out, re.M) is not None
+               and "= crystod-slab -c 221_PPOSCAR_SrTiO3 --max-index 1" in out
+               and "= crystod-slab -c 221_PPOSCAR_ScF3 --index 1 0 0 --symmetrize" in out
+               and "symmetrized (non-stoichiometric, charged) terminations of ScF3 (1 0 0)"
+               in out, out)
+        code, out = slab(["--example", "ScF3"], bundled)
+        rows = _slab_rows(out)
+        wrong = _slab_mismatch(rows, ref["ScF3_sym"]["rows"])
+        report("--example ScF3 runs 'crystod-slab -c 221_PPOSCAR_ScF3 --index 1 0 0 "
+               "--symmetrize' and writes POSCAR_slab_ScF3_100_s*, as pymatgen; Sc2F7 and "
+               "Sc3F8 with charges -1 and +1",
+               code == 0 and "Running: crystod-slab -c 221_PPOSCAR_ScF3 --index 1 0 0 "
+               "--symmetrize" in out and not wrong
+               and slab_files(bundled) == sorted(file_name("ScF3", row, "s")
+                                                 for row in ref["ScF3_sym"]["rows"])
+               and all(name.startswith("POSCAR_slab_ScF3_100_s") for name in slab_files(bundled))
+               and all(row["symmetric"] == "yes" and row["polar"] == "no" for row in rows)
+               and sorted((row["formula"], row["charge"]) for row in rows)
+               == [("Sc2F7", -1.0), ("Sc3F8", 1.0)],
+               f"{slab_files(bundled)}\n" + "\n".join(wrong) + "\n" + out)
+        code, out = slab(["--help"], tmp)
+        report("crystod-slab --help exit 0, documents --max-index, --no-polar, --symmetrize, "
+               "--max-atoms, --index-list, --force and the citation",
+               code == 0 and all(option in out for option in
+                                 ("--max-index", "--no-polar", "--symmetrize", "--max-atoms",
+                                  "--index-list", "--conventional", "--oxidation", "--force"))
+               and "https://doi.org/10.1021/acsami.5c17978" in out, out)
+        code, out = run_cli(["--slab"])
+        outputs.append(("crystod --slab", out))
+        report("crystod --slab points to crystod-slab",
+               code != 0 and "crystod-slab -c POSCAR" in out and "Traceback" not in out, out)
+
+        # ---- the POSCAR files against the API and pymatgen
+        cases = [(plain, sources[sto], {"max_index": 1}),
+                 (target, sources[sto], {"miller_index": (1, 0, 0), "symmetrize": True}),
+                 (three, sources["186_PPOSCAR_ZnO"], {"miller_index": [(0, 0, 1), (1, 0, 0)]}),
+                 (bundled, sources["221_PPOSCAR_ScF3"],
+                  {"miller_index": (1, 0, 0), "symmetrize": True})]
+        code, out = run_python(f"CASES = {cases!r}\n" + _SLAB_FILES, cwd=tmp)
+        files = (json.loads(out.split("FILES ", 1)[1].splitlines()[0])
+                 if code == 0 and "FILES " in out else [])
+        detail = "\n".join(json.dumps(entry) for entry in files) + "\n" + out[-3000:]
+        report(f"files probe: every slab of the API has its POSCAR ({len(files)} files of 4 runs)",
+               len(files) >= 8 and all(entry["exists"] for entry in files), detail)
+        report("the API's slabs equal pymatgen's SlabGenerator slabs (StructureMatcher; "
+               "symmetrize=True included, whose faces crystod compares at its own tolerance)",
+               bool(files) and all(entry["api_vs_pymatgen"] for entry in files), detail)
+        written = [entry for entry in files if entry["exists"]]
+        report("every POSCAR re-read by pymatgen matches the Slab of the API (StructureMatcher; "
+               "the same lattice to 1e-9 A)",
+               bool(written) and all(entry["file_vs_api"] and entry["lattice"] < 1e-9
+                                     for entry in written), detail)
+        orders = {}
+        for name, path in sources.items():
+            with open(path, encoding="utf-8") as handle:
+                orders[os.path.basename(path)] = handle.read().splitlines()[5].split()
+        bulk_order = {"SrTiO3": orders[sto], "ZnO": orders["186_PPOSCAR_ZnO"],
+                      "ScF3": orders["221_PPOSCAR_ScF3"]}
+        report("POSCAR species line: one block per element, in the order of the input POSCAR "
+               "(no repeated element), the counts adding up to the atoms",
+               bool(written) and all(
+                   len(set(entry["species"])) == len(entry["species"])
+                   and entry["species"] == [s for s in bulk_order[entry["bulk"]]
+                                            if s in entry["species"]]
+                   and sum(entry["counts"]) == entry["sites"] == entry["atoms"]
+                   for entry in written), detail)
+        report("POSCAR comment line '{bulk} (h k l) slab, termination tn (symmetrized sn), "
+               "{slab formula}, shift s, crystod-slab'",
+               bool(written) and all(
+                   entry["comment"] == f"{entry['bulk']} ({' '.join(map(str, entry['hkl']))}) "
+                   f"slab, {'symmetrized s' if entry['symmetrized'] else 'termination t'}"
+                   f"{entry['t']}, {entry['formula']}, shift {entry['shift']:.3f}, crystod-slab"
+                   for entry in written)
+               and any(entry["comment"] == "SrTiO3 (1 1 1) slab, termination t1, Sr5Ti5O15, "
+                       "shift 0.250, crystod-slab" for entry in written)
+               and any(entry["comment"] == "ScF3 (1 0 0) slab, symmetrized s1, Sc2F7, "
+                       "shift 0.250, crystod-slab" for entry in written), detail)
+        file_polar = {(entry["case"], tuple(entry["hkl"])): entry["polar"] for entry in written
+                      if entry["case"] == "max_index"}
+        report("the --max-index 1 files, rebuilt as pymatgen Slabs: (1 1 1) and (1 1 0) polar, "
+               "(1 0 0) not",
+               file_polar == {("max_index", (1, 1, 1)): True, ("max_index", (1, 1, 0)): True,
+                              ("max_index", (1, 0, 0)): False}, detail)
+        symmetrized_files = [entry for entry in written if entry["case"] in ("dir", "example")]
+        report("the --symmetrize files (SrTiO3 and ScF3 (1 0 0)), rebuilt as pymatgen Slabs: "
+               "Slab.is_symmetric and not polar",
+               len(symmetrized_files) >= 2
+               and all(entry["symmetric"] and not entry["polar"] for entry in symmetrized_files),
+               detail)
+
+        # ---- the Python API
+        probe = (
+            "import json, os, sys\n"
+            "from crystod import slab\n"
+            "print('PYMATGEN', 'pymatgen' in sys.modules)\n"
+            f"s = slab.load_structure({sources[sto]!r})\n"
+            "print('DISTINCT ' + json.dumps(slab.distinct_miller_indices(s, 1)))\n"
+            f"alf3 = slab.load_structure({sources['167_PPOSCAR_AlF3']!r})\n"
+            "print('ALF3 ' + json.dumps(slab.distinct_miller_indices(alf3, 1)))\n"
+            "records = slab.generate_slabs(s, max_index=1)\n"
+            "print('BYMAX', type(records).__name__, json.dumps([(r.miller_index, r.termination,\n"
+            "      r.n_atoms, r.polar, r.symmetric) for r in records]))\n"
+            "one = slab.generate_slabs(s, miller_index=(1, 0, 0))\n"
+            "print('BYINDEX', one.oxidation_source, json.dumps([(r.miller_index, r.termination,\n"
+            "      r.n_atoms, r.polar, r.symmetric) for r in one]))\n"
+            "sym = slab.generate_slabs(s, miller_index=(1, 1, 0), symmetrize=True)\n"
+            "print('CHARGE', json.dumps([(r.label, r.formula, r.charge, r.charged,\n"
+            "      slab.slab_filename(r)) for r in sym]))\n"
+            "print('PARSE', slab.parse_miller_index(['1', '0', '-1', '0']),\n"
+            "      slab.parse_miller_index('1,1,0'))\n"
+            "for call in (\"slab.parse_miller_index('0 0 0')\",\n"
+            "             \"slab.generate_slabs(s, miller_index=(0, 0, 0))\",\n"
+            "             \"slab.parse_miller_index(['1', '0', '0', '1'])\",\n"
+            "             \"slab.generate_slabs(s, max_index=0)\",\n"
+            "             \"slab.read_index_list('no_such_list')\",\n"
+            "             \"slab.generate_slabs(s, (1, 0, 0), oxidation_states={'Sr': 2})\",\n"
+            "             \"slab.generate_slabs(s, (1, 0, 0), oxidation_states={'Sr': 2, "
+            "'Ti': 3, 'O': -2})\"):\n"
+            "    try:\n"
+            "        eval(call)\n"
+            "        print('NOT RAISED', call)\n"
+            "    except ValueError as exc:\n"
+            "        print('VALUEERROR', exc)\n"
+            "    except SystemExit:\n"
+            "        print('SYSTEMEXIT', call)\n"
+            "table = slab.format_table(records)\n"
+            "print('TYPE', type(table).__name__)\n"
+            "print('TABLE BEGIN')\n"
+            "print(table)\n"
+            "print('TABLE END')\n"
+            "path, status = slab.write_slab_poscar(records[0], 'api_out')\n"
+            "print('WROTE', path, status, os.path.isfile(path), slab.slab_filename(records[0]))\n"
+            "print('AGAIN', *slab.write_slab_poscar(records[0], 'api_out'))\n"
+        )
+        code, out = run_python(probe, cwd=tmp)
+        report("API: importing crystod.slab does not import pymatgen", "PYMATGEN False" in out,
+               out)
+        report("API: distinct_miller_indices(SrTiO3, 1) equals pymatgen's",
+               f"DISTINCT {json.dumps(ref['SrTiO3']['indices'])}\n" in out, out)
+        alf3 = [set(map(tuple, orbit)) for orbit in families["AlF3"]]
+        listed = (json.loads(out.split("ALF3 ", 1)[1].splitlines()[0]) if "ALF3 " in out else [])
+        report("API: distinct_miller_indices(AlF3, 1), one index per spglib family",
+               len(listed) == len(alf3)
+               and all(sum(tuple(index) in orbit for index in listed) == 1 for orbit in alf3),
+               out)
+        by_max = [[row["hkl"], row["t"], row["atoms"], row["polar"], row["symmetric"]]
+                  for row in ref["SrTiO3"]["rows"]]
+        report("API: generate_slabs(max_index=1) returns a SlabSet whose index, termination, "
+               "atoms, polar and symmetric equal pymatgen's",
+               code == 0 and f"BYMAX SlabSet {json.dumps(by_max)}\n" in out, out)
+        by_index = [entry for entry in by_max if entry[0] == [1, 0, 0]]
+        report("API: generate_slabs(miller_index=(1, 0, 0)) gives the (1 0 0) slabs, oxidation "
+               "states guessed",
+               f"BYINDEX guessed {json.dumps(by_index)}\n" in out, out)
+        charges = [(f"(1 1 0) s{row['t']}", row["charge"]) for row in ref["SrTiO3_sym"]["rows"]
+                   if row["hkl"] == [1, 1, 0]]
+        api_charges = (json.loads(out.split("CHARGE ", 1)[1].splitlines()[0])
+                       if "CHARGE " in out else [])
+        report("API: symmetrized (1 1 0) records: labels s1, s2, charge (-4/+4 as pymatgen's "
+               "slabs), charged, file names ..._110_s1",
+               [(label, charge) for label, _, charge, _, _ in api_charges] == charges
+               and all(charged and name == f"POSCAR_slab_SrTiO3_110_{label[-2:]}"
+                       for label, _, _, charged, name in api_charges), out)
+        report("API: parse_miller_index reads the four-index and the comma forms",
+               "PARSE (1, 0, 0) (1, 1, 0)" in out, out)
+        report("API: bad input raises ValueError, not SystemExit, through the namespace (zero "
+               "index, Miller-Bravais, max_index 0, missing list, incomplete or unbalanced "
+               "oxidation states, worded without naming a CLI option alone)",
+               out.count("VALUEERROR") == 7 and "VALUEERROR (0 0 0) is not a plane" in out
+               and "VALUEERROR no oxidation state for Ti, O" in out
+               and "leave SrTiO3 charged (-1 e per formula unit)" in out
+               and "NOT RAISED" not in out and "SYSTEMEXIT" not in out, out)
+        table = (out.split("TABLE BEGIN\n", 1)[1].split("\nTABLE END", 1)[0]
+                 if "TABLE BEGIN\n" in out and "\nTABLE END" in out else "")
+        report("API: format_table returns the table string crystod-slab prints",
+               "TYPE str" in out and bool(table) and f"\n* Slabs *\n{table}\n" in out_plain,
+               out)
+        report("API: write_slab_poscar returns (path, 'wrote'), then (path, 'kept') for the "
+               "identical file",
+               "WROTE api_out/POSCAR_slab_SrTiO3_111_t1 wrote True POSCAR_slab_SrTiO3_111_t1"
+               in out and "AGAIN api_out/POSCAR_slab_SrTiO3_111_t1 kept" in out
+               and filecmp.cmp(os.path.join(tmp, "api_out", "POSCAR_slab_SrTiO3_111_t1"),
+                               os.path.join(plain, "POSCAR_slab_SrTiO3_111_t1"), shallow=False),
+               out)
+
+    # ---- every run: line width, no traceback, the citations, no mascot
+    wide = [f"{label}: {len(line)} columns: {line}" for label, out in outputs
+            for line in out.splitlines() if len(line) > 100]
+    report(f"every output line of the {len(outputs)} runs is at most 100 columns", not wide,
+           "\n".join(wide[:15]))
+    crashed = [label for label, out in outputs if "Traceback" in out]
+    report("no traceback in any run", not crashed, "\n".join(crashed))
+    kiribayashi = ('R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, '
+                   'Y. Mochizuki, and A. Nakajima, "Preparation and Antiviral Activity of '
+                   'La2CuO4 and Y2Cu2O5 with Mechanistic Insights from First Principles", ACS '
+                   'Appl. Mater. Interfaces 17, 61872-61887 (2025). '
+                   'https://doi.org/10.1021/acsami.5c17978')
+    pymatgen_papers = ("The slabs are built with pymatgen's SlabGenerator:\n  W. Sun and G. Ceder, "
+                       "Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).")
+    tables = [(label, out) for label, out in outputs
+              if "\n* Slabs *\n" in out and "\n* Output files *\n" in out
+              and "ERROR:" not in out]
+    uncited = [label for label, out in tables
+               if "\nIf you use crystod-slab in your research, please cite:\n" not in out
+               or kiribayashi not in " ".join(out.split()) or pymatgen_papers not in out
+               or "If you use CrystOD in your research, please cite:" not in out
+               or out.index("\n* Output files *") > out.index("If you use crystod-slab")]
+    report(f"the two citation paragraphs (Kiribayashi et al. with the DOI; Sun and Ceder, Tran "
+           f"et al.) and CrystOD's close every run with a table ({len(tables)} runs)",
+           len(tables) >= 14 and not uncited, "\n".join(uncited))
+    mascot = [label for label, out in outputs
+              if re.search(r"parody|palody|vaspkit|cyber|OOOo|oooO", out, re.I)]
+    report("no slabkit mascot or 'parody of vaspkit' text in any output (--help included)",
+           not mascot, "\n".join(mascot))
+
+
 SECTIONS = {
     1: test_01_wigner_d,
     2: test_02_salc,
@@ -18772,6 +24266,10 @@ SECTIONS = {
     47: test_47_xrd_superlattice,
     48: test_48_search,
     49: test_49_extract_irrep,
+    50: test_50_packaged_examples,
+    51: test_51_phonon_unfold,
+    52: test_52_phonon_visualize,
+    53: test_53_slab,
 }
 
 

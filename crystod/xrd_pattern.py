@@ -13,6 +13,13 @@ The radiation is chosen by name.  A K-alpha *line* (``CuKa1``, ``MoKa2``,
 ratio, which is what a laboratory diffractometer without a monochromator
 records.  The wavelengths are those tabulated in the RIETAN-FP manual.
 
+``radiation="neutron"`` with a wavelength in Angstrom gives the powder
+neutron pattern instead, from pymatgen's
+:class:`~pymatgen.analysis.diffraction.neutron.NDCalculator`: nuclear
+scattering only (coherent scattering lengths, Lorentz factor without the
+polarization term), no magnetic scattering and, as for X-rays, no
+Debye-Waller factor.
+
 Originally ``script/xrd_pattern_poscar.py`` (Y. Mochizuki, 2026); the
 computation is unchanged, the broadening profiles are now normalized to
 unit area so that the Gaussian and Lorentzian patterns share one scale.
@@ -59,6 +66,10 @@ XRAY_TYPES: tuple[str, ...] = (*KALPHA_DOUBLETS, *WAVELENGTHS)
 #: The broadening profiles of :func:`smear_pattern`.
 PEAK_PROFILES: tuple[str, ...] = ("lorentzian", "gaussian")
 
+#: The radiations ``--radiation`` accepts.
+RADIATIONS: tuple[str, ...] = ("xray", "neutron")
+
+DEFAULT_RADIATION = "xray"
 DEFAULT_XRAY_TYPE = "CuKa"
 DEFAULT_PEAK_PROFILE = "lorentzian"
 DEFAULT_TWO_THETA_RANGE = (10.0, 120.0)
@@ -142,6 +153,8 @@ class XRDPattern:
             collected in.
         structure_name: The file name the structure was read from, used in
             output names and plot legends (empty when built from a Structure).
+        radiation: ``"xray"`` (the default) or ``"neutron"``; for neutrons
+            ``xray_type`` and the one key of ``wavelengths`` are ``"neutron"``.
     """
 
     peaks: list[Peak]
@@ -151,6 +164,7 @@ class XRDPattern:
     space_group: str
     two_theta_range: tuple[float, float]
     structure_name: str = ""
+    radiation: str = DEFAULT_RADIATION
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
@@ -197,14 +211,66 @@ def _resolve_radiation(xray_type: str) -> tuple[tuple[str, float], ...]:
     return ((name, 1.0),)
 
 
+def radiation_lines(
+    radiation: str = DEFAULT_RADIATION,
+    xray_type: str | None = None,
+    wavelength: float | None = None,
+) -> tuple[str, tuple[tuple[str, float, float], ...]]:
+    """The lines of a radiation: ``(name, ((line, wavelength, weight), ...))``.
+
+    Args:
+        radiation: ``"xray"`` (default) or ``"neutron"``, case-insensitively.
+        xray_type: For X-rays, a doublet or line name of :data:`XRAY_TYPES`
+            (``"CuKa"`` when None); must be None for neutrons.
+        wavelength: For neutrons, the wavelength in Angstrom (required);
+            must be None for X-rays, whose wavelength the line name fixes.
+
+    Returns:
+        ``("CuKa", (("CuKa1", 1.5405929, 1.0), ("CuKa2", 1.5444274, 0.5)))``
+        for X-rays, ``("neutron", (("neutron", 1.5, 1.0),))`` for neutrons.
+
+    Raises:
+        SystemExit: Unknown radiation or line name, a wavelength given for
+            X-rays, an X-ray type given for neutrons, or a missing or
+            non-positive neutron wavelength (``ValueError`` when called
+            through ``crystod.xrd``).
+
+    Example:
+        >>> from crystod import xrd
+        >>> xrd.radiation_lines("neutron", wavelength=1.5)
+        ('neutron', (('neutron', 1.5, 1.0),))
+    """
+    kind = str(radiation).strip().lower()
+    if kind not in RADIATIONS:
+        raise SystemExit(
+            f"ERROR: unknown radiation '{radiation}'; choose one of {', '.join(RADIATIONS)}.")
+    if kind == "neutron":
+        if xray_type is not None:
+            raise SystemExit("ERROR: --xraytype names an X-ray line; it cannot be combined with "
+                             "--radiation neutron (give the neutron wavelength with --wavelength).")
+        if wavelength is None:
+            raise SystemExit("ERROR: --radiation neutron needs the wavelength: --wavelength W "
+                             "(Angstrom).")
+        if not float(wavelength) > 0:
+            raise SystemExit(f"ERROR: the wavelength must be positive (got {wavelength}).")
+        return "neutron", (("neutron", float(wavelength), 1.0),)
+    if wavelength is not None:
+        raise SystemExit("ERROR: --wavelength sets the neutron wavelength; an X-ray wavelength "
+                         "is fixed by --xraytype (or use --radiation neutron).")
+    name = xray_type if xray_type is not None else DEFAULT_XRAY_TYPE
+    lines = _resolve_radiation(name)
+    return _resolve_name(name), tuple((line, WAVELENGTHS[line], weight) for line, weight in lines)
+
+
 @contextlib.contextmanager
 def _intensity_floor(minimum: float):
     """Temporarily set pymatgen's peak-intensity cut-off (a class attribute).
 
     ``XRDCalculator.get_pattern`` drops reflections whose scaled intensity
-    falls below ``AbstractDiffractionPatternCalculator.SCALED_INTENSITY_TOL``
-    (0.1 % by default) and reads that value from the class, so it has to be
-    patched there; the original value is restored afterwards.
+    ``100 I / I_max`` (a percentage) does not exceed
+    ``AbstractDiffractionPatternCalculator.SCALED_INTENSITY_TOL`` (``1e-3``
+    by default, i.e. 0.001 %) and reads that value from the class, so it has
+    to be patched there; the original value is restored afterwards.
     """
     from pymatgen.analysis.diffraction.core import AbstractDiffractionPatternCalculator
 
@@ -251,6 +317,8 @@ def compute_xrd_pattern(
     min_intensity: float = 0.0,
     symprec: float = 0.01,
     structure_name: str = "",
+    radiation: str = DEFAULT_RADIATION,
+    wavelength: float | None = None,
 ) -> XRDPattern:
     """Compute the powder pattern of a structure for one radiation.
 
@@ -259,6 +327,9 @@ def compute_xrd_pattern(
     :class:`~pymatgen.analysis.diffraction.xrd.XRDCalculator` (intensities
     scaled to 100 for the strongest peak); for a doublet the Ka2 peaks are
     weighted by 1/2 and the two lists are merged in order of ``2theta``.
+    With ``radiation="neutron"`` the single wavelength ``wavelength`` is
+    run through :class:`~pymatgen.analysis.diffraction.neutron.NDCalculator`
+    instead (nuclear scattering only; ``xray_type`` is then not used).
 
     Args:
         structure: A ``pymatgen.core.Structure`` (see :func:`load_structure`).
@@ -268,19 +339,23 @@ def compute_xrd_pattern(
         two_theta_range: ``(min, max)`` in degrees; peaks outside are dropped.
         min_intensity: Peaks whose scaled intensity is below this percentage
             are dropped. ``0`` keeps every reflection (pymatgen's own default
-            would hide those below 0.1 %).
+            would hide those below 0.001 %).
         symprec: Tolerance in Angstrom of the space-group determination used
             for the printed symbol only; the intensities are computed from
             the structure as given, without symmetrization.
         structure_name: Name recorded in the result for output names and
             legends (the CLI passes the file name).
+        radiation: ``"xray"`` (default) or ``"neutron"``.
+        wavelength: The neutron wavelength in Angstrom (required for
+            neutrons, refused for X-rays).
 
     Returns:
         The :class:`XRDPattern`.
 
     Raises:
-        SystemExit: Unknown radiation name (``ValueError`` when called
-            through ``crystod.xrd``).
+        SystemExit: Unknown radiation name, or a wavelength that does not
+            fit the radiation (``ValueError`` when called through
+            ``crystod.xrd``).
 
     Example:
         >>> from crystod import xrd
@@ -293,11 +368,13 @@ def compute_xrd_pattern(
         >>> peak.hkl, round(peak.two_theta, 2), round(peak.intensity, 1)
         ((1, 0, 0), 21.82, 100.0)
     """
+    from pymatgen.analysis.diffraction.neutron import NDCalculator
     from pymatgen.analysis.diffraction.xrd import XRDCalculator
     from pymatgen.core.composition import Composition
     from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
-    radiation = _resolve_radiation(xray_type)
+    neutron = str(radiation).strip().lower() == "neutron"
+    name, lines = radiation_lines(radiation, None if neutron else xray_type, wavelength)
     low, high = float(two_theta_range[0]), float(two_theta_range[1])
     if not 0.0 <= low < high <= 180.0:
         raise SystemExit(
@@ -308,11 +385,14 @@ def compute_xrd_pattern(
     peaks: list[Peak] = []
     wavelengths: dict[str, float] = {}
     with _intensity_floor(min_intensity):
-        for line, weight in radiation:
-            wavelength = WAVELENGTHS[line]
-            wavelengths[line] = wavelength
-            pattern = XRDCalculator(wavelength=wavelength).get_pattern(
-                structure, two_theta_range=(low, high))
+        for line, line_wavelength, weight in lines:
+            wavelengths[line] = line_wavelength
+            calculator = (NDCalculator(wavelength=line_wavelength) if neutron
+                          else XRDCalculator(wavelength=line_wavelength))
+            try:
+                pattern = calculator.get_pattern(structure, two_theta_range=(low, high))
+            except ValueError as exc:  # an element without scattering data
+                raise SystemExit(f"ERROR: {exc}") from None
             for two_theta, intensity, families, d in zip(
                     pattern.x, pattern.y, pattern.hkls, pattern.d_hkls):
                 merged = tuple((tuple(int(i) for i in fam["hkl"]), int(fam["multiplicity"]))
@@ -329,10 +409,10 @@ def compute_xrd_pattern(
     except Exception:  # spglib found no symmetry at this tolerance
         space_group = "P1"
     formula = Composition(structure.formula).reduced_formula
-    name = _resolve_name(xray_type)
     return XRDPattern(peaks=peaks, xray_type=name, wavelengths=wavelengths,
                       formula=formula, space_group=space_group,
-                      two_theta_range=(low, high), structure_name=structure_name)
+                      two_theta_range=(low, high), structure_name=structure_name,
+                      radiation="neutron" if neutron else DEFAULT_RADIATION)
 
 
 def _resolve_name(xray_type: str) -> str:
@@ -405,16 +485,27 @@ def write_peak_table(pattern: XRDPattern, path: str) -> str:
     Returns:
         ``path``.
     """
-    lines = [
-        f"# powder XRD pattern of {pattern.structure_name or pattern.formula}: "
-        f"{pattern.formula}, {pattern.space_group}",
-        "# radiation: " + pattern.xray_type + " = " + ", ".join(
-            f"{line} {wavelength:.7f} A" for line, wavelength in pattern.wavelengths.items())
-        + (" (Ka1 : Ka2 = 2 : 1)" if len(pattern.wavelengths) > 1 else ""),
-        f"# 2theta range: {pattern.two_theta_range[0]:g} - {pattern.two_theta_range[1]:g} deg; "
-        "intensities relative to the strongest Ka1 peak = 100",
-        "# h, k, l, multiplicity, d (A), two_theta (deg), intensity, line, families",
-    ]
+    if pattern.radiation == "neutron":
+        lines = [
+            f"# powder neutron diffraction pattern of "
+            f"{pattern.structure_name or pattern.formula}: {pattern.formula}, "
+            f"{pattern.space_group}",
+            f"# radiation: neutron, {pattern.wavelengths['neutron']:g} A "
+            "(nuclear scattering only; no magnetic scattering, no Debye-Waller factor)",
+            f"# 2theta range: {pattern.two_theta_range[0]:g} - "
+            f"{pattern.two_theta_range[1]:g} deg; intensities relative to the strongest peak = 100",
+        ]
+    else:
+        lines = [
+            f"# powder XRD pattern of {pattern.structure_name or pattern.formula}: "
+            f"{pattern.formula}, {pattern.space_group}",
+            "# radiation: " + pattern.xray_type + " = " + ", ".join(
+                f"{line} {wavelength:.7f} A" for line, wavelength in pattern.wavelengths.items())
+            + (" (Ka1 : Ka2 = 2 : 1)" if len(pattern.wavelengths) > 1 else ""),
+            f"# 2theta range: {pattern.two_theta_range[0]:g} - {pattern.two_theta_range[1]:g} "
+            "deg; intensities relative to the strongest Ka1 peak = 100",
+        ]
+    lines.append("# h, k, l, multiplicity, d (A), two_theta (deg), intensity, line, families")
     for peak in pattern.peaks:
         h, k, l = peak.hkl
         lines.append(f"{h},{k},{l},{peak.multiplicity},{peak.d:.6f},{peak.two_theta:.4f},"
@@ -465,7 +556,9 @@ def plot_xrd_pattern(
     axis.set_xlabel(r"2$\theta$ (deg.)", fontsize=12)
     axis.set_ylabel("Intensity", fontsize=12)
     axis.tick_params(labelleft=False, labelsize=12)
-    axis.set_title(f"{pattern.formula} ({pattern.space_group}), {pattern.xray_type}, "
+    radiation = (f"neutron {pattern.wavelengths['neutron']:g} A"
+                 if pattern.radiation == "neutron" else pattern.xray_type)
+    axis.set_title(f"{pattern.formula} ({pattern.space_group}), {radiation}, "
                    f"{profile} profile", fontsize=11)
     axis.legend(fontsize=10, loc="upper right")
     figure.tight_layout()
@@ -490,8 +583,13 @@ def build_parser():
         formatter_class=RawTextHelpFormatter,
     )
     parser.add_argument("--poscar", default="POSCAR", help="structure file (VASP POSCAR)")
-    parser.add_argument("--xraytype", default=DEFAULT_XRAY_TYPE,
-                        help="radiation: " + ", ".join(XRAY_TYPES))
+    parser.add_argument("--radiation", default=DEFAULT_RADIATION,
+                        help="radiation: " + ", ".join(RADIATIONS))
+    parser.add_argument("--xraytype", default=None,
+                        help="X-ray line or doublet: " + ", ".join(XRAY_TYPES)
+                        + f" (default: {DEFAULT_XRAY_TYPE})")
+    parser.add_argument("--wavelength", type=float, default=None,
+                        help="neutron wavelength in Angstrom")
     parser.add_argument("--peak-profile", default=DEFAULT_PEAK_PROFILE,
                         help="broadening profile: " + ", ".join(PEAK_PROFILES))
     parser.add_argument("--two-theta", nargs=2, type=float, default=list(DEFAULT_TWO_THETA_RANGE),
@@ -512,23 +610,30 @@ def main(argv: list[str] | None = None) -> None:
     """Command-line entry point behind ``crystod-xrd``."""
     args = build_parser().parse_args(argv)
 
+    # the radiation options are checked before the structure is read
+    radiation_lines(args.radiation, args.xraytype, args.wavelength)
     structure = load_structure(args.poscar)
     name = os.path.basename(args.poscar)
     pattern = compute_xrd_pattern(
-        structure, args.xraytype, tuple(args.two_theta),
-        min_intensity=args.min_intensity, symprec=args.tolerance, structure_name=name)
+        structure, args.xraytype or DEFAULT_XRAY_TYPE, tuple(args.two_theta),
+        min_intensity=args.min_intensity, symprec=args.tolerance, structure_name=name,
+        radiation=args.radiation, wavelength=args.wavelength)
     profile = args.peak_profile.strip().lower()
     if profile not in PEAK_PROFILES:
         raise SystemExit(
             f"ERROR: unknown peak profile '{args.peak_profile}'; choose one of "
             f"{', '.join(PEAK_PROFILES)}.")
 
-    print(f"\n * Structure *\n {name}: {pattern.formula}, {pattern.space_group}\n")
-    radiation = ", ".join(f"{line} = {wl:.7f} A" for line, wl in pattern.wavelengths.items())
-    if len(pattern.wavelengths) > 1:
-        radiation += "  (Ka1 : Ka2 = 2 : 1)"
-    print(f" * Radiation *\n {pattern.xray_type}: {radiation}\n")
-    print(f" * Bragg peaks ({len(pattern.peaks)}) in {pattern.two_theta_range[0]:g} - "
+    print(f"\n* Structure *\n {name}: {pattern.formula}, {pattern.space_group}\n")
+    if pattern.radiation == "neutron":
+        print(f"* Radiation *\n neutron, {pattern.wavelengths['neutron']:g} A "
+              "(nuclear scattering only; no magnetic scattering, no Debye-Waller factor)\n")
+    else:
+        radiation = ", ".join(f"{line} = {wl:.7f} A" for line, wl in pattern.wavelengths.items())
+        if len(pattern.wavelengths) > 1:
+            radiation += "  (Ka1 : Ka2 = 2 : 1)"
+        print(f"* Radiation *\n {pattern.xray_type}: {radiation}\n")
+    print(f"* Bragg peaks ({len(pattern.peaks)}) in {pattern.two_theta_range[0]:g} - "
           f"{pattern.two_theta_range[1]:g} deg *")
     if pattern.peaks:
         for line in pattern.table_lines():
@@ -536,14 +641,21 @@ def main(argv: list[str] | None = None) -> None:
     else:
         print(" (no reflection in this window)")
 
-    prefix = args.output or f"XRD_{name}_{pattern.xray_type}"
+    if pattern.radiation == "neutron":
+        prefix = args.output or f"ND_{name}_{pattern.wavelengths['neutron']:g}A"
+    else:
+        prefix = args.output or f"XRD_{name}_{pattern.xray_type}"
     table_path = write_peak_table(pattern, prefix + ".txt")
     figure_path = plot_xrd_pattern(pattern, prefix + ".pdf", profile, args.width, show=args.show)
-    print("\n * Output files *")
+    print("\n* Output files *")
     print(f" Peak table written to: {table_path}")
     print(f" Pattern ({profile} profile, width {args.width:g} deg) written to: {figure_path}")
-    print("\nIntensities: pymatgen XRDCalculator (S. P. Ong et al., Comput. Mater. Sci. 68, "
-          "314 (2013));\nwavelengths: RIETAN-FP manual (F. Izumi and K. Momma).")
+    if pattern.radiation == "neutron":
+        print("\nIntensities: pymatgen NDCalculator (S. P. Ong et al., Comput. Mater. Sci. 68, "
+              "314 (2013)).")
+    else:
+        print("\nIntensities: pymatgen XRDCalculator (S. P. Ong et al., Comput. Mater. Sci. "
+              "68, 314 (2013));\nwavelengths: RIETAN-FP manual (F. Izumi and K. Momma).")
 
 
 if __name__ == "__main__":

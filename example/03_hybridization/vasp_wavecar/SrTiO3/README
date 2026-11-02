@@ -1,0 +1,76 @@
+SrTiO3 (Pm-3m): a small real VASP run for crystod --extract-irrep
+=================================================================
+
+Fixture of crystod --extract-irrep (crystod/extract_irrep.py): the irreps of
+the bands of one VASP run, straight from its WAVECAR.  This directory is one
+complete little run (scalar, vasp_std).  Run the commands from this directory:
+
+  crystod --extract-irrep .
+  crystod --extract-irrep . --all-kpoints
+
+(../InP_SOC is a second run, zincblende InP with spin-orbit coupling, for
+the time-reversal pairs -L4/-L5; see its README.)
+
+Not in the pip package (they stay in the CrystOD development tree): two
+sibling runs made the same way,
+
+  ../SrTiO3_ISPIN2/   collinear spin-polarized run (vasp_std, ISPIN = 2)
+  ../SrTiO3_SOC/      spin-orbit run (vasp_ncl, LSORBIT = .TRUE.)
+
+  crystod --extract-irrep ../SrTiO3_ISPIN2 --spin up
+  crystod --extract-irrep ../SrTiO3_SOC
+
+How the runs were made (2026-10-15)
+  VASP 6.5.1 (none of the CrystOD point-charge extensions is used),
+  "mpirun -np 2 vasp_std" (vasp_ncl for the spin-orbit run), a few seconds
+  each.
+  POSCAR  the cubic cell of SrTiO3 (a = 3.90798883 A, Ti at the origin, Sr at
+          (1/2,1/2,1/2), O at (0,0,1/2) (1/2,0,0) (0,1/2,0))
+  POTCAR  PAW_PBE Sr_sv 07Sep2000, Ti 08Apr2002, O 08Apr2002; it is NOT
+          included (POTCAR files are licensed)
+  The cutoffs and band counts are low on purpose: the irrep labels do not
+  depend on the convergence, and each WAVECAR stays at 0.5-1.1 MB.
+
+  SrTiO3          PREC = Normal, ENCUT = 250, NBANDS = 24, ISMEAR = 0,
+                  SIGMA = 0.05, EDIFF = 1E-6, GGA = PE; Gamma-centred 4x4x4
+                  mesh, reduced by VASP to 10 k points: GM, X (stored as
+                  (1/2,0,0), another arm of its star), M, R and the line points
+                  DT, SM, Z, LD, S, T.  WAVECAR 1.1 MB.
+  SrTiO3_ISPIN2   as above with ENCUT = 200, NBANDS = 20, ISPIN = 2,
+                  MAGMOM = 0 2 3*0, NELECT = 33 (one extra electron): a metal
+                  with 0.5 muB per cell, so the two spin channels differ;
+                  Gamma-centred 2x2x2 mesh = GM, X, M, R.  WAVECAR 0.5 MB.
+                  (not in the pip package)
+  SrTiO3_SOC      ENCUT = 200, NBANDS = 40, LSORBIT = .TRUE., MAGMOM = 15*0;
+                  2x2x2 mesh.  WAVECAR 1.1 MB.  (not in the pip package)
+
+Files (each directory)
+  INCAR, KPOINTS, POSCAR  the inputs as run
+  WAVECAR                 the run's WAVECAR, unchanged
+  OUTCAR                  trimmed to the run parameters and the final E-fermi
+                          line (the only OUTCAR line the code reads); the PAW
+                          tables of the real OUTCAR are POTCAR content
+  expected.json           (not in the pip package)
+                          crystod.salc.extract_band_irreps(DIR).to_dict() with
+                          the default k selection, the paths relative to DIR
+                          and without the crystod_version entry
+
+Check (testsuite.py and expected.json are not in the pip package)
+  python testsuite.py 49 (the expected.json files of these three runs and of
+  ../InP_SOC to 1e-6 eV, labels exact, plus every option and error path of
+  --extract-irrep).
+
+Regenerate expected.json (not in the pip package; run from this directory)
+  python - <<'EOF'
+  import json, os
+  from crystod.salc import extract_band_irreps
+  for case in ("SrTiO3", "SrTiO3_ISPIN2", "SrTiO3_SOC", "InP_SOC"):
+      root = os.path.join("..", case)
+      data = extract_band_irreps(root).to_dict()
+      for key in ("directory", "wavecar", "structure"):
+          data["run"][key] = os.path.relpath(data["run"][key], root)
+      data.pop("crystod_version")
+      with open(os.path.join(root, "expected.json"), "w") as handle:
+          json.dump(data, handle, indent=1)
+          handle.write("\n")
+  EOF

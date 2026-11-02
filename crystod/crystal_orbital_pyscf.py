@@ -2797,7 +2797,7 @@ def describe_chk(path: str) -> None:
                          for el, q in sorted(params["oxidation"].items()))
 
     size = os.path.getsize(path) / 1e6
-    print(f" * {path} -- CrystOD SCF checkpoint "
+    print(f"\n* {path} -- CrystOD SCF checkpoint "
           f"(WAVECAR-style restart, {size:.1f} MB) *")
     print(f"   structure : {params['left']} + {params['right']}, "
           f"{len(params['symbols'])} atoms/cell, "
@@ -2870,11 +2870,11 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
         diagram.chk_path = f"CHK_{diagram.compound_formula()}.chk"
         diagram.chk_auto = True
     dataset = diagram.builder.spglib_dataset
-    print("\n * Space group *")
+    print("\n* Space group *")
     print(f" {dataset['international']} ({dataset['number']})\n")
 
     # ---- stage 1: the valence orbitals the pseudopotential leaves ----------
-    print(" * Valence basis (pseudopotential valence shells + polarization) *")
+    print("* Valence basis (pseudopotential valence shells + polarization) *")
     for column in ("left", "right"):
         for element in dict.fromkeys(
             spec.element for spec in diagram.side_specs[column]
@@ -2890,7 +2890,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
 
     # ---- the fragments ----------------------------------------------------
     if diagram.onsite:
-        print(" * Fragment columns (--onsite): sublattice blocks of the "
+        print("* Fragment columns (--onsite): sublattice blocks of the "
               "crystal Fock *")
         for column in ("left", "right"):
             print(f" {column:<5} {diagram.formula[column]:<8} "
@@ -2907,7 +2907,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
               " interaction\n")
     else:
         neutral = not any(diagram.oxidation.values())
-        print(" * Fragments ("
+        print("* Fragments ("
               + ("neutral sublattices" if neutral else "formal-charge ions")
               + " + ghost basis of the removed sublattice) *")
         other = {"left": "right", "right": "left"}
@@ -2945,7 +2945,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
 
     from pyscf import lib as _pyscf_lib
 
-    print(f" * Self-consistent calculations ({'x'.join(map(str, diagram.kmesh))} "
+    print(f"* Self-consistent calculations ({'x'.join(map(str, diagram.kmesh))} "
           f"k-mesh, ke_cutoff {diagram.ke_cutoff} Hartree, "
           f"{_pyscf_lib.num_threads()} OpenMP threads) *")
     diagram.run()
@@ -2981,14 +2981,14 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
     # ---- deep-level alignment ----------------------------------------------
     if diagram.onsite:
         align = False
-        print("\n * Single-Hamiltonian mode (--onsite): every column is "
+        print("\n* Single-Hamiltonian mode (--onsite): every column is "
               "measured on the\n   crystal Fock's own scale -- no alignment "
               "step needed *")
     if diagram.onsite:
         pass
     elif align:
         shifts, anchors = diagram.align_fragment_columns(records)
-        print("\n * Deep-level alignment (pre-bonding reference) *")
+        print("\n* Deep-level alignment (pre-bonding reference) *")
         if shifts is None:
             print("   no chemically inert fragment level found; columns left "
                   "on their raw G=0 references")
@@ -3015,14 +3015,14 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
                   " the columns\n   are shifted so this inert deep level keeps its"
                   " pre-bonding energy -- XPS-style")
     else:
-        print("\n * Deep-level alignment disabled (--no-align): each column keeps "
+        print("\n* Deep-level alignment disabled (--no-align): each column keeps "
               "its own G=0 reference *")
 
     # ---- stage 0: isolated formal-charge ions (outermost columns) ----------
     if not diagram.onsite:
         diagram.atomic_ion_levels()
         ao_anchors = diagram.attach_atomic_columns(records)
-        print("\n * Isolated formal-charge ions (outermost columns) *")
+        print("\n* Isolated formal-charge ions (outermost columns) *")
         for element, ion in diagram.atomic_ions.items():
             shells = ", ".join(f"{name} {energy:+.2f}"
                                for name, _, energy in ion["shells"])
@@ -3069,7 +3069,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
     # ---- per-k-point report -------------------------------------------------
     for record in records:
         name, kpoint, levels = record["name"], record["kpoint"], record["levels"]
-        print(f"\n * k point {name} {_format_kpoint(kpoint)} *")
+        print(f"\n* k point {name} {_format_kpoint(kpoint)} *")
         print(f"   (AO representation verified against the PySCF overlap: "
               f"max |D+SD - S| = {record['residual']:.1e})")
         if record.get("symbreak"):

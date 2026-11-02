@@ -1,0 +1,8 @@
+# Plot the supercell Brillouin zone folded into the unit-cell one
+# (--trans-mat: rows of the supercell lattice vectors in unit-cell units)
+
+# Rhombohedral-like supercell of cubic ScF3
+crystod-bz -c ../test_POSCARs/221_PPOSCAR_ScF3 --trans-mat="0 1 2   -1 0 2   1 -1 2"
+
+# Conventional cubic cell of NaCl built from the fcc primitive cell
+crystod-bz -c ../test_POSCARs/225_PPOSCAR_NaCl --trans-mat="-1 1 1   1 -1 1    1 1 -1"

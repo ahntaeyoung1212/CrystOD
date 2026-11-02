@@ -1,0 +1,10 @@
+# Powder XRD pattern with the Cu K-alpha doublet (Ka1 + Ka2, 2:1) and Lorentzian peaks (defaults)
+# -> XRD_221_PPOSCAR_ScF3_CuKa.txt (peak table) and XRD_221_PPOSCAR_ScF3_CuKa.pdf (pattern)
+crystod-xrd -c 221_PPOSCAR_ScF3
+
+# Monochromatic Cu K-alpha1 with Gaussian peaks
+# -> XRD_221_PPOSCAR_ScF3_CuKa1.txt / .pdf
+crystod-xrd -c 221_PPOSCAR_ScF3 --xraytype CuKa1 --peak-profile gaussian
+
+# The same without any input file (the POSCAR is bundled with the package)
+crystod-xrd --example ScF3

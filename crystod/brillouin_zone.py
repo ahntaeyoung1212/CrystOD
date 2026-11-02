@@ -84,20 +84,129 @@ def build_parser() -> ArgumentParser:
 # ---------------------------------------------------------------------------
 # Geometry helpers
 # ---------------------------------------------------------------------------
-def get_brillouin_zone_3d(rec_lat: NDArray) -> tuple[NDArray, list, list]:
+def _selling_reduce(basis: NDArray) -> tuple[NDArray, NDArray]:
+    """Selling-reduce a 3D lattice basis (obtuse superbase).
+
+    The superbase ``v0 = -(b1 + b2 + b3), v1 = b1, v2 = b2, v3 = b3`` is
+    reduced until all six products ``vi . vj`` (i != j) are <= 0: while some
+    ``vi . vj > 0``, ``vk`` and ``vl`` (the other two) become ``vk + vi`` and
+    ``vl + vi`` and ``vi`` becomes ``-vi``, which lowers ``sum |v|^2`` by
+    ``4 vi . vj``. For the reduced basis ``(v1, v2, v3)`` every
+    Voronoi-relevant lattice vector is ``+-`` a sum of a subset of the
+    superbase (Conway and Sloane, Proc. R. Soc. Lond. A 436, 55 (1992)), so
+    its coefficients lie in ``{-1, 0, 1}``: the 27-point Voronoi construction
+    of ``get_brillouin_zone_3d`` is exact for it. A basis that already is an
+    obtuse superbase (cubic, tetragonal, orthorhombic, the fcc and bcc
+    primitive bases, ...) is returned unchanged.
+
+    Args:
+        basis: ``(3, 3)`` array whose rows are the basis vectors.
+
+    Returns:
+        The tuple ``(reduced, U)`` where ``reduced`` is the ``(3, 3)`` reduced
+        basis (rows) and ``U`` the unimodular integer matrix with
+        ``reduced = U @ basis``.
+    """
+    basis = np.asarray(basis, dtype=float)
+    # superbase as integer combinations of the input basis vectors
+    coefficients = np.array(
+        [[-1, -1, -1], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.int64
+    )
+    vectors = coefficients @ basis
+    threshold = 1e-10 * float(np.max(np.einsum("ij,ij->i", vectors, vectors)))
+    pairs = [(i, j) for i in range(4) for j in range(i + 1, 4)]
+    for _ in range(100000):
+        gram = vectors @ vectors.T
+        i, j = max(pairs, key=lambda pair: gram[pair])
+        if gram[i, j] <= threshold:
+            break
+        k, l = (m for m in range(4) if m not in (i, j))
+        coefficients[k] += coefficients[i]
+        coefficients[l] += coefficients[i]
+        coefficients[i] = -coefficients[i]
+        vectors = coefficients @ basis
+    else:  # pragma: no cover - sum |v|^2 decreases at every step
+        raise RuntimeError("Selling reduction of the reciprocal basis did not converge.")
+    unimodular = coefficients[1:]
+    if np.array_equal(unimodular, np.eye(3, dtype=np.int64)):
+        return basis.copy(), unimodular
+    return unimodular @ basis, unimodular
+
+
+def _merge_close_vertices(vertices: NDArray, faces: list, tol: float):
+    """Merge vertices closer than ``tol`` and drop faces that collapse.
+
+    ``faces`` are lists of row indices of ``vertices`` in cyclic order. Returns
+    ``(merged vertices, faces as index lists into them)``; with no pair closer
+    than ``tol`` the vertices and faces come back unchanged.
+    """
+    n = len(vertices)
+    parent = list(range(n))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    if n > 1 and tol > 0.0:
+        distances = np.linalg.norm(vertices[:, None, :] - vertices[None, :, :], axis=-1)
+        for i, j in zip(*np.nonzero(np.triu(distances < tol, k=1))):
+            root_i, root_j = find(int(i)), find(int(j))
+            if root_i != root_j:
+                parent[max(root_i, root_j)] = min(root_i, root_j)
+
+    cluster_of: dict[int, int] = {}
+    members: list[list[int]] = []
+    for i in range(n):
+        root = find(i)
+        if root not in cluster_of:
+            cluster_of[root] = len(members)
+            members.append([])
+        members[cluster_of[root]].append(i)
+    merged = np.array(
+        [vertices[m[0]] if len(m) == 1 else vertices[m].mean(axis=0) for m in members]
+    ).reshape(-1, 3)
+
+    merged_faces = []
+    for face in faces:
+        ids = [cluster_of[find(i)] for i in face]
+        # drop consecutive repeats around the polygon
+        ids = [v for index, v in enumerate(ids) if v != ids[index - 1]] if len(ids) > 1 else ids
+        if len(set(ids)) >= 3:
+            merged_faces.append(ids)
+    return merged, merged_faces
+
+
+def get_brillouin_zone_3d(
+    rec_lat: NDArray, tolerance: float = 1e-5
+) -> tuple[NDArray, list, list]:
     """Construct the first Brillouin zone of a reciprocal lattice.
 
     The first Brillouin zone is the Wigner-Seitz cell of the reciprocal
     lattice. It is found by a Voronoi decomposition (scipy) of the 3x3x3
     block of reciprocal-lattice points around the origin: the Voronoi cell
-    of the origin is the zone. This is the polyhedron ``crystod-bz`` draws,
-    for the unit cell and, with ``--trans-mat``, for the supercell as well.
+    of the origin is the zone. The block is built on the Selling-reduced
+    basis (``_selling_reduce``), for which it contains every lattice vector
+    that bounds the zone, so any basis of the lattice (a sheared supercell
+    matrix, a raw monoclinic cell with an obtuse angle far from 90 degrees)
+    gives the same polyhedron; its volume is checked against
+    ``|det rec_lat|``. Only the construction uses the reduced basis: the
+    vertices are Cartesian, and ``cartesian @ inv(rec_lat)`` gives them in
+    the input basis. This is the polyhedron ``crystod-bz`` draws, for the
+    unit cell and, with ``--trans-mat``, for the supercell as well.
 
     Args:
         rec_lat: ``(3, 3)`` array whose rows are the reciprocal basis vectors
             ``b1``, ``b2``, ``b3``. Any overall scale is accepted; the command
             uses ``inv(lattice).T`` (no factor of 2 pi), for which
             ``cartesian @ inv(rec_lat)`` are fractional coordinates.
+        tolerance: Corners closer than ``tolerance`` times the length of
+            the shortest reciprocal lattice vector are merged into one, and
+            faces that shrink to fewer than three corners are dropped, so a
+            lattice that is cubic up to noise (e.g. ``1e-6`` A in the POSCAR)
+            gives the cube and not a polyhedron with tiny extra faces. ``0``
+            keeps every corner Qhull returns.
 
     Returns:
         The tuple ``(vertices, ridges, facets)`` where ``vertices`` is an
@@ -105,6 +214,11 @@ def get_brillouin_zone_3d(rec_lat: NDArray) -> tuple[NDArray, list, list]:
         ``ridges`` is a list with one ``(M + 1, 3)`` array per facet holding
         the closed polyline of its edges (the first vertex is repeated at the
         end), and ``facets`` is the same list without the repeated vertex.
+
+    Raises:
+        RuntimeError: The polyhedron does not have the volume ``|det rec_lat|``
+            of the reciprocal unit cell (not expected for a non-singular
+            ``rec_lat``; the check guards the construction).
 
     Example:
         >>> import numpy as np
@@ -115,28 +229,62 @@ def get_brillouin_zone_3d(rec_lat: NDArray) -> tuple[NDArray, list, list]:
         (8, 6)
         >>> np.allclose(np.abs(vertices @ np.linalg.inv(rec_lat)), 0.5)
         True
+        >>> sheared = np.linalg.inv(np.array([[1, 2, 0], [0, 1, 0], [0, 0, 1]])
+        ...                         @ (4.07 * np.eye(3))).T   # same lattice
+        >>> vertices, ridges, facets = bz.get_brillouin_zone_3d(sheared)
+        >>> len(vertices), len(facets)
+        (8, 6)
     """
-    from scipy.spatial import Voronoi
+    from scipy.spatial import ConvexHull, Voronoi
 
     rec_lat = np.asarray(rec_lat, dtype=float)
     assert rec_lat.shape == (3, 3)
+    expected_volume = abs(float(np.linalg.det(rec_lat)))
+    reduced, _ = _selling_reduce(rec_lat)
 
-    px, py, pz = np.tensordot(rec_lat, np.mgrid[-1:2, -1:2, -1:2], axes=[0, 0])
-    points = np.c_[px.ravel(), py.ravel(), pz.ravel()]
-    vor = Voronoi(points)
+    # The 27-point block of the reduced basis is enough (_selling_reduce); the
+    # 125-point block is a fallback that the volume check would call for.
+    volume = float("nan")
+    for shell in (1, 2):
+        grid = np.mgrid[-shell : shell + 1, -shell : shell + 1, -shell : shell + 1]
+        px, py, pz = np.tensordot(reduced, grid, axes=[0, 0])
+        points = np.c_[px.ravel(), py.ravel(), pz.ravel()]
+        # index of the central point [0, 0, 0] (13 for the 3x3x3 block)
+        centre = (len(points) - 1) // 2
+        vor = Voronoi(points)
 
-    bz_facets = []
-    bz_ridges = []
-    bz_vertices: list[int] = []
-    # Index 13 is the central point [0, 0, 0] of the 3x3x3 lattice grid.
-    for pid, rid in zip(vor.ridge_points, vor.ridge_vertices):
-        if pid[0] == 13 or pid[1] == 13:
-            bz_ridges.append(vor.vertices[np.r_[rid, [rid[0]]]])
-            bz_facets.append(vor.vertices[rid])
-            bz_vertices += rid
+        faces: list[list[int]] = []
+        bz_vertices: list[int] = []
+        for pid, rid in zip(vor.ridge_points, vor.ridge_vertices):
+            if pid[0] == centre or pid[1] == centre:
+                faces.append(list(rid))
+                bz_vertices += rid
+        bz_vertices = list(set(bz_vertices))
+        if -1 in bz_vertices:  # pragma: no cover - the central cell is bounded
+            continue
+        volume = ConvexHull(vor.vertices[bz_vertices]).volume
+        if abs(volume - expected_volume) <= 1e-6 * expected_volume:
+            break
+    else:
+        raise RuntimeError(
+            "the Voronoi cell of the reciprocal lattice does not have the volume "
+            f"|det B| = {expected_volume:.6g} (got {volume:.6g})."
+        )
 
-    bz_vertices = list(set(bz_vertices))
-    return vor.vertices[bz_vertices], bz_ridges, bz_facets
+    # merge corners that coincide within the tolerance (near-degenerate zones);
+    # the shortest lattice vector is a subset sum of the obtuse superbase
+    position = {vertex: index for index, vertex in enumerate(bz_vertices)}
+    subset_sums = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0],
+                            [1, 0, 1], [0, 1, 1], [1, 1, 1]], dtype=float) @ reduced
+    shortest = float(np.min(np.linalg.norm(subset_sums, axis=1)))
+    vertices, merged_faces = _merge_close_vertices(
+        vor.vertices[bz_vertices],
+        [[position[vertex] for vertex in face] for face in faces],
+        tolerance * shortest,
+    )
+    bz_facets = [vertices[face] for face in merged_faces]
+    bz_ridges = [vertices[face + [face[0]]] for face in merged_faces]
+    return vertices, bz_ridges, bz_facets
 
 
 def _split_list(values: list, n: int):

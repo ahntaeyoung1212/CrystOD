@@ -1,0 +1,41 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ I222 (23)
+
+ * Element (number of atoms) *
+ Al (1)
+
+ * Wyckoff letters and site symmetry letters *
+ ['b']
+ ['222']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  I222 (23)
+ irreps             :  1.0 [GM2(1)] + 1.0 [GM3(1)] + 1.0 [GM4(1)] 
+
+ k point (primitive):  W [0.25, 0.25, 0.25]
+ little group of k  :  I222 (23)
+ irreps             :  1.0 [W1(1)] + 1.0 [W2(1)] + 1.0 [W4(1)] 
+
+ k point (primitive):  X [0.5, 0.5, 0.5]
+ little group of k  :  I222 (23)
+ irreps             :  1.0 [X2(1)] + 1.0 [X3(1)] + 1.0 [X4(1)] 
+
+ k point (primitive):  R [0.0, 0.5, 0.0]
+ little group of k  :  C2 (5)
+ irreps             :  2.0 [R1(1)] + 1.0 [R2(1)] 
+
+ k point (primitive):  S [0.5, 0.0, 0.0]
+ little group of k  :  C2 (5)
+ irreps             :  1.0 [S1(1)] + 2.0 [S2(1)] 
+
+ k point (primitive):  T [0.0, 0.0, 0.5]
+ little group of k  :  C2 (5)
+ irreps             :  2.0 [T1(1)] + 1.0 [T2(1)] 
+

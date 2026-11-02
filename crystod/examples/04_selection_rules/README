@@ -1,0 +1,84 @@
+# Dipole selection rules of the crystal-orbital diagrams (crystod --diagram); testsuite section 4
+# Every --diagram engine (extended Hueckel, --pyscf, --vasp) ends each k point with
+# the block below: the VBM -> CBM transition is allowed for the Cartesian
+# polarization components listed, or forbidden, by
+# Gamma_f* x Gamma_V x Gamma_i containing the identity of the little group of k
+# (vertical transitions; ISO-IR labels of the levels). When the band edge is
+# forbidden, the allowed occupied -> empty pair of smallest energy follows.
+# x, y, z are the Cartesian axes of the input POSCAR; when they are rotated against
+# the crystal axes, an allowed direction that is not an axis is printed as a vector
+# (e.g. "allowed (0 1 -1)", see doc/crystod.md section 4).
+# In the HTML page, click one crystal orbital and then another: the verdict
+# appears next to the second level; a click on empty space clears it.
+# POSCAR_Cu2O: cuprite (Pn-3m), the structure of ../test_POSCARs/224_PPOSCAR_Ag2O
+# with a = 4.2696 A (the extended-Hueckel tables have no Ag parameters).
+# Output below: the dipole blocks and, for Cu2O, the crystal levels around the gap
+# (lines in between omitted, marked ...).
+
+$ crystod --diagram -c ../test_POSCARs/221_PPOSCAR_SrTiO3 --co-left SrTi --co-right O3
+...
+
+* Dipole selection rules at GM (0,0,0) *
+   VBM GM5- #1 (-13.80 eV) -> CBM GM5+ #1 (-12.38 eV): allowed (x, y, z)
+   (vertical transitions in the little group of k; polarizations in the Cartesian axes x, y, z of the input cell)
+
+...
+* Dipole selection rules at R (1/2,1/2,1/2) *
+   VBM R5- #1 (-13.60 eV) -> CBM R5+ #5 (-11.51 eV): allowed (x, y, z)
+   (vertical transitions in the little group of k; polarizations in the Cartesian axes x, y, z of the input cell)
+
+...
+* Dipole selection rules at X (0,1/2,0) *
+   VBM X2+ #1 (-13.81 eV) -> CBM X2- #1 (-12.30 eV): forbidden
+   first allowed: X5+ #4 (-13.83 eV) -> X2- #1 (-12.30 eV), dE = 1.53 eV: allowed (x, z)
+   (vertical transitions in the little group of k; polarizations in the Cartesian axes x, y, z of the input cell)
+
+...
+* Dipole selection rules at M (1/2,1/2,0) *
+   VBM M2+ #1 (-13.60 eV) -> CBM M5+ #2 (-10.26 eV): forbidden
+   first allowed: M5- #6 (-14.12 eV) -> M5+ #2 (-10.26 eV), dE = 3.86 eV: allowed (z)
+   (vertical transitions in the little group of k; polarizations in the Cartesian axes x, y, z of the input cell)
+
+...
+Crystal-orbital diagram written to CrystOD_221_PPOSCAR_SrTiO3.html
+
+$ crystod --diagram -c POSCAR_Cu2O --co-left Cu --co-right O --kpoint GM
+...
+   crystal   :
+     ...
+     GM5+ #4       -16.14 eV  x3  6e   O 2p GM5+ 64.2%  Cu 3d GM5+ 26.0%  Cu 4s GM5+ 9.8%
+     GM1+ #6       -15.32 eV  x1  2e   Cu 3d GM1+ 61.3%  Cu 4s GM1+ 38.4%  O 2s GM1+ 0.3%
+     GM3+ #1       -15.02 eV  x2  4e   Cu 3d GM3+ 100.0%
+     GM5+ #5       -14.94 eV  x3  6e   Cu 3d GM5+ 97.4%  Cu 4s GM5+ 1.8%  O 2p GM5+ 0.8%
+     GM4- #5       -14.91 eV  x3  6e   O 2p GM4- 89.4%  Cu 4p GM4- 10.6%
+     GM4+ #1       -14.49 eV  x3  6e   Cu 3d GM4+ 100.0%
+     GM3+ #2       -13.86 eV  x2  4e   Cu 3d GM3+ 100.0%
+     GM5+ #6       -13.83 eV  x3  6e   Cu 3d GM5+ 90.4%  Cu 4s GM5+ 8.7%  O 2p GM5+ 1.0%
+     GM4+ #2       -13.54 eV  x3  6e   Cu 3d GM4+ 100.0%
+     GM5+ #7       -13.13 eV  x3  6e   Cu 3d GM5+ 70.1%  Cu 4s GM5+ 15.9%  O 2p GM5+ 13.9%
+     GM3- #3        -8.92 eV  x2       Cu 4p GM3- 100.0%
+     GM5- #3        -7.84 eV  x3       Cu 4p GM5- 100.0%
+     GM4- #6        -6.71 eV  x3       Cu 4p GM4- 98.1%  O 2p GM4- 1.9%
+     GM5+ #8        -3.89 eV  x3       Cu 4s GM5+ 63.8%  O 2p GM5+ 20.1%  Cu 3d GM5+ 16.0%
+     GM1+ #7        -2.35 eV  x1       Cu 4s GM1+ 50.5%  Cu 3d GM1+ 34.9%  O 2s GM1+ 14.5%
+     GM4- #7         4.44 eV  x3       Cu 4p GM4- 91.3%  O 2p GM4- 8.7%
+     GM2- #5        16.45 eV  x1       Cu 4p GM2- 85.5%  O 2s GM2- 14.4%
+
+* Dipole selection rules at GM (0,0,0) *
+   VBM GM5+ #7 (-13.13 eV) -> CBM GM3- #3 (-8.92 eV): allowed (x, y, z)
+   (vertical transitions in the little group of k; polarizations in the Cartesian axes x, y, z of the input cell)
+
+Crystal-orbital diagram written to CrystOD_POSCAR_Cu2O.html
+
+# The extended-Hueckel engine puts the Cu 4p band below Cu 4s here, so the band edge
+# is a d -> p transition; the d -> s pair GM5+ #7 -> GM1+ #7 is forbidden (press "Show all energy
+# levels" on the page, then click the two levels; GM1+ #7 lies outside the opening window), the origin of the dipole-forbidden yellow exciton series.
+# The group theory alone, through the Python API (api.py):
+
+$ python api.py
+
+ ### Inputed cell was converted into primitive cell. ###
+224_PPOSCAR_Ag2O GM5+ -> GM1+: ()  GM5+ -> GM4-: ('x', 'y', 'z')
+
+ ### Inputed cell was converted into primitive cell. ###
+227_PPOSCAR_Si GM5+ -> GM1+: ()  GM5+ -> GM4-: ('x', 'y', 'z')

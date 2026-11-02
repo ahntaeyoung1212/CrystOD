@@ -4,6 +4,13 @@ Automatic generation of symmetry-adapted polynomial basis functions.
 For each requested polynomial order (1st, 2nd, 3rd), all monomials of that
 degree are classified into the irreducible representations of a point group,
 or of the little group of a k point in a space group.
+
+The analysis is that of ``crystod-group --basis`` (``basis_function``):
+operations act actively, and with a space group a little-group operation
+{R|t} acts as exp(-2 pi i k.t) O_R on the Bloch sum of the polynomial.  At
+zone-boundary k points of non-symmorphic groups where these phases form no
+representation of the little group (e.g. M of P4_2/mnm, X of Pnma) the
+command stops with an ERROR instead of printing an incomplete decomposition.
 """
 
 from __future__ import annotations
@@ -30,6 +37,13 @@ class MyHelpFormatter(
 desc = """
 Automatically generate 1st-3rd order polynomial basis functions classified by
 irreducible representation.
+
+With --space-group every operation {R|t} of the little group acts as
+exp(-2 pi i k.t) R on the polynomials.  This works at GM, at every k of a
+symmorphic group and inside the Brillouin zone; at zone-boundary points of
+non-symmorphic groups where these screw/glide phases form no representation
+of the little group (e.g. M of P4_2/mnm, X of Pnma) the polynomials span no
+representation and the command stops with an ERROR.
 
 # Command Examples:
 crystod-group --generate-basis --point-group m-3m

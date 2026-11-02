@@ -19,14 +19,23 @@ without running anything.
 
 ```bash
 pip install CrystOD jupyterlab    # the notebooks need no PySCF; any Jupyter front end works
-git clone https://github.com/ahntaeyoung1212/CrystOD.git
+git clone https://github.com/ahntaeyoung1212/CrystOD.git    # only for the notebooks
 cd CrystOD/tutorials
 jupyter lab
 ```
 
-CrystOD 0.4.0 or later is required (`crystod.examples` and the `--example`
-flags appeared in 0.4.0); the first cell of every notebook prints the installed
-version. phonopy, matplotlib, pandas and pymatgen are installed with CrystOD.
+The notebooks themselves come from the repository (a clone, or the three
+`.ipynb` files downloaded), but their inputs are installed by pip with
+`crystod.examples`. CrystOD 0.4.4 or later is required (Tutorial 1 reads
+`phonon_irreps.yaml` with `crystod.phonon.read_phonon_irreps`, new in 0.4.4);
+the first cell of every notebook prints the installed version. phonopy,
+matplotlib, pandas and pymatgen are installed with CrystOD.
+
+Since 0.4.5 the example directories of the manual, each with its README and
+inputs, ship with pip too: `crystod-example` lists them, and
+`crystod-example 28 17 45 43` copies the ones behind these tutorials (phonon
+irreps, isotropy subgroups, the structure-search script, MO diagrams) into
+`./example/`.
 
 ## The temporary-directory convention
 

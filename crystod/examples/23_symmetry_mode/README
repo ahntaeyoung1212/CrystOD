@@ -1,0 +1,655 @@
+# Symmetry-mode analysis (crystod-group --supergroup-cif); testsuite section 23
+# AMPLIMODES-style decomposition of a group-subgroup distortion into parent irreps
+# with mode amplitudes, checked against Bilbao AMPLIMODES (D. Orobengoa et al.,
+# J. Appl. Cryst. 42, 820 (2009)): SrTiO3 Pm-3m -> I4/mcm R5- 0.3303 A and
+# ZrO2 Fm-3m -> P4_2/nmc X2- 0.5773 A are the first two runs below.
+#
+# Run the commands inside this directory; every output is written here. The
+# ScF3 run reads its parent from ../test_POSCARs/221_PPOSCAR_ScF3.
+#
+# Every run also writes one VESTA file per activated irrep,
+# {supergroup_file}_{irrep}.vesta, showing that irrep's displacement pattern as
+# arrows on the parent-derived reference structure (invariant-core cell; the
+# largest arrow is scaled to 1.5 A). The CaTiO3 Pm-3m -> Pnma pair, for example,
+# writes 221_PPOSCAR_CaTiO3_{X5+,M2+,M3+,R4+,R5+}.vesta (X5+ 0.5196, M2+ 0.0064,
+# M3+ 0.8874, R4+ 1.2458, R5+ 0.1047 A; total 1.6188 A):
+#   crystod-group --supergroup-cif 221_PPOSCAR_CaTiO3.cif --subgroup-cif 62_PPOSCAR_CaTiO3.cif
+
+# Non-special (symmetry line) k points are supported: the Pbam
+# antiferroelectric of PbZrO3 (8x the cubic cell) condenses SM = (1/4,1/4,0)
+# and S = (1/4,1/2,1/4) order parameters on top of R/X/M ones; all AMPLIMODES
+# amplitudes are reproduced (SM2 1.2871, R4+ 1.5232, S4 0.4470, R5+ 0.0810,
+# X3- 0.0374, M5- 0.0473 A). debug2_PbZrO3/ is not in the pip package (it stays
+# in the CrystOD development tree).
+#   crystod-group --supergroup-cif debug2_PbZrO3/POSCAR_PbZrO3_Pm-3m.cif --subgroup-cif debug2_PbZrO3/POSCAR_PbZrO3_Pbam.cif
+#
+# A second line-point case, the K2SeO4 lock-in ferroelectric (Pnma -> Pna2_1,
+# 3x along a, SM = (1/3,0,0); the amplitudes of the AMPLIMODES analysis --
+# GM1+ 0.9467, GM4- 0.4230, SM2 1.2885, SM3 0.1727 A, total 1.6629 A):
+#   crystod-group --supergroup-cif POSCAR_K2SeO4_Pnma.cif --subgroup-cif POSCAR_K2SeO4_Pna21.cif
+#
+# Every run also saves the transformation matrix (parent -> child, AMPLIMODES
+# convention) and the decomposition table as sym_mode_{formula}
+# (sym_mode_K2SeO4, ...), named by the parent composition; --output-dir DIR
+# writes the table and the VESTA files into DIR instead. Use it when two parents
+# have the same composition. POSCAR_La3Ni2O7_I4mmm.cif -> POSCAR_La3Ni2O7_Cmcm.cif
+# is the La3Ni2O7 pair of the last run below, with the child in an equivalent
+# description (GM1+ 0.1313 A, X3- 1.1414 A against 1.1413 A there, total
+# 1.1489 A); --output-dir keeps its sym_mode_La3Ni2O7 apart from that run's:
+#   crystod-group --supergroup-cif POSCAR_La3Ni2O7_I4mmm.cif --subgroup-cif POSCAR_La3Ni2O7_Cmcm.cif --output-dir La3Ni2O7_I4mmm_Cmcm
+#
+# The direction column follows ISOTROPY: each order parameter is named by the
+# ISOTROPY representative of its stratum, the row that
+# "crystod-group --parent SG --irrep IR" lists (section 17), whichever
+# domain-equivalent orientation the child file describes. When the child as
+# given sits on another direction of the stratum, a "(direction: ...)" note
+# under the table names it: the SrTiO3 run prints R5- (0,0,a), the I4/mcm row
+# of --parent Pm-3m --irrep R5-, and notes R5- (a,0,0); V2O3 R-3c -> C2/c
+# (debug9_V2O3/, not in the pip package) prints GM3+ (a,0) and notes
+# GM3+ (0.577a,-a). With several irreps the largest mode sits on its --parent
+# row and the others on the directions of the same domain (ScF3 Pbnm:
+# R4+ (0,a,a) with M3+ (a;0;0)). The cell relation, the displacements, the
+# amplitudes and the VESTA files follow the input files.
+#
+# Further inputs of testsuite section 23:
+#   POSCAR_FeS2_Pa-3 / POSCAR_FeS2_P1_fcc2 -- pyrite-type FeS2 with seeded random
+#     displacements (0.03 A rms) in the fcc-type double cell: complex-type irreps
+#     are listed as one line per conjugate pair (R1+R3+, GM2+GM3+), pseudoreal
+#     ones (R2+, R2-) keep one name; total 0.2540 A:
+#     crystod-group --supergroup-cif POSCAR_FeS2_Pa-3 --subgroup-cif POSCAR_FeS2_P1_fcc2
+#   POSCAR_KGeCl3_P4mmm_pseudo / POSCAR_KGeCl3_Cm -- KGeCl3 (Materials Project
+#     mp-998231) against a P4/mmm pseudo-parent: the least-distortion mapping is a
+#     twin setting, so the mapping is redone in a group-subgroup setting (NOTE
+#     line); GM3- 0.1702 A, GM5- 0.2482 A:
+#     crystod-group --supergroup-cif POSCAR_KGeCl3_P4mmm_pseudo --subgroup-cif POSCAR_KGeCl3_Cm
+#   POSCAR_SeO2_Cmme_pseudo / POSCAR_SeO2_Pmc21 -- SeO2 (mp-560882) against a
+#     Cmme pseudo-parent: no group-subgroup mapping exists (Wyckoff conflict, a
+#     parent mirror fixes 8 O sites of the reference but 4 O atoms of the child);
+#     the run stops with that message (exit status 1):
+#     crystod-group --supergroup-cif POSCAR_SeO2_Cmme_pseudo --subgroup-cif POSCAR_SeO2_Pmc21
+#   POSCAR_GaN2_P6mmm / POSCAR_GaN2_P21 -- a synthetic hexagonal line-star case
+#     (P6/mmm, Ga on 1a, N on 2d; the Ga atoms of a cell four times longer along c
+#     displaced in the plane): a single DT6 mode at (0,0,1/4) gives P2_1, 0.0949 A:
+#     crystod-group --supergroup-cif POSCAR_GaN2_P6mmm --subgroup-cif POSCAR_GaN2_P21
+# Structures from the Materials Project (mp-998231 KGeCl3, mp-560882 SeO2), CC BY 4.0;
+# A. Jain et al., APL Mater. 1, 011002 (2013). The *_pseudo files are modified
+# (group-averaged pseudo-parent) structures.
+
+$ crystod-group --supergroup-cif 221_PPOSCAR_SrTiO3.cif --subgroup-cif 140_PPOSCAR_SrTiO3.cif
+
+* Supergroup (parent) structure *
+Pm-3m (No. 221)
+
+* Subgroup (distorted) structure *
+I4/mcm (No. 140)
+
+* Cell relation *
+child primitive basis in parent primitive units (rows):
+  (0, 1, 1)
+  (0, -1, 1)
+  (1, 0, -1)
+origin shift (parent primitive fractional): (1/2, 1/2, 1/2)
+primitive cell multiplication: 2
+(setting: of 24 equivalent sublattice bases the one closest to the orientation of the
+ input files; the child axes are rotated 45.0 deg against the parent axes)
+
+* Atom pairings and displacements (parent primitive setting) *
+atom  reference                    displacement (frac)          |u| (A)
+Sr    (0.00000,0.00000,0.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+Sr    (0.00000,0.00000,1.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+Ti    (0.50000,0.50000,0.50000)(+0.00000,+0.00000,+0.00000) 0.0000
+Ti    (0.50000,0.50000,1.50000)(+0.00000,+0.00000,+0.00000) 0.0000
+O     (0.50000,0.00000,0.50000)(+0.04186,-0.00000,-0.00000) 0.1651
+O     (0.50000,0.00000,1.50000)(-0.04186,-0.00000,+0.00000) 0.1651
+O     (0.00000,0.50000,0.50000)(+0.00000,-0.04186,+0.00000) 0.1651
+O     (0.00000,0.50000,1.50000)(+0.00000,+0.04186,+0.00000) 0.1651
+O     (0.50000,0.50000,0.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+O     (0.50000,0.50000,1.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+
+* Distortion amplitude *
+maximum atomic displacement: 0.1651 A
+total distortion amplitude : 0.3303 A
+(normalized within the primitive cell of the distorted structure)
+
+* Transformation matrix (parent -> child) *
+Pm-3m (No. 221) -> I4/mcm (No. 140), conventional settings of the input files
+  [     1     1     0 ] [   1/2 ]
+  [    -1     1     0 ] [   1/2 ]
+  [     0     0     2 ] [   1/2 ]
+(columns of P: the child basis vectors a', b', c' in parent units, (a', b', c') = (a, b, c) P;
+ last column: the child origin p in parent fractional coordinates, x_parent = P x_child + p;
+ the AMPLIMODES / Bilbao convention)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(1/2,1/2,1/2)    R5-     (0,0,a)      140 I4/mcm          1    0.3303
+(direction: R5- sits on its ISOTROPY representative as listed by
+ crystod-group --parent 221 --irrep R5-; the input child as given sits on the
+ domain-equivalent direction R5- (a,0,0))
+
+* Normalized mode components (parent primitive fractional, per 1 A) *
+R5-:
+  O(0.500,0.000,0.500): (+0.1267,+0.0000,+0.0000)
+  O(0.500,0.000,1.500): (-0.1267,+0.0000,+0.0000)
+  O(0.000,0.500,0.500): (+0.0000,-0.1267,+0.0000)
+  O(0.000,0.500,1.500): (+0.0000,+0.1267,+0.0000)
+
+Conventions and validation: AMPLIMODES (Bilbao Crystallographic Server):
+D. Orobengoa, C. Capillas, M. I. Aroyo and J. M. Perez-Mato,
+"AMPLIMODES: symmetry-mode analysis on the Bilbao Crystallographic
+Server", J. Appl. Cryst. 42, 820-833 (2009).
+
+* Output files *
+  Decomposition table saved to sym_mode_SrTiO3
+  Mode displacement VESTA files (invariant-core cell):
+    221_PPOSCAR_SrTiO3_R5-.vesta  (amplitude 0.3303 A)
+  Arrows are scaled so the largest displacement is 1.5 A per file; adjust in VESTA via Edit > Vectors if needed.
+
+
+$ crystod-group --supergroup-cif 225_PPOSCAR_ZrO2.cif --subgroup-cif 137_PPOSCAR_ZrO2.cif
+# (F-centred fluorite parent; AMPLIMODES: X2-, 0.5773 A)
+
+* Supergroup (parent) structure *
+Fm-3m (No. 225)
+
+* Subgroup (distorted) structure *
+P42/nmc (No. 137)
+
+* Cell relation *
+child primitive basis in parent primitive units (rows):
+  (0, 0, 1)
+  (1, -1, 0)
+  (1, 1, -1)
+origin shift (parent primitive fractional): (0, 0, 1)
+primitive cell multiplication: 2
+(setting: of 24 equivalent sublattice bases the one closest to the orientation of the
+ input files; the child axes are rotated 45.0 deg against the parent axes)
+
+* Atom pairings and displacements (parent primitive setting) *
+atom  reference                    displacement (frac)          |u| (A)
+Zr    (0.00000,0.00000,0.00000)(+0.00000,+0.00000,-0.00000) 0.0000
+Zr    (0.00000,1.00000,0.00000)(+0.00000,+0.00000,-0.00000) 0.0000
+O     (0.25000,0.25000,0.25000)(-0.05605,-0.05605,+0.05605) 0.2887
+O     (0.25000,1.25000,0.25000)(+0.05605,+0.05605,-0.05605) 0.2887
+O     (0.75000,0.75000,0.75000)(-0.05605,-0.05605,+0.05605) 0.2887
+O     (0.75000,1.75000,0.75000)(+0.05605,+0.05605,-0.05605) 0.2887
+
+* Distortion amplitude *
+maximum atomic displacement: 0.2887 A
+total distortion amplitude : 0.5773 A
+(normalized within the primitive cell of the distorted structure)
+
+* Transformation matrix (parent -> child) *
+Fm-3m (No. 225) -> P42/nmc (No. 137), conventional settings of the input files
+  [   1/2  -1/2     0 ] [     0 ]
+  [   1/2   1/2     0 ] [     0 ]
+  [     0     0     1 ] [     0 ]
+(columns of P: the child basis vectors a', b', c' in parent units, (a', b', c') = (a, b, c) P;
+ last column: the child origin p in parent fractional coordinates, x_parent = P x_child + p;
+ the AMPLIMODES / Bilbao convention)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(1/2,0,1/2)      X2-     (0;0;a)      137 P4_2/nmc        1    0.5773
+(direction: X2- sits on its ISOTROPY representative as listed by
+ crystod-group --parent 225 --irrep X2-; the input child as given sits on the
+ domain-equivalent direction X2- (0;a;0))
+
+* Normalized mode components (parent primitive fractional, per 1 A) *
+X2-:
+  O(0.250,0.250,0.250): (-0.0971,-0.0971,+0.0971)
+  O(0.250,0.250,1.250): (-0.0971,-0.0971,+0.0971)
+  O(0.250,1.250,0.250): (+0.0971,+0.0971,-0.0971)
+  O(1.250,0.250,0.250): (+0.0971,+0.0971,-0.0971)
+  O(0.750,0.750,0.750): (-0.0971,-0.0971,+0.0971)
+  O(0.750,0.750,1.750): (-0.0971,-0.0971,+0.0971)
+  O(0.750,1.750,0.750): (+0.0971,+0.0971,-0.0971)
+  O(1.750,0.750,0.750): (+0.0971,+0.0971,-0.0971)
+
+Conventions and validation: AMPLIMODES (Bilbao Crystallographic Server):
+D. Orobengoa, C. Capillas, M. I. Aroyo and J. M. Perez-Mato,
+"AMPLIMODES: symmetry-mode analysis on the Bilbao Crystallographic
+Server", J. Appl. Cryst. 42, 820-833 (2009).
+
+* Output files *
+  Decomposition table saved to sym_mode_ZrO2
+  Mode displacement VESTA files (invariant-core cell):
+    225_PPOSCAR_ZrO2_X2-.vesta  (amplitude 0.5773 A)
+  Arrows are scaled so the largest displacement is 1.5 A per file; adjust in VESTA via Edit > Vectors if needed.
+
+
+$ crystod-group --supergroup-cif 221_PPOSCAR_BaTiO3.cif --subgroup-cif 99_PPOSCAR_BaTiO3.cif
+# (polar subgroup: the acoustic component is removed -> minimum-distortion origin)
+
+* Supergroup (parent) structure *
+Pm-3m (No. 221)
+
+* Subgroup (distorted) structure *
+P4mm (No. 99)
+
+* Cell relation *
+child primitive basis in parent primitive units (rows):
+  (1, 0, 0)
+  (0, 1, 0)
+  (0, 0, 1)
+origin shift (parent primitive fractional): (0, 0, 1/2)
+primitive cell multiplication: 1
+
+* Atom pairings and displacements (parent primitive setting) *
+atom  reference                    displacement (frac)          |u| (A)
+Ba    (0.50000,0.50000,0.50000)(+0.00000,+0.00000,+0.01494) 0.0599
+Ti    (0.00000,0.00000,0.00000)(+0.00000,+0.00000,+0.03511) 0.1407
+O     (0.50000,0.00000,0.00000)(+0.00000,+0.00000,-0.00985) 0.0395
+O     (0.00000,0.50000,0.00000)(+0.00000,+0.00000,-0.00985) 0.0395
+O     (0.00000,0.00000,0.50000)(+0.00000,+0.00000,-0.03035) 0.1216
+
+* Distortion amplitude *
+maximum atomic displacement: 0.1407 A
+total distortion amplitude : 0.2032 A
+(normalized within the primitive cell of the distorted structure)
+note: the subgroup is polar; the free origin is placed at the minimum of the total
+distortion (AMPLIMODES convention, no acoustic translation in the modes) -- programs
+pinning the origin differently (e.g. ISODISTORT) report different amplitudes for the
+polar irreps.
+
+* Transformation matrix (parent -> child) *
+Pm-3m (No. 221) -> P4mm (No. 99), conventional settings of the input files
+  [     1     0     0 ] [     0 ]
+  [     0     1     0 ] [     0 ]
+  [     0     0     1 ] [ 0.5108 ]
+(columns of P: the child basis vectors a', b', c' in parent units, (a', b', c') = (a, b, c) P;
+ last column: the child origin p in parent fractional coordinates, x_parent = P x_child + p;
+ the AMPLIMODES / Bilbao convention)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(0,0,0)          GM4-    (0,0,a)      99 P4mm             4    0.2032
+(direction: GM4- sits on its ISOTROPY representative as listed by
+ crystod-group --parent 221 --irrep GM4-; the input child as given sits on the
+ domain-equivalent direction GM4- (a,0,0))
+
+* Normalized mode components (parent primitive fractional, per 1 A) *
+GM4-:
+  Ba(0.500,0.500,0.500): (+0.0000,+0.0000,+0.0735)
+  Ti(0.000,0.000,0.000): (+0.0000,+0.0000,+0.1728)
+  O(0.500,0.000,0.000): (+0.0000,+0.0000,-0.0485)
+  O(0.000,0.500,0.000): (+0.0000,+0.0000,-0.0485)
+  O(0.000,0.000,0.500): (+0.0000,+0.0000,-0.1494)
+
+Conventions and validation: AMPLIMODES (Bilbao Crystallographic Server):
+D. Orobengoa, C. Capillas, M. I. Aroyo and J. M. Perez-Mato,
+"AMPLIMODES: symmetry-mode analysis on the Bilbao Crystallographic
+Server", J. Appl. Cryst. 42, 820-833 (2009).
+
+* Output files *
+  Decomposition table saved to sym_mode_BaTiO3
+  Mode displacement VESTA files (invariant-core cell):
+    221_PPOSCAR_BaTiO3_GM4-.vesta  (amplitude 0.2032 A)
+  Arrows are scaled so the largest displacement is 1.5 A per file; adjust in VESTA via Edit > Vectors if needed.
+
+
+$ crystod-group --supergroup-cif 221_PPOSCAR_AlF3.cif --subgroup-cif 167_PPOSCAR_AlF3.cif
+# (strongly tilted R-3c child, ~14% lattice strain)
+
+* Supergroup (parent) structure *
+Pm-3m (No. 221)
+
+* Subgroup (distorted) structure *
+R-3c (No. 167)
+
+* Cell relation *
+child primitive basis in parent primitive units (rows):
+  (1, 1, 0)
+  (0, 1, 1)
+  (1, 0, 1)
+origin shift (parent primitive fractional): (0, 0, 0)
+primitive cell multiplication: 2
+(setting: of 24 equivalent sublattice bases the one closest to the orientation of the
+ input files; the child axes are rotated 56.6 deg against the parent axes)
+
+* Atom pairings and displacements (parent primitive setting) *
+atom  reference                    displacement (frac)          |u| (A)
+Al    (0.00000,0.00000,0.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+Al    (0.00000,0.00000,1.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+F     (0.50000,0.00000,0.00000)(-0.00000,-0.06423,+0.06423) 0.3277
+F     (0.50000,0.00000,1.00000)(+0.00000,+0.06423,-0.06423) 0.3277
+F     (0.00000,0.50000,0.00000)(+0.06423,-0.00000,-0.06423) 0.3277
+F     (0.00000,0.50000,1.00000)(-0.06423,+0.00000,+0.06423) 0.3277
+F     (0.00000,0.00000,0.50000)(-0.06423,+0.06423,+0.00000) 0.3277
+F     (0.00000,0.00000,1.50000)(+0.06423,-0.06423,+0.00000) 0.3277
+
+* Distortion amplitude *
+maximum atomic displacement: 0.3277 A
+total distortion amplitude : 0.8028 A
+(normalized within the primitive cell of the distorted structure)
+
+* Transformation matrix (parent -> child) *
+Pm-3m (No. 221) -> R-3c (No. 167), conventional settings of the input files
+  [     1    -1     2 ] [     0 ]
+  [     0     1     2 ] [     0 ]
+  [    -1     0     2 ] [     0 ]
+(columns of P: the child basis vectors a', b', c' in parent units, (a', b', c') = (a, b, c) P;
+ last column: the child origin p in parent fractional coordinates, x_parent = P x_child + p;
+ the AMPLIMODES / Bilbao convention)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(1/2,1/2,1/2)    R4+     (a,a,a)      167 R-3c            1    0.8028
+
+* Normalized mode components (parent primitive fractional, per 1 A) *
+R4+:
+  F(0.500,0.000,0.000): (+0.0000,-0.0800,+0.0800)
+  F(0.500,0.000,1.000): (+0.0000,+0.0800,-0.0800)
+  F(0.000,0.500,0.000): (+0.0800,+0.0000,-0.0800)
+  F(0.000,0.500,1.000): (-0.0800,+0.0000,+0.0800)
+  F(0.000,0.000,0.500): (-0.0800,+0.0800,+0.0000)
+  F(0.000,0.000,1.500): (+0.0800,-0.0800,+0.0000)
+
+Conventions and validation: AMPLIMODES (Bilbao Crystallographic Server):
+D. Orobengoa, C. Capillas, M. I. Aroyo and J. M. Perez-Mato,
+"AMPLIMODES: symmetry-mode analysis on the Bilbao Crystallographic
+Server", J. Appl. Cryst. 42, 820-833 (2009).
+
+* Output files *
+  Decomposition table saved to sym_mode_AlF3
+  Mode displacement VESTA files (invariant-core cell):
+    221_PPOSCAR_AlF3_R4+.vesta  (amplitude 0.8028 A)
+  Arrows are scaled so the largest displacement is 1.5 A per file; adjust in VESTA via Edit > Vectors if needed.
+
+
+$ crystod-group --supergroup-cif ../test_POSCARs/221_PPOSCAR_ScF3 --subgroup-cif POSCAR_ScF3_Pbnm
+# (multi-irrep a-a-c+ distortion generated by crystod-phonon --modulation, section 33;
+#  POSCAR_ScF3_Pbnm is a copy of POSCAR_Pbnm in 33_modulation, ScF3_Pm-3m)
+
+* Supergroup (parent) structure *
+Pm-3m (No. 221)
+
+* Subgroup (distorted) structure *
+Pnma (No. 62)
+
+* Cell relation *
+child primitive basis in parent primitive units (rows):
+  (-1, -1, 0)
+  (0, 0, 2)
+  (-1, 1, 0)
+origin shift (parent primitive fractional): (0, 0, 0)
+primitive cell multiplication: 4
+
+* Atom pairings and displacements (parent primitive setting) *
+atom  reference                    displacement (frac)          |u| (A)
+Sc    (0.00000,0.00000,0.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+Sc    (0.00000,0.00000,1.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+Sc    (0.00000,1.00000,0.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+Sc    (0.00000,1.00000,1.00000)(+0.00000,+0.00000,+0.00000) 0.0000
+F     (0.00000,0.50000,0.00000)(+0.05213,+0.00000,-0.05213) 0.3000
+F     (0.00000,0.50000,1.00000)(+0.05213,+0.00000,+0.05213) 0.3000
+F     (0.00000,1.50000,0.00000)(-0.05213,+0.00000,+0.05213) 0.3000
+F     (0.00000,1.50000,1.00000)(-0.05213,+0.00000,-0.05213) 0.3000
+F     (0.50000,0.00000,0.00000)(+0.00000,-0.05213,+0.05213) 0.3000
+F     (0.50000,0.00000,1.00000)(+0.00000,-0.05213,-0.05213) 0.3000
+F     (0.50000,1.00000,0.00000)(+0.00000,+0.05213,-0.05213) 0.3000
+F     (0.50000,1.00000,1.00000)(+0.00000,+0.05213,+0.05213) 0.3000
+F     (0.00000,0.00000,0.50000)(-0.05213,+0.05213,+0.00000) 0.3000
+F     (0.00000,0.00000,1.50000)(+0.05213,-0.05213,+0.00000) 0.3000
+F     (0.00000,1.00000,0.50000)(+0.05213,-0.05213,+0.00000) 0.3000
+F     (0.00000,1.00000,1.50000)(-0.05213,+0.05213,+0.00000) 0.3000
+
+* Distortion amplitude *
+maximum atomic displacement: 0.3000 A
+total distortion amplitude : 1.0392 A
+(normalized within the primitive cell of the distorted structure)
+
+* Transformation matrix (parent -> child) *
+Pm-3m (No. 221) -> Pnma (No. 62), conventional settings of the input files
+  [     2     0     0 ] [     0 ]
+  [     0     2     0 ] [     0 ]
+  [     0     0     2 ] [     0 ]
+(columns of P: the child basis vectors a', b', c' in parent units, (a', b', c') = (a, b, c) P;
+ last column: the child origin p in parent fractional coordinates, x_parent = P x_child + p;
+ the AMPLIMODES / Bilbao convention)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction     isotropy subgroup   dim  amplitude (A)
+(0,1/2,0)        X5+     (0,0;a,a;0,0) 63 Cmcm             1    0.0000
+(1/2,1/2,0)      M2+     (a;0;0)       127 P4/mbm          1    0.0000
+(1/2,1/2,0)      M3+     (a;0;0)       127 P4/mbm          1    0.6000
+(1/2,1/2,1/2)    R4+     (0,a,a)       74 Imma             1    0.8485
+(1/2,1/2,1/2)    R5+     (0,a,-a)      74 Imma             1    0.0000
+(direction: the rows describe one domain of the child: the largest mode, R4+,
+ sits on its ISOTROPY representative as listed by
+ crystod-group --parent 221 --irrep R4+, and the smaller modes on the simplest
+ directions left in that domain; listed on their own, the other strata read
+ X5+ (0,0;0,0;a,a), M2+ (0;0;a), M3+ (0;0;a) and R5+ (0,a,a))
+
+* Normalized mode components (parent primitive fractional, per 1 A) *
+X5+: amplitude 0 (allowed but not activated)
+M2+: amplitude 0 (allowed but not activated)
+M3+:
+  F(0.000,0.500,0.000): (+0.0869,+0.0000,+0.0000)
+  F(0.000,0.500,1.000): (+0.0869,+0.0000,+0.0000)
+  F(0.000,1.500,0.000): (-0.0869,+0.0000,+0.0000)
+  F(1.000,0.500,0.000): (-0.0869,+0.0000,+0.0000)
+  F(0.000,1.500,1.000): (-0.0869,+0.0000,+0.0000)
+  F(1.000,0.500,1.000): (-0.0869,+0.0000,+0.0000)
+  F(1.000,1.500,0.000): (+0.0869,+0.0000,+0.0000)
+  F(1.000,1.500,1.000): (+0.0869,+0.0000,+0.0000)
+  F(0.500,0.000,0.000): (+0.0000,-0.0869,+0.0000)
+  F(0.500,0.000,1.000): (+0.0000,-0.0869,+0.0000)
+  F(0.500,1.000,0.000): (+0.0000,+0.0869,+0.0000)
+  F(1.500,0.000,0.000): (+0.0000,+0.0869,+0.0000)
+  F(0.500,1.000,1.000): (+0.0000,+0.0869,+0.0000)
+  F(1.500,0.000,1.000): (+0.0000,+0.0869,+0.0000)
+  F(1.500,1.000,0.000): (+0.0000,-0.0869,+0.0000)
+  F(1.500,1.000,1.000): (+0.0000,-0.0869,+0.0000)
+R4+:
+  F(0.000,0.500,0.000): (+0.0000,+0.0000,-0.0614)
+  F(0.000,0.500,1.000): (+0.0000,+0.0000,+0.0614)
+  F(0.000,1.500,0.000): (+0.0000,+0.0000,+0.0614)
+  F(1.000,0.500,0.000): (+0.0000,+0.0000,+0.0614)
+  F(0.000,1.500,1.000): (+0.0000,+0.0000,-0.0614)
+  F(1.000,0.500,1.000): (+0.0000,+0.0000,-0.0614)
+  F(1.000,1.500,0.000): (+0.0000,+0.0000,-0.0614)
+  F(1.000,1.500,1.000): (+0.0000,+0.0000,+0.0614)
+  F(0.500,0.000,0.000): (+0.0000,+0.0000,+0.0614)
+  F(0.500,0.000,1.000): (+0.0000,+0.0000,-0.0614)
+  F(0.500,1.000,0.000): (+0.0000,+0.0000,-0.0614)
+  F(1.500,0.000,0.000): (+0.0000,+0.0000,-0.0614)
+  F(0.500,1.000,1.000): (+0.0000,+0.0000,+0.0614)
+  F(1.500,0.000,1.000): (+0.0000,+0.0000,+0.0614)
+  F(1.500,1.000,0.000): (+0.0000,+0.0000,+0.0614)
+  F(1.500,1.000,1.000): (+0.0000,+0.0000,-0.0614)
+  F(0.000,0.000,0.500): (-0.0614,+0.0614,+0.0000)
+  F(0.000,0.000,1.500): (+0.0614,-0.0614,+0.0000)
+  F(0.000,1.000,0.500): (+0.0614,-0.0614,+0.0000)
+  F(1.000,0.000,0.500): (+0.0614,-0.0614,+0.0000)
+  F(0.000,1.000,1.500): (-0.0614,+0.0614,+0.0000)
+  F(1.000,0.000,1.500): (-0.0614,+0.0614,+0.0000)
+  F(1.000,1.000,0.500): (-0.0614,+0.0614,+0.0000)
+  F(1.000,1.000,1.500): (+0.0614,-0.0614,+0.0000)
+R5+: amplitude 0 (allowed but not activated)
+
+Conventions and validation: AMPLIMODES (Bilbao Crystallographic Server):
+D. Orobengoa, C. Capillas, M. I. Aroyo and J. M. Perez-Mato,
+"AMPLIMODES: symmetry-mode analysis on the Bilbao Crystallographic
+Server", J. Appl. Cryst. 42, 820-833 (2009).
+
+* Output files *
+  Decomposition table saved to sym_mode_ScF3
+  Mode displacement VESTA files (invariant-core cell):
+    221_PPOSCAR_ScF3_M3+.vesta  (amplitude 0.6000 A)
+    221_PPOSCAR_ScF3_R4+.vesta  (amplitude 0.8485 A)
+  Arrows are scaled so the largest displacement is 1.5 A per file; adjust in VESTA via Edit > Vectors if needed.
+
+
+$ crystod-group --supergroup-cif 139_PPOSCAR_La3Ni2O7.cif --subgroup-cif 63_PPOSCAR_La3Ni2O7.cif
+# The definition of order parameter for X3- of I4/mmm in BILBAO and ISOTROPY is different.
+# The result below shows that the definition of order parameter is the same as that of ISOTROPY.
+
+* Supergroup (parent) structure *
+I4/mmm (No. 139)
+
+* Subgroup (distorted) structure *
+Cmcm (No. 63)
+
+* Cell relation *
+child primitive basis in parent primitive units (rows):
+  (0, 0, -1)
+  (1, 1, 1)
+  (1, -1, 0)
+origin shift (parent primitive fractional): (1/2, 0, 1/2)
+primitive cell multiplication: 2
+(setting: of 8 equivalent sublattice bases the one closest to the orientation of the
+ input files; the child axes are rotated 98.4 deg against the parent axes)
+
+* Atom pairings and displacements (parent primitive setting) *
+atom  reference                    displacement (frac)          |u| (A)
+La    (0.50000,0.50000,0.00000)(+0.00063,+0.00063,+0.00126) 0.0034
+La    (0.50000,1.50000,0.00000)(-0.00063,-0.00063,-0.00126) 0.0034
+La    (0.67875,0.67875,0.00000)(+0.01526,+0.01526,+0.02744) 0.0798
+La    (0.67875,1.67875,0.00000)(-0.01218,-0.01218,-0.02744) 0.0798
+La    (0.32125,0.32125,0.00000)(+0.01218,+0.01218,+0.02744) 0.0798
+La    (0.32125,1.32125,0.00000)(-0.01526,-0.01526,-0.02744) 0.0798
+Ni    (0.09753,0.09753,0.00000)(+0.00288,+0.00288,+0.00592) 0.0160
+Ni    (0.09753,1.09753,0.00000)(-0.00304,-0.00304,-0.00592) 0.0160
+Ni    (0.90247,0.90247,0.00000)(+0.00304,+0.00304,+0.00592) 0.0160
+Ni    (0.90247,1.90247,0.00000)(-0.00288,-0.00288,-0.00592) 0.0160
+O     (0.00000,0.00000,0.00000)(+0.07638,+0.07638,+0.15276) 0.4097
+O     (0.00000,1.00000,0.00000)(-0.07638,-0.07638,-0.15276) 0.4097
+O     (0.90317,0.40317,0.50000)(+0.01145,+0.01145,+0.00000) 0.2298
+O     (0.90317,1.40317,0.50000)(-0.01490,-0.01490,+0.00000) 0.2990
+O     (0.40317,0.90317,0.50000)(+0.01145,+0.01145,+0.00000) 0.2298
+O     (0.40317,1.90317,0.50000)(-0.01490,-0.01490,+0.00000) 0.2990
+O     (0.09683,0.59683,0.50000)(+0.01490,+0.01490,+0.00000) 0.2990
+O     (0.09683,1.59683,0.50000)(-0.01145,-0.01145,+0.00000) 0.2298
+O     (0.59683,0.09683,0.50000)(+0.01490,+0.01490,+0.00000) 0.2990
+O     (0.59683,1.09683,0.50000)(-0.01145,-0.01145,+0.00000) 0.2298
+O     (0.79670,0.79670,0.00000)(-0.05936,-0.05936,-0.11564) 0.3117
+O     (0.79670,1.79670,0.00000)(+0.05628,+0.05628,+0.11564) 0.3117
+O     (0.20330,0.20330,0.00000)(-0.05628,-0.05628,-0.11564) 0.3117
+O     (0.20330,1.20330,0.00000)(+0.05936,+0.05936,+0.11564) 0.3117
+
+* Distortion amplitude *
+maximum atomic displacement: 0.4097 A
+total distortion amplitude : 1.1489 A
+(normalized within the primitive cell of the distorted structure)
+
+* Transformation matrix (parent -> child) *
+I4/mmm (No. 139) -> Cmcm (No. 63), conventional settings of the input files
+  [     0     1    -1 ] [   1/2 ]
+  [     0     1     1 ] [     0 ]
+  [     1     0     0 ] [   1/2 ]
+(columns of P: the child basis vectors a', b', c' in parent units, (a', b', c') = (a, b, c) P;
+ last column: the child origin p in parent fractional coordinates, x_parent = P x_child + p;
+ the AMPLIMODES / Bilbao convention)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(0,0,0)          GM1+    (a)          139 I4/mmm          4    0.1313
+(0,0,1/2)        X3-     (0;a)        63 Cmcm             6    1.1413
+
+* Normalized mode components (parent primitive fractional, per 1 A) *
+GM1+:
+  La(0.679,0.679,0.000): (+0.0117,+0.0117,+0.0000)
+  La(0.679,0.679,1.000): (+0.0117,+0.0117,+0.0000)
+  La(0.679,1.679,0.000): (+0.0117,+0.0117,+0.0000)
+  La(0.679,1.679,1.000): (+0.0117,+0.0117,+0.0000)
+  La(0.321,0.321,0.000): (-0.0117,-0.0117,+0.0000)
+  La(0.321,0.321,1.000): (-0.0117,-0.0117,+0.0000)
+  La(0.321,1.321,0.000): (-0.0117,-0.0117,+0.0000)
+  La(0.321,1.321,1.000): (-0.0117,-0.0117,+0.0000)
+  Ni(0.098,0.098,0.000): (-0.0006,-0.0006,+0.0000)
+  Ni(0.098,0.098,1.000): (-0.0006,-0.0006,+0.0000)
+  Ni(0.098,1.098,0.000): (-0.0006,-0.0006,+0.0000)
+  Ni(0.098,1.098,1.000): (-0.0006,-0.0006,+0.0000)
+  Ni(0.902,0.902,0.000): (+0.0006,+0.0006,+0.0000)
+  Ni(0.902,0.902,1.000): (+0.0006,+0.0006,+0.0000)
+  Ni(0.902,1.902,0.000): (+0.0006,+0.0006,+0.0000)
+  Ni(0.902,1.902,1.000): (+0.0006,+0.0006,+0.0000)
+  O(0.903,0.403,0.500): (-0.0131,-0.0131,+0.0000)
+  O(0.903,0.403,1.500): (-0.0131,-0.0131,+0.0000)
+  O(0.903,1.403,0.500): (-0.0131,-0.0131,+0.0000)
+  O(0.903,1.403,1.500): (-0.0131,-0.0131,+0.0000)
+  O(0.403,0.903,0.500): (-0.0131,-0.0131,+0.0000)
+  O(0.403,0.903,1.500): (-0.0131,-0.0131,+0.0000)
+  O(0.403,1.903,0.500): (-0.0131,-0.0131,+0.0000)
+  O(0.403,1.903,1.500): (-0.0131,-0.0131,+0.0000)
+  O(0.097,0.597,0.500): (+0.0131,+0.0131,+0.0000)
+  O(0.097,0.597,1.500): (+0.0131,+0.0131,+0.0000)
+  O(0.097,1.597,0.500): (+0.0131,+0.0131,+0.0000)
+  O(0.097,1.597,1.500): (+0.0131,+0.0131,+0.0000)
+  O(0.597,0.097,0.500): (+0.0131,+0.0131,+0.0000)
+  O(0.597,0.097,1.500): (+0.0131,+0.0131,+0.0000)
+  O(0.597,1.097,0.500): (+0.0131,+0.0131,+0.0000)
+  O(0.597,1.097,1.500): (+0.0131,+0.0131,+0.0000)
+  O(0.797,0.797,0.000): (-0.0117,-0.0117,+0.0000)
+  O(0.797,0.797,1.000): (-0.0117,-0.0117,+0.0000)
+  O(0.797,1.797,0.000): (-0.0117,-0.0117,+0.0000)
+  O(0.797,1.797,1.000): (-0.0117,-0.0117,+0.0000)
+  O(0.203,0.203,0.000): (+0.0117,+0.0117,+0.0000)
+  O(0.203,0.203,1.000): (+0.0117,+0.0117,+0.0000)
+  O(0.203,1.203,0.000): (+0.0117,+0.0117,+0.0000)
+  O(0.203,1.203,1.000): (+0.0117,+0.0117,+0.0000)
+X3-:
+  La(0.500,0.500,0.000): (+0.0006,+0.0006,+0.0011)
+  La(0.500,0.500,1.000): (+0.0006,+0.0006,+0.0011)
+  La(0.500,1.500,0.000): (-0.0006,-0.0006,-0.0011)
+  La(0.500,1.500,1.000): (-0.0006,-0.0006,-0.0011)
+  La(0.679,0.679,0.000): (+0.0120,+0.0120,+0.0240)
+  La(0.679,0.679,1.000): (+0.0120,+0.0120,+0.0240)
+  La(0.679,1.679,0.000): (-0.0120,-0.0120,-0.0240)
+  La(0.679,1.679,1.000): (-0.0120,-0.0120,-0.0240)
+  La(0.321,0.321,0.000): (+0.0120,+0.0120,+0.0240)
+  La(0.321,0.321,1.000): (+0.0120,+0.0120,+0.0240)
+  La(0.321,1.321,0.000): (-0.0120,-0.0120,-0.0240)
+  La(0.321,1.321,1.000): (-0.0120,-0.0120,-0.0240)
+  Ni(0.098,0.098,0.000): (+0.0026,+0.0026,+0.0052)
+  Ni(0.098,0.098,1.000): (+0.0026,+0.0026,+0.0052)
+  Ni(0.098,1.098,0.000): (-0.0026,-0.0026,-0.0052)
+  Ni(0.098,1.098,1.000): (-0.0026,-0.0026,-0.0052)
+  Ni(0.902,0.902,0.000): (+0.0026,+0.0026,+0.0052)
+  Ni(0.902,0.902,1.000): (+0.0026,+0.0026,+0.0052)
+  Ni(0.902,1.902,0.000): (-0.0026,-0.0026,-0.0052)
+  Ni(0.902,1.902,1.000): (-0.0026,-0.0026,-0.0052)
+  O(0.000,0.000,0.000): (+0.0669,+0.0669,+0.1338)
+  O(0.000,0.000,1.000): (+0.0669,+0.0669,+0.1338)
+  O(0.000,1.000,0.000): (-0.0669,-0.0669,-0.1338)
+  O(0.000,1.000,1.000): (-0.0669,-0.0669,-0.1338)
+  O(0.903,0.403,0.500): (+0.0115,+0.0115,+0.0000)
+  O(0.903,0.403,1.500): (+0.0115,+0.0115,+0.0000)
+  O(0.903,1.403,0.500): (-0.0115,-0.0115,+0.0000)
+  O(0.903,1.403,1.500): (-0.0115,-0.0115,+0.0000)
+  O(0.403,0.903,0.500): (+0.0115,+0.0115,+0.0000)
+  O(0.403,0.903,1.500): (+0.0115,+0.0115,+0.0000)
+  O(0.403,1.903,0.500): (-0.0115,-0.0115,+0.0000)
+  O(0.403,1.903,1.500): (-0.0115,-0.0115,+0.0000)
+  O(0.097,0.597,0.500): (+0.0115,+0.0115,+0.0000)
+  O(0.097,0.597,1.500): (+0.0115,+0.0115,+0.0000)
+  O(0.097,1.597,0.500): (-0.0115,-0.0115,+0.0000)
+  O(0.097,1.597,1.500): (-0.0115,-0.0115,+0.0000)
+  O(0.597,0.097,0.500): (+0.0115,+0.0115,+0.0000)
+  O(0.597,0.097,1.500): (+0.0115,+0.0115,+0.0000)
+  O(0.597,1.097,0.500): (-0.0115,-0.0115,+0.0000)
+  O(0.597,1.097,1.500): (-0.0115,-0.0115,+0.0000)
+  O(0.797,0.797,0.000): (-0.0507,-0.0507,-0.1013)
+  O(0.797,0.797,1.000): (-0.0507,-0.0507,-0.1013)
+  O(0.797,1.797,0.000): (+0.0507,+0.0507,+0.1013)
+  O(0.797,1.797,1.000): (+0.0507,+0.0507,+0.1013)
+  O(0.203,0.203,0.000): (-0.0507,-0.0507,-0.1013)
+  O(0.203,0.203,1.000): (-0.0507,-0.0507,-0.1013)
+  O(0.203,1.203,0.000): (+0.0507,+0.0507,+0.1013)
+  O(0.203,1.203,1.000): (+0.0507,+0.0507,+0.1013)
+
+Conventions and validation: AMPLIMODES (Bilbao Crystallographic Server):
+D. Orobengoa, C. Capillas, M. I. Aroyo and J. M. Perez-Mato,
+"AMPLIMODES: symmetry-mode analysis on the Bilbao Crystallographic
+Server", J. Appl. Cryst. 42, 820-833 (2009).
+
+* Output files *
+  Decomposition table saved to sym_mode_La3Ni2O7
+  Mode displacement VESTA files (invariant-core cell):
+    139_PPOSCAR_La3Ni2O7_GM1+.vesta  (amplitude 0.1313 A)
+    139_PPOSCAR_La3Ni2O7_X3-.vesta  (amplitude 1.1413 A)
+  Arrows are scaled so the largest displacement is 1.5 A per file; adjust in VESTA via Edit > Vectors if needed.
+
+# The debugN_*/ directories (regression structures read by testsuite.py) are
+# not in the pip package; they stay in the CrystOD development tree.

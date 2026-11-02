@@ -1,0 +1,40 @@
+/*
+  Sidebar logo.
+
+  `html_logo` (conf.py) puts CrystOD_logo.png above the "CrystOD vX.Y.Z" title
+  at the top of the left sidebar.  The artwork is dark line-art on a
+  transparent background, so on the dark theme it would all but vanish -- it is
+  given a white plate there, sized so the logo keeps breathing room inside it.
+
+  pydata-sphinx-theme renders the mark as `img.logo__image` inside
+  `a.navbar-brand.logo`; both light and dark variants get the same file because
+  only one image is configured.
+*/
+
+.navbar-brand.logo {
+  /* the theme centres brand text; keep the mark centred with it */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.navbar-brand img.logo__image {
+  max-width: 100%;
+  height: auto;
+  /* 1871x840 artwork: this keeps it a comfortable sidebar mark rather than
+     letting it swallow the whole panel */
+  max-height: 5.5rem;
+}
+
+/* Dark theme: put the mark on a white plate so the dark line-art stays
+   readable.  Both the explicit toggle (`data-theme="dark"`) and the
+   system-preference default have to be covered -- the theme sets data-theme on
+   <html> once the user chooses, and pydata's "auto" mode resolves to the same
+   attribute, so keying on it is enough here. */
+html[data-theme="dark"] .navbar-brand img.logo__image {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}

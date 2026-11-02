@@ -1,0 +1,345 @@
+# CrystOD: the example files that ship in the wheel (crystod/examples/).
+# Read by script/sync_packaged_examples.py, which copies the selected files
+# (byte for byte, git-tracked files only) into crystod/examples/ and writes
+# crystod/examples/index.json and README. This file itself is not shipped.
+#
+# One path or glob per line, relative to example/ ('*' does not cross '/',
+# '**' matches any number of directories). 'requires A: B C' means that the
+# README of A uses files of B and C, so crystod-example copies them along.
+# 'budget N' is the maximum total size (bytes) of the packaged files.
+#
+# Left out on purpose (not in the pip package): large data (the full 41.7 MB
+# XDATCAR, every FORCE_CONSTANTS), third-party and debug material (23 debug*,
+# AMPLIMODES/ISODISTORT outputs), test_pyscf (POTCAR), generated outputs;
+# and the data of unpublished work, which is not distributed at all
+# (03 vasp_overlap, vasp_SrTiO3_LAK, 06 CdF2).
+
+budget 8_000_000
+
+requires 29_phonon_activity: 28_phonon_irrep 30_phonon_fatband
+requires 40_md_projection: 33_modulation 39_xdatcar2adp
+requires 45_python_api: 28_phonon_irrep
+requires 47_xrd_superlattice: 23_symmetry_mode
+
+# 01_wigner_d
+01_wigner_d/README
+01_wigner_d/demo_wigner_d.py
+
+# 02_salc
+02_salc/README
+
+# 03_hybridization
+03_hybridization/221_PPOSCAR_ScF3
+03_hybridization/221_PPOSCAR_SrTiO3
+03_hybridization/99_PPOSCAR_BaTiO3
+03_hybridization/README
+03_hybridization/vasp_CaF2/BAND/EIGENVAL.gz
+03_hybridization/vasp_CaF2/BAND/OUTCAR
+03_hybridization/vasp_CaF2/BAND/POSCAR
+03_hybridization/vasp_CaF2/BAND/PROCAR.gz
+03_hybridization/vasp_CaF2/BAND_sublattice1/EIGENVAL.gz
+03_hybridization/vasp_CaF2/BAND_sublattice1/OUTCAR
+03_hybridization/vasp_CaF2/BAND_sublattice1/POSCAR
+03_hybridization/vasp_CaF2/BAND_sublattice1/PROCAR.gz
+03_hybridization/vasp_CaF2/BAND_sublattice2/EIGENVAL.gz
+03_hybridization/vasp_CaF2/BAND_sublattice2/OUTCAR
+03_hybridization/vasp_CaF2/BAND_sublattice2/POSCAR
+03_hybridization/vasp_CaF2/BAND_sublattice2/PROCAR.gz
+03_hybridization/vasp_CaF2/README
+03_hybridization/vasp_SrTiO3/BAND/EIGENVAL.gz
+03_hybridization/vasp_SrTiO3/BAND/OUTCAR
+03_hybridization/vasp_SrTiO3/BAND/POSCAR
+03_hybridization/vasp_SrTiO3/BAND/PROCAR.gz
+03_hybridization/vasp_SrTiO3/BAND_sublattice1/band/EIGENVAL.gz
+03_hybridization/vasp_SrTiO3/BAND_sublattice1/band/OUTCAR
+03_hybridization/vasp_SrTiO3/BAND_sublattice1/band/POSCAR
+03_hybridization/vasp_SrTiO3/BAND_sublattice1/band/PROCAR.gz
+03_hybridization/vasp_SrTiO3/BAND_sublattice2/EIGENVAL.gz
+03_hybridization/vasp_SrTiO3/BAND_sublattice2/OUTCAR
+03_hybridization/vasp_SrTiO3/BAND_sublattice2/POSCAR
+03_hybridization/vasp_SrTiO3/BAND_sublattice2/PROCAR.gz
+03_hybridization/vasp_SrTiO3/POSCAR-finish
+03_hybridization/vasp_SrTiO3/README
+03_hybridization/vasp_wavecar/InP_SOC/INCAR
+03_hybridization/vasp_wavecar/InP_SOC/KPOINTS
+03_hybridization/vasp_wavecar/InP_SOC/OUTCAR
+03_hybridization/vasp_wavecar/InP_SOC/POSCAR
+03_hybridization/vasp_wavecar/InP_SOC/README
+03_hybridization/vasp_wavecar/InP_SOC/WAVECAR
+03_hybridization/vasp_wavecar/SrTiO3/INCAR
+03_hybridization/vasp_wavecar/SrTiO3/KPOINTS
+03_hybridization/vasp_wavecar/SrTiO3/OUTCAR
+03_hybridization/vasp_wavecar/SrTiO3/POSCAR
+03_hybridization/vasp_wavecar/SrTiO3/README
+03_hybridization/vasp_wavecar/SrTiO3/WAVECAR
+
+# 04_selection_rules
+04_selection_rules/POSCAR_Cu2O
+04_selection_rules/README
+04_selection_rules/api.py
+
+# 05_star_of_k
+05_star_of_k/README
+
+# 06_visualized_basis
+06_visualized_basis/CeO2_Fm-3m/225_PPOSCAR_CeO2
+06_visualized_basis/CeO2_Fm-3m/README
+06_visualized_basis/ScF3_Pm-3m/221_PPOSCAR_ScF3
+06_visualized_basis/ScF3_Pm-3m/README
+06_visualized_basis/TiO2_P42mnm/136_PPOSCAR_TiO2
+06_visualized_basis/TiO2_P42mnm/README
+
+# 08_direct_product
+08_direct_product/README
+
+# 09_symmetric_square
+09_symmetric_square/README
+
+# 10_decompose_irrep
+10_decompose_irrep/README
+
+# 11_ligand_field_split
+11_ligand_field_split/README
+
+# 12_basis_function
+12_basis_function/README
+
+# 13_tensor_form
+13_tensor_form/README
+
+# 14_generate_basis_function
+14_generate_basis_function/README
+
+# 15_show_coset
+15_show_coset/README
+
+# 16_correlate
+16_correlate/README
+
+# 17_isotropy_subgroup
+17_isotropy_subgroup/README
+
+# 18_invariants
+18_invariants/README
+
+# 19_child_lookup
+19_child_lookup/README
+
+# 20_subgroup_graph
+20_subgroup_graph/README
+
+# 21_multiplet
+21_multiplet/README
+
+# 22_poscar2cif
+22_poscar2cif/14_PPOSCAR_ZrO2
+22_poscar2cif/221_PPOSCAR_ScF3
+22_poscar2cif/221_PPOSCAR_SrTiO3.cif
+22_poscar2cif/225_PPOSCAR_NaCl
+22_poscar2cif/POSCAR_CaTiO3_Pnma
+22_poscar2cif/POSCAR_La3Ni2O7_Cmcm.cif
+22_poscar2cif/README
+
+# 23_symmetry_mode
+23_symmetry_mode/137_PPOSCAR_ZrO2.cif
+23_symmetry_mode/139_PPOSCAR_La3Ni2O7.cif
+23_symmetry_mode/140_PPOSCAR_SrTiO3.cif
+23_symmetry_mode/167_PPOSCAR_AlF3.cif
+23_symmetry_mode/221_PPOSCAR_AlF3.cif
+23_symmetry_mode/221_PPOSCAR_BaTiO3.cif
+23_symmetry_mode/221_PPOSCAR_CaTiO3.cif
+23_symmetry_mode/221_PPOSCAR_SrTiO3.cif
+23_symmetry_mode/225_PPOSCAR_ZrO2.cif
+23_symmetry_mode/62_PPOSCAR_CaTiO3.cif
+23_symmetry_mode/63_PPOSCAR_La3Ni2O7.cif
+23_symmetry_mode/99_PPOSCAR_BaTiO3.cif
+23_symmetry_mode/POSCAR_FeS2_P1_fcc2
+23_symmetry_mode/POSCAR_FeS2_Pa-3
+23_symmetry_mode/POSCAR_GaN2_P21
+23_symmetry_mode/POSCAR_GaN2_P6mmm
+23_symmetry_mode/POSCAR_K2SeO4_Pna21.cif
+23_symmetry_mode/POSCAR_K2SeO4_Pnma.cif
+23_symmetry_mode/POSCAR_KGeCl3_Cm
+23_symmetry_mode/POSCAR_KGeCl3_P4mmm_pseudo
+23_symmetry_mode/POSCAR_La3Ni2O7_Cmcm.cif
+23_symmetry_mode/POSCAR_La3Ni2O7_I4mmm.cif
+23_symmetry_mode/POSCAR_ScF3_Pbnm
+23_symmetry_mode/POSCAR_SeO2_Cmme_pseudo
+23_symmetry_mode/POSCAR_SeO2_Pmc21
+23_symmetry_mode/README
+
+# 25_brillouin_zone
+25_brillouin_zone/README
+
+# 26_bz_supercell
+26_bz_supercell/README
+
+# 28_phonon_irrep
+28_phonon_irrep/BaTiO3_P4mm/99_PPOSCAR_BaTiO3
+28_phonon_irrep/BaTiO3_P4mm/FORCE_SETS
+28_phonon_irrep/BaTiO3_P4mm/README
+28_phonon_irrep/ScF3_Pm-3m/221_PPOSCAR_ScF3
+28_phonon_irrep/ScF3_Pm-3m/FORCE_SETS
+28_phonon_irrep/ScF3_Pm-3m/README
+28_phonon_irrep/Si_Fd-3m/227_PPOSCAR_Si
+28_phonon_irrep/Si_Fd-3m/FORCE_SETS
+28_phonon_irrep/Si_Fd-3m/README
+28_phonon_irrep/SrTiO3_Pm-3m/221_PPOSCAR_SrTiO3
+28_phonon_irrep/SrTiO3_Pm-3m/FORCE_SETS
+28_phonon_irrep/SrTiO3_Pm-3m/README
+
+# 29_phonon_activity
+29_phonon_activity/README
+
+# 30_phonon_fatband
+30_phonon_fatband/ScF3_Pm-3m/221_PPOSCAR_ScF3
+30_phonon_fatband/ScF3_Pm-3m/BORN
+30_phonon_fatband/ScF3_Pm-3m/FORCE_SETS
+30_phonon_fatband/ScF3_Pm-3m/README
+30_phonon_fatband/SrTiO3_Pm-3m/221_PPOSCAR_SrTiO3
+30_phonon_fatband/SrTiO3_Pm-3m/FORCE_SETS
+30_phonon_fatband/SrTiO3_Pm-3m/README
+
+# 31_phonon_lt
+31_phonon_lt/ScF3_Pm-3m/221_PPOSCAR_ScF3
+31_phonon_lt/ScF3_Pm-3m/BORN
+31_phonon_lt/ScF3_Pm-3m/FORCE_SETS
+31_phonon_lt/ScF3_Pm-3m/README
+31_phonon_lt/Si_Fd-3m/227_PPOSCAR_Si
+31_phonon_lt/Si_Fd-3m/FORCE_SETS
+31_phonon_lt/Si_Fd-3m/README
+
+# 32_phonon_vector
+32_phonon_vector/BaTiO3_P4mm/99_PPOSCAR_BaTiO3
+32_phonon_vector/BaTiO3_P4mm/FORCE_SETS
+32_phonon_vector/BaTiO3_P4mm/README
+32_phonon_vector/Si_Fd-3m/227_PPOSCAR_Si
+32_phonon_vector/Si_Fd-3m/FORCE_SETS
+32_phonon_vector/Si_Fd-3m/README
+32_phonon_vector/Sr3Ti2O7_I4mmm/139_PPOSCAR_Sr3Ti2O7
+32_phonon_vector/Sr3Ti2O7_I4mmm/FORCE_SETS
+32_phonon_vector/Sr3Ti2O7_I4mmm/README
+
+# 33_modulation
+33_modulation/ScF3_Pm-3m/221_PPOSCAR_ScF3
+33_modulation/ScF3_Pm-3m/FORCE_SETS
+33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_1
+33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_2
+33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_3
+33_modulation/ScF3_Pm-3m/POSCAR_Pbnm
+33_modulation/ScF3_Pm-3m/README
+33_modulation/ScF3_Pm-3m/phonopy_params.yaml
+33_modulation/Sr3Ti2O7_I4mmm/139_PPOSCAR_Sr3Ti2O7
+33_modulation/Sr3Ti2O7_I4mmm/FORCE_SETS
+33_modulation/Sr3Ti2O7_I4mmm/README
+
+# 34_vibration
+34_vibration/ScF3_Pm-3m/221_PPOSCAR_ScF3
+34_vibration/ScF3_Pm-3m/README
+
+# 36_spin_basis
+36_spin_basis/AlNi3_Pm-3m/221_PPOSCAR_AlNi3
+36_spin_basis/AlNi3_Pm-3m/README
+36_spin_basis/La2CuO4_I4mmm/139_PPOSCAR_La2CuO4
+36_spin_basis/La2CuO4_I4mmm/README
+36_spin_basis/La3Ni2O7_Cmcm/63_PPOSCAR_La3Ni2O7
+36_spin_basis/La3Ni2O7_Cmcm/README
+36_spin_basis/La3Ni2O7_I4mmm/139_PPOSCAR_La3Ni2O7
+36_spin_basis/La3Ni2O7_I4mmm/X/README
+36_spin_basis/La3Ni2O7_I4mmm/X2/README
+36_spin_basis/LuFeO3_P63cm/185_PPOSCAR_LuFeO3
+36_spin_basis/LuFeO3_P63cm/README
+36_spin_basis/Y2Ir2O7_Fd-3m/227_PPOSCAR_Y2Ir2O7
+36_spin_basis/Y2Ir2O7_Fd-3m/README
+
+# 37_magnetic_group
+37_magnetic_group/167_PPOSCAR_Cr2O3
+37_magnetic_group/README
+
+# 39_xdatcar2adp
+39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/README
+39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/XDATCAR_every10
+
+# 40_md_projection
+40_md_projection/README
+40_md_projection/XDATCAR_I4mcm_1
+40_md_projection/XDATCAR_synthetic
+40_md_projection/make_xdatcar.py
+
+# 42_molecular_salc
+42_molecular_salc/README
+42_molecular_salc/XYZ_CH4.xyz
+42_molecular_salc/XYZ_NH3.xyz
+42_molecular_salc/XYZ_O2.xyz
+
+# 43_molod
+43_molod/README
+43_molod/XYZ_C6H6.xyz
+43_molod/XYZ_CH3OH.xyz
+43_molod/XYZ_CH4.xyz
+43_molod/XYZ_H2O.xyz
+43_molod/XYZ_NH3.xyz
+43_molod/XYZ_O2.xyz
+43_molod/XYZ_SF6.xyz
+
+# 45_python_api
+45_python_api/README
+45_python_api/macer_subgroup_bridge.py
+
+# 46_xrd_pattern
+46_xrd_pattern/ScF3_Pm-3m/221_PPOSCAR_ScF3
+46_xrd_pattern/ScF3_Pm-3m/README
+46_xrd_pattern/SrTiO3_Pm-3m/221_PPOSCAR_SrTiO3
+46_xrd_pattern/SrTiO3_Pm-3m/README
+
+# 47_xrd_superlattice
+47_xrd_superlattice/README
+
+# 48_mp_search
+48_mp_search/README
+
+# 51_phonon_unfold
+51_phonon_unfold/README
+51_phonon_unfold/*/README
+51_phonon_unfold/*/child/*
+51_phonon_unfold/*/parent/*
+
+# 52_phonon_visualize
+52_phonon_visualize/README
+52_phonon_visualize/*/README
+52_phonon_visualize/*/221_PPOSCAR_*
+52_phonon_visualize/*/FORCE_SETS
+
+# 53_slab (README and bulk POSCAR of each case; the POSCAR_slab_* files are generated outputs)
+53_slab/README
+53_slab/La2CuO4_I4mmm/139_PPOSCAR_La2CuO4
+53_slab/La2CuO4_I4mmm/README
+53_slab/NaCl_Fm-3m/225_PPOSCAR_NaCl
+53_slab/NaCl_Fm-3m/README
+53_slab/SrTiO3_Pm-3m/221_PPOSCAR_SrTiO3
+53_slab/SrTiO3_Pm-3m/README
+
+# shared inputs (copied with every example)
+test_POSCARs/10_PPOSCAR_MnO2
+test_POSCARs/136_PPOSCAR_TiO2
+test_POSCARs/139_PPOSCAR_Sr3Ti2O7
+test_POSCARs/140_PPOSCAR_SrTiO3.cif
+test_POSCARs/14_PPOSCAR_ZrO2
+test_POSCARs/166_PPOSCAR_Bi
+test_POSCARs/186_PPOSCAR_ZnO
+test_POSCARs/221_PPOSCAR_AlNi3
+test_POSCARs/221_PPOSCAR_ScF3
+test_POSCARs/221_PPOSCAR_SrTiO3
+test_POSCARs/221_PPOSCAR_SrTiO3.cif
+test_POSCARs/224_PPOSCAR_Ag2O
+test_POSCARs/225_PPOSCAR_NaCl
+test_POSCARs/227_PPOSCAR_Si
+test_POSCARs/229_PPOSCAR_Fe
+test_POSCARs/58_PPOSCAR_MnO2
+test_POSCARs/62_PPOSCAR_CaTiO3
+test_POSCARs/83_PPOSCAR_Ti2Ga3
+test_XYZs/XYZ_CH4.xyz
+test_XYZs/XYZ_H2O.xyz
+test_XYZs/XYZ_NH3.xyz
+test_XYZs/XYZ_O2.xyz
+test_XYZs/XYZ_SF6.xyz

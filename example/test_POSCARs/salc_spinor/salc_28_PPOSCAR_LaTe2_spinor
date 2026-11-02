@@ -1,0 +1,49 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ Pma2 (28)
+
+ * Element (number of atoms) *
+ La (4)
+
+ * Wyckoff letters and site symmetry letters *
+ ['c', 'c', 'b', 'b']
+ ['m..', 'm..', '..2', '..2']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  Pma2 (28)
+ irreps             :  12.0 [-GM5(2)] 
+
+ k point (primitive):  R [0.5, 0.5, 0.5]
+ little group of k  :  Pma2 (28)
+ irreps             :  6.0 [-R2(1)] + 6.0 [-R3(1)] + 6.0 [-R4(1)] + 6.0 [-R5(1)] 
+
+ k point (primitive):  S [0.5, 0.5, 0.0]
+ little group of k  :  Pma2 (28)
+ irreps             :  6.0 [-S2(1)] + 6.0 [-S3(1)] + 6.0 [-S4(1)] + 6.0 [-S5(1)] 
+
+ k point (primitive):  T [0.0, 0.5, 0.5]
+ little group of k  :  Pma2 (28)
+ irreps             :  12.0 [-T5(2)] 
+
+ k point (primitive):  U [0.5, 0.0, 0.5]
+ little group of k  :  Pma2 (28)
+ irreps             :  6.0 [-U2(1)] + 6.0 [-U3(1)] + 6.0 [-U4(1)] + 6.0 [-U5(1)] 
+
+ k point (primitive):  X [0.5, 0.0, 0.0]
+ little group of k  :  Pma2 (28)
+ irreps             :  6.0 [-X2(1)] + 6.0 [-X3(1)] + 6.0 [-X4(1)] + 6.0 [-X5(1)] 
+
+ k point (primitive):  Y [0.0, 0.5, 0.0]
+ little group of k  :  Pma2 (28)
+ irreps             :  12.0 [-Y5(2)] 
+
+ k point (primitive):  Z [0.0, 0.0, 0.5]
+ little group of k  :  Pma2 (28)
+ irreps             :  12.0 [-Z5(2)] 
+

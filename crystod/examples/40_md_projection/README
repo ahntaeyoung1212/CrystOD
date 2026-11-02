@@ -1,0 +1,695 @@
+# Mode projection of an MD trajectory (crystod-md --project); testsuite
+# section 40
+# Every frame is matched to the ideal supercell of the parent primitive cell
+# (-c, --dim; by element and nearest image of the time-averaged positions, so
+# the atom order of the XDATCAR does not matter), the mass-weighted
+# centre-of-mass displacement of every frame is removed (drift), and the
+# displacements are projected onto the symmetry-adapted patterns of
+# crystod-phonon --vibration (ISO-IR labels, mode-space and component numbers
+# as there for a parent in the standard setting). Q = p_hat . u / sqrt(N):
+# the displacement norm per parent primitive cell carried by the pattern, at
+# a time-reversal invariant q the amplitude of crystod-phonon --modulation
+# (elsewhere a frozen amplitude A gives A/sqrt(2) over the c/s components);
+# the AMPLIMODES amplitude of an irrep in crystod-group --supergroup-cif is
+# sqrt(size) times the norm of its Q over all components and arms (Q
+# sqrt(size) for a single component).
+# Files: MDPROJ_<formula>_<q>.csv (step = XDATCAR configuration number, then
+# one column per component, label_space_component), MDPROJ_<formula>_hist.pdf
+# (histograms with Gaussian reference lines; --no-histogram skips it),
+# MDPROJ_<formula>.npz with --npz; -o PREFIX renames them.
+# With --yaml phonopy_params.yaml the basis is the phonon eigenvectors at each
+# q (sections 5-7 and 9): default prefix MDPROJ_<formula>_phonon, columns
+# <mode>_<irrep>, npz arrays a_<q> and frequencies_<q>.
+# XDATCAR_synthetic and XDATCAR_I4mcm_1 are written by make_xdatcar.py.
+
+# (1) Synthetic 2x2x2 ScF3 trajectory: R4+ component 1 frozen as
+# 0.3 sin(2 pi t/50) A and M3+ at M (1/2, 1/2, 0) as 0.17 cos(2 pi t/37) A
+# (100 frames, atoms shuffled). Both come back exactly (CSV columns); a
+# sinusoid has ratio 2 sqrt(2)/pi = 0.900 and kurtosis -1.5, and its
+# histogram two peaks at the turning points. The pooled R4+ row reads
+# "unequal" (one moving and two zero components are not one distribution).
+# The sum rule confirms that the two patterns carry all of the displacement.
+
+$ crystod-md --project -c ../test_POSCARs/221_PPOSCAR_ScF3 --dim 2 2 2 --xdatcar XDATCAR_synthetic --qpoint R M --irrep R4+ M3+
+
+* Input *
+  Parent cell     : ../test_POSCARs/221_PPOSCAR_ScF3
+  Space group     : Pm-3m (No. 221)
+  Supercell (dim) : 2 2 2 (8 parent cells, 32 atoms)
+  Trajectory      : XDATCAR_synthetic (100 frames)
+  Frames used     : 100 (step 0 .. 99; configuration 1 .. 100)
+  Lattice         : fixed cell
+
+* Site matching *
+  Sites matched   : 32 (one-to-one, by element and nearest image
+                    of the time-averaged position)
+  Uniform shift   : (+0.0000, +0.0000, +0.0000) A (mean offset of the averaged structure)
+  Largest offset  : 0.0060 A (atom 11, uniform shift removed)
+  Drift           : the mass-weighted centre-of-mass displacement is removed
+                    from every frame (rms 0.0000 A)
+
+* Q points *
+  R        (1/2, 1/2, 1/2)
+  M        (1/2, 1/2, 0)
+
+* Mode projection at R (1/2, 1/2, 1/2) *
+irrep   space  component  <Q> (A)  sqrt<Q^2> (A)  <|Q|> (A)  ratio  kurtosis  n_eff  shape
+R4+(3)  3      1          0.00000  0.21213        0.19073    0.899  -1.50     6      double-peaked (hint)
+R4+(3)  3      2          0.00000  0.00000        0.00000    -      -         -      zero
+R4+(3)  3      3          0.00000  0.00000        0.00000    -      -         -      zero
+
+* Pooled components and norm |Q| at R (1/2, 1/2, 1/2) *
+irrep   space  comps  sqrt<Q^2> (A)  ratio  kurtosis  n_eff  shape    <|Q|> (A)  |Q| ratio  Gaussian
+R4+(3)  3      3      0.12247        -      -         -      unequal  0.19073    0.899      0.921
+
+* Mode projection at M (1/2, 1/2, 0) *
+irrep   space  component  <Q> (A)   sqrt<Q^2> (A)  <|Q|> (A)  ratio  kurtosis  n_eff  shape
+M3+(1)  2      1          -0.00845  0.12173        0.11029    0.906  -1.51     9      double-peaked (hint)
+
+* Sum rule *
+  sum of <Q^2> over the projected components : 0.059818 A^2
+  <|u|^2> / N (all atoms, drift removed)     : 0.059818 A^2
+  fraction covered                           : 100.00 %
+  q points covered                           : 2 of 8 commensurate (a -q partner counts with its q)
+
+* Notes *
+  Q: displacement norm per parent primitive cell carried by the pattern; at a
+     time-reversal invariant q it equals the crystod-phonon --modulation amplitude,
+     elsewhere --amplitude A gives a norm of A/sqrt(2) over its c/s components.
+  AMPLIMODES amplitude of an irrep = sqrt(size) x the norm of its Q over all
+     components and arms (Q sqrt(size) for a single component).
+  ratio = <|Q|>/sqrt<Q^2>: 0.798 for a Gaussian about Q = 0 (single well,
+     displacive), 1 for two states +-Q0 (order-disorder).
+  shape: histogram density at Q = 0 against its maximum (< 0.5 with weight on
+     both sides: double-peaked); a hint from the statistics, not a test.
+  n_eff: frames / autocorrelation time; ratio and kurtosis scatter ~ 1/sqrt(n_eff).
+  Pooled: all components of a mode space as one sample (equivalent components
+     in the parent symmetry); unequal: component rms values differ by more than
+     a factor 3 (no pooled shape); |Q| ratio = <|Q|>/sqrt<|Q|^2>,
+     Gaussian = its value for an isotropic Gaussian in that many components.
+  Components 1c/1s: the real patterns of a complex row e and of i e (q not
+     time-reversal invariant; -q gives the same patterns).
+
+* Output files *
+  MDPROJ_ScF3_R.csv
+  MDPROJ_ScF3_M.csv
+  MDPROJ_ScF3_hist.pdf
+
+
+# (2) A static structure of crystod-phonon --modulation (R4+, --amplitude 0.3,
+# ../33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_3) as a one-frame trajectory:
+# Q = 0.3 on one R4+ component, nothing else (sum rule 100 %).
+
+$ crystod-md --project -c ../test_POSCARs/221_PPOSCAR_ScF3 --dim 2 2 2 --xdatcar XDATCAR_I4mcm_1 --qpoint R --irrep R4+ -o MDPROJ_I4mcm_1 --no-histogram
+
+* Input *
+  Parent cell     : ../test_POSCARs/221_PPOSCAR_ScF3
+  Space group     : Pm-3m (No. 221)
+  Supercell (dim) : 2 2 2 (8 parent cells, 32 atoms)
+  Trajectory      : XDATCAR_I4mcm_1 (1 frame)
+  Frames used     : 1 (step 0 .. 0; configuration 1 .. 1)
+  Lattice         : fixed cell
+
+* Site matching *
+  Sites matched   : 32 (one-to-one, by element and nearest image
+                    of the time-averaged position)
+  Uniform shift   : (+0.0000, +0.0000, +0.0000) A (mean offset of the averaged structure)
+  Largest offset  : 0.2121 A (atom 9, uniform shift removed)
+  Drift           : the mass-weighted centre-of-mass displacement is removed
+                    from every frame (rms 0.0000 A)
+
+* Q points *
+  R        (1/2, 1/2, 1/2)
+
+* Mode projection at R (1/2, 1/2, 1/2) *
+irrep   space  component  <Q> (A)  sqrt<Q^2> (A)  <|Q|> (A)  ratio  kurtosis  n_eff  shape
+R4+(3)  3      1          0.00000  0.00000        0.00000    -      -         -      zero
+R4+(3)  3      2          0.00000  0.00000        0.00000    -      -         -      zero
+R4+(3)  3      3          0.30000  0.30000        0.30000    1.000  -         -      n/a
+
+* Pooled components and norm |Q| at R (1/2, 1/2, 1/2) *
+irrep   space  comps  sqrt<Q^2> (A)  ratio  kurtosis  n_eff  shape    <|Q|> (A)  |Q| ratio  Gaussian
+R4+(3)  3      3      0.17321        -      -         -      unequal  0.30000    1.000      0.921
+
+* Sum rule *
+  sum of <Q^2> over the projected components : 0.090000 A^2
+  <|u|^2> / N (all atoms, drift removed)     : 0.090000 A^2
+  fraction covered                           : 100.00 %
+  q points covered                           : 1 of 8 commensurate (a -q partner counts with its q)
+
+* Notes *
+  Q: displacement norm per parent primitive cell carried by the pattern; at a
+     time-reversal invariant q it equals the crystod-phonon --modulation amplitude,
+     elsewhere --amplitude A gives a norm of A/sqrt(2) over its c/s components.
+  AMPLIMODES amplitude of an irrep = sqrt(size) x the norm of its Q over all
+     components and arms (Q sqrt(size) for a single component).
+  ratio = <|Q|>/sqrt<Q^2>: 0.798 for a Gaussian about Q = 0 (single well,
+     displacive), 1 for two states +-Q0 (order-disorder).
+  shape: histogram density at Q = 0 against its maximum (< 0.5 with weight on
+     both sides: double-peaked); a hint from the statistics, not a test.
+  n_eff: frames / autocorrelation time; ratio and kurtosis scatter ~ 1/sqrt(n_eff).
+  Pooled: all components of a mode space as one sample (equivalent components
+     in the parent symmetry); unequal: component rms values differ by more than
+     a factor 3 (no pooled shape); |Q| ratio = <|Q|>/sqrt<|Q|^2>,
+     Gaussian = its value for an isotropic Gaussian in that many components.
+  Components 1c/1s: the real patterns of a complex row e and of i e (q not
+     time-reversal invariant; -q gives the same patterns).
+
+* Output files *
+  MDPROJ_I4mcm_1_R.csv
+
+# The AMPLIMODES decomposition of the same structure: 0.3 sqrt(2) = 0.4243
+# (I4/mcm has a primitive cell of two parent cells).
+
+$ crystod-group --supergroup-cif ../test_POSCARs/221_PPOSCAR_ScF3 --subgroup-cif ../33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_3 --no-files
+...
+* Distortion amplitude *
+maximum atomic displacement: 0.2121 A
+total distortion amplitude : 0.4243 A
+(normalized within the primitive cell of the distorted structure)
+
+...
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(1/2,1/2,1/2)    R4+     (0,0,a)      140 I4/mcm          1    0.4243
+(direction: R4+ sits on its ISOTROPY representative as listed by
+ crystod-group --parent 221 --irrep R4+; the input child as given sits on the
+ domain-equivalent direction R4+ (0,a,0))
+...
+
+
+# (3) NpT run of cubic ScF3 at 300 K (../39_xdatcar2adp, 4x4x4).
+# XDATCAR_every10 holds every 10th frame of configurations 2000-5000 of the
+# 4001-frame run (the first 1000 frames discarded; 301 frames). Every irrep is
+# single-peaked about Q = 0: displacive fluctuations of a cubic crystal. The
+# octahedral tilts R4+ and M3+ carry the largest amplitudes but have few
+# independent samples (n_eff 16-29, autocorrelation times of 10-19 frames
+# here, 100-190 configurations of the run), so the ratio of a single
+# component scatters (0.71-0.86 for R4+); pooled over the three equivalent R4+
+# components it is 0.768, and M3+ gives 0.773 (Gaussian 0.798). The stiff
+# modes reach n_eff 301, the number of frames: 10 configurations apart,
+# successive frames are nearly uncorrelated for them.
+# The full 41.7 MB XDATCAR (not in the pip package) with --start-step 1000 gives the
+# same shapes, Q within 0.0002 A and ratios within 0.015 (M3+ 0.772).
+
+$ crystod-md --project -c ../test_POSCARs/221_PPOSCAR_ScF3 --dim 4 4 4 --xdatcar ../39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/XDATCAR_every10 --start-step 0 --qpoint R M -o MDPROJ_ScF3_300K
+
+* Input *
+  Parent cell     : ../test_POSCARs/221_PPOSCAR_ScF3
+  Space group     : Pm-3m (No. 221)
+  Supercell (dim) : 4 4 4 (64 parent cells, 256 atoms)
+  Trajectory      : ../39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/XDATCAR_every10 (301 frames)
+  Frames used     : 301 (step 0 .. 300; configuration 2000 .. 5000)
+  Lattice         : each frame's own cell (fractional -> Cartesian)
+
+* Site matching *
+  Sites matched   : 256 (one-to-one, by element and nearest image
+                    of the time-averaged position)
+  Uniform shift   : (+0.0000, +0.0000, +0.0000) A (mean offset of the averaged structure)
+  Largest offset  : 0.0361 A (atom 222, uniform shift removed)
+  Drift           : the mass-weighted centre-of-mass displacement is removed
+                    from every frame (rms 0.0000 A)
+
+* Q points *
+  R        (1/2, 1/2, 1/2)
+  M        (1/2, 1/2, 0)
+
+* Mode projection at R (1/2, 1/2, 1/2) *
+irrep   space  component  <Q> (A)   sqrt<Q^2> (A)  <|Q|> (A)  ratio  kurtosis  n_eff  shape
+R1+(1)  1      1          -0.00004  0.00424        0.00344    0.811  -0.31     301    single-peaked
+R3+(2)  2      1          -0.00007  0.00498        0.00395    0.792  0.50      301    single-peaked
+R3+(2)  2      2          -0.00026  0.00664        0.00545    0.820  -0.43     301    single-peaked
+R4+(3)  3      1          0.00146   0.09486        0.06716    0.708  1.34      16     single-peaked
+R4+(3)  3      2          -0.00326  0.11411        0.09801    0.859  -1.08     19     single-peaked
+R4+(3)  3      3          -0.00301  0.07826        0.05798    0.741  1.40      19     single-peaked
+R4-(3)  4      1          -0.00005  0.00467        0.00368    0.789  -0.13     200    single-peaked
+R4-(3)  4      2          -0.00014  0.00413        0.00330    0.800  -0.31     208    single-peaked
+R4-(3)  4      3          -0.00018  0.00415        0.00335    0.809  0.30      205    single-peaked
+R5+(3)  5      1          0.00001   0.01243        0.01043    0.839  -0.72     136    single-peaked
+R5+(3)  5      2          0.00026   0.00677        0.00533    0.786  0.02      135    single-peaked
+R5+(3)  5      3          0.00004   0.01060        0.00819    0.772  0.15      135    single-peaked
+
+* Pooled components and norm |Q| at R (1/2, 1/2, 1/2) *
+irrep   space  comps  sqrt<Q^2> (A)  ratio  kurtosis  n_eff  shape          <|Q|> (A)  |Q| ratio  Gaussian
+R3+(2)  2      2      0.00587        0.800  0.02      602    single-peaked  0.00734    0.884      0.886
+R4+(3)  3      3      0.09686        0.768  0.20      55     single-peaked  0.14807    0.883      0.921
+R4-(3)  4      3      0.00432        0.798  -0.02     613    single-peaked  0.00687    0.918      0.921
+R5+(3)  5      3      0.01021        0.781  0.09      406    single-peaked  0.01596    0.902      0.921
+
+* Mode projection at M (1/2, 1/2, 0) *
+irrep   space  component  <Q> (A)   sqrt<Q^2> (A)  <|Q|> (A)  ratio  kurtosis  n_eff  shape
+M1+(1)  1      1          -0.00011  0.00387        0.00301    0.778  0.25      301    single-peaked
+M3+(1)  2      1          0.01236   0.04246        0.03280    0.773  -0.08     29     single-peaked
+M3-(1)  3      1          -0.00011  0.00464        0.00372    0.802  0.04      77     single-peaked
+M3-(1)  4      1          -0.00030  0.00600        0.00474    0.791  0.19      175    single-peaked
+M5+(2)  5      1          -0.00010  0.00747        0.00597    0.799  0.10      92     single-peaked
+M5+(2)  5      2          0.00061   0.01563        0.01331    0.851  -0.88     91     single-peaked
+M5-(2)  6      1          -0.00037  0.00421        0.00322    0.763  1.91      176    single-peaked
+M5-(2)  6      2          0.00076   0.00395        0.00290    0.733  1.12      178    single-peaked
+M5-(2)  7      1          -0.00120  0.01457        0.01126    0.773  0.22      88     single-peaked
+M5-(2)  7      2          0.00106   0.01541        0.01250    0.811  -0.19     89     single-peaked
+M2+(1)  8      1          -0.00008  0.00527        0.00399    0.757  0.40      301    single-peaked
+M4+(1)  9      1          0.00005   0.01089        0.00883    0.811  -0.22     137    single-peaked
+
+* Pooled components and norm |Q| at M (1/2, 1/2, 0) *
+irrep   space  comps  sqrt<Q^2> (A)  ratio  kurtosis  n_eff  shape          <|Q|> (A)  |Q| ratio  Gaussian
+M5+(2)  5      2      0.01225        0.787  0.04      183    single-peaked  0.01538    0.888      0.886
+M5-(2)  6      2      0.00408        0.748  1.63      354    single-peaked  0.00487    0.844      0.886
+M5-(2)  7      2      0.01499        0.792  0.02      177    single-peaked  0.01852    0.874      0.886
+
+* Sum rule *
+  sum of <Q^2> over the projected components : 0.031403 A^2
+  <|u|^2> / N (all atoms, drift removed)     : 0.226273 A^2
+  fraction covered                           : 13.88 %
+  q points covered                           : 2 of 64 commensurate (a -q partner counts with its q)
+
+* Notes *
+  Q: displacement norm per parent primitive cell carried by the pattern; at a
+     time-reversal invariant q it equals the crystod-phonon --modulation amplitude,
+     elsewhere --amplitude A gives a norm of A/sqrt(2) over its c/s components.
+  AMPLIMODES amplitude of an irrep = sqrt(size) x the norm of its Q over all
+     components and arms (Q sqrt(size) for a single component).
+  ratio = <|Q|>/sqrt<Q^2>: 0.798 for a Gaussian about Q = 0 (single well,
+     displacive), 1 for two states +-Q0 (order-disorder).
+  shape: histogram density at Q = 0 against its maximum (< 0.5 with weight on
+     both sides: double-peaked); a hint from the statistics, not a test.
+  n_eff: frames / autocorrelation time; ratio and kurtosis scatter ~ 1/sqrt(n_eff).
+  Pooled: all components of a mode space as one sample (equivalent components
+     in the parent symmetry); unequal: component rms values differ by more than
+     a factor 3 (no pooled shape); |Q| ratio = <|Q|>/sqrt<|Q|^2>,
+     Gaussian = its value for an isotropic Gaussian in that many components.
+  Components 1c/1s: the real patterns of a complex row e and of i e (q not
+     time-reversal invariant; -q gives the same patterns).
+
+* Output files *
+  MDPROJ_ScF3_300K_R.csv
+  MDPROJ_ScF3_300K_M.csv
+  MDPROJ_ScF3_300K_hist.pdf
+
+# (The CSV files of this run, 43 kB each, are not kept here.)
+
+
+# (4) Every commensurate q (64 for 4x4x4; q and -q share their real patterns,
+# so 36 are projected): the sum rule is exact. <|u|^2>/N = 0.2263 A^2 per
+# cell; --adp (../39_xdatcar2adp) gives 3 (U_eq(Sc) + 3 U_eq(F)) =
+# 3 (0.005477 + 3 x 0.023486) = 0.2278 A^2 (ratio 0.993). The difference:
+# --adp measures each atom about its own time-averaged position (the static
+# offsets of the averaged structure from the ideal sites, 0.0012 A^2 per
+# cell here, are left out) and converts all frames with the cell of the
+# first analysed frame (0.4 % longer than the mean cell; with that cell the
+# projection gives 0.2293 - 0.0013 = 0.2281 A^2), while --project uses each
+# frame's own cell (--mean-lattice: the mean cell, 0.2271 A^2) and removes
+# the centre-of-mass drift of every frame.
+
+$ crystod-md --project -c ../test_POSCARs/221_PPOSCAR_ScF3 --dim 4 4 4 --xdatcar ../39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/XDATCAR_every10 --start-step 0 --qpoint all --no-histogram -o all/MDPROJ_ScF3_300K
+
+* Input *
+...
+* Q points *
+  GM       (0, 0, 0)
+  DT       (0, 0, 1/4)
+  DT       (0, 1/4, 0)
+  DT       (1/4, 0, 0)
+  SM       (0, 1/4, 1/4)
+  SM       (1/4, 0, 1/4)
+  SM       (1/4, 1/4, 0)
+  LD       (1/4, 1/4, 1/4)
+  X        (0, 0, 1/2)
+  X        (0, 1/2, 0)
+  X        (1/2, 0, 0)
+  Z        (0, 1/4, 1/2)
+  Z        (0, 1/2, 1/4)
+  Z        (1/4, 0, 1/2)
+  Z        (1/4, 1/2, 0)
+  Z        (1/2, 0, 1/4)
+  Z        (1/2, 1/4, 0)
+  S        (1/4, 1/4, 1/2)
+  S        (1/4, 1/2, 1/4)
+  S        (1/2, 1/4, 1/4)
+  M        (0, 1/2, 1/2)
+  M        (1/2, 0, 1/2)
+  M        (1/2, 1/2, 0)
+  T        (1/4, 1/2, 1/2)
+  T        (1/2, 1/4, 1/2)
+  T        (1/2, 1/2, 1/4)
+  SM       (0, 1/4, 3/4)
+  SM       (1/4, 0, 3/4)
+  SM       (1/4, 3/4, 0)
+  LD       (1/4, 1/4, 3/4)
+  LD       (1/4, 3/4, 1/4)
+  LD       (3/4, 1/4, 1/4)
+  R        (1/2, 1/2, 1/2)
+  S        (1/4, 1/2, 3/4)
+  S        (1/4, 3/4, 1/2)
+  S        (1/2, 1/4, 3/4)
+
+...
+* Sum rule *
+  sum of <Q^2> over the projected components : 0.226273 A^2
+  <|u|^2> / N (all atoms, drift removed)     : 0.226273 A^2
+  fraction covered                           : 100.00 %
+  q points covered                           : 64 of 64 commensurate (a -q partner counts with its q)
+  relative difference (complete basis)       : 0.0e+00
+...
+
+
+# (5) Phonon-eigenvector basis (--yaml phonopy_params.yaml, the 4x4x4 force
+# constants of ../33_modulation/ScF3_Pm-3m): the basis at every q is the
+# set of symmetry-adapted eigenvectors of crystod-phonon --modulation/--vector
+# (same mode numbers, 1-based), the trajectory is taken in mass-weighted
+# coordinates w = sqrt(m) u, and every column is the normal coordinate
+# a = p_hat . w of the supercell (A sqrt(amu)); A = a/sqrt(N) per parent cell.
+# The parent cell is the primitive cell of the yaml (-c is not needed; if
+# given, it must be that cell). The R4+ structure of (2) carries
+# A = 0.3 |sqrt(m) v| = 0.3 sqrt(m_F) = 1.307615 on one R4+ mode (here mode 3:
+# crystod-phonon --modulation --mode 3 --amplitude 0.3 reproduces
+# POSCAR_I4mcm_3 byte for byte) and nothing on any other mode.
+
+$ crystod-md --project --yaml ../33_modulation/ScF3_Pm-3m/phonopy_params.yaml --dim 2 2 2 --xdatcar XDATCAR_I4mcm_1 --qpoint R -o MDPROJ_I4mcm_1_phonon --no-histogram
+
+* Input *
+  Parent cell     : primitive cell of ../33_modulation/ScF3_Pm-3m/phonopy_params.yaml
+  Space group     : Pm-3m (No. 221)
+  Supercell (dim) : 2 2 2 (8 parent cells, 32 atoms)
+  Trajectory      : XDATCAR_I4mcm_1 (1 frame)
+  Frames used     : 1 (step 0 .. 0; configuration 1 .. 1)
+  Lattice         : fixed cell
+  Force constants : ../33_modulation/ScF3_Pm-3m/phonopy_params.yaml (no NAC)
+  Basis           : phonon eigenvectors at each q (mass-weighted)
+
+* Site matching *
+  Sites matched   : 32 (one-to-one, by element and nearest image
+                    of the time-averaged position)
+  Uniform shift   : (+0.0000, +0.0000, +0.0000) A (mean offset of the averaged structure)
+  Largest offset  : 0.2121 A (atom 9, uniform shift removed)
+  Drift           : the mass-weighted centre-of-mass displacement is removed
+                    from every frame (rms 0.0000 A)
+
+* Q points *
+  R        (1/2, 1/2, 1/2)
+
+* Mode projection at R (1/2, 1/2, 1/2), phonon-eigenvector basis *
+mode  irrep   nu_harm (THz)  <a> (A sqrt(amu))  sqrt<a^2> (A sqrt(amu))  sqrt<A^2> per cell  ratio  kurtosis  n_eff  shape
+1     R4+(3)  1.4169         0.00000            0.00000                  0.00000             -      -         -      zero
+2     R4+(3)  1.4169         0.00000            0.00000                  0.00000             -      -         -      zero
+3     R4+(3)  1.4169         3.69849            3.69849                  1.30761             1.000  -         -      n/a
+4     R5+(3)  7.1689         0.00000            0.00000                  0.00000             -      -         -      zero
+5     R5+(3)  7.1689         0.00000            0.00000                  0.00000             -      -         -      zero
+6     R5+(3)  7.1689         0.00000            0.00000                  0.00000             -      -         -      zero
+7     R4-(3)  11.3334        0.00000            0.00000                  0.00000             -      -         -      zero
+8     R4-(3)  11.3334        0.00000            0.00000                  0.00000             -      -         -      zero
+9     R4-(3)  11.3334        0.00000            0.00000                  0.00000             -      -         -      zero
+10    R3+(2)  13.6922        0.00000            0.00000                  0.00000             -      -         -      zero
+11    R3+(2)  13.6922        0.00000            0.00000                  0.00000             -      -         -      zero
+12    R1+(1)  18.7661        0.00000            0.00000                  0.00000             -      -         -      zero
+
+* Pooled degenerate levels and norm |a| at R (1/2, 1/2, 1/2) *
+modes  irrep   comps  nu_harm (THz)  sqrt<a^2> (A sqrt(amu))  ratio  kurtosis  n_eff  shape    <|a|> (A sqrt(amu))  |a| ratio  Gaussian
+1-3    R4+(3)  3      1.4169         2.13533                  -      -         -      unequal  3.69849              1.000      0.921
+4-6    R5+(3)  3      7.1689         0.00000                  -      -         -      unequal  0.00000              -          0.921
+7-9    R4-(3)  3      11.3334        0.00000                  -      -         -      unequal  0.00000              -          0.921
+10-11  R3+(2)  2      13.6922        0.00000                  -      -         -      unequal  0.00000              -          0.886
+
+* Sum rule *
+  sum of <a^2> over the projected modes      : 13.678850 amu A^2
+  <sum m |u|^2> (supercell, drift removed)   : 13.678850 amu A^2
+  fraction covered                           : 100.00 %
+  q points covered                           : 1 of 8 commensurate (a -q partner counts with its q)
+
+* Notes *
+  a: normal coordinate of the supercell, a = p_hat . w with w = sqrt(m) u
+     (mass-weighted displacements, A sqrt(amu)) and p_hat the unit-norm real
+     pattern of the eigenvector; A = a/sqrt(N) per parent cell. Modes are
+     numbered as in crystod-phonon --modulation and --vector (1-based, sorted
+     by the harmonic frequency nu_harm; imaginary frequencies as negative).
+  --modulation --amplitude A0 (v: its pattern e exp(2 pi i q.x)/sqrt(m), unit
+     norm per cell) gives A = A0 |sqrt(m) v| at a time-reversal invariant q,
+     elsewhere a norm of A0 |sqrt(m) v|/sqrt(2) over the c/s columns of the mode.
+  ratio = <|a|>/sqrt<a^2>: 0.798 for a Gaussian about a = 0 (single well,
+     displacive), 1 for two states +-a0 (order-disorder).
+  shape: histogram density at a = 0 against its maximum (< 0.5 with weight on
+     both sides: double-peaked); a hint from the statistics, not a test.
+  n_eff: frames / autocorrelation time; ratio and kurtosis scatter ~ 1/sqrt(n_eff).
+  Pooled: the modes of one degenerate level as one sample (equivalent in the
+     parent symmetry); unequal: their rms values differ by more than a factor
+     3 (no pooled shape); |a| ratio = <|a|>/sqrt<|a|^2>, Gaussian =
+     its value for an isotropic Gaussian in that many components.
+  Modes 1c/1s: the real patterns of a complex eigenvector e and of i e (q not
+     time-reversal invariant; -q gives the same patterns).
+
+* Output files *
+  MDPROJ_I4mcm_1_phonon_R.csv
+
+
+# (6) The NpT run of (3) with effective frequencies (--temperature 300):
+# nu_eff = sqrt(k_B T/<a^2>)/(2 pi), the frequency of the harmonic oscillator
+# with the same <a^2> at T (classical equipartition, equilibrated run). The
+# stiff F-dominated modes above 10 THz follow the harmonic model (every mode
+# within 21 %, the pooled levels within 11 %), and so do R5+, M5-, GM5- and
+# GM4- within a few per cent; the acoustic GM4- modes carry nothing after the
+# centre-of-mass removal; the M3+ tilt is harmonic (1.698 against 1.670 THz);
+# the R4+ tilts fluctuate more than the harmonic model predicts (pooled nu_eff
+# 0.744 against 1.417 THz). The run and the yaml do not share a reference
+# (mean cell 4.038 against 4.0696 A, a different energy model; kinetic
+# temperature std 72 K against about 15 K for a canonical ensemble), so this
+# comparison says nothing about anharmonic stabilization. The lower M3- mode
+# (9.272 against 3.974 THz) belongs to an irrep that occurs twice at M (see
+# the crystod-md page of the CrystOD manual).
+# (The CSV files of this run are not kept here.)
+
+$ crystod-md --project --yaml ../33_modulation/ScF3_Pm-3m/phonopy_params.yaml --dim 4 4 4 --xdatcar ../39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/XDATCAR_every10 --start-step 0 --qpoint R M GM --temperature 300 -o MDPROJ_ScF3_300K_phonon
+
+* Input *
+  Parent cell     : primitive cell of ../33_modulation/ScF3_Pm-3m/phonopy_params.yaml
+  Space group     : Pm-3m (No. 221)
+  Supercell (dim) : 4 4 4 (64 parent cells, 256 atoms)
+  Trajectory      : ../39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/XDATCAR_every10 (301 frames)
+  Frames used     : 301 (step 0 .. 300; configuration 2000 .. 5000)
+  Lattice         : each frame's own cell (fractional -> Cartesian)
+  Force constants : ../33_modulation/ScF3_Pm-3m/phonopy_params.yaml (no NAC)
+  Basis           : phonon eigenvectors at each q (mass-weighted)
+  Temperature     : 300 K (effective frequencies)
+
+* Site matching *
+  Sites matched   : 256 (one-to-one, by element and nearest image
+                    of the time-averaged position)
+  Uniform shift   : (+0.0000, +0.0000, +0.0000) A (mean offset of the averaged structure)
+  Largest offset  : 0.0361 A (atom 222, uniform shift removed)
+  Drift           : the mass-weighted centre-of-mass displacement is removed
+                    from every frame (rms 0.0000 A)
+
+* Q points *
+  R        (1/2, 1/2, 1/2)
+  M        (1/2, 1/2, 0)
+  GM       (0, 0, 0)
+
+* Mode projection at R (1/2, 1/2, 1/2), phonon-eigenvector basis *
+mode  irrep   nu_harm (THz)  <a> (A sqrt(amu))  sqrt<a^2> (A sqrt(amu))  sqrt<A^2> per cell  ratio  kurtosis  n_eff  shape          nu_eff (THz)
+1     R4+(3)  1.4169         0.05105            3.30782                  0.41348             0.708  1.34      16     single-peaked  0.7599
+2     R4+(3)  1.4169         -0.11377           3.97887                  0.49736             0.859  -1.08     19     single-peaked  0.6317
+3     R4+(3)  1.4169         -0.10492           2.72874                  0.34109             0.741  1.40      19     single-peaked  0.9212
+4     R5+(3)  7.1689         0.00025            0.43352                  0.05419             0.839  -0.72     136    single-peaked  5.7982
+5     R5+(3)  7.1689         0.00894            0.23620                  0.02953             0.786  0.02      135    single-peaked  10.6418
+6     R5+(3)  7.1689         0.00127            0.36975                  0.04622             0.772  0.15      135    single-peaked  6.7982
+7     R4-(3)  11.3334        -0.00290           0.25028                  0.03128             0.789  -0.13     200    single-peaked  10.0433
+8     R4-(3)  11.3334        -0.00731           0.22141                  0.02768             0.800  -0.31     208    single-peaked  11.3530
+9     R4-(3)  11.3334        -0.00986           0.22244                  0.02780             0.809  0.30      205    single-peaked  11.3003
+10    R3+(2)  13.6922        -0.00248           0.17365                  0.02171             0.792  0.50      301    single-peaked  14.4753
+11    R3+(2)  13.6922        -0.00906           0.23170                  0.02896             0.820  -0.43     301    single-peaked  10.8487
+12    R1+(1)  18.7661        -0.00124           0.14787                  0.01848             0.811  -0.31     301    single-peaked  16.9990
+
+* Pooled degenerate levels and norm |a| at R (1/2, 1/2, 1/2) *
+modes  irrep   comps  nu_harm (THz)  sqrt<a^2> (A sqrt(amu))  ratio  kurtosis  n_eff  shape          <|a|> (A sqrt(amu))  |a| ratio  Gaussian  nu_eff (THz)
+1-3    R4+(3)  3      1.4169         3.37733                  0.768  0.20      55     single-peaked  5.16313              0.883      0.921     0.7443
+4-6    R5+(3)  3      7.1689         0.35611                  0.781  0.09      406    single-peaked  0.55660              0.902      0.921     7.0586
+7-9    R4-(3)  3      11.3334        0.23176                  0.798  -0.02     613    single-peaked  0.36848              0.918      0.921     10.8458
+10-11  R3+(2)  2      13.6922        0.20474                  0.800  0.02      602    single-peaked  0.25603              0.884      0.886     12.2771
+
+* Mode projection at M (1/2, 1/2, 0), phonon-eigenvector basis *
+mode  irrep   nu_harm (THz)  <a> (A sqrt(amu))  sqrt<a^2> (A sqrt(amu))  sqrt<A^2> per cell  ratio  kurtosis  n_eff  shape          nu_eff (THz)
+1     M3+(1)  1.6697         0.43116            1.48040                  0.18505             0.773  -0.08     29     single-peaked  1.6979
+2     M3-(1)  3.9737         -0.00987           0.27111                  0.03389             0.803  -0.15     68     single-peaked  9.2715
+3     M5-(2)  4.8316         -0.04492           0.52008                  0.06501             0.771  0.25      87     single-peaked  4.8331
+4     M5-(2)  4.8316         0.04394            0.54720                  0.06840             0.811  -0.18     89     single-peaked  4.5936
+5     M5+(2)  5.0704         -0.00344           0.26050                  0.03256             0.799  0.10      92     single-peaked  9.6492
+6     M5+(2)  5.0704         0.02119            0.54495                  0.06812             0.851  -0.88     91     single-peaked  4.6125
+7     M4+(1)  7.3764         0.00163            0.37976                  0.04747             0.811  -0.22     137    single-peaked  6.6189
+8     M5-(2)  12.1655        -0.01176           0.19663                  0.02458             0.777  1.86      223    single-peaked  12.7837
+9     M5-(2)  12.1655        0.03286            0.18448                  0.02306             0.773  0.73      224    single-peaked  13.6252
+10    M2+(1)  13.6868        -0.00270           0.18392                  0.02299             0.757  0.40      301    single-peaked  13.6665
+11    M3-(1)  13.9404        -0.00639           0.17958                  0.02245             0.804  -0.05     301    single-peaked  13.9972
+12    M1+(1)  17.9477        -0.00383           0.13492                  0.01687             0.778  0.25      301    single-peaked  18.6299
+
+* Pooled degenerate levels and norm |a| at M (1/2, 1/2, 0) *
+modes  irrep   comps  nu_harm (THz)  sqrt<a^2> (A sqrt(amu))  ratio  kurtosis  n_eff  shape          <|a|> (A sqrt(amu))  |a| ratio  Gaussian  nu_eff (THz)
+3-4    M5-(2)  2      4.8316         0.53381                  0.791  0.05      176    single-peaked  0.65995              0.874      0.886     4.7088
+5-6    M5+(2)  2      5.0704         0.42710                  0.787  0.04      183    single-peaked  0.53629              0.888      0.886     5.8853
+8-9    M5-(2)  2      12.1655        0.19065                  0.775  1.42      448    single-peaked  0.23206              0.861      0.886     13.1844
+
+* Mode projection at GM (0, 0, 0), phonon-eigenvector basis *
+mode  irrep    nu_harm (THz)  <a> (A sqrt(amu))  sqrt<a^2> (A sqrt(amu))  sqrt<A^2> per cell  ratio  kurtosis  n_eff  shape          nu_eff (THz)
+1     GM4-(3)  0.0000         0.00000            0.00000                  0.00000             -      -         -      zero           -
+2     GM4-(3)  0.0000         0.00000            0.00000                  0.00000             -      -         -      zero           -
+3     GM4-(3)  0.0000         0.00000            0.00000                  0.00000             -      -         -      zero           -
+4     GM5-(3)  4.2122         0.00903            0.35969                  0.04496             0.789  0.52      78     single-peaked  6.9882
+5     GM5-(3)  4.2122         0.01520            0.57200                  0.07150             0.805  -0.34     81     single-peaked  4.3944
+6     GM5-(3)  4.2122         0.00881            0.81699                  0.10212             0.817  -0.20     80     single-peaked  3.0767
+7     GM4-(3)  6.2446         0.00253            0.31153                  0.03894             0.780  0.18      117    single-peaked  8.0686
+8     GM4-(3)  6.2446         -0.00186           0.44772                  0.05597             0.831  -0.64     121    single-peaked  5.6142
+9     GM4-(3)  6.2446         -0.00294           0.41877                  0.05235             0.755  0.84      122    single-peaked  6.0023
+10    GM4-(3)  13.9231        0.00397            0.17347                  0.02168             0.800  -0.07     301    single-peaked  14.4902
+11    GM4-(3)  13.9231        0.00131            0.19352                  0.02419             0.811  -0.29     301    single-peaked  12.9887
+12    GM4-(3)  13.9231        -0.00243           0.21495                  0.02687             0.797  -0.10     301    single-peaked  11.6937
+
+* Pooled degenerate levels and norm |a| at GM (0, 0, 0) *
+modes  irrep    comps  nu_harm (THz)  sqrt<a^2> (A sqrt(amu))  ratio  kurtosis  n_eff  shape          <|a|> (A sqrt(amu))  |a| ratio  Gaussian  nu_eff (THz)
+1-3    GM4-(3)  3      0.0000         0.00000                  -      -         -      unequal        0.00000              -          0.921     -
+4-6    GM5-(3)  3      4.2122         0.61211                  0.769  0.79      239    single-peaked  0.94982              0.896      0.921     4.1065
+7-9    GM4-(3)  3      6.2446         0.39702                  0.782  0.26      361    single-peaked  0.61246              0.891      0.921     6.3312
+10-12  GM4-(3)  3      13.9231        0.19472                  0.799  -0.07     903    single-peaked  0.31405              0.931      0.921     12.9088
+
+* Sum rule *
+  sum of <a^2> over the projected modes      : 40.078043 amu A^2
+  <sum m |u|^2> (supercell, drift removed)   : 302.308248 amu A^2
+  fraction covered                           : 13.26 %
+  q points covered                           : 3 of 64 commensurate (a -q partner counts with its q)
+
+* Notes *
+  a: normal coordinate of the supercell, a = p_hat . w with w = sqrt(m) u
+     (mass-weighted displacements, A sqrt(amu)) and p_hat the unit-norm real
+     pattern of the eigenvector; A = a/sqrt(N) per parent cell. Modes are
+     numbered as in crystod-phonon --modulation and --vector (1-based, sorted
+     by the harmonic frequency nu_harm; imaginary frequencies as negative).
+  --modulation --amplitude A0 (v: its pattern e exp(2 pi i q.x)/sqrt(m), unit
+     norm per cell) gives A = A0 |sqrt(m) v| at a time-reversal invariant q,
+     elsewhere a norm of A0 |sqrt(m) v|/sqrt(2) over the c/s columns of the mode.
+  nu_eff = sqrt(k_B T/<a^2>)/(2 pi): the frequency of the harmonic oscillator
+     with the same <a^2> at T (classical equipartition); meaningful for an
+     equilibrated classical run. nu_eff above nu_harm: the mode is stiffer at
+     T than in the harmonic model (for a soft mode, anharmonic stabilization).
+  ratio = <|a|>/sqrt<a^2>: 0.798 for a Gaussian about a = 0 (single well,
+     displacive), 1 for two states +-a0 (order-disorder).
+  shape: histogram density at a = 0 against its maximum (< 0.5 with weight on
+     both sides: double-peaked); a hint from the statistics, not a test.
+  n_eff: frames / autocorrelation time; ratio and kurtosis scatter ~ 1/sqrt(n_eff).
+  Pooled: the modes of one degenerate level as one sample (equivalent in the
+     parent symmetry); unequal: their rms values differ by more than a factor
+     3 (no pooled shape); |a| ratio = <|a|>/sqrt<|a|^2>, Gaussian =
+     its value for an isotropic Gaussian in that many components.
+  Modes 1c/1s: the real patterns of a complex eigenvector e and of i e (q not
+     time-reversal invariant; -q gives the same patterns).
+
+* Output files *
+  MDPROJ_ScF3_300K_phonon_R.csv
+  MDPROJ_ScF3_300K_phonon_M.csv
+  MDPROJ_ScF3_300K_phonon_GM.csv
+  MDPROJ_ScF3_300K_phonon_hist.pdf
+
+
+# (7) Every commensurate q: the mass-weighted sum rule
+# sum <a^2> = <sum_jR m_j |u_j(R)|^2> is exact.
+
+$ crystod-md --project --yaml ../33_modulation/ScF3_Pm-3m/phonopy_params.yaml --dim 4 4 4 --xdatcar ../39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/XDATCAR_every10 --start-step 0 --qpoint all --no-histogram -o all/MDPROJ_ScF3_300K_phonon
+...
+* Sum rule *
+  sum of <a^2> over the projected modes      : 302.308248 amu A^2
+  <sum m |u|^2> (supercell, drift removed)   : 302.308248 amu A^2
+  fraction covered                           : 100.00 %
+  q points covered                           : 64 of 64 commensurate (a -q partner counts with its q)
+  relative difference (complete basis)       : 1.9e-16
+...
+
+
+# (8) --star: every arm of the star of each requested q (here the three M
+# arms of Pm-3m, each with its own block and CSV file). The synthetic
+# trajectory of (1) freezes M3+ on the arm (1/2, 1/2, 0); the other two arms
+# carry nothing.
+
+$ crystod-md --project -c ../test_POSCARs/221_PPOSCAR_ScF3 --dim 2 2 2 --xdatcar XDATCAR_synthetic --qpoint M --star --irrep M3+ -o MDPROJ_star --no-histogram
+
+* Input *
+  Parent cell     : ../test_POSCARs/221_PPOSCAR_ScF3
+  Space group     : Pm-3m (No. 221)
+  Supercell (dim) : 2 2 2 (8 parent cells, 32 atoms)
+  Trajectory      : XDATCAR_synthetic (100 frames)
+  Frames used     : 100 (step 0 .. 99; configuration 1 .. 100)
+  Lattice         : fixed cell
+  Star            : every arm of each requested q (--star)
+
+* Site matching *
+  Sites matched   : 32 (one-to-one, by element and nearest image
+                    of the time-averaged position)
+  Uniform shift   : (+0.0000, +0.0000, +0.0000) A (mean offset of the averaged structure)
+  Largest offset  : 0.0060 A (atom 11, uniform shift removed)
+  Drift           : the mass-weighted centre-of-mass displacement is removed
+                    from every frame (rms 0.0000 A)
+
+* Q points *
+  M        (1/2, 1/2, 0)
+  M        (1/2, 0, 1/2)
+  M        (0, 1/2, 1/2)
+
+* Mode projection at M (1/2, 1/2, 0) *
+irrep   space  component  <Q> (A)   sqrt<Q^2> (A)  <|Q|> (A)  ratio  kurtosis  n_eff  shape
+M3+(1)  2      1          -0.00845  0.12173        0.11029    0.906  -1.51     9      double-peaked (hint)
+
+* Mode projection at M (1/2, 0, 1/2) *
+irrep   space  component  <Q> (A)  sqrt<Q^2> (A)  <|Q|> (A)  ratio  kurtosis  n_eff  shape
+M3+(1)  2      1          0.00000  0.00000        0.00000    -      -         -      zero
+
+* Mode projection at M (0, 1/2, 1/2) *
+irrep   space  component  <Q> (A)  sqrt<Q^2> (A)  <|Q|> (A)  ratio  kurtosis  n_eff  shape
+M3+(1)  2      1          0.00000  0.00000        0.00000    -      -         -      zero
+
+* Sum rule *
+  sum of <Q^2> over the projected components : 0.014818 A^2
+  <|u|^2> / N (all atoms, drift removed)     : 0.059818 A^2
+  fraction covered                           : 24.77 %
+  q points covered                           : 3 of 8 commensurate (a -q partner counts with its q)
+
+* Notes *
+  Q: displacement norm per parent primitive cell carried by the pattern; at a
+     time-reversal invariant q it equals the crystod-phonon --modulation amplitude,
+     elsewhere --amplitude A gives a norm of A/sqrt(2) over its c/s components.
+  AMPLIMODES amplitude of an irrep = sqrt(size) x the norm of its Q over all
+     components and arms (Q sqrt(size) for a single component).
+  ratio = <|Q|>/sqrt<Q^2>: 0.798 for a Gaussian about Q = 0 (single well,
+     displacive), 1 for two states +-Q0 (order-disorder).
+  shape: histogram density at Q = 0 against its maximum (< 0.5 with weight on
+     both sides: double-peaked); a hint from the statistics, not a test.
+  n_eff: frames / autocorrelation time; ratio and kurtosis scatter ~ 1/sqrt(n_eff).
+  Pooled: all components of a mode space as one sample (equivalent components
+     in the parent symmetry); unequal: component rms values differ by more than
+     a factor 3 (no pooled shape); |Q| ratio = <|Q|>/sqrt<|Q|^2>,
+     Gaussian = its value for an isotropic Gaussian in that many components.
+  Components 1c/1s: the real patterns of a complex row e and of i e (q not
+     time-reversal invariant; -q gives the same patterns).
+
+* Output files *
+  MDPROJ_star_M_0.5_0.5_0.csv
+  MDPROJ_star_M_0.5_0_0.5.csv
+  MDPROJ_star_M_0_0.5_0.5.csv
+
+
+# (9) The same with the eigenvector basis: the M3+ mode of the arm
+# (1/2, 1/2, 0) carries sqrt<A^2> = sqrt(m_F) x 0.12173 = 0.53058 per cell.
+
+$ crystod-md --project --yaml ../33_modulation/ScF3_Pm-3m/phonopy_params.yaml --dim 2 2 2 --xdatcar XDATCAR_synthetic --qpoint M --star --irrep M3+ -o MDPROJ_star_phonon --no-histogram
+...
+* Q points *
+  M        (1/2, 1/2, 0)
+  M        (1/2, 0, 1/2)
+  M        (0, 1/2, 1/2)
+
+* Mode projection at M (1/2, 1/2, 0), phonon-eigenvector basis *
+mode  irrep   nu_harm (THz)  <a> (A sqrt(amu))  sqrt<a^2> (A sqrt(amu))  sqrt<A^2> per cell  ratio  kurtosis  n_eff  shape
+1     M3+(1)  1.6697         -0.10418           1.50072                  0.53058             0.906  -1.51     9      double-peaked (hint)
+
+* Mode projection at M (1/2, 0, 1/2), phonon-eigenvector basis *
+mode  irrep   nu_harm (THz)  <a> (A sqrt(amu))  sqrt<a^2> (A sqrt(amu))  sqrt<A^2> per cell  ratio  kurtosis  n_eff  shape
+1     M3+(1)  1.6697         0.00000            0.00000                  0.00000             -      -         -      zero
+
+* Mode projection at M (0, 1/2, 1/2), phonon-eigenvector basis *
+mode  irrep   nu_harm (THz)  <a> (A sqrt(amu))  sqrt<a^2> (A sqrt(amu))  sqrt<A^2> per cell  ratio  kurtosis  n_eff  shape
+1     M3+(1)  1.6697         0.00000            0.00000                  0.00000             -      -         -      zero
+...

@@ -275,8 +275,10 @@ def resolve_qpoint(
 ) -> tuple[str, list[float]]:
     """Resolve ``--qpoint`` tokens into a label and primitive-basis coordinates.
 
-    This is how ``crystod-phonon --vector`` and ``--subgroup`` read their
-    ``--qpoint`` argument: a single token is the label of a tabulated special
+    This is how ``crystod-phonon --vector``, ``--subgroup`` and
+    ``--modulation`` (``--qpoint`` and ``--qpointN``; it keeps only the
+    coordinates) read their ``--qpoint`` argument: a single token is the
+    label of a tabulated special
     point (``GM``, ``G``, ``GAMMA`` and the Greek capital gamma all mean
     Gamma); three tokens are coordinates in the primitive reciprocal basis,
     fractions such as ``1/3`` allowed. With ``isoir_context``, coordinates

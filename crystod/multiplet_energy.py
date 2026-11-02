@@ -61,6 +61,27 @@ _PARAM_NAMES = {
 _SNAP_TOL = 1e-6
 _TYPICAL_C_OVER_B = Fraction(9, 2)
 
+# the shells with Coulomb energies (parameter names, reduced denominators and
+# reference ratios exist for l <= 3 only); the ligand-field splitting and the
+# term symbols themselves go up to l = 6
+ENERGY_ORBITALS = tuple(name for name, l in ORBITAL_AZIMUTHAL_NUMBER.items()
+                        if l in _PARAM_NAMES)
+
+
+def require_energy_shell(l: int) -> None:
+    """Refuse a parent shell without Coulomb energies (l > 3).
+
+    Raises:
+        SystemExit: ``l`` is not 0..3 (``ValueError`` when called through
+            ``crystod.group``).
+    """
+    if l not in _PARAM_NAMES:
+        raise SystemExit(
+            f"ERROR: Coulomb multiplet energies are implemented for the "
+            f"{', '.join(ENERGY_ORBITALS)} shells only (l <= "
+            f"{max(_PARAM_NAMES)}), not for l = {l}."
+        )
+
 
 # ---------------------------------------------------------------------------
 # exact two-electron integrals of one l shell
@@ -138,6 +159,7 @@ def real_two_electron_integrals(l: int) -> dict[tuple[int, int, int, int], tuple
     energies are snapped to exact fractions downstream."""
     import sympy
 
+    require_energy_shell(l)
     complex_integrals, k_values = _complex_two_electron(l)
     transform = _sympy_real_transform(l)
     size = 2 * l + 1
@@ -677,8 +699,8 @@ def compute_term_energies(
 
     Raises:
         SystemExit: A projector rank or the trace identity disagrees with
-            the term list (``ValueError`` when called through
-            ``crystod.group``).
+            the term list, or ``l`` is above 3 (``ValueError`` when called
+            through ``crystod.group``).
 
     Example:
         >>> from crystod import group
@@ -696,6 +718,7 @@ def compute_term_energies(
         ^2T1g: 3A - 6B + 3C
         ^2T2g: 3A + 5C
     """
+    require_energy_shell(l)
     params = _PARAM_NAMES[l]
     n_params = len(params)
     shell_irreps = [name for name, _ in shells]
@@ -1006,6 +1029,7 @@ def coupled_parent_matrices(
         return {}
     if not any(multiplicity == 2 for _, _, multiplicity in terms):
         return {}
+    require_energy_shell(l)
 
     shell_irreps = [name for name, _ in shells]
     occupations = [count for _, count in shells]

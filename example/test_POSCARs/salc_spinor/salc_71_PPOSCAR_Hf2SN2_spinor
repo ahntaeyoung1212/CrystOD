@@ -1,0 +1,41 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ Immm (71)
+
+ * Element (number of atoms) *
+ Hf (2)
+
+ * Wyckoff letters and site symmetry letters *
+ ['j', 'j']
+ ['mm2', 'mm2']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  Immm (71)
+ irreps             :  3.0 [-GM5(2)] + 3.0 [-GM6(2)] 
+
+ k point (primitive):  X [0.5, 0.5, 0.5]
+ little group of k  :  Immm (71)
+ irreps             :  3.0 [-X5(2)] + 3.0 [-X6(2)] 
+
+ k point (primitive):  R [0.0, 0.5, 0.0]
+ little group of k  :  C2/m (12)
+ irreps             :  3.0 [-R3(1)] + 3.0 [-R4(1)] + 3.0 [-R5(1)] + 3.0 [-R6(1)] 
+
+ k point (primitive):  S [0.5, 0.0, 0.0]
+ little group of k  :  C2/m (12)
+ irreps             :  3.0 [-S3(1)] + 3.0 [-S4(1)] + 3.0 [-S5(1)] + 3.0 [-S6(1)] 
+
+ k point (primitive):  T [0.0, 0.0, 0.5]
+ little group of k  :  C2/m (12)
+ irreps             :  3.0 [-T3(1)] + 3.0 [-T4(1)] + 3.0 [-T5(1)] + 3.0 [-T6(1)] 
+
+ k point (primitive):  W [0.25, 0.25, 0.25]
+ little group of k  :  I222 (23)
+ irreps             :  6.0 [-W5(2)] 
+

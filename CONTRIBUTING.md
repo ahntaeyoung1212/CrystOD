@@ -27,10 +27,13 @@ git clone https://github.com/ahntaeyoung1212/CrystOD.git && cd CrystOD
 pip install -e ".[dev]"
 ```
 
-The editable install (`-e`) makes the checkout importable and puts the nine console
+The editable install (`-e`) makes the checkout importable and puts the eleven console
 scripts (`crystod`, `crystod-group`, `crystod-bz`, `crystod-phonon`, `crystod-mag`,
-`crystod-md`, `crystod-mol`, `crystod-xrd`, `crystod-search`) on the path, so an edit
-takes effect on the next run. The extras defined in `pyproject.toml` are:
+`crystod-md`, `crystod-mol`, `crystod-xrd`, `crystod-search`, `crystod-slab`,
+`crystod-example`) on
+the path, so an edit takes effect on the next run (a new console script, or a new
+version number, needs `pip install -e . --no-deps` again). The extras defined in
+`pyproject.toml` are:
 
 | extra | contents | needed for |
 |---|---|---|
@@ -50,21 +53,21 @@ The regression suite is `testsuite.py` at the repository root: plain Python, no
 test-runner dependency. Run it from the repository root inside the environment:
 
 ```bash
-python testsuite.py          # all 45 sections
+python testsuite.py          # all 53 sections
 python testsuite.py 17       # section 17 only
-python testsuite.py 3 41     # sections 3 and 41
+python testsuite.py 3 43     # sections 3 and 43
 ```
 
 Each check prints `[PASS]` or `[FAIL]` with its name (and, on failure, the output of
 the command it ran); the run ends with `Total: N passed, M failed` and exits with
 status 1 if anything failed. The suite reads its inputs from `example/` and writes to
 temporary directories, and every individual command has a 900 s timeout. Without
-PySCF the PySCF-dependent checks in sections 3, 7 and 41 are skipped with a `[SKIP]`
+PySCF the PySCF-dependent checks in sections 3, 7 and 43 are skipped with a `[SKIP]`
 line and the rest of the suite still runs; the CI matrix installs `[quantum]`, so
 nothing is skipped there.
 
 **The MCP server.** `crystod-mcp/` is a separate package with its own pytest suite
-(22 tests: every tool on the bundled inputs plus a protocol round trip); run it after
+(56 tests: every tool on the bundled inputs plus protocol round trips); run it after
 installing the package next to CrystOD:
 
 ```bash
@@ -79,11 +82,17 @@ section *N* of `testsuite.py` tests it, `example/NN_*/` holds its worked example
 inputs, plus a line in `example/README` with the command), and section *N* of the
 command's page in `doc/` documents it (`## 17. Isotropy subgroups (--parent)` in
 `doc/crystod-group.md`, for example). The docstring at the top of `testsuite.py`
-lists all 45 sections grouped by command: 1 library core, 2-7 `crystod`, 8-24
-`crystod-group`, 25-27 `crystod-bz`, 28-35 `crystod-phonon`, 36-37 `crystod-mag`,
-38-39 `crystod-md`, 40-42 `crystod-mol`, 43 Python API, 44 `crystod-xrd`, 45
-`crystod-search`. A few sections hold the "extras" of a command (aliases, error
-messages, removed flags) and have no example directory of their own.
+lists all 53 sections grouped by command: 1 library core, 2-7 `crystod`, 8-24
+`crystod-group`, 25-27 `crystod-bz`, 28-35 `crystod-phonon`, 36-38 `crystod-mag`,
+39-41 `crystod-md`, 42-44 `crystod-mol`, 45 Python API, 46-47 `crystod-xrd`, 48
+`crystod-search`, 49 `crystod --extract-irrep` (a later `crystod` feature, whose
+inputs live in `example/03_hybridization/vasp_wavecar`), 50 `crystod-example`
+(the example directories packaged with CrystOD, checked against `example/`), 51
+`crystod-phonon --unfold` (a later `crystod-phonon` feature, phonon band unfolding
+onto the parent Brillouin zone), 52 `crystod-phonon --visualize` (the phonon mode
+viewer) and 53 `crystod-slab` (surface slabs). A few
+sections hold the "extras" of a command (aliases, error messages, removed flags)
+and have no example directory of their own; neither have 49 and 50.
 
 `.github/workflows/test.yml` runs the full suite on Linux (Python 3.10, 3.12, 3.13)
 and macOS (3.12) for every push and pull request to `main`.
@@ -126,8 +135,8 @@ tables) are maintained in parallel; change both.
 - **Imports.** An implementation module may import phonopy, spgrep, pyscf or
   matplotlib at module level, because the API domain modules load implementation
   modules lazily (PEP 562). `crystod/__init__.py`, the domain modules and any
-  `--help` path must stay free of them (`import crystod` plus all nine domains is
-  measured at about 0.09 s and a test in section 43 keeps it that way).
+  `--help` path must stay free of them (`import crystod` plus all ten domains is
+  measured at about 0.2 s and a test in section 45 keeps it that way).
 
 ## How to add a feature
 
@@ -155,7 +164,33 @@ A feature touches the same places every time, in this order:
    an entry in `doc/changelog.md`.
 6. **Example**: `example/NN_<feature>/` with the inputs and a line in
    `example/README`. Generated outputs are git-ignored (`example/**/*.html`, `*.csv`,
-   `*.chk`, ...); commit the inputs only.
+   `*.chk`, ...); commit the inputs only. Write the README to run inside its own
+   directory: shared structures as `../test_POSCARs/...`, files of another example
+   as `../NN_other/...`, never a path from the repository root.
+7. **Packaged example**: decide whether the example ships with the package (it
+   should, unless it needs large, unpublished or third-party data). Data left out
+   of the package stays in the CrystOD development tree, and the README marks the
+   commands that need it: "not in the pip package", or
+   "unpublished, not distributed" for the data of unpublished work. If it does
+   ship:
+   - add its files to `example/PACKAGED`, one path or glob per line, and a
+     `requires NN_new: NN_other` line if the README uses files of another example
+     directory;
+   - commit the example files first (the sync script copies only files tracked by
+     git and refuses selected files with uncommitted changes), then run
+     `python script/sync_packaged_examples.py`, which copies the selection byte for
+     byte into `crystod/examples/` and rewrites `crystod/examples/index.json` and
+     `README` (`python script/sync_packaged_examples.py --check` only compares);
+   - commit the generated files under `crystod/examples/` together with
+     `example/PACKAGED`.
+
+   Section 50 of the test suite checks that the packaged files are exactly the
+   selection of `example/PACKAGED`, identical to their originals in `example/` and
+   within the size budget of that file, and that every file a README names is
+   there when that example is copied alone (`crystod-example NN` into an empty
+   directory); a README paragraph whose marker line says "not in the pip package"
+   or "not distributed" is skipped. Never edit the copies under
+   `crystod/examples/NN_*` by hand: change `example/` and synchronize.
 
 ## Commit messages and pull requests
 
@@ -181,24 +216,42 @@ A pull request should
    `crystod/__init__.py` (`__version__`) and `CITATION.cff` (`version` and
    `date-released`), and add the release section to `doc/changelog.md` (newest
    first). The documentation reads its version from `pyproject.toml`.
-2. Run the full suite and the docs build, then build and check the distribution
-   locally: `python -m build && twine check dist/*`.
-3. Commit, tag and push:
+2. Run the full suite and the docs build, and
+   `python script/sync_packaged_examples.py --check` (the packaged examples must
+   match `example/PACKAGED`).
+3. Commit the release (`git add` the changed files by name, new files under
+   `crystod/examples/` included, then `git commit -m "CrystOD vX.Y.Z"`), and build
+   and check the distribution from an export of that commit, never from the
+   working tree:
 
    ```bash
-   git commit -am "CrystOD v0.4.0"
+   rm -rf /tmp/crystod-rel && mkdir /tmp/crystod-rel
+   git archive HEAD | tar -x -C /tmp/crystod-rel
+   cd /tmp/crystod-rel && python -m build --outdir dist && twine check --strict dist/*
+   ```
+
+   The package-data globs of `pyproject.toml` read the disk and ignore
+   `.gitignore`, so a build in the working tree would also pack whatever README
+   test runs have left under `crystod/examples/`. Never use
+   `python -m build --no-isolation` in the working tree: with `setuptools-scm`
+   installed in the environment, every file tracked by git would go into the
+   sdist. The export has neither problem. Check that the wheel's
+   `crystod/examples/` holds exactly `git ls-files crystod/examples`.
+4. Tag and push:
+
+   ```bash
    git tag v0.4.0
    git push origin main --tags
    ```
 
-4. The tag triggers `.github/workflows/publish.yml`: the `build` job refuses a tag
+5. The tag triggers `.github/workflows/publish.yml`: the `build` job refuses a tag
    that does not match the three version fields, builds the sdist and the wheel,
    runs `twine check` and stores them as an artifact; the `publish` job then waits
    for approval in the `release` environment and uploads with PyPI Trusted
    Publishing (OpenID Connect; no API token is stored in the repository). The
    one-time setup of the publisher on pypi.org and of the `release` environment on
    GitHub is spelled out at the top of `publish.yml`.
-5. Copy the freshly built documentation to the laboratory website repository.
+6. Copy the freshly built documentation to the laboratory website repository.
 
 ## About DEVELOPMENT.md
 

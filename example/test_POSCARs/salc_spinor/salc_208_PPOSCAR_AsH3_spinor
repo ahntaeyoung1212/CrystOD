@@ -1,0 +1,33 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ P4_232 (208)
+
+ * Element (number of atoms) *
+ As (4)
+
+ * Wyckoff letters and site symmetry letters *
+ ['b', 'b', 'b', 'b']
+ ['.32', '.32', '.32', '.32']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  P4_232 (208)
+ irreps             :  2.0 [-GM6(2)] + 2.0 [-GM7(2)] + 4.0 [-GM8(4)] 
+
+ k point (primitive):  R [0.5, 0.5, 0.5]
+ little group of k  :  P4_232 (208)
+ irreps             :  2.0 [-R6(2)] + 2.0 [-R7(2)] + 4.0 [-R8(4)] 
+
+ k point (primitive):  M [0.5, 0.5, 0.0]
+ little group of k  :  P4_222 (93)
+ irreps             :  6.0 [-M6(2)] + 6.0 [-M7(2)] 
+
+ k point (primitive):  X [0.0, 0.5, 0.0]
+ little group of k  :  P4_222 (93)
+ irreps             :  6.0 [-X6(2)] + 6.0 [-X7(2)] 
+

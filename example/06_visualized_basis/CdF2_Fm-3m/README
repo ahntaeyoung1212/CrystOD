@@ -1,0 +1,2 @@
+crystod --visualize -c POSCAR-4-coord --element Ga --orbital s --kpoint 0 0 0 --real-coefficient --conventional --tolerance 0.01 --bond Ga F 2
+crystod --visualize -c POSCAR-4-coord --element Ga --orbital p --kpoint 0 0 0 --real-coefficient --conventional --tolerance 0.01 --bond Ga F 2

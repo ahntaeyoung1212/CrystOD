@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, RawDescriptionHelpFormatter, RawTextHelpFormatter
-from fractions import Fraction
 from pathlib import Path
 import re
 
@@ -44,6 +43,7 @@ Generate modulated crystal structures from symmetry-adapted phonon modes.
 # Command Example:
 crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5                      (list modes and star of q only)
 crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint R --mode 1 2 3 --amplitude 0.3   (special-point label)
 crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint1 0 0.5 0.5 --mode1 1 --qpoint2 0.5 0 0.5 --mode2 1 --output POSCAR_combined
 """
 
@@ -86,10 +86,10 @@ def build_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--qpoint",
-        nargs=3,
-        type=parse_qpoint_token,
-        help="Target q-point in primitive reciprocal coordinates "
-        "(fractions such as 1/3 are allowed).",
+        nargs="+",
+        help="Target q-point: three primitive reciprocal coordinates (fractions such\n"
+        "as 1/3 are allowed) or a special-point label (GM, X, M, R, ...), resolved\n"
+        "as in --vector and --subgroup. The numbered --qpointN take the same forms.",
     )
     parser.add_argument(
         "--mode",
@@ -747,23 +747,13 @@ class SymmetryAdaptedModulation:
             ValueError: If a component is not a fraction with a denominator
                 of at most 12 (e.g. 0.15): no such supercell holds the
                 modulation, and freezing it into one would build a
-                structure that is not periodic.
+                structure that is not periodic. The message names the
+                smallest commensurate supercell (20 x 1 x 1 for 0.15).
         """
-        sizes = []
-        for component in qpoint:
-            value = float(component)
-            if abs(value - round(value)) < 1e-10:
-                sizes.append(1)
-                continue
-            fraction = Fraction(value).limit_denominator(12)
-            if abs(value - float(fraction)) > 1e-4:
-                raise ValueError(
-                    f"q = {[float(v) for v in qpoint]} is not commensurate with a "
-                    f"supercell of at most 12 cells per axis (component {value:g}); "
-                    "give q as fractions with a denominator of at most 12, e.g. 1/3."
-                )
-            sizes.append(fraction.denominator)
-        return np.array(sizes, dtype=int)
+        # the check crystod-phonon --vibration makes too
+        from .vibration_modes import commensurate_supercell_sizes
+
+        return np.array(commensurate_supercell_sizes(qpoint), dtype=int)
 
     def _get_commensurate_supercell_matrix(self) -> NDArray[np.int_]:
         return np.diag(self.get_commensurate_supercell_sizes(self.qpoint)).astype(int)
@@ -911,7 +901,77 @@ def _normalize_amplitudes(mode_indices: list[int], amplitudes: list[float]) -> l
     return amplitudes
 
 
-def _parse_numbered_modulation_terms(extra_argv: list[str]) -> list[ModulationTerm]:
+def _parse_qpoint_coordinates(tokens: list[str], option: str = "--qpoint") -> list[float] | None:
+    """The coordinates of a ``--qpoint`` (``--qpointN``) argument given as
+    three coordinates, None for a single token (a special-point label,
+    resolved by :func:`_resolve_qpoint_tokens` once the phonopy object is
+    loaded).
+
+    Raises:
+        ValueError: For another token count, or a coordinate that is not a
+            number or a fraction.
+    """
+    if len(tokens) == 1:
+        return None
+    if len(tokens) != 3:
+        raise ValueError(
+            f"{option} takes three coordinates or one special-point label "
+            f"(GM, X, M, R, ...); got {len(tokens)} values: {' '.join(tokens)}"
+        )
+    coordinates = []
+    for token in tokens:
+        try:
+            coordinates.append(parse_qpoint_token(token))
+        except (ValueError, ZeroDivisionError):
+            raise ValueError(
+                f"{option}: invalid coordinate {token.strip()!r} (a number or a "
+                "fraction such as 1/3)"
+            ) from None
+    return coordinates
+
+
+def _resolve_qpoint_tokens(phonon, tokens: list[str], option: str = "--qpoint") -> list[float]:
+    """Coordinates of a ``--qpoint`` (``--qpointN``) argument of ``--modulation``.
+
+    Three tokens are coordinates in the primitive reciprocal basis; one token
+    is a special-point label, resolved as ``--vector`` and ``--subgroup``
+    resolve it (:func:`crystod.phonon_vector.resolve_qpoint` over the special
+    points in the frame of the labels; ``GM``, ``G``, ``GAMMA`` and the Greek
+    capital gamma mean Gamma).
+
+    Raises:
+        ValueError: For an unknown label or a wrong token count.
+    """
+    coordinates = _parse_qpoint_coordinates(tokens, option)
+    if coordinates is not None:
+        return coordinates
+
+    from phonopy.structure.cells import get_primitive_matrix_by_centring
+
+    from .irreptables_compat import load_irreptables
+    from .phonon_irreps import _special_points_in_label_frame
+    from .phonon_vector import resolve_qpoint
+    from .runtime_compat import get_symmetry_dataset
+
+    dataset = get_symmetry_dataset(phonon.symmetry)
+    IrrepTable, _ = load_irreptables()
+    try:
+        irt_table = IrrepTable(dataset["number"], spinor=False)
+        prim_mat = get_primitive_matrix_by_centring(dataset["international"][0])
+        q_names, q_list = _special_points_in_label_frame(phonon, irt_table, prim_mat)
+    except Exception:
+        q_names, q_list = [], []
+    _, qpoint = resolve_qpoint(list(tokens), q_names, q_list)
+    return [float(value) + 0.0 for value in qpoint]
+
+
+def _parse_numbered_modulation_terms(extra_argv: list[str], resolve=None) -> list[ModulationTerm]:
+    """The numbered terms ``--qpointN/--modeN/--amplitudeN`` of ``extra_argv``.
+
+    ``resolve(tokens, option)`` turns a ``--qpointN`` given as one
+    special-point label into coordinates (:func:`_resolve_qpoint_tokens` with
+    the loaded phonopy object); without it only coordinates are accepted.
+    """
     if not extra_argv:
         return []
 
@@ -943,10 +1003,16 @@ def _parse_numbered_modulation_terms(extra_argv: list[str]) -> list[ModulationTe
             raise ValueError(f"--qpoint{suffix} is required when using numbered modulation arguments.")
         if "mode" not in entry:
             raise ValueError(f"--mode{suffix} is required when using numbered modulation arguments.")
-        if len(entry["qpoint"]) != 3:
-            raise ValueError(f"--qpoint{suffix} requires exactly three coordinates.")
-
-        qpoint = [parse_qpoint_token(value) for value in entry["qpoint"]]
+        option = f"--qpoint{suffix}"
+        if len(entry["qpoint"]) == 1 and resolve is not None:
+            qpoint = resolve(entry["qpoint"], option)
+        elif len(entry["qpoint"]) != 3:
+            raise ValueError(
+                f"{option} requires exactly three coordinates"
+                + (" or one special-point label." if resolve is not None else ".")
+            )
+        else:
+            qpoint = _parse_qpoint_coordinates(entry["qpoint"], option)
         mode_indices = [int(value) - 1 for value in entry["mode"]]
         raw_amplitudes = [float(value) for value in entry.get("amplitude", ["0.3"])]
         amplitudes = _normalize_amplitudes(mode_indices, raw_amplitudes)
@@ -1456,6 +1522,12 @@ def _load_modulation_with_report(
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args, extra_argv = parser.parse_known_args(argv)
+    # three coordinates are checked now; a label is resolved once the phonopy
+    # object (its special points) is loaded
+    try:
+        qpoint = None if args.qpoint is None else _parse_qpoint_coordinates(args.qpoint)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     # --yaml wins when given; a structure file selects the FORCE_SETS route;
     # with neither, the documented phonopy_params.yaml default applies (and the
@@ -1489,7 +1561,10 @@ def main(argv: list[str] | None = None) -> None:
     display_symprec = 0.1 if args.symprec is None else args.symprec
 
     try:
-        numbered_terms = _parse_numbered_modulation_terms(extra_argv)
+        numbered_terms = _parse_numbered_modulation_terms(
+            extra_argv,
+            resolve=lambda tokens, option: _resolve_qpoint_tokens(phonon, tokens, option),
+        )
     except ValueError as exc:
         parser.error(str(exc))
 
@@ -1503,11 +1578,17 @@ def main(argv: list[str] | None = None) -> None:
     else:
         if args.qpoint is None:
             parser.error("--modulation requires --qpoint, or numbered arguments such as --qpoint1.")
+        if qpoint is None:
+            # a special-point label, resolved as --vector/--subgroup resolve it
+            try:
+                qpoint = _resolve_qpoint_tokens(phonon, args.qpoint)
+            except ValueError as exc:
+                raise SystemExit(f"ERROR: {exc}") from None
         if args.mode is None:
             # Preview: show the mode table and the star of q so that a mode
             # can be chosen, without generating a modulated structure.
             _load_modulation_with_report(
-                phonon, source_label, args.qpoint, symprec, args.keep_q_coords
+                phonon, source_label, qpoint, symprec, args.keep_q_coords
             )
             print(
                 "\nNo --mode given. Choose mode number(s) from the table above and rerun with"
@@ -1517,7 +1598,7 @@ def main(argv: list[str] | None = None) -> None:
         mode_indices = [value - 1 for value in args.mode]
         terms = [
             ModulationTerm(
-                qpoint=args.qpoint,
+                qpoint=qpoint,
                 mode_indices=mode_indices,
                 amplitudes=_normalize_amplitudes(mode_indices, args.amplitude),
             )

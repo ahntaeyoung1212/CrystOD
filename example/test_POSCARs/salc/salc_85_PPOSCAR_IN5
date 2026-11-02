@@ -1,0 +1,41 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ P4/n (85)
+
+ * Element (number of atoms) *
+ I (2)
+
+ * Wyckoff letters and site symmetry letters *
+ ['c', 'c']
+ ['4..', '4..']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  A [0.5, 0.5, 0.5]
+ little group of k  :  P4/n (85)
+ irreps             :  1.0 [A1(2)] + 2.0 [A2(2)] 
+
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  P4/n (85)
+ irreps             :  1.0 [GM1+(1)] + 1.0 [GM1-(1)] + 1.0 [GM3+(1)] + 1.0 [GM3-(1)] + 1.0 [GM4+(1)] + 1.0 [GM4-(1)] 
+
+ k point (primitive):  M [0.5, 0.5, 0.0]
+ little group of k  :  P4/n (85)
+ irreps             :  1.0 [M1(2)] + 2.0 [M2(2)] 
+
+ k point (primitive):  Z [0.0, 0.0, 0.5]
+ little group of k  :  P4/n (85)
+ irreps             :  1.0 [Z1+(1)] + 1.0 [Z1-(1)] + 1.0 [Z3+(1)] + 1.0 [Z3-(1)] + 1.0 [Z4+(1)] + 1.0 [Z4-(1)] 
+
+ k point (primitive):  R [0.0, 0.5, 0.5]
+ little group of k  :  P2/c (13)
+ irreps             :  3.0 [R1(2)] 
+
+ k point (primitive):  X [0.0, 0.5, 0.0]
+ little group of k  :  P2/c (13)
+ irreps             :  3.0 [X1(2)] 
+

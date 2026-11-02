@@ -1,0 +1,24 @@
+# Generate yaml file that shows irreps for phonons using FORCE_SETS
+crystod-phonon --irreps --dim 4 4 4 -c 221_PPOSCAR_ScF3
+# -> phonon_irreps.yaml and, next to it, the dispersion with the labels, phonon_irreps.pdf
+
+# Additionally label the irreps at the midpoints of the seekpath k-path
+# segments (symmetry lines; ISO-IR labels); this writes phonon_irreps_all.yaml
+# instead of phonon_irreps.yaml, so both surveys coexist here
+crystod-phonon --irreps --dim 4 4 4 -c 221_PPOSCAR_ScF3 --all-irreps
+
+# Generate yaml file that shows irreps for phonons using FORCE_CONSTANTS.
+# Write FORCE_CONSTANTS from FORCE_SETS with phonopy 4 first (phonopy-init
+# also writes phonopy_disp.yaml, SPOSCAR and POSCAR-001 ..., phonopy writes
+# phonopy.yaml).
+# With --fc-calc traditional these are the force constants crystod-phonon
+# makes from FORCE_SETS: phonon_irreps.yaml is the same up to the ~1e-7 THz
+# noise of the acoustic modes at GM (phonopy's default, symfc, shifts the
+# frequencies here by up to 0.002 THz).
+phonopy-init -d -c 221_PPOSCAR_ScF3 --dim 4 4 4
+phonopy phonopy_disp.yaml --writefc --fc-calc traditional
+crystod-phonon --irreps --dim 4 4 4 -c 221_PPOSCAR_ScF3 --readfc
+
+# phonopy, and so crystod-phonon, also reads a FORCE_CONSTANTS found in the
+# working directory when --readfc is not given: remove it before running the
+# FORCE_SETS commands above again.

@@ -1,0 +1,50 @@
+# Phonon mode viewer (crystod-phonon --visualize); testsuite section 52
+# One standalone HTML page shows every phonon mode at the special points of the
+# k path: the dispersion along the path (the bands of crystod-phonon --irreps,
+# a dot on every degenerate level of the special points), the q point buttons,
+# the mode table with the ISO-IR label of every degenerate set (the labels of
+# phonon_irreps.yaml; Mulliken symbol and IR/Raman/silent/acoustic activity at
+# GM) and a 3D scene with the displacement pattern of the selected mode as
+# arrows, which an animation turns into the vibration. The partners of a
+# degenerate level are the symmetry-adapted eigenvectors of crystod-phonon
+# --vector (they transform with the irrep matrices). Next to the page the run
+# writes band_vector.yaml: phonopy's band.yaml along the same path with the
+# eigenvector of every band (phonopy's own format; yaml.safe_load and
+# phonopy's tools read it).
+#
+# Two cases, each with a POSCAR and the FORCE_SETS of a 4x4x4 supercell (the
+# data of 28_phonon_irrep):
+#   ScF3_Pm-3m/    221_PPOSCAR_ScF3, FORCE_SETS     (R4+: the octahedral rotation, real)
+#   SrTiO3_Pm-3m/  221_PPOSCAR_SrTiO3, FORCE_SETS   (R5-: the octahedral rotation, imaginary)
+# Run the commands of each README inside its directory, e.g.
+#   cd ScF3_Pm-3m
+#   crystod-phonon --visualize -c 221_PPOSCAR_ScF3 --dim 4 4 4
+# A run takes about 3 s and writes phonon_visualize.html (85 to 100 kB; -o FILE
+# renames it) and band_vector.yaml (about 2.6 MB for ScF3, 4.0 MB for SrTiO3;
+# its name is fixed).
+#
+# Open the page in a web browser (macOS: open phonon_visualize.html). It loads
+# plotly from its CDN, so the first opening needs network access. The page
+# opens on the first q point (GM) and its first band; append a hash to the
+# address to open another one, e.g.
+#   phonon_visualize.html#q=R&mode=1&view=a
+# opens the q point R with band 1, viewed down the a axis (orthographic; view=b
+# and view=c likewise; G, GM or GAMMA name Gamma; #q=DT(GM-X) names a segment
+# midpoint of --all-irreps by its segment, #q=5 the fifth q button). On the
+# page: click a q button, a row of the mode table or a dot of the dispersion;
+# the arrow keys step through the modes; the amplitude slider sets the largest
+# displacement in Angstrom; 'animate' runs the vibration.
+#
+# Variants (see the README of each case):
+#   --bond EL1 EL2 MAX   bonds up to MAX Angstrom and the coordination polyhedra
+#                        around EL1 (--bond Sc F 2.3, --bond Ti O 2.1), as in
+#                        crystod --visualize
+#   --qpoint R           the page shows only that q point (a label or three
+#                        coordinates)
+#   --all-irreps         also the midpoints of the path segments (the symmetry
+#                        lines DT, Z, SM, ... with their line irreps), as
+#                        crystod-phonon --irreps --all-irreps; the page is then
+#                        phonon_visualize_all.html (SrTiO3_Pm-3m/README)
+#   --conventional       the conventional cell instead of the primitive one
+#   --band/--band-labels/--npoints, --threshold, --nac, --readfc, --tolerance as
+#                        in crystod-phonon --irreps

@@ -1,0 +1,41 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ P6/mcc (192)
+
+ * Element (number of atoms) *
+ Mg (12)
+
+ * Wyckoff letters and site symmetry letters *
+ ['l', 'l', 'l', 'l', 'l', 'l', 'l', 'l', 'l', 'l', 'l', 'l']
+ ['m..', 'm..', 'm..', 'm..', 'm..', 'm..', 'm..', 'm..', 'm..', 'm..', 'm..', 'm..']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  A [0.0, 0.0, 0.5]
+ little group of k  :  P6/mcc (192)
+ irreps             :  6.0 [-A7(2)] + 6.0 [-A8(2)] + 6.0 [-A9(2)] + 6.0 [-A10(2)] + 6.0 [-A11(2)] + 6.0 [-A12(2)] 
+
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  P6/mcc (192)
+ irreps             :  6.0 [-GM7(2)] + 6.0 [-GM8(2)] + 6.0 [-GM9(2)] + 6.0 [-GM10(2)] + 6.0 [-GM11(2)] + 6.0 [-GM12(2)] 
+
+ k point (primitive):  H [0.33, 0.33, 0.5]
+ little group of k  :  P-62c (190)
+ irreps             :  6.0 [-H4(1)] + 6.0 [-H5(1)] + 6.0 [-H6(1)] + 6.0 [-H7(1)] + 12.0 [-H8(2)] + 12.0 [-H9(2)] 
+
+ k point (primitive):  K [0.33, 0.33, 0.0]
+ little group of k  :  P-62c (190)
+ irreps             :  12.0 [-K7(2)] + 12.0 [-K8(2)] + 12.0 [-K9(2)] 
+
+ k point (primitive):  L [0.5, 0.0, 0.5]
+ little group of k  :  Cccm (66)
+ irreps             :  18.0 [-L3(2)] + 18.0 [-L4(2)] 
+
+ k point (primitive):  M [0.5, 0.0, 0.0]
+ little group of k  :  Cccm (66)
+ irreps             :  18.0 [-M5(2)] + 18.0 [-M6(2)] 
+

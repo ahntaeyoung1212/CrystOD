@@ -28,3 +28,24 @@ ISOTROPY Software Suite (H. T. Stokes, B. J. Campbell and R. Cordes,
 groups", Acta Cryst. A69, 388-395 (2013); iso.byu.edu/irtables.php).
 Please cite that work when the irreducible-representation tables are used
 in published research.
+
+Bundled examples: crystod/examples/ holds example inputs and the README files
+that describe them (the files behind the --example options, and copies of
+selected directories of the repository's example/, which crystod-example
+copies out). They are covered by the MIT License above, like the code, with
+these exceptions:
+
+- crystod/examples/23_symmetry_mode/POSCAR_KGeCl3_Cm,
+  POSCAR_KGeCl3_P4mmm_pseudo, POSCAR_SeO2_Cmme_pseudo and POSCAR_SeO2_Pmc21
+  are structures from the Materials Project (mp-998231 KGeCl3, mp-560882
+  SeO2; A. Jain et al., "Commentary: The Materials Project: A materials
+  genome approach to accelerating materials innovation", APL Mater. 1,
+  011002 (2013); materialsproject.org), licensed under the Creative Commons
+  Attribution 4.0 International License (CC BY 4.0,
+  creativecommons.org/licenses/by/4.0/). The two *_pseudo files are
+  modified: group-averaged pseudo-parent structures derived from them.
+- Molecule geometries from PubChem (National Center for Biotechnology
+  Information, pubchem.ncbi.nlm.nih.gov): crystod/examples/43_molod/
+  XYZ_C6H6.xyz is the 3D conformer of benzene (PubChem CID 241), and
+  XYZ_O2.xyz (in crystod/examples/42_molecular_salc, 43_molod and
+  test_XYZs) was converted from an SDF record of O2 obtained from PubChem.

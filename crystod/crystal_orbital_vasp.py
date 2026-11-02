@@ -17,15 +17,19 @@ of those runs; ``--vasp`` reads them back.
 
 What is taken from the runs, and how:
 
-* **Levels**: the eigenvalues and occupations of ``EIGENVAL``/``PROCAR`` at the
-  tabulated special k points of the space group.
+* **Levels**: the eigenvalues and occupations of ``PROCAR`` at the tabulated
+  special k points of the space group.  ``EIGENVAL`` is not read for them;
+  only ``--vasp-setup --vasp-engine overlap`` reads the crystal run's
+  ``EIGENVAL``, to check that its NBANDS reaches far enough above the VBM.
 * **Symmetry**: ``LORBIT = 12`` gives the complex projections
   ``<Y_lm at atom | psi_nk>``.  They are treated as a vector in an AO-like
   ``(atom, l, m)`` basis and classified with exactly the representation
-  matrices crystod builds for a genuine AO basis (site permutation x real
-  Wigner matrices, conjugated into the atomic Bloch gauge that VASP's
-  projectors use), so the irrep labels are the same objects the extended-
-  Hueckel and PySCF engines print.
+  matrices crystod builds for a genuine AO basis (Bloch-phased site
+  permutation x real Wigner matrices), with no further gauge conjugation:
+  the PROCAR vectors are already in the Bloch gauge of that permutation
+  (see :meth:`VASPCrystalOrbitalDiagram.little_group_data` for why the
+  atomic-gauge conjugation of the PySCF engine is wrong here), so the irrep
+  labels are the same objects the extended-Hueckel and PySCF engines print.
 * **Character**: per level, the shares by (element, l) of the projected weight.
 * **Composition**: a crystal level's share on a fragment is its projected
   weight on that fragment's atoms, distributed over the fragment levels of the
@@ -3236,7 +3240,7 @@ def _report_column_scale(diagram, records, site=False) -> None:
     whether ONE shift describes the column, is not repeated.
     """
     scale = diagram.column_scale_report(records)
-    print("\n * Column scale check (residual E_crystal - E_fragment after the "
+    print("\n* Column scale check (residual E_crystal - E_fragment after the "
           "shift) *")
     for column in ("left", "right"):
         info = scale[column]
@@ -3385,7 +3389,7 @@ def _report_site_alignment(diagram, shifts, anchors) -> None:
                       f"{diagram.runs['mo']['outcar'].get('efermi') or 0.0:.3f} eV)",
             "raw": "the crystal run's own G = 0 reference (--vasp-zero raw)",
             }.get(diagram.zero_mode, "")
-    print("\n * Site-resolved alignment (reference = the crystal column, "
+    print("\n* Site-resolved alignment (reference = the crystal column, "
           "shift 0) *")
     print(f"   energy zero: {zero}")
     print("   one shift per (column, element): shells of one atom move "
@@ -3486,7 +3490,7 @@ def _report_projection_floor(diagram) -> None:
                    if value >= diagram.projection_floor)[:3]
     if not below and not above:
         return
-    print(f"\n * Projection floor {diagram.projection_floor:g} "
+    print(f"\n* Projection floor {diagram.projection_floor:g} "
           "(--vasp-projection-floor) *")
     print("   dropped just below: "
           + (", ".join(f"{value:.3f}" for value in below) or "-")
@@ -3515,7 +3519,7 @@ def _report_above_window(diagram, records) -> None:
     if not any(entries for _name, entries in rows):
         return
     high = max(entry[0] for _name, entries in rows for entry in entries)
-    print("\n * Fragment levels above the drawn window *")
+    print("\n* Fragment levels above the drawn window *")
     for name, entries in rows:
         if not entries:
             continue
@@ -3555,7 +3559,7 @@ def _report_manifold_residual(diagram) -> None:
     if not residual:
         return
     k_name, irrep, _n, value = residual["worst"]
-    print("\n * Measured alignment residual (centre of gravity of every "
+    print("\n* Measured alignment residual (centre of gravity of every "
           "complete (k, irrep) manifold) *")
     print(f"   {residual['n']} complete manifolds: mean |residual| "
           f"{residual['mean']:.3f} eV, max {residual['max']:.3f} eV "
@@ -3618,7 +3622,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
     from .vasp_io import StructureMappingError
 
     if resolved is None:
-        print("\n * VASP runs *")
+        print("\n* VASP runs *")
         resolved = _resolve_directories(root, overrides or {})
     diagram = None
     # the fragment assignment is needed to sort the sublattice directories, so
@@ -3673,16 +3677,16 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
             f"DIFFERENT BASES ({error.reason}), so the analysis is done in "
             "the crystal run's own setting and every irrep label refers to "
             "it, not to the -c file")
-        print(f"\n * Setting *\n   {setting_note}")
+        print(f"\n* Setting *\n   {setting_note}")
 
     dataset = diagram.builder.spglib_dataset
     diagram.setting_note = setting_note
     diagram.cell_path = cell_path
-    print("\n * Space group *")
+    print("\n* Space group *")
     print(f" {dataset['international']} ({dataset['number']})\n")
     setting_lines = diagram.setting_lines()
     if setting_lines:
-        print(" * Setting *")
+        print("* Setting *")
         for line in setting_lines:
             print(f" {line}")
         print(f" irrep labels refer to the {cell_path or '-c'} setting\n")
@@ -3695,7 +3699,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
                            f"{dataset['international'].replace('/', '')}"
                            "_vasp.html")
 
-    print(" * Columns *")
+    print("* Columns *")
     for column in ("left", "right"):
         outcar = diagram.runs[column]["outcar"]
         charges = ", ".join(
@@ -3745,13 +3749,13 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
     if align:
         shifts, anchors = diagram.align_fragment_columns(records)
         if shifts is None:
-            print("\n * Deep-level alignment (pre-bonding reference) *")
+            print("\n* Deep-level alignment (pre-bonding reference) *")
             print("   no chemically inert fragment level found; columns left "
                   "on their raw G=0 references")
         elif shifts["mode"] == "site":
             _report_site_alignment(diagram, shifts, anchors)
         else:
-            print("\n * Rigid alignment (--vasp-align rigid, reference = the "
+            print("\n* Rigid alignment (--vasp-align rigid, reference = the "
                   "crystal column) *")
             if diagram.anchor_note:
                 print(diagram.anchor_note)
@@ -3807,7 +3811,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
             # crystal level's parent energy would be with nothing hidden
             diagram.record_full_parents(records)
     else:
-        print("\n * Deep-level alignment disabled (--no-align): each run keeps "
+        print("\n* Deep-level alignment disabled (--no-align): each run keeps "
               "its own G=0 reference *")
     # The window is a VIEW, applied only now that the alignment has chosen its
     # anchors on the complete level set.  On the raw references the fragment
@@ -3836,17 +3840,17 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
                                 if record["name"] == entry[0]
                                 for level in record["levels"][entry[1]]}]
     if warnings:
-        print("\n * Irrep purity warnings *")
+        print("\n* Irrep purity warnings *")
         for k_name, column, label, energy, purity in warnings[:20]:
             print(f"   {k_name} {column:<5} {label:<18} {energy:9.3f} eV  "
                   f"best irrep weight {purity:.3f} < {IRREP_PURITY_WARN}")
     else:
-        print(f"\n * Irrep purity: every labelled level is above "
+        print(f"\n* Irrep purity: every labelled level is above "
               f"{IRREP_PURITY_WARN} *")
 
     for record in records:
         name, kpoint, levels = record["name"], record["kpoint"], record["levels"]
-        print(f"\n * k point {name} {_format_kpoint(kpoint)} *")
+        print(f"\n* k point {name} {_format_kpoint(kpoint)} *")
         print("   site-symmetry induced representations (SALC decomposition):")
         for (element, shell), parts in record["content"].items():
             if parts:
@@ -3871,7 +3875,7 @@ def report_and_write(cell, *, left, right, symprec, electrons, kpoint_filter,
         for level in record["levels"]["mo"]:
             key = getattr(level, "bond_character", None) or "not classified"
             tally[key] = tally.get(key, 0) + 1
-    print("\n * Bond character of the drawn crystal levels *")
+    print("\n* Bond character of the drawn crystal levels *")
     print("   " + ", ".join(f"{count} {key}" for key, count
                             in sorted(tally.items(), key=lambda kv: -kv[1])))
     kinds: dict = {}
@@ -4341,7 +4345,7 @@ def main(argv=None) -> None:
                     f"ERROR: no crystal POSCAR at {cell_path}; give the "
                     "structure with -c FILE.")
         cell = read_poscar_or_exit(cell_path)
-        print("\n * CrystOD --vasp-setup: inputs of the sublattice runs *")
+        print("\n* CrystOD --vasp-setup: inputs of the sublattice runs *")
         write_vasp_inputs(cell, left=args.co_left, right=args.co_right,
                           root=args.vasp_setup, symprec=args.tolerance,
                           oxidation=oxidation, potcar_dir=args.potcar_dir,
@@ -4355,7 +4359,7 @@ def main(argv=None) -> None:
         return
     overrides = {"mo": args.vasp_crystal, "left": args.vasp_left,
                  "right": args.vasp_right}
-    print("\n * VASP runs *")
+    print("\n* VASP runs *")
     resolved = _resolve_directories(args.vasp, overrides)
     # -c is optional with --vasp: without it the structure IS the crystal
     # run's POSCAR, so a finished calculation needs nothing but its

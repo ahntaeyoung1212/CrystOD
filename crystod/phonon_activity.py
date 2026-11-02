@@ -601,8 +601,9 @@ def gamma_mode_activities(
     from .vibration_modes import SymmetryOnlyVibrations
 
     cell = _read_cell(phonon_or_cell)
+    # a library function: no primitive-cell note on stdout
     vibrations = SymmetryOnlyVibrations(
-        cell, symprec=symprec, standardize=not _is_primitive(cell, symprec)
+        cell, symprec=symprec, standardize=not _is_primitive(cell, symprec), quiet=True
     )
     return mode_space_activities(vibrations, (0.0, 0.0, 0.0))
 

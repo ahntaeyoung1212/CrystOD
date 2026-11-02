@@ -478,6 +478,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--projection", choices=("lowdin", "mulliken"),
                         default="lowdin")
     parser.add_argument("--chk", default=None, metavar="FILE")
+    parser.add_argument("--no-chk", action="store_true",
+                        help="accepted for symmetry with --diagram --pyscf, "
+                        "where it disables the automatic CHK_{formula}.chk "
+                        "cache; the levels viewer never uses that cache (a "
+                        "checkpoint is read or written only through --chk "
+                        "FILE), so here it changes nothing")
     parser.add_argument("--conventional", action="store_true",
                         help="display in the conventional cell instead of "
                         "the primitive k-commensurate supercell")

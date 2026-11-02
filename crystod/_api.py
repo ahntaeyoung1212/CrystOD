@@ -7,6 +7,11 @@ Because many implementation modules import phonopy/spgrep (and patch
 spglib compatibility) at import time, the views resolve their attributes
 lazily via PEP 562: ``import crystod.phonon`` is instant, and the heavy
 machinery is only pulled in when an attribute is first used.
+
+A curated name is registered in the ``_EXPORTS`` table of its domain module
+(``crystod.salc`` maps ``extract_band_irreps`` to
+``crystod.extract_irrep.extract_band_irreps``, for example); functions are
+wrapped by :func:`_library_errors`, classes are returned as they are.
 """
 
 from __future__ import annotations

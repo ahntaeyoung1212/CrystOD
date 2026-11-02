@@ -1,0 +1,497 @@
+# Superlattice reflections indexed on the parent lattice, and neutron patterns
+# (crystod-xrd --parent / --radiation neutron); testsuite section 47
+# --parent PARENT -c CHILD pairs the two structures with the symmetry-mode
+# analysis of crystod-group --supergroup-cif, indexes every reflection family
+# of the child on the parent (conventional) cell, names the parent k point of
+# each superlattice reflection and splits its intensity among the parent
+# irreps of that k star (|F|^2 of the parent plus each irrep's displacements
+# alone). Diagnostic reflections (one irrep >= 95 %) and the first-order
+# extinctions of each irrep follow per k point.
+# The input structures are those of example/23_symmetry_mode.
+# --radiation neutron --wavelength W gives the nuclear neutron pattern
+# (pymatgen NDCalculator); no magnetic scattering, no Debye-Waller factor.
+
+$ crystod-xrd -c ../test_POSCARs/221_PPOSCAR_ScF3 --radiation neutron --wavelength 1.5
+
+* Structure *
+ 221_PPOSCAR_ScF3: ScF3, Pm-3m
+
+* Radiation *
+ neutron, 1.5 A (nuclear scattering only; no magnetic scattering, no Debye-Waller factor)
+
+* Bragg peaks (20) in 10 - 120 deg *
+    h   k   l  mult       d (A)  2theta (deg)  intensity  line
+    1   0   0     6    4.069590       21.2399    100.000  neutron
+    1   1   0    12    2.877635       30.2150     13.923  neutron
+    1   1   1     8    2.349579       37.2298      3.125  neutron
+    2   0   0     6    2.034795       43.2571     70.245  neutron
+    2   1   0    24    1.819976       48.6728     86.298  neutron
+    2   1   1    24    1.661403       53.6704     10.043  neutron
+    2   2   0    12    1.438817       62.8338     76.517  neutron
+    3   0   0     6    1.356530       67.1298     65.531  neutron   + (2 2 1) x24
+    3   1   0    24    1.286917       71.2938      6.617  neutron
+    3   1   1    24    1.227028       75.3575      3.061  neutron
+    2   2   2     8    1.174789       79.3471     37.706  neutron
+    3   2   0    24    1.128701       83.2850     40.468  neutron
+    3   2   1    48    1.087644       87.1912     10.606  neutron
+    4   0   0     6    1.017397       94.9826     24.160  neutron
+    4   1   0    24    0.987021       98.9042     71.149  neutron   + (3 2 2) x24
+    4   1   1    24    0.959212      102.8683      7.187  neutron   + (3 3 0) x12
+    3   3   1    24    0.933628      106.8962      2.355  neutron
+    4   2   0    24    0.909988      111.0122     92.244  neutron
+    4   2   1    48    0.888057      115.2454     69.922  neutron
+    3   3   2    24    0.867640      119.6318      4.861  neutron
+
+* Output files *
+ Peak table written to: ND_221_PPOSCAR_ScF3_1.5A.txt
+ Pattern (lorentzian profile, width 0.1 deg) written to: ND_221_PPOSCAR_ScF3_1.5A.pdf
+
+Intensities: pymatgen NDCalculator (S. P. Ong et al., Comput. Mater. Sci. 68, 314 (2013)).
+
+$ crystod-xrd --parent ../23_symmetry_mode/221_PPOSCAR_SrTiO3.cif -c ../23_symmetry_mode/140_PPOSCAR_SrTiO3.cif
+
+* Structures *
+parent: 221_PPOSCAR_SrTiO3.cif  SrTiO3, Pm-3m (No. 221)
+child : 140_PPOSCAR_SrTiO3.cif  SrTiO3, I4/mcm (No. 140)
+child primitive basis in parent primitive units (rows): (0, 1, 1), (0, -1, 1), (1, 0, -1)
+primitive cell multiplication: 2
+parent indices: the cell of Pm-3m (primitive = conventional)
+child indices: conventional cell of I4/mcm
+
+* Radiation *
+CuKa: CuKa1 = 1.5405929 A (no Debye-Waller factor)
+the table lists the CuKa1 positions; the drawn pattern adds CuKa2 at its weight
+
+* Reflections (60 families, 17 superlattice) in 10 - 120 deg *
+   2theta     d (A)  (h k l)_child    (h k l)_parent k      I_child  I_parent  contributions
+  22.4704   3.95355  (0 0 2) x2       (0 0 1)        GM       1.953     1.953  -
+  22.5663   3.93696  (1 1 0) x4       (1 0 0)        GM       4.107     3.874  -
+  32.0578   2.78970  (1 1 2) x8       (1 0 1)        GM     100.000   100.995  -
+  32.1269   2.78385  (0 2 0) x4       (1 1 0)        GM      51.205    50.208  -
+  37.8510   2.37498  (1 2 1) x16      (3 1 1)/2      R        0.640         -  R5- 100 %
+  39.5608   2.27618  (0 2 2) x8       (1 1 1)        GM      31.302    32.089  -
+  45.8683   1.97678  (0 0 4) x2       (0 0 2)        GM      21.002    21.002  -
+  46.0728   1.96848  (2 2 0) x4       (2 0 0)        GM      40.463    41.403  -
+  50.3747   1.80999  (1 2 3) x16      (3 1 3)/2      R        0.222         -  R5- 100 %
+  51.7024   1.76659  (1 1 4) x8       (1 0 2)        GM       1.525     1.473  -
+  51.8428   1.76214  (2 2 2) x8       (2 0 1)        GM       1.672     1.465  -
+  51.8895   1.76066  (1 3 0) x8       (2 1 0)        GM       1.318     1.462  -
+  57.0995   1.61176  (0 2 4) x8       (1 1 2)        GM      19.401    19.098  -
+  57.2307   1.60838  (1 3 2) x16      (2 1 1)        GM      38.815    37.933  -
+  61.0953   1.51557  (2 3 1) x16      (5 1 1)/2      R        0.088         -  R5- 100 %
+  67.0422   1.39485  (2 2 4) x8       (2 0 2)        GM      23.340    23.814  -
+  67.2017   1.39193  (0 4 0) x4       (2 2 0)        GM      11.348    11.815  -
+  70.4838   1.33493  (1 2 5) x16      (3 1 5)/2      R        0.057         -  R5- 100 %
+  70.6396   1.33237  (2 3 3) x16      (5 1 3)/2      R        0.049         -  R5- 100 %
+  70.7175   1.33109  (1 4 1) x16      (5 3 1)/2      R        0.208         -  R5- 100 %
+  71.5368   1.31785  (0 0 6) x2       (0 0 3)        GM       0.189     0.189  -
+  71.7303   1.31477  (1 3 4) x16      (2 1 2)        GM       1.394     1.503  -
+  71.8464   1.31293  (0 4 2) x8       (2 2 1)        GM       0.903     0.749  -
+  71.8850   1.31232  (3 3 0) x4       (3 0 0)        GM       0.459     0.374  -
+  76.1057   1.24969  (1 1 6) x8       (1 0 3)        GM       8.185     8.240  -
+  76.4083   1.24550  (3 3 2) x8       (3 0 1)        GM       7.688     8.153  -
+  76.4460   1.24498  (2 4 0) x8       (3 1 0)        GM       8.676     8.142  -
+  79.7245   1.20181  (1 4 3) x16      (5 3 3)/2      R        0.133         -  R5- 100 %
+  80.5859   1.19113  (0 2 6) x8       (1 1 3)        GM       3.156     3.218  -
+  80.8837   1.18749  (2 4 2) x16      (3 1 1)        GM       5.793     6.374  -
+  85.1931   1.13809  (0 4 4) x8       (2 2 2)        GM      11.315    11.742  -
+  88.4059   1.10484  (2 3 5) x16      (5 1 5)/2      R        0.022         -  R5- 100 %
+  88.6265   1.10266  (3 4 1) x16      (7 1 1)/2      R        0.083         -  R5- 100 %
+  89.4018   1.09510  (2 2 6) x8       (2 0 3)        GM       0.561     0.518  -
+  89.5855   1.09333  (3 3 4) x8       (3 0 2)        GM       0.613     0.517  -
+  89.7325   1.09192  (1 5 0) x8       (3 2 0)        GM       0.566     0.516  -
+  93.7914   1.05504  (1 3 6) x16      (2 1 3)        GM      10.609    10.419  -
+  93.9755   1.05346  (2 4 4) x16      (3 1 2)        GM      11.014    10.389  -
+  94.0860   1.05251  (1 5 2) x16      (3 2 1)        GM      10.074    10.371  -
+  96.9765   1.02868  (1 2 7) x16      (3 1 7)/2      R        0.021         -  R5- 100 %
+  97.1986   1.02692  (1 4 5) x16      (5 3 5)/2      R        0.078         -  R5- 100 %
+  97.3468   1.02575  (3 4 3) x16      (7 1 3)/2      R        0.067         -  R5- 100 %
+  97.4209   1.02517  (2 5 1) x16      (7 3 1)/2      R        0.013         -  R5- 100 %
+ 102.4016   0.98839  (0 0 8) x2       (0 0 4)        GM       2.161     2.161  -
+ 103.0042   0.98424  (4 4 0) x4       (4 0 0)        GM       4.026     4.303  -
+ 106.3201   0.96249  (2 5 3) x16      (7 3 3)/2      R        0.012         -  R5- 100 %
+ 106.9374   0.95864  (1 1 8) x8       (1 0 4)        GM       0.479     0.470  -
+ 107.2064   0.95698  (0 4 6) x8       (2 2 3)        GM       0.542     0.470  -
+ 107.3988   0.95579  (1 5 4) x16      (3 2 2)        GM       1.025     0.941  -
+ 107.5144   0.95509  (4 4 2) x8       (4 0 1)        GM       0.609     0.471  -
+ 107.5529   0.95485  (3 5 0) x8       (4 1 0)        GM       0.358     0.471  -
+ 111.5856   0.93142  (0 2 8) x8       (1 1 4)        GM       4.714     4.659  -
+ 111.8624   0.92990  (3 3 6) x8       (3 0 3)        GM       4.427     4.662  -
+ 112.1795   0.92817  (3 5 2) x16      (4 1 1)        GM      10.106     9.334  -
+ 112.2192   0.92795  (0 6 0) x4       (3 3 0)        GM       2.578     2.334  -
+ 115.3228   0.91170  (2 3 7) x16      (5 1 7)/2      R        0.016         -  R5- 100 %
+ 115.5669   0.91047  (3 4 5) x16      (7 1 5)/2      R        0.060         -  R5- 100 %
+ 115.8116   0.90925  (1 6 1) x16      (7 5 1)/2      R        0.139         -  R5- 100 %
+ 116.6759   0.90500  (2 4 6) x16      (3 1 3)        GM       3.889     4.242  -
+ 117.0053   0.90340  (0 6 2) x8       (3 3 1)        GM       1.815     2.126  -
+(I_child: strongest child family = 100; I_parent: the parent reference structure on the same scale;
+ contributions: share of |F|^2 among the irreps of the k star, each with its own displacements alone)
+
+* Superlattice reflections by k point *
+R (1/2,1/2,1/2): 17 families (+ 11 absent in the child); irreps of the star: R5- (0.3303 A)
+  all families from R5- (the only irrep of the star)
+  R5- extinct at first order for |h| = |k|: 11 families absent in the child
+(diagnostic: share >= 95%; extinct at first order: the term of the irrep's structure factor
+ linear in its displacements vanishes; positions in degrees 2theta)
+
+* Output files *
+  Reflection table written to: XRD_140_PPOSCAR_SrTiO3_vs_221_PPOSCAR_SrTiO3_CuKa.txt
+  Patterns (lorentzian profile, width 0.1 deg) written to: XRD_140_PPOSCAR_SrTiO3_vs_221_PPOSCAR_SrTiO3_CuKa.pdf
+
+Pairing and irreps: the symmetry-mode analysis of crystod-group --supergroup-cif;
+structure factors: pymatgen scattering tables (S. P. Ong et al., Comput. Mater. Sci. 68, 314 (2013)).
+
+
+$ crystod-xrd --parent ../23_symmetry_mode/221_PPOSCAR_CaTiO3.cif -c ../23_symmetry_mode/62_PPOSCAR_CaTiO3.cif --xraytype CuKa1
+
+* Structures *
+parent: 221_PPOSCAR_CaTiO3.cif  CaTiO3, Pm-3m (No. 221)
+child : 62_PPOSCAR_CaTiO3.cif  CaTiO3, Pnma (No. 62)
+child primitive basis in parent primitive units (rows): (1, 0, 1), (0, 2, 0), (-1, 0, 1)
+primitive cell multiplication: 4
+parent indices: the cell of Pm-3m (primitive = conventional)
+child indices: conventional cell of Pnma
+
+* Radiation *
+CuKa1: CuKa1 = 1.5405929 A (no Debye-Waller factor)
+
+* Reflections (186 families, 122 superlattice) in 10 - 120 deg *
+   2theta     d (A)  (h k l)_child    (h k l)_parent k      I_child  I_parent  contributions
+  20.0533   4.42429  (0 1 1) x4       (-1 1 1)/2     R        0.286         -  R5+ 99 %, R4+ 1 %
+  23.0306   3.85862  (1 0 1) x4       (0 0 1)        GM      10.121    13.185  -
+  23.1012   3.84700  (0 2 0) x2       (0 1 0)        GM       4.171     6.539  -
+  25.8092   3.44917  (1 1 1) x8       (0 1 2)/2      X        4.573         -  X5+ 100 %
+  32.4884   2.75370  (2 0 0) x2       (1 0 1)        GM      25.073    26.746  -
+  32.8483   2.72434  (1 2 1) x8       (0 1 1)        GM     100.000   103.757  -
+  33.1038   2.70390  (0 0 2) x2       (-1 0 1)       GM      23.024    25.385  -
+  34.5679   2.59265  (2 1 0) x4       (2 1 2)/2      X        1.525         -  X5+ 100 %
+  36.5900   2.45388  (2 0 1) x4       (1 0 3)/2      M        1.082         -  M3+ 100 %
+  37.0074   2.42716  (1 0 2) x4       (-1 0 3)/2     M        1.785         -  M3+ 100 %
+  38.4755   2.33786  (2 1 1) x8       (1 1 3)/2      R        1.922         -  R4+ 98 %, R5+ 2 %
+  38.8308   2.31728  (0 3 1) x4       (-1 3 1)/2     R        4.492         -  R4+ 100 %
+  38.8755   2.31471  (1 1 2) x8       (-1 1 3)/2     R        4.365         -  R4+ 91 %, R5+ 9 %
+  40.2428   2.23917  (2 2 0) x4       (1 1 1)        GM       4.576    10.102  -
+  40.7560   2.21215  (0 2 2) x4       (-1 1 1)       GM       4.045     9.646  -
+  42.2791   2.13591  (1 3 1) x8       (0 3 2)/2      X        3.127         -  X5+ 100 %
+  43.7193   2.06883  (2 2 1) x8       (1 2 3)/2      M        2.111         -  M3+ 100 %
+  44.0798   2.05274  (1 2 2) x8       (-1 2 3)/2     M        1.298         -  M3+ 100 %
+  47.0638   1.92931  (2 0 2) x4       (0 0 2)        GM      43.645    60.687  -
+  47.2146   1.92350  (0 4 0) x2       (0 2 0)        GM      23.727    30.011  -
+  48.4647   1.87677  (2 3 0) x4       (2 3 2)/2      X        2.368         -  X5+ 100 %
+  48.6134   1.87137  (2 1 2) x8       (0 1 4)/2      X        3.033         -  X5+ 100 %
+  51.5010   1.77303  (2 3 1) x8       (1 3 3)/2      R        0.830         -  R4+ 95 %, R5+ 5 %
+  51.8197   1.76287  (1 3 2) x8       (-1 3 3)/2     R        1.004         -  R4+ 89 %, R5+ 11 %
+  52.0670   1.75508  (0 1 3) x4       (-3 1 3)/2     R        0.415         -  R4+ 90 %, R5+ 10 %
+  52.6057   1.73836  (3 0 1) x4       (1 0 2)        GM       2.914     0.928  -
+  53.0587   1.72459  (2 2 2) x8       (0 1 2)        GM       2.391     1.796  -
+  53.1623   1.72147  (1 4 1) x8       (0 2 1)        GM       1.571     1.783  -
+  53.4402   1.71317  (1 0 3) x4       (-1 0 2)       GM       0.420     0.874  -
+  54.0379   1.69562  (3 1 1) x8       (2 1 4)/2      X        5.577         -  X5+ 100 %
+  54.8573   1.67222  (1 1 3) x8       (-2 1 4)/2     X        1.050         -  X5+ 100 %
+  58.1896   1.58414  (3 2 1) x8       (1 1 2)        GM      15.482    18.379  -
+  58.4828   1.57689  (2 4 0) x4       (1 2 1)        GM      11.448     9.043  -
+  58.8730   1.56737  (0 4 2) x4       (-1 2 1)       GM      11.149     8.854  -
+  58.9708   1.56500  (1 2 3) x8       (-1 1 2)       GM      25.411    17.614  -
+  59.9495   1.54177  (2 3 2) x8       (0 3 4)/2      X        0.368         -  X5+ 100 %
+  60.9509   1.51882  (3 0 2) x4       (1 0 5)/2      M        0.120         -  M3+ 100 %
+  61.1724   1.51385  (2 4 1) x8       (1 4 3)/2      M        0.042         -  M3+ 100 %
+  61.4264   1.50819  (2 0 3) x4       (-1 0 5)/2     M        0.391         -  M3+ 100 %
+  61.4574   1.50751  (1 4 2) x8       (-1 4 3)/2     M        0.134         -  M3+ 100 %
+  62.2566   1.49006  (3 1 2) x8       (1 1 5)/2      R        0.361         -  R4+ 88 %, R5+ 12 %
+  62.7254   1.48005  (0 5 1) x4       (-1 5 1)/2     R        0.604         -  R4+ 97 %, R5+ 3 %
+  62.7264   1.48003  (2 1 3) x8       (-1 1 5)/2     R        0.020         -  R5+ 56 %, R4+ 44 %
+  62.9758   1.47476  (0 3 3) x4       (-3 3 3)/2     R        0.068         -  R5+ 72 %, R4+ 28 %
+  64.7304   1.43896  (3 3 1) x8       (2 3 4)/2      X        2.243         -  X5+ 100 %
+  65.2203   1.42933  (1 5 1) x8       (0 5 2)/2      X        0.087         -  X5+ 100 %
+  65.4655   1.42457  (1 3 3) x8       (-2 3 4)/2     X        0.006         -  X5+ 100 %
+  66.0855   1.41270  (3 2 2) x8       (1 2 5)/2      M        0.179         -  M3+ 100 %
+  66.5405   1.40414  (2 2 3) x8       (-1 2 5)/2     M        0.003         -  M3+ 100 %
+  68.0373   1.37685  (4 0 0) x2       (2 0 2)        GM       4.260     8.217  -
+  68.8729   1.36217  (2 4 2) x8       (0 2 2)        GM      19.083    31.495  -
+  69.2705   1.35532  (4 1 0) x4       (4 1 4)/2      X        1.219         -  X5+ 100 %
+  69.4680   1.35195  (0 0 4) x2       (-2 0 2)       GM       4.295     7.642  -
+  69.9808   1.34329  (2 5 0) x4       (2 5 2)/2      X        0.031         -  X5+ 100 %
+  70.5233   1.33428  (4 0 1) x4       (3 0 5)/2      M        0.628         -  M3+ 100 %
+  71.7372   1.31466  (4 1 1) x8       (3 1 5)/2      R        0.001         -  R5+ 99 %, R4+ 1 %
+  71.8439   1.31297  (1 0 4) x4       (-3 0 5)/2     M        0.428         -  M3+ 100 %
+  72.2334   1.30685  (3 3 2) x8       (1 3 5)/2      R        0.625         -  R4+ 86 %, R5+ 14 %
+  72.4369   1.30367  (2 5 1) x8       (1 5 3)/2      R        1.033         -  R4+ 100 %
+  72.6704   1.30006  (2 3 3) x8       (-1 3 5)/2     R        0.522         -  R4+ 95 %, R5+ 5 %
+  72.6990   1.29962  (1 5 2) x8       (-1 5 3)/2     R        0.543         -  R4+ 86 %, R5+ 14 %
+  72.9134   1.29633  (4 2 0) x4       (2 1 2)        GM       0.615     0.264  -
+  73.0486   1.29426  (1 1 4) x8       (-3 1 5)/2     R        0.610         -  R4+ 64 %, R5+ 36 %
+  73.3484   1.28971  (3 4 1) x8       (1 2 2)        GM       1.512     0.517  -
+  73.5808   1.28621  (3 0 3) x4       (0 0 3)        GM       0.042     0.256  -
+  73.8400   1.28233  (0 6 0) x2       (0 3 0)        GM       0.020     0.126  -
+  74.0430   1.27932  (1 4 3) x8       (-1 2 2)       GM       0.179     0.500  -
+  74.3033   1.27548  (0 2 4) x4       (-2 1 2)       GM       0.397     0.247  -
+  74.7746   1.26860  (3 1 3) x8       (0 1 6)/2      X        1.056         -  X5+ 100 %
+  75.3309   1.26061  (4 2 1) x8       (3 2 5)/2      M        0.256         -  M3+ 100 %
+  76.6193   1.24259  (1 2 4) x8       (-3 2 5)/2     M        0.412         -  M3+ 100 %
+  77.7789   1.22694  (4 0 2) x4       (1 0 3)        GM       2.409     3.743  -
+  78.3182   1.21983  (3 2 3) x8       (0 1 3)        GM       5.158     7.341  -
+  78.5439   1.21689  (1 6 1) x8       (0 3 1)        GM       7.278     7.282  -
+  78.8001   1.21358  (2 0 4) x4       (-1 0 3)       GM       2.681     3.608  -
+  78.8380   1.21309  (4 3 0) x4       (4 3 4)/2      X        0.153         -  X5+ 100 %
+  78.9516   1.21163  (4 1 2) x8       (2 1 6)/2      X        1.000         -  X5+ 100 %
+  79.6292   1.20301  (2 5 2) x8       (0 5 4)/2      X        1.077         -  X5+ 100 %
+  79.9688   1.19876  (2 1 4) x8       (-2 1 6)/2     X        0.500         -  X5+ 100 %
+  80.5136   1.19201  (3 4 2) x8       (1 4 5)/2      M        0.021         -  M3+ 100 %
+  80.9358   1.18686  (2 4 3) x8       (-1 4 5)/2     M        0.147         -  M3+ 100 %
+  81.1990   1.18367  (4 3 1) x8       (3 3 5)/2      R        0.201         -  R4+ 99 %, R5+ 1 %
+  82.3211   1.17036  (0 5 3) x4       (-3 5 3)/2     R        0.287         -  R4+ 97 %, R5+ 3 %
+  82.4438   1.16893  (4 2 2) x8       (1 1 3)        GM       0.133     1.160  -
+  82.4618   1.16872  (1 3 4) x8       (-3 3 5)/2     R        0.653         -  R4+ 62 %, R5+ 38 %
+  83.0027   1.16247  (2 6 0) x4       (1 3 1)        GM       0.001     0.567  -
+  83.3385   1.15864  (0 6 2) x4       (-1 3 1)       GM       0.002     0.560  -
+  83.4514   1.15736  (2 2 4) x8       (-1 1 3)       GM       0.048     1.115  -
+  83.9076   1.15222  (3 5 1) x8       (2 5 4)/2      X        1.565         -  X5+ 100 %
+  84.1316   1.14972  (3 3 3) x8       (0 3 6)/2      X        1.589         -  X5+ 100 %
+  84.5777   1.14479  (1 5 3) x8       (-2 5 4)/2     X        0.762         -  X5+ 100 %
+  85.3400   1.13651  (2 6 1) x8       (1 6 3)/2      M        0.009         -  M3+ 100 %
+  85.5908   1.13382  (1 6 2) x8       (-1 6 3)/2     M        0.000         -  M3+ 100 %
+  86.9472   1.11958  (4 4 0) x4       (2 2 2)        GM       3.431     7.629  -
+  88.2083   1.10680  (4 3 2) x8       (2 3 6)/2      X        1.970         -  X5+ 100 %
+  88.2817   1.10607  (0 4 4) x4       (-2 2 2)       GM       3.728     7.351  -
+  89.2086   1.09697  (2 3 4) x8       (-2 3 6)/2     X        0.632         -  X5+ 100 %
+  89.2736   1.09634  (4 4 1) x8       (3 4 5)/2      M        0.210         -  M3+ 100 %
+  89.4964   1.09418  (4 0 3) x4       (1 0 7)/2      M        0.004         -  M3+ 100 %
+  90.0798   1.08861  (3 0 4) x4       (-1 0 7)/2     M        0.070         -  M3+ 100 %
+  90.5237   1.08442  (1 4 4) x8       (-3 4 5)/2     M        0.117         -  M3+ 100 %
+  90.6450   1.08328  (4 1 3) x8       (1 1 7)/2      R        0.084         -  R4+ 86 %, R5+ 14 %
+  90.8942   1.08096  (3 5 2) x8       (1 5 5)/2      R        0.021         -  R4+ 84 %, R5+ 16 %
+  91.0715   1.07932  (5 0 1) x4       (2 0 3)        GM       0.717     0.132  -
+  91.2285   1.07787  (3 1 4) x8       (-1 1 7)/2     R        0.373         -  R4+ 61 %, R5+ 39 %
+  91.3101   1.07712  (0 7 1) x4       (-1 7 1)/2     R        0.303         -  R4+ 100 %
+  91.3110   1.07711  (2 5 3) x8       (-1 5 5)/2     R        0.073         -  R4+ 64 %, R5+ 36 %
+  91.9788   1.07103  (0 1 5) x4       (-5 1 5)/2     R        0.014         -  R5+ 99 %, R4+ 1 %
+  92.1825   1.06919  (3 4 3) x8       (0 2 3)        GM       0.158     0.256  -
+  92.2206   1.06885  (5 1 1) x8       (4 1 6)/2      X        1.836         -  X5+ 100 %
+  92.3208   1.06795  (2 6 2) x8       (0 3 2)        GM       0.023     0.255  -
+  93.0729   1.06129  (1 0 5) x4       (-2 0 3)       GM       0.020     0.125  -
+  93.5540   1.05709  (1 7 1) x8       (0 7 2)/2      X        0.275         -  X5+ 100 %
+  94.0943   1.05244  (4 2 3) x8       (1 2 7)/2      M        0.511         -  M3+ 100 %
+  94.2239   1.05133  (1 1 5) x8       (-4 1 6)/2     X        0.012         -  X5+ 100 %
+  94.6793   1.04748  (3 2 4) x8       (-1 2 7)/2     M        0.205         -  M3+ 100 %
+  95.6751   1.03919  (5 2 1) x8       (2 1 3)        GM       1.434     4.679  -
+  96.2612   1.03442  (4 4 2) x8       (1 2 3)        GM       3.513     4.638  -
+  96.5680   1.03194  (3 6 1) x8       (1 3 2)        GM       3.416     4.617  -
+  97.2395   1.02660  (1 6 3) x8       (-1 3 2)       GM       5.700     4.574  -
+  97.2682   1.02637  (2 4 4) x8       (-1 2 3)       GM       4.003     4.572  -
+  97.3057   1.02608  (4 5 0) x4       (4 5 4)/2      X        1.001         -  X5+ 100 %
+  97.6889   1.02307  (1 2 5) x8       (-2 1 3)       GM       6.248     4.547  -
+  97.9775   1.02083  (2 7 0) x4       (2 7 2)/2      X        0.343         -  X5+ 100 %
+  98.0732   1.02009  (5 0 2) x4       (3 0 7)/2      M        0.009         -  M3+ 100 %
+  99.2350   1.01124  (5 1 2) x8       (3 1 7)/2      R        0.110         -  R4+ 84 %, R5+ 16 %
+  99.6566   1.00809  (4 5 1) x8       (3 5 5)/2      R        0.050         -  R4+ 96 %, R5+ 4 %
+  99.8449   1.00669  (2 0 5) x4       (-3 0 7)/2     M        0.008         -  M3+ 100 %
+  99.8827   1.00642  (4 3 3) x8       (1 3 7)/2      R        0.000         -  R5+ 76 %, R4+ 24 %
+ 100.3327   1.00311  (2 7 1) x8       (1 7 3)/2      R        0.202         -  R4+ 96 %, R5+ 4 %
+ 100.4753   1.00207  (3 3 4) x8       (-1 3 7)/2     R        0.038         -  R4+ 60 %, R5+ 40 %
+ 100.5869   1.00126  (1 7 2) x8       (-1 7 3)/2     R        0.102         -  R4+ 84 %, R5+ 16 %
+ 100.9271   0.99880  (1 5 4) x8       (-3 5 5)/2     R        0.174         -  R4+ 60 %, R5+ 40 %
+ 101.0128   0.99819  (2 1 5) x8       (-3 1 7)/2     R        0.001         -  R4+ 52 %, R5+ 48 %
+ 101.2390   0.99657  (0 3 5) x4       (-5 3 5)/2     R        0.000         -  R4+ 79 %, R5+ 21 %
+ 101.4855   0.99481  (5 3 1) x8       (4 3 6)/2      X        1.729         -  X5+ 100 %
+ 102.6211   0.98687  (3 5 3) x8       (0 5 6)/2      X        0.256         -  X5+ 100 %
+ 102.7457   0.98601  (5 2 2) x8       (3 2 7)/2      M        0.003         -  M3+ 100 %
+ 103.5343   0.98064  (1 3 5) x8       (-4 3 6)/2     X        0.459         -  X5+ 100 %
+ 103.6576   0.97981  (3 6 2) x8       (1 6 5)/2      M        0.000         -  M3+ 100 %
+ 104.0868   0.97694  (2 6 3) x8       (-1 6 5)/2     M        0.030         -  M3+ 100 %
+ 104.5467   0.97390  (2 2 5) x8       (-3 2 7)/2     M        0.085         -  M3+ 100 %
+ 105.9779   0.96466  (4 0 4) x4       (0 0 4)        GM       1.705     5.592  -
+ 106.4384   0.96175  (0 8 0) x2       (0 4 0)        GM       1.438     2.791  -
+ 106.8269   0.95932  (4 5 2) x8       (2 5 6)/2      X        0.200         -  X5+ 100 %
+ 107.1763   0.95716  (4 1 4) x8       (0 1 8)/2      X        1.201         -  X5+ 100 %
+ 107.5238   0.95503  (2 7 2) x8       (0 7 4)/2      X        0.072         -  X5+ 100 %
+ 107.8746   0.95290  (2 5 4) x8       (-2 5 6)/2     X        0.192         -  X5+ 100 %
+ 108.1772   0.95107  (4 4 3) x8       (1 4 7)/2      M        0.015         -  M3+ 100 %
+ 108.7148   0.94786  (5 3 2) x8       (3 3 7)/2      R        0.001         -  R4+ 83 %, R5+ 17 %
+ 108.7923   0.94740  (3 4 4) x8       (-1 4 7)/2     M        0.016         -  M3+ 100 %
+ 109.8431   0.94126  (5 4 1) x8       (2 2 3)        GM       1.321     0.195  -
+ 110.0802   0.93990  (5 0 3) x4       (1 0 4)        GM       1.048     0.097  -
+ 110.3344   0.93844  (0 7 3) x4       (-3 7 3)/2     R        0.052         -  R4+ 64 %, R5+ 36 %
+ 110.3452   0.93838  (4 6 0) x4       (2 3 2)        GM       0.099     0.097  -
+ 110.5731   0.93709  (2 3 5) x8       (-3 3 7)/2     R        0.036         -  R5+ 66 %, R4+ 34 %
+ 110.8212   0.93569  (4 2 4) x8       (0 1 4)        GM       0.982     0.194  -
+ 111.2654   0.93320  (1 8 1) x8       (0 4 1)        GM       0.213     0.194  -
+ 111.3080   0.93296  (5 1 3) x8       (2 1 8)/2      X        1.290         -  X5+ 100 %
+ 111.5065   0.93186  (3 0 5) x4       (-1 0 4)       GM       0.238     0.097  -
+ 111.7741   0.93038  (0 6 4) x4       (-2 3 2)       GM       0.039     0.097  -
+ 111.9844   0.92923  (1 4 5) x8       (-2 2 3)       GM       0.013     0.193  -
+ 112.0236   0.92902  (3 7 1) x8       (2 7 4)/2      X        0.645         -  X5+ 100 %
+ 112.7446   0.92511  (1 7 3) x8       (-2 7 4)/2     X        0.013         -  X5+ 100 %
+ 112.7464   0.92510  (3 1 5) x8       (-2 1 8)/2     X        0.652         -  X5+ 100 %
+ 112.8460   0.92457  (4 6 1) x8       (3 6 5)/2      M        0.013         -  M3+ 100 %
+ 114.1103   0.91790  (6 0 0) x2       (3 0 3)        GM       0.487     1.069  -
+ 114.2094   0.91739  (1 6 4) x8       (-3 6 5)/2     M        0.000         -  M3+ 100 %
+ 115.0571   0.91304  (5 2 3) x8       (1 1 4)        GM       3.401     4.299  -
+ 115.3750   0.91144  (6 1 0) x4       (6 1 6)/2      X        0.287         -  X5+ 100 %
+ 116.0411   0.90811  (3 6 3) x8       (0 3 3)        GM       3.992     4.325  -
+ 116.0710   0.90797  (2 8 0) x4       (1 4 1)        GM       3.952     2.163  -
+ 116.4426   0.90614  (0 8 2) x4       (-1 4 1)       GM       4.020     2.168  -
+ 116.5381   0.90567  (3 2 5) x8       (-1 1 4)       GM       6.823     4.339  -
+ 116.6843   0.90496  (6 0 1) x4       (5 0 7)/2      M        0.101         -  M3+ 100 %
+ 117.1091   0.90290  (4 3 4) x8       (0 3 8)/2      X        0.711         -  X5+ 100 %
+ 117.4423   0.90130  (0 0 6) x2       (-3 0 3)       GM       1.004     1.092  -
+ 117.4636   0.90120  (5 4 2) x8       (3 4 7)/2      M        0.006         -  M3+ 100 %
+ 117.9772   0.89876  (6 1 1) x8       (5 1 7)/2      R        0.015         -  R4+ 96 %, R5+ 4 %
+ 118.6895   0.89543  (2 8 1) x8       (1 8 3)/2      M        0.045         -  M3+ 100 %
+ 118.9749   0.89412  (1 8 2) x8       (-1 8 3)/2     M        0.021         -  M3+ 100 %
+ 119.2539   0.89284  (6 2 0) x4       (3 1 3)        GM       0.556     0.362  -
+ 119.4542   0.89192  (2 4 5) x8       (-3 4 7)/2     M        0.029         -  M3+ 100 %
+ 119.4969   0.89173  (4 5 3) x8       (1 5 7)/2      R        0.183         -  R4+ 96 %, R5+ 4 %
+ 119.7836   0.89043  (3 7 2) x8       (1 7 5)/2      R        0.304         -  R4+ 83 %, R5+ 17 %
+ 119.9987   0.88947  (1 0 6) x4       (-5 0 7)/2     M        0.140         -  M3+ 100 %
+(I_child: strongest child family = 100; I_parent: the parent reference structure on the same scale;
+ contributions: share of |F|^2 among the irreps of the k star, each with its own displacements alone)
+
+* Superlattice reflections by k point *
+X (0,1/2,0): 41 families (+ 12 absent in the child); irreps of the star: X5+ (0.5196 A)
+  all families from X5+ (the only irrep of the star)
+  X5+ extinct at first order for h = -l: 12 families absent in the child
+M (1/2,1/2,0): 40 families (+ 24 absent in the child); irreps of the star: M2+ (0.0064 A), M3+ (0.8874 A)
+  diagnostic for M2+: none
+  diagnostic for M3+: (1 0 3)/2 at 36.59, (-1 0 3)/2 at 37.01, (1 2 3)/2 at 43.72, (-1 2 3)/2 at 44.08, (3 0 5)/2 at 70.52, (-3 0 5)/2 at 71.84, (-3 2 5)/2 at 76.62, (1 2 7)/2 at 94.09, and 32 more (see the table)
+  M2+ extinct at first order for |h| = |l|: 24 families absent in the child
+  M3+ extinct at first order for |h| = |l|: 24 families absent in the child
+R (1/2,1/2,1/2): 41 families (+ 11 absent in the child); irreps of the star: R4+ (1.2458 A), R5+ (0.1047 A)
+  diagnostic for R4+: (1 1 3)/2 at 38.48, (-1 3 1)/2 at 38.83, (-1 5 1)/2 at 62.73, (1 5 3)/2 at 72.44, (3 3 5)/2 at 81.20, (-3 5 3)/2 at 82.32, (-1 7 1)/2 at 91.31, (1 7 3)/2 at 100.33, and 3 more (see the table)
+  diagnostic for R5+: (-1 1 1)/2 at 20.05, (3 1 5)/2 at 71.74, (-5 1 5)/2 at 91.98
+  R4+ extinct at first order at: (-1 1 1)/2 at 20.05, (-3 3 3)/2 at 62.98, (3 1 5)/2 at 71.74, (1 3 7)/2 at 99.88; 11 families absent in the child
+  R5+ extinct at first order for h = l: 11 families absent in the child
+(diagnostic: share >= 95%; extinct at first order: the term of the irrep's structure factor
+ linear in its displacements vanishes; positions in degrees 2theta)
+
+* Output files *
+  Reflection table written to: XRD_62_PPOSCAR_CaTiO3_vs_221_PPOSCAR_CaTiO3_CuKa1.txt
+  Patterns (lorentzian profile, width 0.1 deg) written to: XRD_62_PPOSCAR_CaTiO3_vs_221_PPOSCAR_CaTiO3_CuKa1.pdf
+
+Pairing and irreps: the symmetry-mode analysis of crystod-group --supergroup-cif;
+structure factors: pymatgen scattering tables (S. P. Ong et al., Comput. Mater. Sci. 68, 314 (2013)).
+
+
+$ crystod-xrd --parent ../23_symmetry_mode/225_PPOSCAR_ZrO2.cif -c ../23_symmetry_mode/137_PPOSCAR_ZrO2.cif
+
+* Structures *
+parent: 225_PPOSCAR_ZrO2.cif  ZrO2, Fm-3m (No. 225)
+child : 137_PPOSCAR_ZrO2.cif  ZrO2, P42/nmc (No. 137)
+child primitive basis in parent primitive units (rows): (0, 0, 1), (1, -1, 0), (1, 1, -1)
+primitive cell multiplication: 2
+parent indices: conventional cell of Fm-3m, h_conv = h_prim A^-T with A = (0, 1/2, 1/2), (1/2, 0, 1/2), (1/2, 1/2, 0)
+(rows: the parent primitive basis in conventional units)
+child indices: conventional cell of P42/nmc
+
+* Radiation *
+CuKa: CuKa1 = 1.5405929 A (no Debye-Waller factor)
+the table lists the CuKa1 positions; the drawn pattern adds CuKa2 at its weight
+
+* Reflections (30 families, 7 superlattice) in 10 - 120 deg *
+   2theta     d (A)  (h k l)_child    (h k l)_parent k      I_child  I_parent  contributions
+  29.7030   3.00528  (1 0 1) x8       (1 1 1)        GM     100.000   100.000  -
+  33.7015   2.65730  (0 0 2) x2       (0 0 2)        GM       9.295     7.212  -
+  34.7907   2.57656  (1 1 0) x4       (0 2 0)        GM      13.325    13.325  -
+  42.0500   2.14702  (1 0 2) x8       (1 1 2)        X        1.825         -  X2- 100 %
+  49.2181   1.84979  (1 1 2) x8       (0 2 2)        GM      36.568    41.162  -
+  50.0228   1.82190  (2 0 0) x4       (2 2 0)        GM      19.523    19.523  -
+  57.8265   1.59322  (1 0 3) x8       (1 1 3)        GM      14.396    14.396  -
+  59.2636   1.55797  (2 1 1) x16      (1 3 1)        GM      26.660    26.660  -
+  61.6782   1.50264  (2 0 2) x8       (2 2 2)        GM       7.192     5.994  -
+  67.3536   1.38916  (2 1 2) x16      (1 3 2)        X        0.562         -  X2- 100 %
+  70.8672   1.32865  (0 0 4) x2       (0 0 4)        GM       2.082     3.073  -
+  73.4432   1.28828  (2 2 0) x4       (0 4 0)        GM       5.489     5.489  -
+  76.2090   1.24826  (1 0 4) x8       (1 1 4)        X        0.403         -  X2- 100 %
+  79.9232   1.19933  (2 1 3) x16      (1 3 3)        GM      10.891    10.891  -
+  81.1660   1.18407  (3 0 1) x8       (3 3 1)        GM       5.235     5.235  -
+  81.4310   1.18089  (1 1 4) x8       (0 2 4)        GM       4.780     2.912  -
+  83.2864   1.15923  (2 2 2) x8       (0 4 2)        GM       3.228     2.774  -
+  83.9033   1.15227  (3 1 0) x8       (2 4 0)        GM       2.732     2.732  -
+  88.4226   1.10467  (3 0 2) x8       (3 3 2)        X        0.107         -  X2- 100 %
+  91.7052   1.07351  (2 0 4) x8       (2 2 4)        GM       4.364     6.217  -
+  93.5462   1.05716  (3 1 2) x16      (2 4 2)        GM      10.950    12.025  -
+  96.8423   1.02975  (2 1 4) x16      (1 3 4)        X        0.404         -  X2- 100 %
+  98.0337   1.02039  (1 0 5) x8       (1 1 5)        GM       3.705     3.705  -
+ 100.5182   1.00176  (3 0 3) x8       (3 3 3)        GM       3.626     3.626  -
+ 101.7678   0.99282  (3 2 1) x16      (1 5 1)        GM       7.195     7.195  -
+ 109.2682   0.94460  (3 2 2) x16      (1 5 2)        X        0.154         -  X2- 100 %
+ 112.7850   0.92489  (2 2 4) x8       (0 4 4)        GM       3.865     5.403  -
+ 115.4719   0.91095  (4 0 0) x4       (4 4 0)        GM       2.743     2.743  -
+ 118.4671   0.89647  (3 0 4) x8       (3 3 4)        X        0.182         -  X2- 100 %
+ 119.8197   0.89027  (2 1 5) x16      (1 3 5)        GM       7.625     7.625  -
+(I_child: strongest child family = 100; I_parent: the parent reference structure on the same scale;
+ contributions: share of |F|^2 among the irreps of the k star, each with its own displacements alone)
+
+* Superlattice reflections by k point *
+X (1/2,0,1/2): 7 families (+ 18 absent in the child); irreps of the star: X2- (0.5773 A)
+  all families from X2- (the only irrep of the star)
+  X2- extinct at first order at: 18 families absent in the child
+(diagnostic: share >= 95%; extinct at first order: the term of the irrep's structure factor
+ linear in its displacements vanishes; positions in degrees 2theta)
+
+* Output files *
+  Reflection table written to: XRD_137_PPOSCAR_ZrO2_vs_225_PPOSCAR_ZrO2_CuKa.txt
+  Patterns (lorentzian profile, width 0.1 deg) written to: XRD_137_PPOSCAR_ZrO2_vs_225_PPOSCAR_ZrO2_CuKa.pdf
+
+Pairing and irreps: the symmetry-mode analysis of crystod-group --supergroup-cif;
+structure factors: pymatgen scattering tables (S. P. Ong et al., Comput. Mater. Sci. 68, 314 (2013)).
+
+
+$ crystod-xrd --parent ../23_symmetry_mode/221_PPOSCAR_BaTiO3.cif -c ../23_symmetry_mode/99_PPOSCAR_BaTiO3.cif --radiation neutron --wavelength 1.8
+
+* Structures *
+parent: 221_PPOSCAR_BaTiO3.cif  BaTiO3, Pm-3m (No. 221)
+child : 99_PPOSCAR_BaTiO3.cif  BaTiO3, P4mm (No. 99)
+child primitive basis in parent primitive units (rows): (1, 0, 0), (0, 1, 0), (0, 0, 1)
+primitive cell multiplication: 1
+parent indices: the cell of Pm-3m (primitive = conventional)
+child indices: conventional cell of P4mm
+
+* Radiation *
+neutron, 1.8 A (nuclear scattering only; no magnetic scattering, no Debye-Waller factor)
+
+* Reflections (31 families, 0 superlattice) in 10 - 120 deg *
+   2theta     d (A)  (h k l)_child    (h k l)_parent k      I_child  I_parent  contributions
+  24.7437   4.20060  (0 0 1) x2       (0 0 1)        GM       0.808     0.839  -
+  25.9760   4.00450  (1 0 0) x4       (1 0 0)        GM       1.528     1.528  -
+  36.1800   2.89846  (1 0 1) x8       (1 0 1)        GM       3.750     3.903  -
+  37.0648   2.83161  (1 1 0) x4       (1 1 0)        GM       1.867     1.867  -
+  45.0779   2.34796  (1 1 1) x8       (1 1 1)        GM     100.000   101.769  -
+  50.7461   2.10030  (0 0 2) x2       (0 0 2)        GM      11.446    11.233  -
+  53.4225   2.00225  (2 0 0) x4       (2 0 0)        GM      20.652    20.652  -
+  57.8772   1.86000  (1 0 2) x8       (1 0 2)        GM       2.833     0.734  -
+  59.7284   1.80742  (2 0 1) x8       (2 0 1)        GM       0.674     0.700  -
+  60.3377   1.79087  (2 1 0) x8       (2 1 0)        GM       0.689     0.689  -
+  64.4872   1.68691  (1 1 2) x8       (1 1 2)        GM       1.682     1.486  -
+  66.2293   1.64740  (2 1 1) x16      (2 1 1)        GM       2.750     2.862  -
+  76.7814   1.44923  (2 0 2) x8       (2 0 2)        GM      25.129    24.661  -
+  78.9410   1.41580  (2 2 0) x4       (2 2 0)        GM      11.949    11.949  -
+  79.9967   1.40020  (0 0 3) x2       (0 0 3)        GM       0.121     0.119  -
+  82.6665   1.36273  (2 1 2) x16      (2 1 2)        GM       3.545     0.919  -
+  84.2603   1.34165  (2 2 1) x8       (2 2 1)        GM       0.434     0.451  -
+  84.7905   1.33483  (3 0 0) x4       (3 0 0)        GM       0.224     0.224  -
+  85.8319   1.32173  (1 0 3) x8       (1 0 3)        GM       0.808     1.053  -
+  90.0581   1.27215  (3 0 1) x8       (3 0 1)        GM       0.972     1.011  -
+  90.5859   1.26633  (3 1 0) x8       (3 1 0)        GM       1.007     1.007  -
+  91.6240   1.25513  (1 1 3) x8       (1 1 3)        GM      32.862    38.536  -
+  95.8564   1.21244  (3 1 1) x16      (3 1 1)        GM      73.510    74.811  -
+ 100.1033   1.17398  (2 2 2) x8       (2 2 2)        GM      20.129    19.754  -
+ 103.3197   1.14746  (2 0 3) x8       (2 0 3)        GM       0.403     0.394  -
+ 106.0482   1.12657  (3 0 2) x8       (3 0 2)        GM       1.512     0.392  -
+ 108.2578   1.11065  (3 2 0) x8       (3 2 0)        GM       0.391     0.391  -
+ 109.3542   1.10307  (2 1 3) x16      (2 1 3)        GM       1.426     1.859  -
+ 112.1769   1.08447  (3 1 2) x16      (3 1 2)        GM       2.108     1.862  -
+ 113.8976   1.07375  (3 2 1) x16      (3 2 1)        GM       1.794     1.867  -
+ 117.9673   1.05015  (0 0 4) x2       (0 0 4)        GM       5.185     4.924  -
+(I_child: strongest child family = 100; I_parent: the parent reference structure on the same scale;
+ contributions: share of |F|^2 among the irreps of the k star, each with its own displacements alone)
+
+* Superlattice reflections by k point *
+no superlattice reflections (the child keeps the parent lattice)
+
+* Output files *
+  Reflection table written to: ND_99_PPOSCAR_BaTiO3_vs_221_PPOSCAR_BaTiO3_1.8A.txt
+  Patterns (lorentzian profile, width 0.1 deg) written to: ND_99_PPOSCAR_BaTiO3_vs_221_PPOSCAR_BaTiO3_1.8A.pdf
+
+Pairing and irreps: the symmetry-mode analysis of crystod-group --supergroup-cif;
+structure factors: pymatgen scattering tables (S. P. Ong et al., Comput. Mater. Sci. 68, 314 (2013)).
+

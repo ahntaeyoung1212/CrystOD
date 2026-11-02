@@ -1,0 +1,18 @@
+* Transformation matrix (parent -> child) *
+Pnma (No. 62) -> Pna21 (No. 33), conventional settings of the input files
+  [     3     0     0 ] [   1/2 ]
+  [     0     0    -1 ] [ 0.9986 ]
+  [     0     1     0 ] [   1/2 ]
+(columns of P: the child basis vectors a', b', c' in parent units, (a', b', c') = (a, b, c) P;
+ last column: the child origin p in parent fractional coordinates, x_parent = P x_child + p;
+ the AMPLIMODES / Bilbao convention)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(0,0,0)          GM1+    (a)          62 Pnma             13   0.9467
+(0,0,0)          GM4-    (a)          33 Pna2_1           8    0.4230
+(1/3,0,0)        SM2     (a;0.974a)   33 Pna2_1           16   1.2885
+(1/3,0,0)        SM3     (a;0.974a)   62 Pnma             26   0.1727
+(non-special k points: the order-parameter components are expressed in the bundled
+ ISO-IR matrix basis, whose phase gauge may differ from the ISOTROPY web tables;
+ the isotropy subgroup, dimension and amplitude are gauge-independent)

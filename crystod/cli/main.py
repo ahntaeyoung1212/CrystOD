@@ -55,6 +55,7 @@ MOVED_MODE_FLAGS = {
     "--xdatcar2adp": "crystod-md --adp",
     "--xrd": "crystod-xrd -c POSCAR",
     "--search": "crystod-search QUERY (SrTiO3, Sr-Ti-O, ...; --get MPID downloads a POSCAR)",
+    "--slab": "crystod-slab -c POSCAR",
 }
 
 desc = """\
@@ -75,7 +76,7 @@ crystod --example ScF3_d   (bundled input; --example alone lists the names)
 epilog = """\
 Sectioned commands (see crystod-<section> --help):
   crystod-phonon   phonon analyses (--irreps/--fatband/--lt/--vector/--modulation/
-                   --vibration/--subgroup)
+                   --vibration/--subgroup/--unfold/--visualize)
   crystod-group    point/space-group calculator (--product/--table/--decompose/
                    --ligand-field/--basis/--generate-basis/--coset/--parent/
                    --multiplet/--poscar2cif/--cif2poscar/--supergroup-cif)
@@ -85,6 +86,7 @@ Sectioned commands (see crystod-<section> --help):
   crystod-mol      molecular point groups, SALCs and MO diagrams (XYZ files)
   crystod-xrd      powder X-ray diffraction patterns (--xraytype/--peak-profile)
   crystod-search   Materials Project search and POSCAR download (--get)
+  crystod-slab     surface slabs: terminations, polarity, POSCARs (--index/--max-index)
   crystod-example  the packaged example directories (list; copy: NN/--all, -o DIR)
 
 If you use CrystOD in your research, please cite:

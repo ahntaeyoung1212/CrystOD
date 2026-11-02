@@ -1,0 +1,4 @@
+221_PPOSCAR_ScF3  PBE/gth-dzvp-molopt-sr
+k path: GAMMA-X-M-GAMMA-R-X  |  R-M
+energies referenced to VBM
+VBM -0.1557 eV, CBM 5.0436 eV (absolute); mesh gap 5.1993 eV

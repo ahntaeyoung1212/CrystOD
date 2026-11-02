@@ -940,8 +940,11 @@ class CrystalOrbital:
             element: Chemical symbol, e.g. ``"Sc"``.
 
         Returns:
-            The atom indices in cell order (a contiguous block in the
-            standardized primitive cell).
+            The atom indices in cell order.  They need not be contiguous:
+            spglib keeps the atom order of the input, so a POSCAR whose
+            species line repeats an element (``O Ti O Sr O``) gives
+            ``[0, 2, 4]`` for O.  Index with this list, never with the range
+            from its first to its last entry.
 
         Raises:
             ValueError: The element is not in the cell.
@@ -951,8 +954,8 @@ class CrystalOrbital:
             raise ValueError(
                 f"Element \"{element}\" is not in the inputed cell."
                 )
-        target_element_positions = [i for i, symbol in enumerate(all_chemical_symbols) if symbol == element]
-        return target_element_positions
+        species = np.array(all_chemical_symbols)
+        return [int(i) for i in np.flatnonzero(species == element)]
 
     def _get_rotations_at_k(
         self,
@@ -1140,15 +1143,16 @@ class CrystalOrbital:
             permutation_matrices: Output of :meth:`get_permutation_reps_at_k`.
 
         Returns:
-            Complex array with the trace of every matrix over the element's
-            block of atoms.
+            Complex array with the trace of every matrix over the rows and
+            columns of the element's atoms (the index list of
+            :meth:`get_target_element_positions`, contiguous or not).
         """
-        elemet_positions = self.get_target_element_positions(element)
-        range_strat, range_end = elemet_positions[0], elemet_positions[-1]+1
+        element_positions = self.get_target_element_positions(element)
+        block = np.ix_(element_positions, element_positions)
 
         permutation_characters = []
         for i in range(permutation_matrices.shape[0]):
-            rep = permutation_matrices[i][range_strat : range_end, range_strat : range_end]
+            rep = permutation_matrices[i][block]
             character = np.trace(rep)
             permutation_characters.append(character)
         return np.array(permutation_characters, dtype=complex)
@@ -1282,18 +1286,19 @@ def main(argv: Optional[list[str]] = None) -> None:
     cell = read_poscar_or_exit(args.poscar)
     crystal_orbital = CrystalOrbital(cell=cell, symprec=args.tolerance, spior=args.spinor)
 
-    elemet_positions = crystal_orbital.get_target_element_positions(args.element)
-    range_strat, range_end = elemet_positions[0], elemet_positions[-1]+1
-    wyckoff_letters = crystal_orbital.spglib_dataset['wyckoffs'][range_strat:range_end]
-    site_symmetry_symbols = crystal_orbital.spglib_dataset['site_symmetry_symbols'][range_strat:range_end]
+    element_positions = crystal_orbital.get_target_element_positions(args.element)
+    wyckoff_letters = [crystal_orbital.spglib_dataset['wyckoffs'][i]
+                       for i in element_positions]
+    site_symmetry_symbols = [crystal_orbital.spglib_dataset['site_symmetry_symbols'][i]
+                             for i in element_positions]
 
     if args.kpoint is None:
-        print(f"\n * Space group *\n {crystal_orbital.spglib_dataset['international']} ({crystal_orbital.spglib_dataset['number']})\n")
-        print(f" * Element (number of atoms) *\n {args.element} ({len(wyckoff_letters)})\n")
-        print(f" * Wyckoff letters and site symmetry letters *")
+        print(f"\n* Space group *\n {crystal_orbital.spglib_dataset['international']} ({crystal_orbital.spglib_dataset['number']})\n")
+        print(f"* Element (number of atoms) *\n {args.element} ({len(wyckoff_letters)})\n")
+        print(f"* Wyckoff letters and site symmetry letters *")
         print(f" {wyckoff_letters}\n {site_symmetry_symbols}\n")
-        print(f" * Atomic Orbital *\n {args.orbital}\n")
-        print(" * Crystal Orbitals *")
+        print(f"* Atomic Orbital *\n {args.orbital}\n")
+        print("* Crystal Orbitals *")
 
         kpoint_names, kpoints = crystal_orbital.get_special_points()
         for kpoint_name, kpoint in zip(kpoint_names, kpoints):
@@ -1321,12 +1326,12 @@ def main(argv: Optional[list[str]] = None) -> None:
             print(f" irreps             : {irreps_result}\n")
         return
 
-    print(f"\n * Space group *\n {crystal_orbital.spglib_dataset['international']} ({crystal_orbital.spglib_dataset['number']})\n")
-    print(f" * Orbital (number of atoms) *\n {args.element}_{args.orbital} ({len(wyckoff_letters)})\n")
-    print(f" * Position *")
+    print(f"\n* Space group *\n {crystal_orbital.spglib_dataset['international']} ({crystal_orbital.spglib_dataset['number']})\n")
+    print(f"* Orbital (number of atoms) *\n {args.element}_{args.orbital} ({len(wyckoff_letters)})\n")
+    print(f"* Position *")
     print(f" wyckoff letters      : {wyckoff_letters}")
     print(f" site symmetry letters: {site_symmetry_symbols}\n")
-    print(f" * Spinor *\n {args.spinor}\n")
+    print(f"* Spinor *\n {args.spinor}\n")
     if args.spinor:
         print(" (Double-valued irrep labels are not contained in the bundled ISO-IR")
         print("  tables; spinor irreps are shown with generic labels.)\n")
@@ -1342,19 +1347,19 @@ def main(argv: Optional[list[str]] = None) -> None:
     kpoint_name = crystal_orbital.get_kpoint_name(args.kpoint)
     formatted_input_kpoint = format_kpoint(args.kpoint)
     if kpoint_name is None:
-        print(f" * k point (primitive) * \n {formatted_input_kpoint}\n")
+        print(f"* k point (primitive) *\n {formatted_input_kpoint}\n")
     else:
-        print(f" * k point (primitive) * \n {kpoint_name} {formatted_input_kpoint}\n")
+        print(f"* k point (primitive) *\n {kpoint_name} {formatted_input_kpoint}\n")
 
     if args.table:
         little_group = crystal_orbital.get_little_group_symbol(args.kpoint)
-        print(" * IrRep Table * ")
+        print("* IrRep Table *")
         print(f" little group: {little_group}")
         print(" table:")
         make_irrep_table(crystal_orbital, irreps, mapping_little_group, irrep_labels)
         print("")
 
-    print(" * Atomic Band Irreducible Representations *")
+    print("* Atomic Band Irreducible Representations *")
     sorted_bandreps = sort_irrep_items(
         [(key, value) for key, value in display_bandreps.items() if value > 0]
     )

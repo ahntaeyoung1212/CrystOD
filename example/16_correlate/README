@@ -1,0 +1,366 @@
+# Correlation of irreps (crystod-group --correlate); testsuite section 16
+# (a) With --parent SG --irrep IR --order-parameter C...: the parent irreps
+#     (--irrep-list, default: the --irrep labels) restricted to the Gamma point
+#     of the isotropy subgroup H. The Gamma labels of H refer to the ISO-IR
+#     frame of H printed above them (basis and origin in parent conventional
+#     units); Mulliken symbols follow the axes of spglib's conventional cell of H.
+#     "components at non-Gamma k of H": the part of the irrep that stays at a
+#     nonzero wave vector of the subgroup lattice.
+# (b) With --sg SG --kpoint K0 K1 [--line L]: the compatibility relations of the
+#     small irreps at K0 and at K1 along the line joining them (one name: every
+#     line from K0). In Pm-3m, DT1/DT2/DT3/DT4/DT5 are Delta1/Delta2/Delta2'/
+#     Delta1'/Delta5 of Bouckaert, Smoluchowski and Wigner (by the characters of
+#     crystod-group --table --sg Pm-3m --kpoint 0 1/4 0).
+# (c) With --pg G --subgroup H: the correlation table of the point group G, one
+#     column per inequivalent orientation (conjugacy class) of the subgroup
+#     type H. Mulliken symbols from phonopy's tables; B1/B2/B3 follow the
+#     classes of H listed under * Subgroup * (2_d: twofold rotation about d,
+#     m_d: mirror normal to d, in the axes of the table of G).
+
+$ crystod-group --correlate --parent Pm-3m --irrep R4+ --order-parameter 0 0 a --irrep-list R4+ R5+ M3+ GM4-
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Isotropy subgroup *
+R4+(0,0,a) -> I4/mcm (No. 140)
+cell size 2, index 6
+sublattice basis (parent primitive units): (2,0,0), (1,1,0), (1,0,1)
+conventional basis (parent conventional units): (-1,0,1), (1,0,1), (0,2,0)
+origin: (0,0,0)
+
+* Subduction to the Gamma point of H *
+H = I4/mcm (No. 140); Gamma labels in the ISO-IR frame of H:
+basis (parent conventional units): (-1,0,1), (1,0,1), (0,2,0)
+origin: (0,0,0)
+  R4+ (R, dim 3) -> GM1+ [A1g] + GM5+ [Eg]
+  R5+ (R, dim 3) -> GM4+ [B2g] + GM5+ [Eg]
+  M3+ (M, dim 3) -> 3 components at non-Gamma k of H
+  GM4- (GM, dim 3) -> GM3- [A2u] + GM5- [Eu]
+note: GM1 of H occurs in a primary irrep once per free parameter of the direction
+
+$ crystod-group --correlate --parent Pm-3m --irrep R4+ --order-parameter a a a
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Isotropy subgroup *
+R4+(a,a,a) -> R-3c (No. 167)
+cell size 2, index 8
+sublattice basis (parent primitive units): (2,0,0), (1,1,0), (1,0,1)
+conventional basis (parent conventional units): (1,0,-1), (-1,1,0), (2,2,2)
+origin: (0,0,0)
+
+* Subduction to the Gamma point of H *
+H = R-3c (No. 167); Gamma labels in the ISO-IR frame of H:
+basis (parent conventional units): (1,0,-1), (-1,1,0), (2,2,2)
+origin: (0,0,0)
+  R4+ (R, dim 3) -> GM1+ [A1g] + GM3+ [Eg]
+note: GM1 of H occurs in a primary irrep once per free parameter of the direction
+
+$ crystod-group --correlate --parent Pm-3m --irrep R4+ M3+ --order-parameter 0 a a d 0 0
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Isotropy subgroup *
+R4+(0,a,a) M3+(d;0;0) -> Pnma (No. 62)
+cell size 4, index 24
+sublattice basis (parent primitive units): (2,0,0), (1,1,0), (0,0,2)
+conventional basis (parent conventional units): (-1,-1,0), (0,0,-2), (1,-1,0)
+origin: (0,0,0)
+
+* Subduction to the Gamma point of H *
+H = Pnma (No. 62); Gamma labels in the ISO-IR frame of H:
+basis (parent conventional units): (1,1,0), (0,0,-2), (-1,1,0)
+origin: (0,0,0)
+  R4+ (R, dim 3) -> GM1+ [Ag] + GM2+ [B1g] + GM4+ [B2g]
+  M3+ (M, dim 3) -> GM1+ [Ag] + 2 components at non-Gamma k of H
+note: GM1 of H occurs in a primary irrep once per free parameter of the direction
+
+$ crystod-group --correlate --parent Pm-3m --irrep X5+ --order-parameter a 0 0 0 0 0
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Isotropy subgroup *
+X5+(a,0;0,0;0,0) -> Pmma (No. 51)
+cell size 2, index 12
+sublattice basis (parent primitive units): (1,0,0), (0,2,0), (0,0,1)
+conventional basis (parent conventional units): (0,-2,0), (-1,0,0), (0,0,-1)
+origin: (0,0,0)
+
+* Subduction to the Gamma point of H *
+H = Pmma (No. 51); Gamma labels in the ISO-IR frame of H:
+basis (parent conventional units): (0,-2,0), (-1,0,0), (0,0,-1)
+origin: (0,0,0)
+  X5+ (X, dim 6) -> GM1+ [Ag] + GM3+ [B3g] + 4 components at non-Gamma k of H
+note: GM1 of H occurs in a primary irrep once per free parameter of the direction
+
+$ crystod-group --correlate --sg Pm-3m --kpoint GM X
+
+* Space group *
+Pm-3m (No. 221)
+
+* Compatibility relations *
+line DT between GM (0, 0, 0) and X (0, 1/2, 0), labeled at kdelta = (0, 1/24, 0) (primitive basis)
+  GM1+ (dim 1) -> DT1
+  GM2+ (dim 1) -> DT2
+  GM3+ (dim 2) -> DT1 + DT2
+  GM4+ (dim 3) -> DT4 + DT5
+  GM5+ (dim 3) -> DT3 + DT5
+  GM1- (dim 1) -> DT4
+  GM2- (dim 1) -> DT3
+  GM3- (dim 2) -> DT3 + DT4
+  GM4- (dim 3) -> DT1 + DT5
+  GM5- (dim 3) -> DT2 + DT5
+  X1+  (dim 1) -> DT1
+  X2+  (dim 1) -> DT2
+  X3+  (dim 1) -> DT4
+  X4+  (dim 1) -> DT3
+  X5+  (dim 2) -> DT5
+  X1-  (dim 1) -> DT4
+  X2-  (dim 1) -> DT3
+  X3-  (dim 1) -> DT1
+  X4-  (dim 1) -> DT2
+  X5-  (dim 2) -> DT5
+
+$ crystod-group --correlate --sg Fd-3m --kpoint GM X
+
+* Space group *
+Fd-3m (No. 227)
+
+* Compatibility relations *
+line DT between GM (0, 0, 0) and X (1/2, 0, 1/2), labeled at kdelta = (1/24, 0, 1/24) (primitive basis)
+  GM1+ (dim 1) -> DT1
+  GM2+ (dim 1) -> DT2
+  GM3+ (dim 2) -> DT1 + DT2
+  GM4+ (dim 3) -> DT4 + DT5
+  GM5+ (dim 3) -> DT3 + DT5
+  GM1- (dim 1) -> DT4
+  GM2- (dim 1) -> DT3
+  GM3- (dim 2) -> DT3 + DT4
+  GM4- (dim 3) -> DT1 + DT5
+  GM5- (dim 3) -> DT2 + DT5
+  X1   (dim 2) -> DT1 + DT3
+  X2   (dim 2) -> DT2 + DT4
+  X3   (dim 2) -> DT5
+  X4   (dim 2) -> DT5
+
+$ crystod-group --correlate --sg Pm-3m --kpoint X M
+
+* Space group *
+Pm-3m (No. 221)
+
+* Compatibility relations *
+line Z between X (0, 1/2, 0) and M (1/2, 1/2, 0), labeled at kdelta = (1/24, 1/2, 0) (primitive basis)
+  X1+ (dim 1) -> Z1
+  X2+ (dim 1) -> Z1
+  X3+ (dim 1) -> Z3
+  X4+ (dim 1) -> Z3
+  X5+ (dim 2) -> Z2 + Z4
+  X1- (dim 1) -> Z2
+  X2- (dim 1) -> Z2
+  X3- (dim 1) -> Z4
+  X4- (dim 1) -> Z4
+  X5- (dim 2) -> Z1 + Z3
+  M1+ (dim 1) -> Z1
+  M2+ (dim 1) -> Z1
+  M3+ (dim 1) -> Z4
+  M4+ (dim 1) -> Z4
+  M5+ (dim 2) -> Z2 + Z3
+  M1- (dim 1) -> Z2
+  M2- (dim 1) -> Z2
+  M3- (dim 1) -> Z3
+  M4- (dim 1) -> Z3
+  M5- (dim 2) -> Z1 + Z4
+
+$ crystod-group --correlate --pg m-3m --subgroup 4/mmm
+
+* Point group *
+m-3m (order 48)
+
+* Subgroup *
+4/mmm (order 16, index 3): 1 inequivalent orientation
+  4/mmm (4 || z): 3 conjugate subgroups; C2' = 2_x, 2_y; C2'' = 2_[110], 2_[1-10]
+
+* Correlation table *
+irrep  4/mmm (4 || z)
+A1g    A1g
+A2g    B1g
+Eg     A1g + B1g
+T1g    A2g + Eg
+T2g    B2g + Eg
+A1u    A1u
+A2u    B1u
+Eu     A1u + B1u
+T1u    A2u + Eu
+T2u    B2u + Eu
+
+note: x, y, z are the axes [100], [010], [001] of the table of m-3m; 2_d is
+      the twofold rotation about d, m_d the mirror normal to d; the symbols of
+      H are those of phonopy's table of H with its classes as listed under
+      * Subgroup * (B1/B2/B3 follow them).
+
+$ crystod-group --correlate --pg m-3m --subgroup -3m
+
+* Point group *
+m-3m (order 48)
+
+* Subgroup *
+-3m (order 12, index 4): 1 inequivalent orientation
+  -3m (-3 || [111]): 4 conjugate subgroups; C2' = 2_[1-10], 2_[10-1], 2_[01-1]
+
+* Correlation table *
+irrep  -3m (-3 || [111])
+A1g    A1g
+A2g    A2g
+Eg     Eg
+T1g    A2g + Eg
+T2g    A1g + Eg
+A1u    A1u
+A2u    A2u
+Eu     Eu
+T1u    A2u + Eu
+T2u    A1u + Eu
+
+note: x, y, z are the axes [100], [010], [001] of the table of m-3m; 2_d is
+      the twofold rotation about d, m_d the mirror normal to d; the symbols of
+      H are those of phonopy's table of H with its classes as listed under
+      * Subgroup * (B1/B2/B3 follow them).
+
+$ crystod-group --correlate --pg -43m --subgroup 3m
+
+* Point group *
+-43m (order 24)
+
+* Subgroup *
+3m (order 6, index 4): 1 inequivalent orientation
+  3m (3 || [111]): 4 conjugate subgroups; sgv = m_[1-10], m_[10-1], m_[01-1]
+
+* Correlation table *
+irrep  3m (3 || [111])
+A1     A1
+A2     A2
+E      E
+T1     A2 + E
+T2     A1 + E
+
+note: x, y, z are the axes [100], [010], [001] of the table of -43m; 2_d is
+      the twofold rotation about d, m_d the mirror normal to d; the symbols of
+      H are those of phonopy's table of H with its classes as listed under
+      * Subgroup * (B1/B2/B3 follow them).
+
+$ crystod-group --correlate --pg m-3m --subgroup mm2
+
+* Point group *
+m-3m (order 48)
+
+* Subgroup *
+mm2 (order 4, index 12): 3 inequivalent orientations
+  mm2 (2 || z, m_y): 3 conjugate subgroups; sgvxz = m_y; sgvyz = m_x
+  mm2 (2 || z, m_[110]): 3 conjugate subgroups; sgvxz = m_[110]; sgvyz = m_[1-10]
+  mm2 (2 || [110]): 6 conjugate subgroups; sgvxz = m_[1-10]; sgvyz = m_z
+
+* Correlation table *
+irrep  mm2 (2 || z, m_y)  mm2 (2 || z, m_[110])  mm2 (2 || [110])
+A1g    A1                 A1                     A1
+A2g    A1                 A2                     B2
+Eg     2 A1               A1 + A2                A1 + B2
+T1g    A2 + B1 + B2       A2 + B1 + B2           A2 + B1 + B2
+T2g    A2 + B1 + B2       A1 + B1 + B2           A1 + A2 + B1
+A1u    A2                 A2                     A2
+A2u    A2                 A1                     B1
+Eu     2 A2               A1 + A2                A2 + B1
+T1u    A1 + B1 + B2       A1 + B1 + B2           A1 + B1 + B2
+T2u    A1 + B1 + B2       A2 + B1 + B2           A1 + A2 + B2
+
+note: x, y, z are the axes [100], [010], [001] of the table of m-3m; 2_d is
+      the twofold rotation about d, m_d the mirror normal to d; the symbols of
+      H are those of phonopy's table of H with its classes as listed under
+      * Subgroup * (B1/B2/B3 follow them).
+
+$ crystod-group --correlate --pg 6/mmm --subgroup mmm
+
+* Point group *
+6/mmm (order 24)
+
+* Subgroup *
+mmm (order 8, index 3): 1 inequivalent orientation
+  mmm (2 || [001]): 3 conjugate subgroups; C2x = 2_[100]; C2y = 2_[120]
+
+* Correlation table *
+irrep  mmm (2 || [001])
+A1g    Ag
+A2g    B1g
+B1g    B3g
+B2g    B2g
+E1g    B2g + B3g
+E2g    Ag + B1g
+A1u    Au
+A2u    B1u
+B1u    B3u
+B2u    B2u
+E1u    B2u + B3u
+E2u    Au + B1u
+
+note: directions [uvw] are in the hexagonal axes a, b, c of the table of
+      6/mmm; 2_d is the twofold rotation about d, m_d the mirror normal to d;
+      the symbols of H are those of phonopy's table of H with its classes as
+      listed under * Subgroup * (B1/B2/B3 follow them).
+
+$ crystod-group --correlate --pg 4/mmm --subgroup 2/m
+
+* Point group *
+4/mmm (order 16)
+
+* Subgroup *
+2/m (order 4, index 4): 3 inequivalent orientations
+  2/m (2 || z): 1 conjugate subgroup
+  2/m (2 || x): 2 conjugate subgroups
+  2/m (2 || [110]): 2 conjugate subgroups
+
+* Correlation table *
+irrep  2/m (2 || z)  2/m (2 || x)  2/m (2 || [110])
+A1g    Ag            Ag            Ag
+A2g    Ag            Bg            Bg
+B1g    Ag            Ag            Bg
+B2g    Ag            Bg            Ag
+Eg     2 Bg          Ag + Bg       Ag + Bg
+A1u    Au            Au            Au
+A2u    Au            Bu            Bu
+B1u    Au            Au            Bu
+B2u    Au            Bu            Au
+Eu     2 Bu          Au + Bu       Au + Bu
+
+note: x, y, z are the axes [100], [010], [001] of the table of 4/mmm; 2_d is
+      the twofold rotation about d, m_d the mirror normal to d; the symbols of
+      H are those of phonopy's table of H.
+
+$ crystod-group --correlate --pg 4/mmm --subgroup -42m
+
+* Point group *
+4/mmm (order 16)
+
+* Subgroup *
+-42m (order 8, index 2): 2 inequivalent orientations
+  -42m (-4 || z, -42m setting): 1 conjugate subgroup; C2' = 2_x, 2_y
+  -42m (-4 || z, -4m2 setting): 1 conjugate subgroup; C2'' = 2_[110], 2_[1-10]
+
+* Correlation table *
+irrep  -42m (-4 || z, -42m setting)  -42m (-4 || z, -4m2 setting)
+A1g    A1                            A1
+A2g    A2                            A2
+B1g    B1                            B2
+B2g    B2                            B1
+Eg     E                             E
+A1u    B1                            B1
+A2u    B2                            B2
+B1u    A1                            A2
+B2u    A2                            A1
+Eu     E                             E
+
+note: x, y, z are the axes [100], [010], [001] of the table of 4/mmm; 2_d is
+      the twofold rotation about d, m_d the mirror normal to d; the symbols of
+      H are those of phonopy's table of H with its classes as listed under
+      * Subgroup * (B1/B2/B3 follow them).

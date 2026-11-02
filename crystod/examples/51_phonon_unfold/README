@@ -1,0 +1,52 @@
+# Phonon band unfolding onto the parent Brillouin zone (crystod-phonon --unfold);
+# testsuite section 51
+# The phonons of a distorted, low-symmetry structure (the child) are drawn in
+# the Brillouin zone of its high-symmetry parent: child mode J, computed at the
+# child wave vector K = M k, appears at the parent k with the weight P_J(k) of
+# its projection onto the Bloch states of the parent translations (P. B. Allen
+# et al., Phys. Rev. B 87, 085322 (2013)), and every unfolded level is labeled
+# with its parent irrep (the ISO-IR labels crystod-phonon --irreps gives the
+# parent POSCAR, with the Mulliken symbols at GM). The modes that are imaginary
+# in the parent (in CaTiO3 the octahedral tilts R4+ and M3+ and the polar mode
+# GM4- [T1u]; in AlF3 the tilts R4+ and M3+, of which only R4+ condenses)
+# reappear in the child at real frequencies. The run lists the child GM levels
+# that those at a parent k folding onto the child Gamma point go into: all
+# three in CaTiO3, R4+ in AlF3, whose M folds onto the child F point (there
+# M3+ goes into the child level at 4.43 THz).
+# The transformation M and the origin shift p between the two cells are not
+# input: they are those of crystod-group --supergroup-cif PARENT
+# --subgroup-cif CHILD, computed from the two structures; --trans-mat chooses
+# another of the equivalent settings.
+#
+# Two cases, each with the child and the parent in their own directories (the
+# force file of each structure is read next to its POSCAR; in one directory the
+# two need their own names, FORCE_SETS_<POSCAR name> as macer writes them, e.g.
+# FORCE_SETS_POSCAR_child and FORCE_SETS_POSCAR_parent; macer names that file
+# after its unrelaxed input POSCAR, but the forces belong to the relaxed cell,
+# macer's POSCAR, which is the cell to give as --child-poscar/--parent-poscar):
+#   CaTiO3_Pnma/  child   Pnma CaTiO3, 20 atoms   child/62_PPOSCAR_CaTiO3, child/FORCE_SETS
+#                 parent  Pm-3m CaTiO3, 5 atoms   parent/221_PPOSCAR_CaTiO3, parent/FORCE_SETS
+#   AlF3_R-3c/    child   R-3c AlF3, 8 atoms      child/167_PPOSCAR_AlF3, child/FORCE_SETS
+#                 parent  Pm-3m AlF3, 4 atoms     parent/221_PPOSCAR_AlF3, parent/FORCE_SETS
+# Run the commands of each README inside its directory, e.g.
+#   cd CaTiO3_Pnma
+#   crystod-phonon --unfold --child-poscar child/62_PPOSCAR_CaTiO3 --child-dim 2 2 2 --parent-poscar parent/221_PPOSCAR_CaTiO3 --parent-dim 2 2 2
+#   cd ../AlF3_R-3c
+#   crystod-phonon --unfold --child-poscar child/167_PPOSCAR_AlF3 --child-dim 2 2 2 --parent-poscar parent/221_PPOSCAR_AlF3 --parent-dim 2 2 2
+# Each run writes phonon_unfold.pdf (2 pages, about 10 MB for CaTiO3: one
+# marker per child mode and k point) and phonon_unfold.dat (about 6 MB) into
+# the working directory; -o PREFIX renames them and --export-npz FILE adds
+# every array. A run takes about 13 s (CaTiO3) or 10 s (AlF3) on a Mac Studio
+# M3 Ultra; the timings entry of '* Unfolding summary *' lists the time of
+# each step.
+#
+# Data
+# The four phonon calculations were made with macer (macer phonopy pb) and the
+# MACE machine-learning force field MACE-matpes-r2scan-omat-ft: ISIF = 3
+# relaxation (fmax 0.005 eV/A, symprec 1e-5), displacements of 0.01 A in
+# 2x2x2 supercells, FORCE_SETS; no BORN file and no NAC. The POSCARs are the
+# relaxed cells of the phonon calculations (SPOSCAR = 2x2x2 of them); the
+# AlF3 child is the 8-atom rhombohedral primitive cell, not the 24-atom
+# hexagonal cell. The parents have the octahedral cation (Ti, Al) at the
+# origin, so the tilts are R4+ (antiphase) and M3+ (in-phase); with Ca at the
+# origin the same tilts of CaTiO3 would read R5- and M2+.

@@ -1,0 +1,41 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ P4_32_12 (96)
+
+ * Element (number of atoms) *
+ Cu (8)
+
+ * Wyckoff letters and site symmetry letters *
+ ['b', 'b', 'b', 'b', 'b', 'b', 'b', 'b']
+ ['1', '1', '1', '1', '1', '1', '1', '1']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  A [0.5, 0.5, 0.5]
+ little group of k  :  P4_32_12 (96)
+ irreps             :  6.0 [A1(2)] + 6.0 [A2(2)] 
+
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  P4_32_12 (96)
+ irreps             :  3.0 [GM1(1)] + 3.0 [GM2(1)] + 3.0 [GM3(1)] + 3.0 [GM4(1)] + 6.0 [GM5(2)] 
+
+ k point (primitive):  M [0.5, 0.5, 0.0]
+ little group of k  :  P4_32_12 (96)
+ irreps             :  3.0 [M1(1)] + 3.0 [M2(1)] + 3.0 [M3(1)] + 3.0 [M4(1)] + 6.0 [M5(2)] 
+
+ k point (primitive):  Z [0.0, 0.0, 0.5]
+ little group of k  :  P4_32_12 (96)
+ irreps             :  6.0 [Z1(2)] + 6.0 [Z2(2)] 
+
+ k point (primitive):  R [0.0, 0.5, 0.5]
+ little group of k  :  P2_12_12_1 (19)
+ irreps             :  6.0 [R1(1)] + 6.0 [R2(1)] + 6.0 [R3(1)] + 6.0 [R4(1)] 
+
+ k point (primitive):  X [0.0, 0.5, 0.0]
+ little group of k  :  P2_12_12_1 (19)
+ irreps             :  12.0 [X1(2)] 
+

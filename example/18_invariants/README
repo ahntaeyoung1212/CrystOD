@@ -1,0 +1,293 @@
+# Invariant polynomials (crystod-group --parent --irrep --invariants); testsuite section 18
+# Counterpart of INVARIANTS (ISOTROPY Software Suite, https://iso.byu.edu)
+# Q1, Q2, ... are the order-parameter components in the order of the direction
+# patterns of crystod-group --parent (arms separated by ";" there); several
+# irreps give the direct sum, with components <label>_n and invariants by
+# multidegree.
+# The number of invariants of every (multi)degree is checked against the Molien series.
+# The * Irrep * block gives the Landau (no cubic invariant) and Lifshitz conditions.
+# --order-parameter adds the free energy restricted to that direction;
+# --secondary lists the secondary order parameters of its isotropy subgroup.
+
+$ crystod-group --parent Pm-3m --irrep R4+ --invariants --degree 4
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+R4+: order parameter dimension 3
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+
+* Invariant polynomials (degree <= 4) *
+Order-parameter components: (Q1, Q2, Q3), in the order of the direction patterns (a, b, c)
+degree 2: 1 invariant
+  I2_1 = Q1^2 + Q2^2 + Q3^2
+degree 3: none
+degree 4: 2 invariants (1 from lower degrees, 1 new)
+  I2_1^2
+  I4_1 = Q1^2*Q2^2 + Q1^2*Q3^2 + Q2^2*Q3^2
+Numbers of invariants checked against the Molien series.
+
+Conventions and validation: ISOTROPY INVARIANTS (https://iso.byu.edu):
+D. M. Hatch and H. T. Stokes, J. Appl. Cryst. 36, 951-952 (2003).
+
+$ crystod-group --parent Pm-3m --irrep M3+ --invariants --degree 4
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+M3+: order parameter dimension 3 (star of 3 arm(s) x small dim 1)
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+
+* Invariant polynomials (degree <= 4) *
+Order-parameter components: (Q1, Q2, Q3), in the order of the direction patterns (a; b; c)
+degree 2: 1 invariant
+  I2_1 = Q1^2 + Q2^2 + Q3^2
+degree 3: none
+degree 4: 2 invariants (1 from lower degrees, 1 new)
+  I2_1^2
+  I4_1 = Q1^2*Q2^2 + Q1^2*Q3^2 + Q2^2*Q3^2
+Numbers of invariants checked against the Molien series.
+
+Conventions and validation: ISOTROPY INVARIANTS (https://iso.byu.edu):
+D. M. Hatch and H. T. Stokes, J. Appl. Cryst. 36, 951-952 (2003).
+
+$ crystod-group --parent Pm-3m --irrep M1+ --invariants --degree 4
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+M1+: order parameter dimension 3 (star of 3 arm(s) x small dim 1)
+  Landau condition: violated (1 cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is forbidden (Landau)
+
+* Invariant polynomials (degree <= 4) *
+Order-parameter components: (Q1, Q2, Q3), in the order of the direction patterns (a; b; c)
+degree 2: 1 invariant
+  I2_1 = Q1^2 + Q2^2 + Q3^2
+degree 3: 1 invariant
+  I3_1 = Q1*Q2*Q3
+degree 4: 2 invariants (1 from lower degrees, 1 new)
+  I2_1^2
+  I4_1 = Q1^2*Q2^2 + Q1^2*Q3^2 + Q2^2*Q3^2
+Numbers of invariants checked against the Molien series.
+
+Conventions and validation: ISOTROPY INVARIANTS (https://iso.byu.edu):
+D. M. Hatch and H. T. Stokes, J. Appl. Cryst. 36, 951-952 (2003).
+
+$ crystod-group --parent Pm-3m --irrep GM4- --invariants
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+GM4-: order parameter dimension 3
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+
+* Invariant polynomials (degree <= 4) *
+Order-parameter components: (Q1, Q2, Q3), in the order of the direction patterns (a, b, c)
+degree 2: 1 invariant
+  I2_1 = Q1^2 + Q2^2 + Q3^2
+degree 3: none
+degree 4: 2 invariants (1 from lower degrees, 1 new)
+  I2_1^2
+  I4_1 = Q1^2*Q2^2 + Q1^2*Q3^2 + Q2^2*Q3^2
+Numbers of invariants checked against the Molien series.
+
+Conventions and validation: ISOTROPY INVARIANTS (https://iso.byu.edu):
+D. M. Hatch and H. T. Stokes, J. Appl. Cryst. 36, 951-952 (2003).
+
+$ crystod-group --parent I4/mmm --irrep X2+ X3- GM5- --invariants --degree 3
+
+* Supergroup *
+I4/mmm (No. 139)
+
+* Coupled irreps *
+X2+: order parameter dimension 2 (star of 2 arm(s) x small dim 1)
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+X3-: order parameter dimension 2 (star of 2 arm(s) x small dim 1)
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+GM5-: order parameter dimension 2
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+coupled order parameter dimension 6 (2 + 2 + 2)
+
+* Invariant polynomials (degree <= 3) *
+Order-parameter components: (X2+_1, X2+_2, X3-_1, X3-_2, GM5-_1, GM5-_2), in the order of the direction patterns (a; b | c; d | e, f)
+degree (2, 0, 0): 1 invariant
+  I(2,0,0)_1 = X2+_1^2 + X2+_2^2
+degree (1, 1, 0): none
+degree (1, 0, 1): none
+degree (0, 2, 0): 1 invariant
+  I(0,2,0)_1 = X3-_1^2 + X3-_2^2
+degree (0, 1, 1): none
+degree (0, 0, 2): 1 invariant
+  I(0,0,2)_1 = GM5-_1^2 + GM5-_2^2
+degree (3, 0, 0): none
+degree (2, 1, 0): none
+degree (2, 0, 1): none
+degree (1, 2, 0): none
+degree (1, 1, 1): 1 invariant
+  I(1,1,1)_1 = X2+_1*X3-_1*GM5-_1 + X2+_1*X3-_1*GM5-_2 + X2+_2*X3-_2*GM5-_1 - X2+_2*X3-_2*GM5-_2
+degree (1, 0, 2): none
+degree (0, 3, 0): none
+degree (0, 2, 1): none
+degree (0, 1, 2): none
+degree (0, 0, 3): none
+Lowest-order coupling term: degree (1, 1, 1), 1 invariant
+Numbers of invariants checked against the Molien series.
+
+Conventions and validation: ISOTROPY INVARIANTS (https://iso.byu.edu):
+D. M. Hatch and H. T. Stokes, J. Appl. Cryst. 36, 951-952 (2003).
+
+$ crystod-group --parent Pm-3m --irrep R4+ --invariants --order-parameter a b 0
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+R4+: order parameter dimension 3
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+
+* Invariant polynomials (degree <= 4) *
+Order-parameter components: (Q1, Q2, Q3), in the order of the direction patterns (a, b, c)
+degree 2: 1 invariant
+  I2_1 = Q1^2 + Q2^2 + Q3^2
+degree 3: none
+degree 4: 2 invariants (1 from lower degrees, 1 new)
+  I2_1^2
+  I4_1 = Q1^2*Q2^2 + Q1^2*Q3^2 + Q2^2*Q3^2
+Numbers of invariants checked against the Molien series.
+
+Restricted to (a,b,0) [C2/m (12)]:
+degree 2: a^2 + b^2
+degree 4: a^4 + b^4; a^2*b^2
+
+Conventions and validation: ISOTROPY INVARIANTS (https://iso.byu.edu):
+D. M. Hatch and H. T. Stokes, J. Appl. Cryst. 36, 951-952 (2003).
+
+$ crystod-group --parent Pm-3m --irrep R4+ --order-parameter a 0 0 --secondary
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+R4+: order parameter dimension 3
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+
+* Isotropy subgroup *
+R4+(a,0,0) -> I4/mcm (No. 140)
+cell size 2, index 6
+sublattice basis (parent primitive units): (2,0,0), (1,1,0), (1,0,1)
+conventional basis (parent conventional units): (1,-1,0), (1,1,0), (0,0,2)
+origin: (0,0,0)
+
+* Secondary order parameters *
+H = I4/mcm (140), index 6
+irrep  k              dim  n_free  direction   coupling  type
+GM1+   (0,0,0)        1    1       (a)         Q^2 eta   strain
+GM3+   (0,0,0)        2    1       (0.577a,a)  Q^2 eta   strain
+R4+    (1/2,1/2,1/2)  3    1       (a,0,0)     -         primary
+coupling: lowest invariant Q^m eta (Q primary, eta this irrep) that does not vanish on the fixed space of H, total degree <= 4
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+
+$ crystod-group --parent I4/mmm --irrep X2+ X3- --order-parameter 0 a 0 c --secondary
+
+* Supergroup *
+I4/mmm (No. 139)
+
+* Coupled irreps *
+X2+: order parameter dimension 2 (star of 2 arm(s) x small dim 1)
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+X3-: order parameter dimension 2 (star of 2 arm(s) x small dim 1)
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+coupled order parameter dimension 4 (2 + 2)
+
+* Isotropy subgroup *
+X2+(0;a) X3-(0;c) -> Cmc2_1 (No. 36)
+cell size 2, index 8
+sublattice basis (parent primitive units): (2,0,0), (1,1,0), (0,0,1)
+conventional basis (parent conventional units): (0,0,1), (-1,-1,0), (1,-1,0)
+origin: (-1/4,-1/4,-1/2)
+
+* Secondary order parameters *
+H = Cmc2_1 (36), index 8
+irrep  k          dim  n_free  direction  coupling            type
+GM1+   (0,0,0)    1    1       (a)        Q1^2 eta, Q2^2 eta  strain
+GM4+   (0,0,0)    1    1       (a)        Q1^2 eta, Q2^2 eta  strain
+GM5-   (0,0,0)    2    1       (a,-a)     Q1^1 Q2^1 eta       polar
+X2+    (0,0,1/2)  2    1       (0;a)      -                   primary
+X3-    (0,0,1/2)  2    1       (0;a)      -                   primary
+coupling: lowest invariant Q^m eta (Q primary, eta this irrep) that does not vanish on the fixed space of H, total degree <= 4
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+
+$ crystod-group --parent Pm-3m --irrep R4+ M3+ --order-parameter 0 a a d 0 0 --secondary
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Coupled irreps *
+R4+: order parameter dimension 3
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+M3+: order parameter dimension 3 (star of 3 arm(s) x small dim 1)
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+coupled order parameter dimension 6 (3 + 3)
+
+* Isotropy subgroup *
+R4+(0,a,a) M3+(d;0;0) -> Pnma (No. 62)
+cell size 4, index 24
+sublattice basis (parent primitive units): (2,0,0), (1,1,0), (0,0,2)
+conventional basis (parent conventional units): (-1,-1,0), (0,0,-2), (1,-1,0)
+origin: (0,0,0)
+
+* Secondary order parameters *
+H = Pnma (62), index 24
+irrep  k              dim  n_free  direction      coupling                 type
+GM1+   (0,0,0)        1    1       (a)            Q1^2 eta, Q2^2 eta       strain
+GM3+   (0,0,0)        2    1       (0.577a,a)     Q1^2 eta, Q2^2 eta       strain
+GM5+   (0,0,0)        3    1       (a,0,0)        Q1^2 eta                 strain
+R4+    (1/2,1/2,1/2)  3    1       (0,a,a)        -                        primary
+R5+    (1/2,1/2,1/2)  3    1       (0,a,-a)       Q1^3 eta, Q1^1 Q2^2 eta  other
+X5+    (0,1/2,0)      6    1       (0,0;a,a;0,0)  Q1^1 Q2^1 eta            other
+M2+    (1/2,1/2,0)    3    1       (a;0;0)        Q1^2 Q2^1 eta            other
+M3+    (1/2,1/2,0)    3    1       (a;0;0)        -                        primary
+coupling: lowest invariant Q^m eta (Q primary, eta this irrep) that does not vanish on the fixed space of H, total degree <= 4
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
