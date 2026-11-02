@@ -43,7 +43,11 @@ bottom row: <code>crystod-bz -c 221_PPOSCAR_ScF3</code> and
 
 Every irrep label follows one convention throughout — the ISO-IR (ISOTROPY, Miller–Love)
 tables, which ship inside the package — at the special k points and equally on symmetry
-lines, planes and general points.
+lines, planes and general points. The double-valued irreps of spin-orbit coupling, which
+the tables do not hold, are named from the same labels with the numbering of Bradley &
+Cracknell (1972), Table 6.5 (`-GM8+`; two exceptions, stated in the output; not the Bilbao
+numbering), the same on every arm of a star and in `crystod --spinor`, `--extract-irrep` and
+the WAVECAR-overlap engine ([convention](https://mochizuki-tus.github.io/CrystOD/crystod.html#double-valued-irreps-spinor)).
 
 ## The eleven commands
 
@@ -261,7 +265,7 @@ describes the development setup, the code style and the pull-request process.
 
 - **Yasuhide Mochizuki** — Tokyo University of Science ([mochizuki@rs.tus.ac.jp](mailto:mochizuki@rs.tus.ac.jp))
 - **Hiroki Koiso** — Institute of Science Tokyo
-- **Ryuju Kiribayashi** — the original slabkit.py that became `crystod-slab`
+- **Ryuju Kiribayashi** — Institute of Science Tokyo
 
 ## Citation
 
