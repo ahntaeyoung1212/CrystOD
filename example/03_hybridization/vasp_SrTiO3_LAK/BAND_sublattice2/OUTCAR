@@ -1,0 +1,26 @@
+ trimmed OUTCAR excerpt (CrystOD test fixture): run parameters,
+ Fermi level, the CrystOD Va point-charge table, and the two lines
+ that name each PAW dataset and its valence configuration.  The
+ PAW header tables of the real OUTCAR are POTCAR content and are
+ not reproduced here.
+
+   ENCUT = 550
+   LORBIT = 12
+   METAGGA = LAK
+
+   VRHFIN =O: s2p4
+   TITEL  = PAW_PBE O 08Apr2002
+
+ CrystOD Va point-charge species
+   typ  name      ions        q     sigma[A]      A[eV]       b[A]   PSCORE[eV A^3]     V(r=0)[eV]
+     1  Va2+         1       2.0000       0.5000     114.8937       0.4500     210.1317      68.9362
+     2  Va4+         1       4.0000       0.5000     229.7874       0.4500     420.2635     137.8724
+
+   sum NITYP*ZVAL  (NELECT) =      24.000000
+   k-points           NKPTS =    4   k-points in BZ     NKDIM =    4   number of bands    NBANDS=     64
+   ISPIN  =      1    spin polarized calculation?
+   ENCUT  =  550.0 eV  40.42 Ry    6.36 a.u.   7.47  7.47  7.47*2*pi/ulx,y,z
+   NELECT =      24.0000    total number of electrons
+   LORBIT       =     12    0 simple, 1 ext, 2 COOP (PROOUT), +10 PAW based schemes
+   METAGGA = LAK    functional components
+ E-fermi :  -3.4211     XC(G=0):  -9.2747     alpha+bet :  6.7982

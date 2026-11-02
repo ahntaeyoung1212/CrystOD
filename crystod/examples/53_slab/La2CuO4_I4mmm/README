@@ -1,0 +1,122 @@
+# La2CuO4 (I4/mmm, K2NiF4 type; 7 atoms in the primitive POSCAR), the compound
+# of R. Kiribayashi et al., ACS Appl. Mater. Interfaces 17, 61872-61887 (2025)
+# --conventional: the conventional body-centred cell (14 atoms), so that (0 0 1)
+# is the plane of the CuO2 layers. (0 0 1) has three terminations of 14 atoms
+# each (--max-atoms 60 keeps them all):
+#   t1 (shift 0.070)  a LaO plane (La outermost) on one face, CuO2 on the other:
+#                     polar
+#   t2 (shift 0.163)  the cut runs through a LaO plane: O on one face, La on
+#                     the other: polar
+#   t3 (shift 0.250)  the cut between the two LaO planes of the rock-salt double
+#                     layer: LaO on both faces (O outermost), non-polar and
+#                     symmetric
+crystod-slab -c 139_PPOSCAR_La2CuO4 --conventional --index 0 0 1 --max-atoms 60
+
+# Every surface with |h|,|k|,|l| <= 1 that is distinct under the Laue group
+# 4/mmm, listed only (--no-files writes nothing)
+crystod-slab -c 139_PPOSCAR_La2CuO4 --conventional --max-index 1 --no-files
+
+
+Sample output (crystod 0.4.6, pymatgen 2026.5.4)
+------------------------------------------------
+
+$ crystod-slab -c 139_PPOSCAR_La2CuO4 --conventional --index 0 0 1 --max-atoms 60
+
+* Structure *
+ 139_PPOSCAR_La2CuO4: La2CuO4, I4/mmm (No. 139), 7 atoms
+ standardized conventional cell: 14 atoms (input: 7)
+ a, b, c = 3.8138, 3.8138, 13.2249 A; alpha, beta, gamma = 90, 90, 90 deg
+ Miller indices refer to the axes of this cell.
+
+* Slab settings *
+ minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive in-plane cell: yes
+ polar slabs: written
+ oxidation states for the dipole: La+3 Cu+2 O-2 (guessed)
+ maximum atoms per slab: 60
+
+* Miller indices *
+ indices given: (0 0 1)
+
+* Slabs *
+  #  h k l  shift  atoms  thickness (A)  vacuum (A)  area (A^2)  formula   polar  symmetric  status
+  1  0 0 1  0.070     14          11.39       28.29       14.55  La4Cu2O8  yes    no         written
+  2  0 0 1  0.163     14          12.60       27.07       14.55  La4Cu2O8  yes    no         written
+  3  0 0 1  0.250     14          11.54       28.14       14.55  La4Cu2O8  no     yes        written
+ thickness: extent of the atoms along the surface normal (whole oriented cells are stacked to the
+ minimum slab height, and the atoms span them less the gap at the cut); vacuum: cell height along
+ the normal minus the thickness (both in A); area: in-plane cell area (A^2); shift: pymatgen's
+ termination shift (fractional c of the oriented cell); polar: dipole per area from the oxidation
+ states (Slab.is_polar; ? = no states); symmetric: an operation of the slab turns the normal over
+ (e.g. inversion, a mirror or glide plane parallel to the surface, a 2-fold axis in it), so the two
+ faces are equivalent (Slab.is_symmetric).
+
+* Output files *
+ #1 -> POSCAR_slab_La2CuO4_001_t1
+ #2 -> POSCAR_slab_La2CuO4_001_t2
+ #3 -> POSCAR_slab_La2CuO4_001_t3
+
+If you use crystod-slab in your research, please cite:
+  R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, Y. Mochizuki,
+  and A. Nakajima, "Preparation and Antiviral Activity of La2CuO4 and Y2Cu2O5 with
+  Mechanistic Insights from First Principles", ACS Appl. Mater. Interfaces 17, 61872-61887
+  (2025). https://doi.org/10.1021/acsami.5c17978
+The slabs are built with pymatgen's SlabGenerator:
+  W. Sun and G. Ceder, Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).
+
+If you use CrystOD in your research, please cite:
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024).
+  https://doi.org/10.1103/PhysRevB.110.064104
+
+$ crystod-slab -c 139_PPOSCAR_La2CuO4 --conventional --max-index 1 --no-files
+
+* Structure *
+ 139_PPOSCAR_La2CuO4: La2CuO4, I4/mmm (No. 139), 7 atoms
+ standardized conventional cell: 14 atoms (input: 7)
+ a, b, c = 3.8138, 3.8138, 13.2249 A; alpha, beta, gamma = 90, 90, 90 deg
+ Miller indices refer to the axes of this cell.
+
+* Slab settings *
+ minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive in-plane cell: yes
+ polar slabs: written
+ oxidation states for the dipole: La+3 Cu+2 O-2 (guessed)
+ maximum atoms per slab: no limit
+
+* Miller indices *
+ indices with |h|,|k|,|l| <= 1, distinct under the Laue group 4/mmm: (1 1 1) (1 1 0) (1 0 1) (1 0 0)
+   (0 0 1)
+
+* Slabs *
+  #  h k l shift atoms thickness vacuum  area formula    polar symmetric status
+  1  1 1 1 0.070    56     10.20  16.22 72.80 La16Cu8O32 yes   no        not written (--no-files)
+  2  1 1 1 0.163    56     10.45  15.98 72.80 La16Cu8O32 yes   no        not written (--no-files)
+  3  1 1 1 0.250    56     10.23  16.19 72.80 La16Cu8O32 no    yes       not written (--no-files)
+  4  1 1 0 0.250    28      9.44  17.53 35.66 La8Cu4O16  yes   no        not written (--no-files)
+  5  1 0 1 0.093    21     10.31  19.00 26.25 La6Cu3O12  no    no        not written (--no-files)
+  6  1 0 1 0.274    21     10.35  18.96 26.25 La6Cu3O12  yes   no        not written (--no-files)
+  7  1 0 1 0.430    21     10.48  18.83 26.25 La6Cu3O12  yes   no        not written (--no-files)
+  8  1 0 0 0.250    42      9.53  17.16 50.44 La12Cu6O24 no    yes       not written (--no-files)
+  9  0 0 1 0.070    14     11.39  28.29 14.55 La4Cu2O8   yes   no        not written (--no-files)
+ 10  0 0 1 0.163    14     12.60  27.07 14.55 La4Cu2O8   yes   no        not written (--no-files)
+ 11  0 0 1 0.250    14     11.54  28.14 14.55 La4Cu2O8   no    yes       not written (--no-files)
+ thickness: extent of the atoms along the surface normal (whole oriented cells are stacked to the
+ minimum slab height, and the atoms span them less the gap at the cut); vacuum: cell height along
+ the normal minus the thickness (both in A); area: in-plane cell area (A^2); shift: pymatgen's
+ termination shift (fractional c of the oriented cell); polar: dipole per area from the oxidation
+ states (Slab.is_polar; ? = no states); symmetric: an operation of the slab turns the normal over
+ (e.g. inversion, a mirror or glide plane parallel to the surface, a 2-fold axis in it), so the two
+ faces are equivalent (Slab.is_symmetric).
+
+* Output files *
+ none (--no-files)
+
+If you use crystod-slab in your research, please cite:
+  R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, Y. Mochizuki,
+  and A. Nakajima, "Preparation and Antiviral Activity of La2CuO4 and Y2Cu2O5 with
+  Mechanistic Insights from First Principles", ACS Appl. Mater. Interfaces 17, 61872-61887
+  (2025). https://doi.org/10.1021/acsami.5c17978
+The slabs are built with pymatgen's SlabGenerator:
+  W. Sun and G. Ceder, Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).
+
+If you use CrystOD in your research, please cite:
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024).
+  https://doi.org/10.1103/PhysRevB.110.064104

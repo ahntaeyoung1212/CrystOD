@@ -1,0 +1,47 @@
+# The unit cell and FORCE_SETS are enough -- no phonopy yaml has to be made
+# first. The supercell is read from phonopy_disp.yaml if it is here, otherwise
+# inferred from the atom count of FORCE_SETS; --dim "4 4 4" overrides it.
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3 --output POSCAR_R-3c
+
+# Every command below can be written that way as well; the --yaml form is kept
+# here because it is what the rest of this README was captured with, and the
+# two produce byte-identical structures.
+
+# gain phonopy_params.yaml in Phonopy v2
+phonopy --sp -c 221_PPOSCAR_ScF3 --dim="4 4 4"
+
+# gain phonopy_params.yaml in Phonopy v4
+phonopy-init -d -c 221_PPOSCAR_ScF3 --dim 4 4 4
+phonopy phonopy_disp.yaml --sp
+
+# generate modulated POSCAR_R-3c transforming as irrep R4+(a,a,a)
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3 --output POSCAR_R-3c
+
+# generate modulated POSCAR_I4mcm_{0,1,2} transforming as irreps R4+(0,0,a), R4+(a,0,0), R4+(0,a,0), respectively
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 --amplitude 0.3 --output POSCAR_I4mcm_1
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 2 --amplitude 0.3 --output POSCAR_I4mcm_2
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 3 --amplitude 0.3 --output POSCAR_I4mcm_3
+
+# generate modulated POSCAR_Imma_{0,1,2} transforming as irreps R4+(a,0,a), R4+(a,a,0), R4+(0,a,a), respectively
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 --amplitude 0.3 --output POSCAR_Imma_1
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 2 3 --amplitude 0.3 --output POSCAR_Imma_2
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 3 1 --amplitude 0.3 --output POSCAR_Imma_3
+
+# generate modulated POSCAR_P4mbm_{0,1,2} transforming as irreps M3+(0;0;a), M3+(0;a;0), M3+(a;0;0), respectively
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0 --mode 1 --amplitude 0.3 --output POSCAR_P4mbm_1
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0 0.5 --mode 1 --amplitude 0.3 --output POSCAR_P4mbm_2
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0 0.5 0.5 --mode 1 --amplitude 0.3 --output POSCAR_P4mbm_3
+
+# generate modulated POSCAR_I4mmm transforming as irrep M3+(a;a;0)
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint1 0 0.5 0.5 --mode1 1 --amplitude1 0.3 --qpoint2 0.5 0 0.5 --mode2 1 --amplitude2 0.3 --output POSCAR_I4mmm
+
+# generate modulated POSCAR_Im-3 transforming as irrep M3+(a;a;a)
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint1 0.5 0.5 0 --mode1 1 --amplitude1 0.3 --qpoint2 0.5 0 0.5 --mode2 1 --amplitude2 0.3 --qpoint3 0 0.5 0.5 --mode3 1 --amplitude3 0.3 --output POSCAR_Im-3
+
+# All of the above at once, for an UNSTABLE structure: crystod-phonon --subgroup
+# --modulate enumerates the order-parameter directions of every imaginary mode
+# and writes the distorted structure of each, together with the --modulation
+# command that reproduces it. ScF3 has no imaginary mode with these force
+# constants, so raise --threshold to treat the soft R4+/M3+ levels as unstable:
+crystod-phonon --subgroup -c 221_PPOSCAR_ScF3 --dim "4 4 4" --qpoint R --threshold 2.0 --modulate
+crystod-phonon --subgroup -c 221_PPOSCAR_ScF3 --dim "4 4 4" --qpoint M --threshold 3.0 --modulate

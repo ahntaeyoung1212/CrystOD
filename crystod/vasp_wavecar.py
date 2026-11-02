@@ -79,7 +79,9 @@ weights are then sums over the two components (Q, M and D_j are spin
 independent; the spin-orbit part of the PAW Hamiltonian never enters because
 the energies come from the eigenvalues).  Collinear spin-polarized
 (``ISPIN = 2``) and gamma-only (``vasp_gam``) WAVECARs are refused with an
-ERROR.
+ERROR (``crystod --extract-irrep``, which labels the bands of one run, reads
+the two spin channels of an ``ISPIN = 2`` file: ``Wavecar(...,
+allow_spin_polarized=True)``).
 
 The cache
 ---------
@@ -96,9 +98,9 @@ compressed ``.npz`` with the metadata as one JSON string (schema
 trimmed to the rows of selected fragment states (the regression fixtures of
 ``example/03_hybridization/vasp_overlap`` are such caches).
 
-``read_bands`` exposes the raw plane-wave data of one k point (G vectors in
-WAVECAR order, coefficients, eigenvalues, occupations) for the plane-wave
-irrep module.
+``read_bands`` (and :meth:`Wavecar.bands` on an open file) exposes the raw
+plane-wave data of one k point (G vectors in WAVECAR order, coefficients,
+eigenvalues, occupations) for the plane-wave irrep module.
 """
 
 from __future__ import annotations
@@ -687,18 +689,34 @@ class Wavecar:
     spin-up block first, i.e. ``2 n_G`` coefficients; :attr:`spinor` tells
     which case it is.  Use as a context manager or call :meth:`close`.
 
+    Args:
+        path: The WAVECAR file.
+        allow_spin_polarized: Accept a collinear spin-polarized
+            (``ISPIN = 2``) file, whose two spin channels are read with the
+            ``isp`` argument of :meth:`header`, :meth:`coeffs` and
+            :meth:`bands` (``crystod --extract-irrep``); the overlap engine
+            leaves it ``False`` and refuses such files.
+        purpose: Who reads the file, for the error messages.
+
     Raises:
-        SystemExit: Missing file, unknown precision tag, a spin-polarized
-            (``ISPIN = 2``) or a gamma-only (``vasp_gam``) WAVECAR.
+        SystemExit: Missing, empty or truncated file, unknown precision tag,
+            a spin-polarized (``ISPIN = 2``, unless allowed) or a gamma-only
+            (``vasp_gam``) WAVECAR.
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, *, allow_spin_polarized: bool = False,
+                 purpose: str = "the overlap engine"):
+        self.purpose = purpose
         if not os.path.isfile(path):
-            raise SystemExit(f"ERROR: no WAVECAR at {path} (the overlap engine reads "
+            raise SystemExit(f"ERROR: no WAVECAR at {path} ({purpose} reads "
                              "the wavefunctions: rerun with LWAVE = .TRUE.).")
         self.path = path
+        size = os.path.getsize(path)
         self.fh = open(path, "rb")
         rec0 = np.fromfile(self.fh, np.float64, 3)
+        if len(rec0) < 3 or not 24 <= rec0[0] <= size:
+            self.close()
+            raise SystemExit(f"ERROR: {path} is empty or not a WAVECAR ({size} bytes).")
         self.recl = int(rec0[0])
         self.nspin = int(rec0[1])
         self.rtag = int(rec0[2])
@@ -709,13 +727,20 @@ class Wavecar:
         else:
             self.close()
             raise SystemExit(f"ERROR: {path}: unknown WAVECAR precision tag {self.rtag}.")
-        if self.nspin != 1:
+        if self.nspin not in (1, 2):
+            self.close()
+            raise SystemExit(f"ERROR: {path}: unreadable WAVECAR header (ISPIN = "
+                             f"{self.nspin}).")
+        if self.nspin != 1 and not allow_spin_polarized:
             self.close()
             raise SystemExit(
                 f"ERROR: {path} is spin-polarized (ISPIN = {self.nspin}); the overlap "
                 "engine supports ISPIN = 1 (vasp_std) and non-collinear (vasp_ncl) runs.")
         self.fh.seek(self.recl)
         h = np.fromfile(self.fh, np.float64, 13)
+        if len(h) < 13 or not (h[0] >= 1 and h[1] >= 1):
+            self.close()
+            raise SystemExit(f"ERROR: {path}: truncated or unreadable WAVECAR header.")
         self.nk, self.nb = int(h[0]), int(h[1])
         self.encut = float(h[2])
         self.lattice = h[3:12].reshape(3, 3)
@@ -723,6 +748,14 @@ class Wavecar:
         recl8 = self.recl // 8
         self.nhdr = (4 + 3 * self.nb + recl8 - 1) // recl8
         self.rec_per_k = self.nhdr + self.nb
+        # the last band record starts here; VASP pads it to the record length
+        last = 2 + self.nspin * self.nk * self.rec_per_k - 1
+        if size <= last * self.recl:
+            self.close()
+            raise SystemExit(
+                f"ERROR: {path} is truncated ({size} bytes; {self.nk} k points x "
+                f"{self.nb} bands x {self.nspin} spin channel(s) need more than "
+                f"{last * self.recl}).")
         self.recip = np.linalg.inv(self.lattice).T          # rows b_i (no 2 pi)
         self._hdr_cache: dict = {}
         self._g_cache: dict = {}
@@ -754,7 +787,8 @@ class Wavecar:
 
         Args:
             ik: 0-based k index.
-            isp: Spin index (always 0 here).
+            isp: Spin index (0, or 1 for the spin-down channel of an
+                ``ISPIN = 2`` file).
 
         Returns:
             The tuple; ``n_coefficients`` counts both spinor components.
@@ -821,7 +855,7 @@ class Wavecar:
         elif 2 * npl - 1 == len(sel):
             raise SystemExit(
                 f"ERROR: {self.path} is a gamma-only WAVECAR (vasp_gam: {npl} of "
-                f"{len(sel)} plane waves at k point {ik + 1}); the overlap engine needs "
+                f"{len(sel)} plane waves at k point {ik + 1}); {self.purpose} needs "
                 "vasp_std or vasp_ncl runs.")
         else:
             raise SystemExit(
@@ -834,17 +868,46 @@ class Wavecar:
         self._g_cache[ik] = sel
         return sel
 
+    def bands(self, ik: int, isp: int = 0) -> tuple:
+        """Raw plane-wave data of one k point (see :func:`read_bands`).
+
+        Args:
+            ik: 0-based k index.
+            isp: Spin channel (0, or 1 for spin down of an ``ISPIN = 2`` file).
+
+        Returns:
+            ``(gvecs, coeffs, eigenvalues, occupations, k_frac)`` with
+            ``coeffs`` of shape ``(nbands, nspinor, npw)``.
+
+        Raises:
+            SystemExit: A k index or spin channel outside the file.
+        """
+        if not 0 <= ik < self.nk:
+            raise SystemExit(f"ERROR: {self.path}: k index {ik} outside 0..{self.nk - 1}.")
+        if not 0 <= isp < self.nspin:
+            raise SystemExit(f"ERROR: {self.path}: spin channel {isp} outside "
+                             f"0..{self.nspin - 1}.")
+        gvecs = self.gvectors(ik)
+        _, kvec, eps, occ = self.header(ik, isp)
+        coeffs = self.coeffs(ik, isp)
+        nspinor = 2 if self.spinor else 1
+        coeffs = coeffs.reshape(self.nb, nspinor, len(gvecs))
+        return gvecs.copy(), coeffs, eps.copy(), occ.copy(), kvec.copy()
+
 
 def _wavecar_path(path: str) -> str:
     return os.path.join(path, "WAVECAR") if os.path.isdir(path) else path
 
 
-def read_bands(path: str, k_index: int) -> tuple:
+def read_bands(path: str, k_index: int, spin: int | None = None) -> tuple:
     """Raw plane-wave data of one k point of a WAVECAR.
 
     Args:
         path: The WAVECAR file, or a run directory that holds one.
         k_index: 0-based index into the WAVECAR's k-point list.
+        spin: Spin channel of a collinear spin-polarized (``ISPIN = 2``) file
+            (0 = up, 1 = down); ``None`` (the default) refuses such a file,
+            as the overlap engine does.
 
     Returns:
         ``(gvecs, coeffs, eigenvalues, occupations, k_frac)``: ``gvecs`` the
@@ -854,18 +917,13 @@ def read_bands(path: str, k_index: int) -> tuple:
         band) of length ``nbands``, ``k_frac`` the fractional k point.
 
     Raises:
-        SystemExit: Missing, spin-polarized or gamma-only WAVECAR, or a k
-            index outside the file.
+        SystemExit: Missing, spin-polarized (with ``spin=None``) or
+            gamma-only WAVECAR, or a k index or spin channel outside the file.
     """
-    with Wavecar(_wavecar_path(path)) as wav:
+    with Wavecar(_wavecar_path(path), allow_spin_polarized=spin is not None) as wav:
         if not 0 <= k_index < wav.nk:
             raise SystemExit(f"ERROR: {path}: k index {k_index} outside 0..{wav.nk - 1}.")
-        gvecs = wav.gvectors(k_index)
-        _, kvec, eps, occ = wav.header(k_index)
-        coeffs = wav.coeffs(k_index)
-        nspinor = 2 if wav.spinor else 1
-        coeffs = coeffs.reshape(wav.nb, nspinor, len(gvecs))
-        return gvecs.copy(), coeffs, eps.copy(), occ.copy(), kvec.copy()
+        return wav.bands(k_index, 0 if spin is None else int(spin))
 
 
 # =============================================================== Y_lm

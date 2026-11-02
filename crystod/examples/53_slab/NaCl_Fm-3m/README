@@ -1,0 +1,169 @@
+# NaCl (Fm-3m) from a primitive POSCAR (2 atoms, rhombohedral axes)
+# --conventional: the conventional cubic cell (8 atoms) first, so that the
+# indices are the textbook ones. (1 0 0) and (1 1 0) stack neutral NaCl planes
+# (Tasker type I): non-polar and symmetric. (1 1 1) stacks Na and Cl planes
+# (Tasker type III): polar. pymatgen keeps the (1 1 1) slab in the 2 x 2
+# in-plane cell of the oriented conventional cell (56.11 A^2, 32 atoms; its
+# oriented unit cell admits no 1 x 1 reduction); from the rhombohedral axes
+# the same surface comes out 1 x 1 (14.03 A^2, 8 atoms, the last command).
+crystod-slab -c 225_PPOSCAR_NaCl --conventional --max-index 1
+
+# The symmetric (1 1 1) slabs: Cl on both faces (s1, Na12Cl16) or Na on both
+# faces (s2, Na16Cl12). polar is no (no dipole about the slab centre), but with
+# the formal states Na+1 Cl-1 they carry a net charge of -4 and +4 per cell
+# (the charge column and the NOTE): the Tasker type III dipole is traded for a
+# charged, non-stoichiometric slab. Named _s1, _s2, they do not replace the
+# (1 1 1) slab of the first command.
+crystod-slab -c 225_PPOSCAR_NaCl --conventional --index 1 1 1 --symmetrize
+
+# Without --conventional the indices refer to the rhombohedral axes of the
+# POSCAR (the NOTE under * Structure * says so): (1 1 1), (1 1 0), (1 1 -1) and
+# (1 0 -1) are the cubic (1 1 1), (0 0 1), (-1 -1 3) and (-1 0 1). Listing only.
+crystod-slab -c 225_PPOSCAR_NaCl --max-index 1 --no-files
+
+
+Sample output (crystod 0.4.6, pymatgen 2026.5.4)
+------------------------------------------------
+
+$ crystod-slab -c 225_PPOSCAR_NaCl --conventional --max-index 1
+
+* Structure *
+ 225_PPOSCAR_NaCl: NaCl, Fm-3m (No. 225), 2 atoms
+ standardized conventional cell: 8 atoms (input: 2)
+ a, b, c = 5.6917, 5.6917, 5.6917 A; alpha, beta, gamma = 90, 90, 90 deg
+ Miller indices refer to the axes of this cell.
+
+* Slab settings *
+ minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive in-plane cell: yes
+ polar slabs: written
+ oxidation states for the dipole: Na+1 Cl-1 (guessed)
+ maximum atoms per slab: no limit
+
+* Miller indices *
+ indices with |h|,|k|,|l| <= 1, distinct under the Laue group m-3m: (1 1 1) (1 1 0) (1 0 0)
+
+* Slabs *
+  #  h k l  shift  atoms  thickness (A)  vacuum (A)  area (A^2)  formula   polar  symmetric  status
+  1  1 1 1  0.250     32          11.50       18.07       56.11  Na16Cl16  yes    no         written
+  2  1 1 0  0.250     12          10.06       18.11       22.91  Na6Cl6    no     yes        written
+  3  1 0 0  0.250      8           8.54       19.92       16.20  Na4Cl4    no     yes        written
+ thickness: extent of the atoms along the surface normal (whole oriented cells are stacked to the
+ minimum slab height, and the atoms span them less the gap at the cut); vacuum: cell height along
+ the normal minus the thickness (both in A); area: in-plane cell area (A^2); shift: pymatgen's
+ termination shift (fractional c of the oriented cell); polar: dipole per area from the oxidation
+ states (Slab.is_polar; ? = no states); symmetric: an operation of the slab turns the normal over
+ (e.g. inversion, a mirror or glide plane parallel to the surface, a 2-fold axis in it), so the two
+ faces are equivalent (Slab.is_symmetric).
+
+* Output files *
+ #1 -> POSCAR_slab_NaCl_111_t1
+ #2 -> POSCAR_slab_NaCl_110_t1
+ #3 -> POSCAR_slab_NaCl_100_t1
+
+If you use crystod-slab in your research, please cite:
+  R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, Y. Mochizuki,
+  and A. Nakajima, "Preparation and Antiviral Activity of La2CuO4 and Y2Cu2O5 with
+  Mechanistic Insights from First Principles", ACS Appl. Mater. Interfaces 17, 61872-61887
+  (2025). https://doi.org/10.1021/acsami.5c17978
+The slabs are built with pymatgen's SlabGenerator:
+  W. Sun and G. Ceder, Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).
+
+If you use CrystOD in your research, please cite:
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024).
+  https://doi.org/10.1103/PhysRevB.110.064104
+
+$ crystod-slab -c 225_PPOSCAR_NaCl --conventional --index 1 1 1 --symmetrize
+
+* Structure *
+ 225_PPOSCAR_NaCl: NaCl, Fm-3m (No. 225), 2 atoms
+ standardized conventional cell: 8 atoms (input: 2)
+ a, b, c = 5.6917, 5.6917, 5.6917 A; alpha, beta, gamma = 90, 90, 90 deg
+ Miller indices refer to the axes of this cell.
+
+* Slab settings *
+ minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive in-plane cell: yes
+ polar slabs: symmetrized terminations (atoms removed from one face of every asymmetric slab)
+ oxidation states for the dipole: Na+1 Cl-1 (guessed)
+ maximum atoms per slab: no limit
+
+* Miller indices *
+ indices given: (1 1 1)
+
+* Slabs *
+  #  h k l  shift  atoms  thickness  vacuum   area  formula   charge  polar  symmetric  status
+  1  1 1 1  0.250     28       9.86   19.72  56.11  Na12Cl16      -4  no     yes        written
+  2  1 1 1  0.250     28       9.86   19.72  56.11  Na16Cl12      +4  no     yes        written
+ thickness: extent of the atoms along the surface normal (whole oriented cells are stacked to the
+ minimum slab height, and the atoms span them less the gap at the cut); vacuum: cell height along
+ the normal minus the thickness (both in A); area: in-plane cell area (A^2); shift: pymatgen's
+ termination shift (fractional c of the oriented cell); polar: dipole per area from the oxidation
+ states (Slab.is_polar; ? = no states); symmetric: an operation of the slab turns the normal over
+ (e.g. inversion, a mirror or glide plane parallel to the surface, a 2-fold axis in it), so the two
+ faces are equivalent (Slab.is_symmetric). charge: net formal charge per cell (e) from the oxidation
+ states.
+ NOTE: #1, #2: non-stoichiometric, with a net formal charge (charge column); 'polar: no' means no
+       dipole about the slab centre, not a neutral slab.
+
+* Output files *
+ #1 -> POSCAR_slab_NaCl_111_s1
+ #2 -> POSCAR_slab_NaCl_111_s2
+
+If you use crystod-slab in your research, please cite:
+  R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, Y. Mochizuki,
+  and A. Nakajima, "Preparation and Antiviral Activity of La2CuO4 and Y2Cu2O5 with
+  Mechanistic Insights from First Principles", ACS Appl. Mater. Interfaces 17, 61872-61887
+  (2025). https://doi.org/10.1021/acsami.5c17978
+The slabs are built with pymatgen's SlabGenerator:
+  W. Sun and G. Ceder, Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).
+
+If you use CrystOD in your research, please cite:
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024).
+  https://doi.org/10.1103/PhysRevB.110.064104
+
+$ crystod-slab -c 225_PPOSCAR_NaCl --max-index 1 --no-files
+
+* Structure *
+ 225_PPOSCAR_NaCl: NaCl, Fm-3m (No. 225), 2 atoms
+ a, b, c = 4.0246, 4.0246, 4.0246 A; alpha, beta, gamma = 60, 60, 60 deg
+ Miller indices refer to the axes of this cell.
+ NOTE: the cell is not the conventional standard cell (8 atoms); textbook Miller indices need
+       --conventional.
+
+* Slab settings *
+ minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive in-plane cell: yes
+ polar slabs: written
+ oxidation states for the dipole: Na+1 Cl-1 (guessed)
+ maximum atoms per slab: no limit
+
+* Miller indices *
+ indices with |h|,|k|,|l| <= 1, distinct under the Laue group m-3m: (1 1 1) (1 1 0) (1 1 -1)
+   (1 0 -1)
+
+* Slabs *
+  #  h k  l shift atoms thickness vacuum  area formula polar symmetric status
+  1  1 1  1 0.250     8     11.50  18.07 14.03 Na4Cl4  yes   no        not written (--no-files)
+  2  1 1  0 0.500     8      8.54  19.92 16.20 Na4Cl4  no    yes       not written (--no-files)
+  3  1 1 -1 0.250    12      9.44  16.30 26.86 Na6Cl6  yes   no        not written (--no-files)
+  4  1 0 -1 0.500    10      8.05  18.11 22.91 Na5Cl5  no    yes       not written (--no-files)
+ thickness: extent of the atoms along the surface normal (whole oriented cells are stacked to the
+ minimum slab height, and the atoms span them less the gap at the cut); vacuum: cell height along
+ the normal minus the thickness (both in A); area: in-plane cell area (A^2); shift: pymatgen's
+ termination shift (fractional c of the oriented cell); polar: dipole per area from the oxidation
+ states (Slab.is_polar; ? = no states); symmetric: an operation of the slab turns the normal over
+ (e.g. inversion, a mirror or glide plane parallel to the surface, a 2-fold axis in it), so the two
+ faces are equivalent (Slab.is_symmetric).
+
+* Output files *
+ none (--no-files)
+
+If you use crystod-slab in your research, please cite:
+  R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, Y. Mochizuki,
+  and A. Nakajima, "Preparation and Antiviral Activity of La2CuO4 and Y2Cu2O5 with
+  Mechanistic Insights from First Principles", ACS Appl. Mater. Interfaces 17, 61872-61887
+  (2025). https://doi.org/10.1021/acsami.5c17978
+The slabs are built with pymatgen's SlabGenerator:
+  W. Sun and G. Ceder, Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).
+
+If you use CrystOD in your research, please cite:
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024).
+  https://doi.org/10.1103/PhysRevB.110.064104

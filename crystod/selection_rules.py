@@ -850,18 +850,19 @@ def format_dipole_selection_rules(rules: DipoleSelectionRules,
         rules: The rules of one k point.
         k_text: The k coordinates as printed next to the label, e.g.
             ``"(1/2,1/2,1/2)"``.
-        nested: Indent the block as a part of an engine report (``" * ... *"``
-            and three-space content, as the ``* k point <k> *`` blocks of
+        nested: Indent the content as a part of an engine report
+            (three-space content, as the ``* k point <k> *`` blocks of
             ``crystod --diagram``); the default is a standalone block
-            (``"* ... *"`` at column 0, two-space content).
+            (two-space content).  The ``"* ... *"`` title is at column 0
+            in both cases.
 
     Returns:
         The lines of the ``* Dipole selection rules at ... *`` block, the
         leading blank line included.
     """
-    head, pad = (" ", "   ") if nested else ("", "  ")
+    pad = "   " if nested else "  "
     title = f"{rules.name} {k_text}".strip()
-    lines = ["", f"{head}* Dipole selection rules at {title} *"]
+    lines = ["", f"* Dipole selection rules at {title} *"]
     if rules.table is None or rules.band_edge is None:
         lines.append(f"{pad}{rules.note}")
         return lines

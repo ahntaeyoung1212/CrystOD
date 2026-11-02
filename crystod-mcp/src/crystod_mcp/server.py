@@ -1,4 +1,4 @@
-"""The MCP server: one ``MCPServer`` with the ten CrystOD tools registered.
+"""The MCP server: one ``MCPServer`` with the eighteen CrystOD tools registered.
 
 ``create_server()`` builds the server (tests connect to it in-process with
 ``mcp.client.Client``); ``main()`` is the ``crystod-mcp`` console script and
@@ -36,7 +36,7 @@ returns one sentence naming the problem and the remedy.
 
 
 def create_server() -> MCPServer:
-    """Build the server with the ten tools registered in spec order.
+    """Build the server with the eighteen tools registered in spec order.
 
     The tool description is the cleaned docstring (``inspect.getdoc``), so
     the first paragraph a model reads is the tool's own summary; the input

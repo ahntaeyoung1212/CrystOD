@@ -1,0 +1,61 @@
+# SrTiO3 (Pm-3m) with METAGGA = LAK and NBANDS = 64: the three VASP runs of
+# `crystod --diagram --vasp`
+#
+#   crystod --diagram --co-left SrTi --co-right O3 --vasp .
+#
+# Layout
+#   BAND/                     the crystal run            Sr Ti O        NELECT 32
+#   BAND_sublattice1/         the cation sublattice      Sr Ti Va2-     NELECT  8
+#   BAND_sublattice2/         the anion sublattice       Va2+ Va4+ O    NELECT 24
+#
+# Why this data set is in the test suite
+#   Two defects of the engine showed up on this run, and the suite keeps them fixed.
+#
+#   1. The rigid alignment paired its anchor with the wrong crystal level.  The PROCAR
+#      basis has ONE channel per (atom, l), so at R -- where no O state shares the irrep
+#      R2- -- the Sr 4s R2- semicore fragment level overlaps its own band R2- #1
+#      (-34.07 eV) and the empty Sr 5s-like level R2- #2 (+11.69 eV) both at 1.000, and
+#      the Sr 5s and 6s fragment levels overlap both just as much.  The PBE fixture next
+#      to this one has the same tie (R2- #2 at +10.26 eV) and got the right level only
+#      because its two overlaps came out bit-identical and the first maximum was kept.
+#      Here the semicore overlap came out 4e-16 below 1, the empty level won, and the
+#      rigid cation-column shift came out at +15.695 eV with a 45.779 eV spread over the
+#      four k points (+50.022 eV with --kpoint R alone).  The anchor counterparts are now
+#      assigned one-to-one in energy order: +4.257 eV, spread 0.025 eV, and +4.268 eV at
+#      R alone, and the PBE fixture keeps its numbers by construction.  The rigid
+#      shift is the --vasp-align rigid alignment, the diagnostic line of the default
+#      site-resolved one, and the first-pass anchor-window cut of the site-resolved fit:
+#      with --kpoint R that cut lost every Sr and Ti anchor and the cation column
+#      disappeared from the page.  The default four-k-point site-resolved alignment
+#      (Sr +4.154, Ti +14.088, O +6.284 eV) was right before and is unchanged.
+#
+#   2. The functional.  A meta-GGA OUTCAR names its functional on a "METAGGA = LAK"
+#      line and has no "GGA = ..." line, so the report, the page chip and the JSON said
+#      "PAW".  They now say LAK.
+#
+# What was trimmed
+#   Real output of three finished VASP 6.5.1 runs (PAW_PBE datasets, METAGGA = LAK,
+#   LASPH, ENCUT 550 eV, LORBIT 12, NBANDS 64; a shifted 10x10x10 mesh of 35
+#   irreducible points plus a 253-point zero-weight band path).  PROCAR and EIGENVAL
+#   were restricted to the four k points the diagram reads -- GM, X, M and R, each at
+#   its FIRST occurrence on the band path, which is the block the engine reads -- and
+#   their headers rewritten to match.  The complex LORBIT = 12 phase tables are
+#   untouched, so the projections, irreps, shares and connector weights are the real
+#   ones; the files are gzipped, and the whole fixture is about 77 kB instead of 94 MB.
+#
+#   The OUTCARs are excerpts, under the same rule as the SrTiO3 and CaF2 fixtures next
+#   to this one: the run parameters (including the INCAR echo of METAGGA and the
+#   "METAGGA = LAK    functional components" line of the exchange-correlation summary),
+#   the Fermi level, the CrystOD Va point-charge table, and the two lines that name
+#   each PAW dataset and its valence configuration.  The PAW header tables of a real
+#   OUTCAR are a verbatim dump of the POTCAR header and are NOT reproduced here; no
+#   POTCAR file is shipped, and nothing from the VASP source tree is.
+#
+# Fidelity
+#   The report this fixture produces is identical, line for line, to the one the
+#   untrimmed runs produce, apart from the run paths: the valence-band maximum is at R,
+#   which the fixture keeps, and every other number comes from the four special points.
+#
+# The full runs, the modified VASP that understands the Va species, and the patch
+# itself are not part of CrystOD; VASP is proprietary and the patch is available to
+# VASP licensees on request.

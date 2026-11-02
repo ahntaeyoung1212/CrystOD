@@ -1,0 +1,42 @@
+SrTiO3: SrTiO3, METAGGA = LAK, scalar-relativistic
+==================================================
+
+Regression fixture of the wavefunction-overlap engine of crystod --diagram
+--vasp (crystod/vasp_wavecar.py, crystod/crystal_orbital_overlap.py).
+
+Provenance
+  VASP runs (read only): /Users/mochizuki/vasp.6.5.1.crystod/vasp_test/SrTiO3_Pm-3m_LAK/{BAND,BAND_sublattice1,BAND_sublattice2}
+    BAND              the crystal (SrTiO3; NBANDS 64, ENCUT 550 eV,
+                      288 k points of the band-structure k list)
+    BAND_sublattice1  cation sublattice + point charges (Va2-) on the anion sites
+    BAND_sublattice2  anion sublattice + point charges (Va2+, Va4+) on the cation sites
+  PAW datasets: PAW_PBE Sr_sv 07Sep2000 (VRHFIN 4s4p5s); PAW_PBE Ti 08Apr2002 (VRHFIN d3 s1); PAW_PBE O 08Apr2002 (VRHFIN s2p4)
+  Irrep labels: one label per band, stored in the cache (computed by CrystOD from the plane-wave coefficients of each run, crystod.crystal_orbital_overlap.wavecar_label_provider / crystod.wavecar_irreps).
+  The full analysis of these runs is identical, number for number, to the
+  published spectral_onsite.py v4.1 analysis (data/SrTiO3_LAK_onsite.json of the paper
+  workspace), whose labels came from IrRep 2.6.3: the scalar labels agree in
+  the frozen window, and IrRep's Bilbao names of double-valued irreps (-R6,
+  -R8) are CrystOD's Koster-style -R6+, -R6- here.
+
+Files
+  overlap_cache.npz  OverlapCache (schema crystod-overlap-cache/1), trimmed to
+                     the rows of the active fragment states (GM 31, X 31, M 31, R 28)
+                     of the default active space (Sr 4s, Sr 4p, Sr 5s, Sr 4d, Ti 3d, Ti 4s, Ti 4p, O 2s, O 2p),
+                     all crystal bands, cross-sphere mode bessel,
+                     k points GM X M R
+  POSCAR             crystal structure
+  expected.json      key numbers of the analysis of the FULL cache
+                     (crystal_orbital_overlap.key_numbers): crystal levels and
+                     irreps, ionic parents, band edges with Loewdin populations
+                     and COHP, shell-pair COHPs, verdicts, ledger, N_cov
+
+Check
+  from crystod.crystal_orbital_overlap import analyse_cache, key_numbers
+  res = analyse_cache("overlap_cache.npz", columns=["left", "right"], report=None)
+  key_numbers(res) reproduces expected.json to 1e-8 (eV, weights).
+
+Regenerate (crystod repository root)
+  python script/make_overlap_fixtures.py --cases SrTiO3 \
+      --label-provider crystod.crystal_orbital_overlap:wavecar_label_provider \
+      --vasp-root /Users/mochizuki/vasp.6.5.1.crystod/vasp_test
+  Generated 2026-10-03 with crystod 0.4.2.

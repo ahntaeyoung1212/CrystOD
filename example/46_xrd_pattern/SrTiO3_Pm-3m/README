@@ -1,0 +1,7 @@
+# Powder XRD pattern with the Cu K-alpha doublet (defaults)
+# -> XRD_221_PPOSCAR_SrTiO3_CuKa.txt / .pdf
+crystod-xrd -c 221_PPOSCAR_SrTiO3
+
+# Mo K-alpha doublet, 5-60 deg (the shorter wavelength compresses the pattern)
+# -> XRD_221_PPOSCAR_SrTiO3_MoKa.txt / .pdf
+crystod-xrd -c 221_PPOSCAR_SrTiO3 --xraytype MoKa --two-theta 5 60

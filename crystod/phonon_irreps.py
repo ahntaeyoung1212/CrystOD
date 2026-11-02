@@ -113,6 +113,44 @@ def build_parser() -> ArgumentParser:
         help="Print the symmetry-allowed Raman tensors of the Raman-active Gamma\n"
         "irreps (Cartesian axes of the input cell).",
     )
+    parser.add_argument(
+        "--output",
+        "-o",
+        dest="output",
+        default=None,
+        help="Path of the YAML file (default: phonon_irreps.yaml, or\n"
+        "phonon_irreps_all.yaml with --all-irreps). Next to it the phonon\n"
+        "dispersion along the k path with the ISO-IR label of every level at\n"
+        "its special points is drawn: the YAML name with .pdf.",
+    )
+    parser.add_argument(
+        "--band",
+        dest="band",
+        default=None,
+        help="Manual k path of the dispersion figure (primitive reciprocal basis), e.g.\n"
+        '"0 0 0  0 1/2 0  1/2 1/2 0, 1/2 1/2 0  1/2 1/2 1/2" (default: seekpath).',
+    )
+    parser.add_argument(
+        "--band-labels",
+        dest="band_labels",
+        default=None,
+        help="Names of the vertices of --band (default: their ISO-IR k-vector types).",
+    )
+    parser.add_argument(
+        "--npoints",
+        dest="npoints",
+        type=int,
+        default=None,
+        help="q points per leg of the k path of the dispersion figure (default 51).",
+    )
+    parser.add_argument(
+        "--threshold",
+        dest="threshold",
+        type=float,
+        default=-0.1,
+        help="Frequency (THz) below which the dispersion figure draws a level in red\n"
+        "(imaginary).",
+    )
     return parser
 
 
@@ -632,27 +670,49 @@ def _seekpath_path_midpoints(phonon) -> tuple[str | None, list[tuple[str, str, l
         else:
             parts.append([start, end])
     path_string = " | ".join("-".join(display(n) for n in part) for part in parts)
+    legs = [(display(start), display(end), coords[start], coords[end]) for start, end in segments]
+    return path_string, _label_segment_midpoints(phonon, legs)
 
+
+def _label_segment_midpoints(phonon, legs) -> list[tuple[str, str, list[float]]]:
+    """Midpoints of the legs of a k path, labeled via ISO-IR.
+
+    Args:
+        phonon: The ``phonopy.Phonopy`` object (its primitive cell and symmetry).
+        legs: ``[(start_name, end_name, k_start, k_end), ...]``, the
+            coordinates in the primitive reciprocal basis of ``phonon``.
+
+    Returns:
+        ``[(label, segment, midpoint), ...]`` in the order of the legs: the
+        midpoint snapped to simple fractions (:func:`snap_qpoint`), its
+        ISO-IR k-vector-type letter (``q_<coords>`` when it has none) and the
+        segment ``"start-end"``; a midpoint equal to an earlier one is left
+        out.  :func:`_seekpath_path_midpoints` (``--all-irreps``) and the
+        segment midpoints of ``crystod-phonon --visualize --all-irreps`` use it.
+    """
     from .isoir import get_isoir_kpoint_name
 
+    primitive = phonon.primitive
+    cell = (primitive.cell, primitive.scaled_positions, primitive.numbers)
+    number = get_symmetry_dataset(phonon.primitive_symmetry)["number"]
     midpoints: list[tuple[str, str, list[float]]] = []
     seen: set[tuple[float, ...]] = set()
-    for start, end in segments:
+    for start, end, k_start, k_end in legs:
         midpoint = snap_qpoint(
-            (np.asarray(coords[start], dtype=float) + np.asarray(coords[end], dtype=float)) / 2.0
+            (np.asarray(k_start, dtype=float) + np.asarray(k_end, dtype=float)) / 2.0
         )
         key = tuple(np.round(midpoint, 8))
         if key in seen:
             continue
         seen.add(key)
         label = get_isoir_kpoint_name(
-            dataset["number"], cell, phonon.primitive_symmetry.tolerance, midpoint,
+            number, cell, phonon.primitive_symmetry.tolerance, midpoint,
             input_cell=_input_cell(phonon),
         )
         if label is None:
             label = "q" + "".join(f"_{value:g}" for value in midpoint)
-        midpoints.append((label, f"{display(start)}-{display(end)}", list(midpoint)))
-    return path_string, midpoints
+        midpoints.append((label, f"{start}-{end}", list(midpoint)))
+    return midpoints
 
 
 def _is_gamma_point(q) -> bool:
@@ -667,6 +727,156 @@ def _yaml_vector(values) -> str:
 def _yaml_matrix(rows) -> str:
     """Nested one-line list of a matrix (six decimals), for the yaml."""
     return "[" + ", ".join(_yaml_vector(row) for row in np.asarray(rows)) + "]"
+
+
+def _yaml_qpoint(q) -> str:
+    """A q point as a one-line yaml list of floats (:func:`format_qpoint`);
+    a value Python would print in exponent form gets six decimals, since
+    YAML 1.1 reads ``1e-06`` as a string."""
+    parts = []
+    for value in format_qpoint(q):
+        text = repr(value)
+        parts.append(f"{value:.6f}" if "e" in text or "E" in text else text)
+    return "[" + ", ".join(parts) + "]"
+
+
+def _yaml_text(text) -> str:
+    """A string as a yaml scalar: plain when ``yaml.safe_load`` reads it back
+    as the same string (``GM``, ``P4mm``, ``A1 + E``), else double-quoted
+    (a JSON string is a valid YAML double-quoted scalar)."""
+    import json
+
+    import yaml
+
+    text = str(text)
+    try:
+        if text and yaml.safe_load(f"key: {text}") == {"key": text}:
+            return text
+    except yaml.YAMLError:
+        pass
+    return json.dumps(text)
+
+
+def _yaml_flow_texts(items, *, quote: bool = False) -> str:
+    """A one-line yaml list of strings: single-quoted with ``quote``
+    (``['GM4-(3)']``), else plain where a flow sequence allows it
+    (``[IR, Raman]``)."""
+    import json
+
+    import yaml
+
+    items = [str(item) for item in items]
+    if quote:
+        return "[" + ", ".join("'" + item.replace("'", "''") + "'" for item in items) + "]"
+    plain = "[" + ", ".join(items) + "]"
+    try:
+        if yaml.safe_load(f"key: {plain}") == {"key": items}:
+            return plain
+    except yaml.YAMLError:
+        pass
+    return "[" + ", ".join(json.dumps(item) for item in items) + "]"
+
+
+def _write_band_sets(fp, band_indices, freqs, labels, *, mulliken=None,
+                     activities=None, dielectric=None) -> None:
+    """The ``band_sets:`` list of one ``irreps`` entry: one mapping per
+    degenerate set, band indices 1-based."""
+    if not len(band_indices):
+        fp.write("  band_sets: []\n")
+        return
+    fp.write("  band_sets:\n")
+    for i, index in enumerate(band_indices):
+        bands = ", ".join(str(int(idx) + 1) for idx in index)
+        fp.write(f"  - band_indices: [{bands}]\n")
+        fp.write(f"    irrep_label: {_yaml_flow_texts(labels[i], quote=True)}\n")
+        symbols = _set_mulliken(labels[i], mulliken) if mulliken else None
+        if symbols:
+            fp.write(f"    mulliken: {_yaml_text(symbols)}\n")
+        fp.write("    frequency: %14.10f\n" % (freqs[index[0]]))
+        if activities is not None:
+            fp.write(f"    activity: {_yaml_flow_texts(activities[i].activity)}\n")
+        if dielectric is not None:
+            item = dielectric.sets[i]
+            fp.write(f"    mode_effective_charge: {_yaml_matrix(item.charges)}\n")
+            fp.write(
+                "    dielectric_contribution: "
+                f"{_yaml_vector(np.diag(item.contribution))}\n"
+            )
+
+
+def read_phonon_irreps(path) -> dict:
+    """Read a ``phonon_irreps.yaml`` or ``phonon_irreps_all.yaml`` file.
+
+    The file is the one ``crystod-phonon --irreps`` (``--all-irreps``) writes;
+    this is ``yaml.safe_load`` of it, checked for the ``irreps`` list, so any
+    YAML library reads the same data.
+
+    Args:
+        path: Path of the file.
+
+    Returns:
+        dict: The file as a plain dictionary, with these keys:
+
+        - ``space_group`` (str): Hermann-Mauguin symbol of the space group.
+        - ``nac`` (bool): whether the NAC correction (``--nac``) was applied.
+        - ``dielectric_electronic``, ``dielectric_static`` (3x3 nested lists;
+          only with ``--nac``): eps_inf and eps_0.
+        - ``special_points``: list of ``{"q_label": str, "q_position":
+          [float, float, float]}`` (primitive reciprocal basis).
+        - ``k_path`` (str) and ``path_midpoints`` (list of ``{"q_label",
+          "segment", "q_position"}``; only in ``phonon_irreps_all.yaml``):
+          the seekpath k-path and the midpoints of its segments.
+        - ``irreps``: list with one entry per q point, ``{"q_label",
+          "q_position", "band_sets"}`` plus ``"segment"`` at a k-path
+          midpoint and ``"activity_summary"`` (str) at Gamma.
+          ``band_sets`` lists the degenerate sets, each a dictionary with
+          ``band_indices`` (1-based ints), ``irrep_label`` (list of ISO-IR
+          labels with their dimension, ``"GM4-(3)"``; a set holding several
+          irreps lists them all), ``frequency`` (THz, negative for an
+          imaginary mode) and, at Gamma, ``mulliken`` (str, ``"A1 + E"``
+          for a set holding several irreps), ``activity`` (list of
+          ``"IR"``, ``"Raman"``, ``"silent"``, ``"acoustic"``) and, with
+          ``--nac``, ``mode_effective_charge`` (3x3) and
+          ``dielectric_contribution`` (diagonal, 3 floats). ``band_sets`` is
+          empty at a k-path midpoint whose labeling failed.
+
+    Raises:
+        FileNotFoundError: The file does not exist.
+        ValueError: The file is not YAML, has no ``irreps`` list, or has an
+            ``irreps`` entry without a ``band_sets`` list; a file whose band
+            sets sit directly under ``q_label`` is not YAML and is rejected
+            here (write it again with ``crystod-phonon --irreps``).
+
+    Example::
+
+        from crystod import phonon
+
+        data = phonon.read_phonon_irreps("phonon_irreps.yaml")
+        for point in data["irreps"]:
+            for band_set in point["band_sets"]:
+                print(point["q_label"], band_set["band_indices"],
+                      band_set["irrep_label"], band_set["frequency"])
+    """
+    import yaml
+
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise ValueError(
+            f"{path} is not a YAML file; write it again with crystod-phonon --irreps "
+            f"({str(exc).splitlines()[0]})"
+        ) from None
+    if not isinstance(data, dict) or not isinstance(data.get("irreps"), list):
+        raise ValueError(f"{path} has no 'irreps' list; it is not a phonon_irreps.yaml")
+    for point in data["irreps"]:
+        if not isinstance(point, dict) or not isinstance(point.get("band_sets"), list):
+            raise ValueError(
+                f"{path}: an 'irreps' entry has no 'band_sets' list; write the file "
+                "again with crystod-phonon --irreps"
+            )
+    return data
 
 
 def _gamma_activities(phonon, q, labels):
@@ -705,8 +915,35 @@ def _set_mulliken(set_labels, mulliken) -> str | None:
     return " + ".join(symbols)
 
 
+def _check_path_options(args) -> None:
+    """Stop on a malformed ``--band``/``--band-labels``/``--npoints`` before
+    the survey: they shape the dispersion figure, whose own failures are only
+    reported (the YAML is the result of the run)."""
+    if args.npoints is not None and args.npoints < 2:
+        raise SystemExit("ERROR: --npoints must be at least 2.")
+    if args.band_labels and not args.band:
+        raise SystemExit("ERROR: --band-labels requires --band.")
+    if not args.band:
+        return
+    from .brillouin_zone import parse_manual_band
+
+    try:
+        segments = parse_manual_band(args.band)
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: --band: {exc}") from None
+    if args.band_labels:
+        expected = sum(len(segment) for segment in segments)
+        given = len(args.band_labels.split())
+        if given != expected:
+            raise SystemExit(
+                f"ERROR: --band-labels needs {expected} labels for this --band path, "
+                f"but {given} were given."
+            )
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    _check_path_options(args)
 
     supercell_mat = [float(n) for n in args.dim.split()]
     if args.readfc:
@@ -757,32 +994,35 @@ def main(argv: list[str] | None = None) -> None:
             path_string, path_midpoints = _seekpath_path_midpoints(phonon)
         except Exception:
             pass
-    yaml_name = "phonon_irreps_all.yaml" if args.all_irreps else "phonon_irreps.yaml"
+    yaml_name = args.output or (
+        "phonon_irreps_all.yaml" if args.all_irreps else "phonon_irreps.yaml"
+    )
     gamma_summary = None
     terminal_summary = None
     with open(yaml_name, "w") as fp:
-        fp.write(f"space_group: {dataset['international']}\n")
+        fp.write(f"space_group: {_yaml_text(dataset['international'])}\n")
         fp.write(f"nac: {'true' if args.nac else 'false'}\n")
         dielectric = gamma[4] if gamma is not None else None
         if dielectric is not None:
             fp.write(f"dielectric_electronic: {_yaml_matrix(dielectric.eps_inf)}\n")
             fp.write(f"dielectric_static: {_yaml_matrix(dielectric.eps_static)}\n")
-        fp.write("special_points:\n")
+        fp.write("special_points:\n" if q_names else "special_points: []\n")
         for qname, q in zip(q_names, q_list):
-            fp.write(f"- # {qname}\n")
-            fp.write(f"  q_position: {format_qpoint(q)}\n")
+            fp.write(f"- q_label: {_yaml_text(qname)}\n")
+            fp.write(f"  q_position: {_yaml_qpoint(q)}\n")
         fp.write("\n")
         if path_midpoints:
-            fp.write(f"k_path: {path_string}  # seekpath\n")
+            fp.write(f"k_path: {_yaml_text(path_string)}  # seekpath\n")
             fp.write("path_midpoints:  # midpoints of the k-path segments, ISO-IR k-vector types\n")
             for label, segment, midpoint in path_midpoints:
-                fp.write(f"- # {label} (midpoint of {segment})\n")
-                fp.write(f"  q_position: {format_qpoint(midpoint)}\n")
+                fp.write(f"- q_label: {_yaml_text(label)}\n")
+                fp.write(f"  segment: {_yaml_text(segment)}\n")
+                fp.write(f"  q_position: {_yaml_qpoint(midpoint)}\n")
             fp.write("\n")
-        fp.write("irreps:\n")
+        fp.write("irreps:\n" if q_names or path_midpoints else "irreps: []\n")
         for qname, q in zip(q_names, q_list):
-            fp.write(f"- q_label: {qname}\n")
-            fp.write(f"  q_position: {format_qpoint(q)}\n")
+            fp.write(f"- q_label: {_yaml_text(qname)}\n")
+            fp.write(f"  q_position: {_yaml_qpoint(q)}\n")
             dielectric = None
             if gamma is not None and _is_gamma_point(q):
                 labels, band_indices, freqs, activities, dielectric = gamma
@@ -798,29 +1038,17 @@ def main(argv: list[str] | None = None) -> None:
             if activities is not None:
                 gamma_summary = format_activity_summary(activities)
                 terminal_summary = _activity_summary_parts(activities, False, mulliken)
-                fp.write(f"  activity_summary: {gamma_summary}\n")
-            at_gamma = _is_gamma_point(q)
-            for i, index in enumerate(band_indices):
-                fp.write(f"  - # {' '.join([str(idx + 1) for idx in index])}\n")
-                fp.write(f"    irrep_label: {labels[i]}\n")
-                symbols = _set_mulliken(labels[i], mulliken) if at_gamma else None
-                if symbols:
-                    fp.write(f"    mulliken: {symbols}\n")
-                fp.write(f"    frequency: %14.10f\n" % (freqs[index[0]]))
-                if activities is not None:
-                    fp.write(f"    activity: [{', '.join(activities[i].activity)}]\n")
-                if dielectric is not None:
-                    item = dielectric.sets[i]
-                    fp.write(f"    mode_effective_charge: {_yaml_matrix(item.charges)}\n")
-                    fp.write(
-                        "    dielectric_contribution: "
-                        f"{_yaml_vector(np.diag(item.contribution))}\n"
-                    )
+                fp.write(f"  activity_summary: {_yaml_text(gamma_summary)}\n")
+            _write_band_sets(
+                fp, band_indices, freqs, labels,
+                mulliken=mulliken if _is_gamma_point(q) else None,
+                activities=activities, dielectric=dielectric,
+            )
             fp.write("\n")
         for label, segment, midpoint in path_midpoints:
-            fp.write(f"- q_label: {label}\n")
-            fp.write(f"  segment: {segment}\n")
-            fp.write(f"  q_position: {format_qpoint(midpoint)}\n")
+            fp.write(f"- q_label: {_yaml_text(label)}\n")
+            fp.write(f"  segment: {_yaml_text(segment)}\n")
+            fp.write(f"  q_position: {_yaml_qpoint(midpoint)}\n")
             try:
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", message="No irreps at")
@@ -832,13 +1060,27 @@ def main(argv: list[str] | None = None) -> None:
                         degeneracy_tolerance=args.tol,
                     )
             except Exception:
-                fp.write("  # irrep labeling failed at this q point\n\n")
+                fp.write("  band_sets: []  # irrep labeling failed at this q point\n\n")
                 continue
-            for i, index in enumerate(band_indices_mid):
-                fp.write(f"  - # {' '.join([str(idx + 1) for idx in index])}\n")
-                fp.write(f"    irrep_label: {labels_mid[i]}\n")
-                fp.write(f"    frequency: %14.10f\n" % (freqs_mid[index[0]]))
+            _write_band_sets(fp, band_indices_mid, freqs_mid, labels_mid)
             fp.write("\n")
+    # the dispersion with these labels, next to the YAML; the YAML is the
+    # result of the run, so a failure of the figure is reported, not raised
+    import os
+
+    figure_name = os.path.splitext(yaml_name)[0] + ".pdf"
+    dispersion, figure_error = None, None
+    try:
+        from .phonon_irreps_plot import plot_irreps_dispersion
+
+        dispersion = plot_irreps_dispersion(
+            phonon, irt_table, prim_mat, figure_name,
+            space_group=dataset["international"], nac=args.nac, threshold=args.threshold,
+            degeneracy_tolerance=args.tol, band=args.band, band_labels=args.band_labels,
+            npoints=args.npoints,
+        )
+    except Exception as exc:
+        figure_error = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
     # terminal report: titled blocks, the written file last
     if terminal_summary is not None:
         print("\n* Gamma-point activity *")
@@ -852,8 +1094,19 @@ def main(argv: list[str] | None = None) -> None:
         from .phonon_activity import format_raman_tensors, gamma_raman_tensors
 
         _print_titled_lines(format_raman_tensors(gamma_raman_tensors(phonon), mulliken=mulliken))
+    print("\n* Band path *")
+    if dispersion is not None:
+        source = "--band" if args.band else "seekpath"
+        print(f"  k path ({source}): {dispersion.path_string}  ({dispersion.n_qpoints} q points)")
+        print("  Labeled points: " + ", ".join(point.name for point in dispersion.points))
+        for note in dispersion.notes:
+            print(f"  NOTE: {note}")
+    else:
+        print(f"  NOTE: the dispersion figure was not drawn ({figure_error})")
     print("\n* Output files *")
     print(f"  Phonon irreps written to: {yaml_name}")
+    if dispersion is not None:
+        print(f"  Phonon dispersion with irrep labels written to: {figure_name}")
 
 
 def _print_titled_lines(lines: list[str]) -> None:

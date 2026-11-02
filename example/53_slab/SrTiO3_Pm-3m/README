@@ -1,0 +1,232 @@
+# SrTiO3 (Pm-3m, 5 atoms): the surfaces of the cubic perovskite
+# Every surface with |h|,|k|,|l| <= 1 that is distinct under the Laue group
+# m-3m: (1 1 1), (1 1 0) and (1 0 0), one termination each ->
+# POSCAR_slab_SrTiO3_111_t1, _110_t1, _100_t1. (1 1 0) stacks SrTiO and O2
+# planes, (1 1 1) SrO3 and Ti planes: charged planes (Tasker type III), polar.
+# (1 0 0) stacks the neutral SrO and TiO2 planes: non-polar, but one face is
+# TiO2 and the other SrO, so it is not symmetric.
+crystod-slab -c 221_PPOSCAR_SrTiO3 --max-index 1
+
+# The symmetric (1 0 0) slabs: pymatgen removes the layer of one face, which
+# leaves TiO2 on both faces (s1, Sr2Ti3O8) or SrO on both faces (s2, Sr3Ti2O7):
+# not of the SrTiO3 stoichiometry, but charge-neutral (so no charge column),
+# and 7.89 A of atoms instead of 9.86 A (raise --slab-size for thicker ones).
+# Symmetrized slabs are named _s1, _s2, ..., so they do not replace the _t1
+# file of the first command.
+crystod-slab -c 221_PPOSCAR_SrTiO3 --index 1 0 0 --symmetrize
+
+# --no-polar: the (1 1 0) slab is polar, so it is listed as skipped and nothing
+# is written
+crystod-slab -c 221_PPOSCAR_SrTiO3 --index 1 1 0 --no-polar
+
+# The first command without an input file (the POSCAR is bundled with the
+# package); its three files are already there and identical, so they are kept
+crystod-slab --example SrTiO3
+
+
+Sample output (crystod 0.4.6, pymatgen 2026.5.4)
+------------------------------------------------
+
+$ crystod-slab -c 221_PPOSCAR_SrTiO3 --max-index 1
+
+* Structure *
+ 221_PPOSCAR_SrTiO3: SrTiO3, Pm-3m (No. 221), 5 atoms
+ a, b, c = 3.9451, 3.9451, 3.9451 A; alpha, beta, gamma = 90, 90, 90 deg
+ Miller indices refer to the axes of this cell.
+
+* Slab settings *
+ minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive in-plane cell: yes
+ polar slabs: written
+ oxidation states for the dipole: Sr+2 Ti+4 O-2 (guessed)
+ maximum atoms per slab: no limit
+
+* Miller indices *
+ indices with |h|,|k|,|l| <= 1, distinct under the Laue group m-3m: (1 1 1) (1 1 0) (1 0 0)
+
+* Slabs *
+  #  h k l  shift  atoms  thickness  vacuum   area  formula    polar  symmetric  status
+  1  1 1 1  0.250     25      10.25   17.08  26.96  Sr5Ti5O15  yes    no         written
+  2  1 1 0  0.250     20       9.76   18.13  22.01  Sr4Ti4O12  yes    no         written
+  3  1 0 0  0.250     15       9.86   17.75  15.56  Sr3Ti3O9   no     no         written
+ thickness: extent of the atoms along the surface normal (whole oriented cells are stacked to the
+ minimum slab height, and the atoms span them less the gap at the cut); vacuum: cell height along
+ the normal minus the thickness (both in A); area: in-plane cell area (A^2); shift: pymatgen's
+ termination shift (fractional c of the oriented cell); polar: dipole per area from the oxidation
+ states (Slab.is_polar; ? = no states); symmetric: an operation of the slab turns the normal over
+ (e.g. inversion, a mirror or glide plane parallel to the surface, a 2-fold axis in it), so the two
+ faces are equivalent (Slab.is_symmetric).
+
+* Output files *
+ #1 -> POSCAR_slab_SrTiO3_111_t1
+ #2 -> POSCAR_slab_SrTiO3_110_t1
+ #3 -> POSCAR_slab_SrTiO3_100_t1
+
+If you use crystod-slab in your research, please cite:
+  R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, Y. Mochizuki,
+  and A. Nakajima, "Preparation and Antiviral Activity of La2CuO4 and Y2Cu2O5 with
+  Mechanistic Insights from First Principles", ACS Appl. Mater. Interfaces 17, 61872-61887
+  (2025). https://doi.org/10.1021/acsami.5c17978
+The slabs are built with pymatgen's SlabGenerator:
+  W. Sun and G. Ceder, Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).
+
+If you use CrystOD in your research, please cite:
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024).
+  https://doi.org/10.1103/PhysRevB.110.064104
+
+$ crystod-slab -c 221_PPOSCAR_SrTiO3 --index 1 0 0 --symmetrize
+
+* Structure *
+ 221_PPOSCAR_SrTiO3: SrTiO3, Pm-3m (No. 221), 5 atoms
+ a, b, c = 3.9451, 3.9451, 3.9451 A; alpha, beta, gamma = 90, 90, 90 deg
+ Miller indices refer to the axes of this cell.
+
+* Slab settings *
+ minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive in-plane cell: yes
+ polar slabs: symmetrized terminations (atoms removed from one face of every asymmetric slab)
+ oxidation states for the dipole: Sr+2 Ti+4 O-2 (guessed)
+ maximum atoms per slab: no limit
+
+* Miller indices *
+ indices given: (1 0 0)
+
+* Slabs *
+  #  h k l  shift  atoms  thickness (A)  vacuum (A)  area (A^2)  formula   polar  symmetric  status
+  1  1 0 0  0.250     13           7.89       19.73       15.56  Sr2Ti3O8  no     yes        written
+  2  1 0 0  0.250     12           7.89       19.73       15.56  Sr3Ti2O7  no     yes        written
+ thickness: extent of the atoms along the surface normal (whole oriented cells are stacked to the
+ minimum slab height, and the atoms span them less the gap at the cut); vacuum: cell height along
+ the normal minus the thickness (both in A); area: in-plane cell area (A^2); shift: pymatgen's
+ termination shift (fractional c of the oriented cell); polar: dipole per area from the oxidation
+ states (Slab.is_polar; ? = no states); symmetric: an operation of the slab turns the normal over
+ (e.g. inversion, a mirror or glide plane parallel to the surface, a 2-fold axis in it), so the two
+ faces are equivalent (Slab.is_symmetric).
+
+* Output files *
+ #1 -> POSCAR_slab_SrTiO3_100_s1
+ #2 -> POSCAR_slab_SrTiO3_100_s2
+
+If you use crystod-slab in your research, please cite:
+  R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, Y. Mochizuki,
+  and A. Nakajima, "Preparation and Antiviral Activity of La2CuO4 and Y2Cu2O5 with
+  Mechanistic Insights from First Principles", ACS Appl. Mater. Interfaces 17, 61872-61887
+  (2025). https://doi.org/10.1021/acsami.5c17978
+The slabs are built with pymatgen's SlabGenerator:
+  W. Sun and G. Ceder, Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).
+
+If you use CrystOD in your research, please cite:
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024).
+  https://doi.org/10.1103/PhysRevB.110.064104
+
+$ crystod-slab -c 221_PPOSCAR_SrTiO3 --index 1 1 0 --no-polar
+
+* Structure *
+ 221_PPOSCAR_SrTiO3: SrTiO3, Pm-3m (No. 221), 5 atoms
+ a, b, c = 3.9451, 3.9451, 3.9451 A; alpha, beta, gamma = 90, 90, 90 deg
+ Miller indices refer to the axes of this cell.
+
+* Slab settings *
+ minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive in-plane cell: yes
+ polar slabs: skipped
+ oxidation states for the dipole: Sr+2 Ti+4 O-2 (guessed)
+ maximum atoms per slab: no limit
+
+* Miller indices *
+ indices given: (1 1 0)
+
+* Slabs *
+  #  h k l  shift  atoms  thickness  vacuum   area  formula    polar  symmetric  status
+  1  1 1 0  0.250     20       9.76   18.13  22.01  Sr4Ti4O12  yes    no         skipped: polar
+ thickness: extent of the atoms along the surface normal (whole oriented cells are stacked to the
+ minimum slab height, and the atoms span them less the gap at the cut); vacuum: cell height along
+ the normal minus the thickness (both in A); area: in-plane cell area (A^2); shift: pymatgen's
+ termination shift (fractional c of the oriented cell); polar: dipole per area from the oxidation
+ states (Slab.is_polar; ? = no states); symmetric: an operation of the slab turns the normal over
+ (e.g. inversion, a mirror or glide plane parallel to the surface, a 2-fold axis in it), so the two
+ faces are equivalent (Slab.is_symmetric).
+
+* Output files *
+ none (every slab was skipped)
+
+If you use crystod-slab in your research, please cite:
+  R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, Y. Mochizuki,
+  and A. Nakajima, "Preparation and Antiviral Activity of La2CuO4 and Y2Cu2O5 with
+  Mechanistic Insights from First Principles", ACS Appl. Mater. Interfaces 17, 61872-61887
+  (2025). https://doi.org/10.1021/acsami.5c17978
+The slabs are built with pymatgen's SlabGenerator:
+  W. Sun and G. Ceder, Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).
+
+If you use CrystOD in your research, please cite:
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024).
+  https://doi.org/10.1103/PhysRevB.110.064104
+
+$ crystod-slab --example SrTiO3
+Kept 221_PPOSCAR_SrTiO3 (identical to the bundled example input)
+Running: crystod-slab -c 221_PPOSCAR_SrTiO3 --max-index 1
+
+* Structure *
+ 221_PPOSCAR_SrTiO3: SrTiO3, Pm-3m (No. 221), 5 atoms
+ a, b, c = 3.9451, 3.9451, 3.9451 A; alpha, beta, gamma = 90, 90, 90 deg
+ Miller indices refer to the axes of this cell.
+
+* Slab settings *
+ minimum slab height: 10 A   minimum vacuum: 15 A   centered: yes   primitive in-plane cell: yes
+ polar slabs: written
+ oxidation states for the dipole: Sr+2 Ti+4 O-2 (guessed)
+ maximum atoms per slab: no limit
+
+* Miller indices *
+ indices with |h|,|k|,|l| <= 1, distinct under the Laue group m-3m: (1 1 1) (1 1 0) (1 0 0)
+
+* Slabs *
+  #  h k l  shift  atoms  thickness  vacuum   area  formula    polar  symmetric  status
+  1  1 1 1  0.250     25      10.25   17.08  26.96  Sr5Ti5O15  yes    no         written
+  2  1 1 0  0.250     20       9.76   18.13  22.01  Sr4Ti4O12  yes    no         written
+  3  1 0 0  0.250     15       9.86   17.75  15.56  Sr3Ti3O9   no     no         written
+ thickness: extent of the atoms along the surface normal (whole oriented cells are stacked to the
+ minimum slab height, and the atoms span them less the gap at the cut); vacuum: cell height along
+ the normal minus the thickness (both in A); area: in-plane cell area (A^2); shift: pymatgen's
+ termination shift (fractional c of the oriented cell); polar: dipole per area from the oxidation
+ states (Slab.is_polar; ? = no states); symmetric: an operation of the slab turns the normal over
+ (e.g. inversion, a mirror or glide plane parallel to the surface, a 2-fold axis in it), so the two
+ faces are equivalent (Slab.is_symmetric).
+
+* Output files *
+ #1 -> POSCAR_slab_SrTiO3_111_t1 (kept: identical file already there)
+ #2 -> POSCAR_slab_SrTiO3_110_t1 (kept: identical file already there)
+ #3 -> POSCAR_slab_SrTiO3_100_t1 (kept: identical file already there)
+
+If you use crystod-slab in your research, please cite:
+  R. Kiribayashi, K. Sunada, T. Isobe, K. Kobayashi, T. Nagai, H. Ishiguro, Y. Mochizuki,
+  and A. Nakajima, "Preparation and Antiviral Activity of La2CuO4 and Y2Cu2O5 with
+  Mechanistic Insights from First Principles", ACS Appl. Mater. Interfaces 17, 61872-61887
+  (2025). https://doi.org/10.1021/acsami.5c17978
+The slabs are built with pymatgen's SlabGenerator:
+  W. Sun and G. Ceder, Surf. Sci. 617, 53 (2013); R. Tran et al., Sci. Data 3, 160080 (2016).
+
+If you use CrystOD in your research, please cite:
+  H. Koiso and Y. Mochizuki et al., Phys. Rev. B 110, 064104 (2024).
+  https://doi.org/10.1103/PhysRevB.110.064104
+
+The file POSCAR_slab_SrTiO3_100_s2 (the SrO-terminated symmetric slab; direct
+coordinates, the sites grouped by element in the order of the input POSCAR):
+
+SrTiO3 (1 0 0) slab, symmetrized s2, Sr3Ti2O7, shift 0.250, crystod-slab
+1.0
+   3.945130000000    0.000000000000    0.000000000000
+   0.000000000000    3.945130000000    0.000000000000
+   0.000000000000    0.000000000000   27.615910000000
+Sr Ti O
+3 2 7
+direct
+   0.000000000000    0.000000000000    0.388233648117 Sr
+   0.000000000000    0.000000000000    0.531090790974 Sr
+   0.000000000000    0.000000000000    0.673947933831 Sr
+   0.500000000000    0.500000000000    0.459662219545 Ti
+   0.500000000000    0.500000000000    0.602519362402 Ti
+   0.500000000000    0.500000000000    0.388233648117 O
+   0.000000000000    0.500000000000    0.459662219545 O
+   0.500000000000    0.000000000000    0.459662219545 O
+   0.500000000000    0.500000000000    0.531090790974 O
+   0.000000000000    0.500000000000    0.602519362402 O
+   0.500000000000    0.000000000000    0.602519362402 O
+   0.500000000000    0.500000000000    0.673947933831 O

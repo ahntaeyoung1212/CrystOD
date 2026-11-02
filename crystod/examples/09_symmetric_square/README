@@ -1,0 +1,178 @@
+# Symmetric and antisymmetric squares (crystod-group --product IR IR --symmetric /
+# --antisymmetric) and Jahn-Teller modes (crystod-group --jahn-teller);
+# testsuite section 9
+# [IR x IR] is the symmetric square (characters (chi(g)^2 + chi(g^2))/2): quadratic
+# forms of the components, Jahn-Teller couplings, two-electron singlets.
+# {IR x IR} is the antisymmetric square (characters (chi(g)^2 - chi(g^2))/2):
+# two-electron triplets. Jahn-Teller active modes = [IR x IR] minus the identity irrep;
+# with two irreps, the symmetry-allowed pseudo-Jahn-Teller coupling modes of the plain
+# product IR1 x IR2 (a necessary condition only: the energy gap and the coupling
+# strength decide whether the mixing destabilizes the structure).
+
+$ crystod-group --product T2g T2g --pg m-3m --symmetric --antisymmetric
+
+* Point group *
+m-3m
+
+* Direct product *
+T2g*T2g
+
+* Result *
+ 1(A1g) + 1(Eg) + 1(T1g) + 1(T2g)
+
+* Symmetric square *
+[T2g x T2g] = A1g + Eg + T2g
+dimension: 6 = 1 + 2 + 3
+
+* Antisymmetric square *
+{T2g x T2g} = T1g
+dimension: 3 = 3
+
+
+$ crystod-group --jahn-teller Eg --pg m-3m
+
+* Point group *
+m-3m
+
+* Jahn-Teller active modes *
+[Eg x Eg] = A1g + Eg
+JT-active: Eg
+  (linear vibronic coupling allowed by symmetry; the Jahn-Teller theorem)
+
+
+$ crystod-group --jahn-teller T1u --pg m-3m
+
+* Point group *
+m-3m
+
+* Jahn-Teller active modes *
+[T1u x T1u] = A1g + Eg + T2g
+JT-active: Eg + T2g
+  (linear vibronic coupling allowed by symmetry; the Jahn-Teller theorem)
+
+
+$ crystod-group --jahn-teller Eg T2g --pg m-3m
+
+* Point group *
+m-3m
+
+* Pseudo-Jahn-Teller coupling *
+Eg x T2g = T1g + T2g
+symmetry-allowed coupling modes: T1g + T2g
+  (necessary condition only: a mode Q can mix the two levels when Gamma_Q
+   occurs in the product; whether the mixing destabilizes the high-symmetry
+   structure depends on the energy gap and the coupling strength, which
+   symmetry does not give)
+
+
+$ crystod-group --jahn-teller T1u T1u --pg m-3m
+
+* Point group *
+m-3m
+
+* Pseudo-Jahn-Teller coupling *
+T1u x T1u = A1g + Eg + T1g + T2g
+same degenerate level (first-order Jahn-Teller): [T1u x T1u] - A1g = Eg + T2g
+two different levels of symmetry T1u, symmetry-allowed coupling modes: Eg + T1g + T2g
+  (necessary condition only: a mode Q can mix the two levels when Gamma_Q
+   occurs in the product; whether the mixing destabilizes the high-symmetry
+   structure depends on the energy gap and the coupling strength, which
+   symmetry does not give)
+
+
+$ crystod-group --jahn-teller A1 E --pg 4mm
+
+* Point group *
+4mm
+
+* Pseudo-Jahn-Teller coupling *
+A1 x E = E
+symmetry-allowed coupling modes: E
+  (necessary condition only: a mode Q can mix the two levels when Gamma_Q
+   occurs in the product; whether the mixing destabilizes the high-symmetry
+   structure depends on the energy gap and the coupling strength, which
+   symmetry does not give)
+
+
+$ crystod-group --product R4+ R4+ --sg Pm-3m --symmetric --antisymmetric
+
+* Space group *
+Pm-3m (No. 221)
+
+* K points (primitive basis) *
+R: (1/2, 1/2, 1/2)   star of 1 arm(s)
+GM: (0, 0, 0)   star of 1 arm(s)
+
+* Direct product (full space-group irreps) *
+R4+ x R4+ = GM1+ + GM3+ + GM4+ + GM5+
+
+* Dimension check (star size x small dim) *
+3 x 3 = 9 -> 1 + 2 + 3 + 3 = 9
+
+* Symmetric square (full space-group irreps) *
+[R4+ x R4+] = GM1+ + GM3+ + GM5+
+dimension: 6 = 1 + 2 + 3
+
+* Antisymmetric square (full space-group irreps) *
+{R4+ x R4+} = GM4+
+dimension: 3 = 3
+
+Cross-validated against the Bilbao Crystallographic Server DIRPRO:
+M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
+
+
+
+$ crystod-group --product X5+ X5+ --sg Pm-3m --symmetric --antisymmetric
+
+* Space group *
+Pm-3m (No. 221)
+
+* K points (primitive basis) *
+X: (0, 1/2, 0)   star of 3 arm(s)
+GM: (0, 0, 0)   star of 1 arm(s)
+M: (1/2, 1/2, 0)   star of 3 arm(s)
+
+* Direct product (full space-group irreps) *
+X5+ x X5+ = GM1+ + GM2+ + 2GM3+ + GM4+ + GM5+ + M1+ + M2+ + M3+ + M4+ + 2M5+
+
+* Dimension check (star size x small dim) *
+6 x 6 = 36 -> 1 + 1 + 2x2 + 3 + 3 + 3 + 3 + 3 + 3 + 2x6 = 36
+
+* Symmetric square (full space-group irreps) *
+[X5+ x X5+] = GM1+ + GM2+ + 2GM3+ + GM5+ + M1+ + M4+ + M5+
+dimension: 21 = 1 + 1 + 2x2 + 3 + 3 + 3 + 6
+
+* Antisymmetric square (full space-group irreps) *
+{X5+ x X5+} = GM4+ + M2+ + M3+ + M5+
+dimension: 15 = 3 + 3 + 3 + 6
+
+Cross-validated against the Bilbao Crystallographic Server DIRPRO:
+M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
+
+
+
+$ crystod-group --product P1 P1 --sg I4/mcm --symmetric
+
+* Space group *
+I4/mcm (No. 140)
+
+* K points (primitive basis) *
+P: (1/4, 1/4, 1/4)   star of 2 arm(s)
+GM: (0, 0, 0)   star of 1 arm(s)
+M: (1/2, 1/2, 1/2)   star of 1 arm(s)
+
+* Direct product (full space-group irreps) *
+P1 x P1 = GM4+ + GM3- + M2+ + M1-
+
+* Dimension check (star size x small dim) *
+2 x 2 = 4 -> 1 + 1 + 1 + 1 = 4
+
+* Symmetric square (full space-group irreps) *
+note: P1 is of complex type; the square is that of the physically irreducible real representation P1P3 (D + D*, dimension 4)
+[P1P3 x P1P3] = GM1+ + 2GM4+ + GM2- + 2M2+ + M3+ + 2M1- + M4-
+dimension: 10 = 1 + 2x1 + 1 + 2x1 + 1 + 2x1 + 1
+
+Cross-validated against the Bilbao Crystallographic Server DIRPRO:
+M. I. Aroyo et al., Acta Cryst. A62, 115-128 (2006); https://cryst.ehu.es/rep/dirpro.html
+
+

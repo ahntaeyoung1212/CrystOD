@@ -1,0 +1,84 @@
+CrystOD example directories (packaged copy)
+
+These are the worked examples of CrystOD, installed with the package so that
+they are available without cloning the repository.  Do not run them here:
+their commands write output files next to the inputs.  Copy them into a
+working directory first:
+
+  crystod-example                  list the packaged examples
+  crystod-example NN [NN ...]      copy examples (number or name) into ./example
+  crystod-example NN -o DIR        copy into DIR instead
+  crystod-example --all -o DIR     copy every packaged example into DIR
+
+then cd into DIR/NN_name and follow its README.  The shared directories
+test_POSCARs/ and test_XYZs/ are copied along with every example, and an
+example that reads files of other examples brings those along, so the relative
+paths in the READMEs (../test_POSCARs/..., ../NN_name/...) work in the copy.
+
+Every file in the example and shared directories listed below is a
+byte-for-byte copy of the same path under example/ of the CrystOD source tree;
+only this README and index.json are generated (by
+script/sync_packaged_examples.py).  Some data of example/ is not in the pip
+package: large data (force-constant files, full MD trajectories), generated
+HTML and PDF output, the reference data of the test suite, and the data of
+work not yet published (unpublished, not distributed).  It stays in the
+CrystOD development tree; the test suite and development need a clone of the
+repository.
+
+Examples
+--------
+01_wigner_d                  Wigner D matrices on real spherical harmonics (library API)
+02_salc                      crystod (SALC: crystal-orbital irreps, hybridization)
+03_hybridization             crystod (--atomic-orbital hybridization; --diagram crystal-orbital diagrams)
+04_selection_rules           crystod --diagram (dipole selection rules of the crystal-orbital diagrams)
+05_star_of_k                 crystod --star-of-k
+06_visualized_basis          crystod --visualize (SALC viewer HTML)
+08_direct_product            crystod-group --product / --table (point- and space-group irreps)
+09_symmetric_square          crystod-group --product --symmetric / --antisymmetric, --jahn-teller
+10_decompose_irrep           crystod-group --decompose
+11_ligand_field_split        crystod-group --ligand-field
+12_basis_function            crystod-group --basis
+13_tensor_form               crystod-group --tensor (property-tensor forms)
+14_generate_basis_function   crystod-group --generate-basis
+15_show_coset                crystod-group --coset
+16_correlate                 crystod-group --correlate (correlation and compatibility of irreps)
+17_isotropy_subgroup         crystod-group --parent (isotropy subgroups)
+18_invariants                crystod-group --parent --irrep --invariants (invariant polynomials)
+19_child_lookup              crystod-group --parent G --child H (reverse lookup)
+20_subgroup_graph            crystod-group --parent --irrep --graph (group-subgroup graph)
+21_multiplet                 crystod-group --multiplet (spin multiplicities of irrep-shell configurations)
+22_poscar2cif                crystod-group --poscar2cif / --cif2poscar (POSCAR <-> Bilbao-style CIF)
+23_symmetry_mode             crystod-group --supergroup-cif (AMPLIMODES-style symmetry-mode analysis)
+25_brillouin_zone            crystod-bz
+26_bz_supercell              crystod-bz --trans-mat
+28_phonon_irrep              crystod-phonon --irreps
+29_phonon_activity           crystod-phonon --irreps / --vibration (IR / Raman / silent / acoustic activity at Gamma)
+30_phonon_fatband            crystod-phonon --fatband
+31_phonon_lt                 crystod-phonon --lt
+32_phonon_vector             crystod-phonon --vector
+33_modulation                crystod-phonon --modulation
+34_vibration                 crystod-phonon --vibration
+36_spin_basis                crystod-mag
+37_magnetic_group            crystod-mag --classify-only (magnetic space groups, altermagnet classes)
+39_xdatcar2adp               crystod-md --adp (and --summary on the same XDATCAR)
+40_md_projection             crystod-md --project (mode projection of an MD trajectory)
+42_molecular_salc            crystod-mol (--symmetry and molecular SALCs)
+43_molod                     crystod-mol --diagram (MO diagrams: symmetry + overlap, or --pyscf)
+45_python_api                the library API (crystod.phonon etc.) on the SrTiO3 data
+46_xrd_pattern               crystod-xrd (powder X-ray diffraction patterns)
+47_xrd_superlattice          crystod-xrd --parent / --radiation neutron (superlattice reflections, k points, irreps)
+48_mp_search                 crystod-search (Materials Project search and POSCAR download; needs an API key)
+51_phonon_unfold             crystod-phonon --unfold (phonon band unfolding onto the parent Brillouin zone)
+52_phonon_visualize          crystod-phonon --visualize (interactive 3D viewer of the phonon modes by irrep)
+53_slab                      crystod-slab (surface slabs, their terminations and polarity)
+
+Examples that read files of other examples (copied together):
+  29_phonon_activity   28_phonon_irrep 30_phonon_fatband
+  40_md_projection     33_modulation 39_xdatcar2adp
+  45_python_api        28_phonon_irrep
+  47_xrd_superlattice  23_symmetry_mode
+
+Shared directories
+------------------
+test_POSCARs                 shared input structures used by the examples and testsuite
+test_XYZs                    shared molecule files (O2, H2O, NH3, CH4, SF6) for crystod-mol

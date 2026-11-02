@@ -1,0 +1,32 @@
+# Static checks with ruff on every push and pull request. The rule set and the
+# excluded directories live in ruff.toml at the repository root, so the
+# `ruff check .` below is exactly what a contributor runs locally.
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: ruff check
+        run: ruff check .

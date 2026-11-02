@@ -109,7 +109,7 @@ def resolve_kpoint_input(structure: SymmetryOnlyVibrations, raw_kpoint: list[str
 
 
 def _wrap_to_unit(kpoint: NDArray[np.float64]) -> NDArray[np.float64]:
-    """Wrap a k point into [-0.5, 0.5) for display and comparison."""
+    """Wrap a k point into (-0.5, 0.5] for display and comparison."""
     wrapped = np.remainder(np.asarray(kpoint, dtype=float) + 0.5, 1.0) - 0.5
     wrapped[np.abs(wrapped + 0.5) < 1e-8] = 0.5
     return wrapped
@@ -145,7 +145,7 @@ def compute_star(
 
     Returns:
         One dict per arm, in order of first appearance along ``rotations``:
-        ``"kpoint"`` (the arm wrapped into ``[-0.5, 0.5)``),
+        ``"kpoint"`` (the arm wrapped into ``(-0.5, 0.5]``),
         ``"representative_index"`` (index of the first rotation reaching
         the arm, the coset representative) and ``"operation_indices"``
         (indices of every rotation reaching the arm).  With the identity
@@ -273,15 +273,15 @@ def main(argv: list[str] | None = None) -> None:
     kpoint_label, kpoint = resolve_kpoint_input(structure, args.kpoint)
 
     dataset = structure.spglib_dataset
-    print(f"\n * Space group *\n {dataset['international']} ({dataset['number']})\n")
-    print(f" * k point (primitive) *\n {kpoint_label} {np.round(kpoint, 6).tolist()}\n")
+    print(f"\n* Space group *\n {dataset['international']} ({dataset['number']})\n")
+    print(f"* k point (primitive) *\n {kpoint_label} {np.round(kpoint, 6).tolist()}\n")
 
     transformation_matrix = get_primitive_matrix_by_centring(dataset["international"][0])
     seitz_symbols = [
         get_seitz_symbol(rotation, transformation_matrix) for rotation in structure.rotations
     ]
 
-    print(" * Star of k *")
+    print("* Star of k *")
     print_star_of_k(
         rotations=structure.rotations,
         translations=structure.translations,

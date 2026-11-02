@@ -1,0 +1,15 @@
+* Transformation matrix (parent -> child) *
+P6322 (No. 182) -> P63 (No. 173), conventional settings of the input files
+  [     2     0     0 ] [     0 ]
+  [     0     2     0 ] [     0 ]
+  [     0     0     1 ] [ 0.9950 ]
+(columns of P: the child basis vectors a', b', c' in parent units, (a', b', c') = (a, b, c) P;
+ last column: the child origin p in parent fractional coordinates, x_parent = P x_child + p;
+ the AMPLIMODES / Bilbao convention)
+
+* Symmetry-mode decomposition *
+k-vector         irrep   direction    isotropy subgroup   dim  amplitude (A)
+(0,0,0)          GM1     (a)          182 P6_322          2    7.1279
+(0,0,0)          GM2     (a)          173 P6_3            5    0.0061
+(1/2,0,0)        M1      (a;-a;a)     182 P6_322          9    0.4116
+(1/2,0,0)        M2      (a;-a;a)     173 P6_3            12   1.6708

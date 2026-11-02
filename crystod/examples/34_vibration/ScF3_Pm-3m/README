@@ -1,0 +1,41 @@
+# example of code execution #
+# Symmetry only: no force data. Mode space 3 at R is R4+(3); its component 1
+# is the R4+(a,0,0) partner (octahedral rotation about a), the same pattern as
+# mode 1 of crystod-phonon --modulation at R (the 33_modulation example), and
+# the written structure has the isotropy subgroup I4/mcm. --amplitude (default
+# 0.3 A) is the norm of the displacement of one primitive cell.
+$ crystod-phonon --vibration -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode-index 3 --output POSCAR_modulated --export-npz vibration.npz
+
+ ### Inputed cell was converted into primitive cell. ###
+
+* Q points (primitive) *
+  GM       (0, 0, 0)
+  R        (1/2, 1/2, 1/2)
+  M        (1/2, 1/2, 0)
+  X        (0, 1/2, 0)
+
+* Selected Q point *
+  R        (1/2, 1/2, 1/2)
+
+* Irrep-grouped vibration spaces *
+  Mode Space  1: irrep = R1+(1), dimension = 1, component numbers = 1..1
+  Mode Space  2: irrep = R3+(2), dimension = 2, component numbers = 1..2
+  Mode Space  3: irrep = R4+(3), dimension = 3, component numbers = 1..3
+  Mode Space  4: irrep = R4-(3), dimension = 3, component numbers = 1..3
+  Mode Space  5: irrep = R5+(3), dimension = 3, component numbers = 1..3
+
+* Selected basis vector *
+Selected mode space: 3
+Selected irrep     : R4+(3)
+Selected component : 1
+Commensurate supercell size: (2, 2, 2)
+Supercell atom count: 32
+Displacement norm range (unit amplitude): min=0.000000, max=0.707107
+First 5 displacement vectors:
+   0 Sc pos=[0.0, 0.0, 0.0] disp=[0.0, 0.0, 0.0]
+   1 F  pos=[0.0, 2.034795, 0.0] disp=[0.0, 0.0, 0.707107]
+   2 F  pos=[2.034795, 0.0, 0.0] disp=[0.0, 0.0, 0.0]
+   3 F  pos=[0.0, 0.0, 2.034795] disp=[0.0, -0.707107, 0.0]
+   4 Sc pos=[0.0, 0.0, 4.06959] disp=[-0.0, -0.0, -0.0]
+Saved mode data to: vibration.npz
+Saved displaced structure to: POSCAR_modulated

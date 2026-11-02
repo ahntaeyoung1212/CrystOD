@@ -5,7 +5,8 @@ unit cell with ``FORCE_SETS`` or ``FORCE_CONSTANTS``, or a
 ``phonopy_params.yaml``): labeling phonon modes with ISO-IR space-group
 irreps, following imaginary modes to the isotropy subgroups they can condense
 into, exporting eigenvectors for VESTA, resolving the longitudinal/transverse
-character of bands, and freezing modes into modulated structures. The
+character of bands, freezing modes into modulated structures, and showing
+every mode of the k path in an interactive viewer. The
 symmetry-only vibration bases need no force data at all. Where the command
 takes files, the functions take a live ``phonopy.Phonopy`` object; build it
 with ``primitive_matrix="auto"``, so that a zone-boundary instability appears
@@ -119,11 +120,24 @@ Band unfolding (``crystod-phonon --unfold``):
 - :func:`gamma_origin` -- the parent k and irreps the child Gamma modes come
   from (:class:`GammaOrigin`).
 
+Phonon mode viewer (``crystod-phonon --visualize``):
+
+- :func:`phonon_viewer_data` -- the dispersion along the k path and, at its
+  labeled special points (with ``all_irreps=True`` also at the midpoints of
+  its segments), every mode with its ISO-IR set label (Mulliken symbol and
+  activity at Gamma), its display cell and its atomic-gauge displacement
+  vectors, as :class:`PhononViewer` (:class:`ViewerPoint`,
+  :class:`ViewerMode`);
+- :func:`write_phonon_viewer_html` -- the standalone viewer page;
+- :func:`write_band_vector_yaml` -- phonopy's ``band.yaml`` with eigenvectors
+  along the same path (``band_vector.yaml``).
+
 Attributes resolve lazily (PEP 562): importing this module is instant and
 pulls in phonopy/spgrep only on first use. The implementation lives in
 ``crystod.phonon_irreps``, ``crystod.phonon_activity``, ``crystod.phonon_subgroups``,
 ``crystod.phonon_vector``, ``crystod.phonon_lt``, ``crystod.modulation``,
-``crystod.vibration_modes`` and ``crystod.phonon_unfold``, whose import paths
+``crystod.vibration_modes``, ``crystod.phonon_unfold`` and
+``crystod.phonon_visualize``, whose import paths
 keep working. Bad input raises ``ValueError`` from the functions of this
 namespace, where the implementation modules exit the process (``SystemExit``)
 as a command line wants it.
@@ -214,6 +228,13 @@ _EXPORTS = {
     "DomainAverage": ("phonon_unfold", "DomainAverage"),
     "UnfoldedIrreps": ("phonon_unfold", "UnfoldedIrreps"),
     "GammaOrigin": ("phonon_unfold", "GammaOrigin"),
+    # phonon mode viewer (crystod-phonon --visualize)
+    "phonon_viewer_data": ("phonon_visualize", "phonon_viewer_data"),
+    "write_phonon_viewer_html": ("phonon_visualize", "write_phonon_viewer_html"),
+    "write_band_vector_yaml": ("phonon_visualize", "write_band_vector_yaml"),
+    "PhononViewer": ("phonon_visualize", "PhononViewer"),
+    "ViewerPoint": ("phonon_visualize", "ViewerPoint"),
+    "ViewerMode": ("phonon_visualize", "ViewerMode"),
 }
 
 __getattr__, __dir__, __all__ = lazy_namespace(globals(), _EXPORTS)

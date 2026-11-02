@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CrystOD"
-version = "0.4.3"
+version = "0.4.6"
 authors = [
   {name = "Yasuhide Mochizuki"},
   {email = "mochizuki@rs.tus.ac.jp"},
@@ -120,15 +120,32 @@ crystod-phonon = "crystod.cli.phonon:main"
 crystod-group = "crystod.cli.group:main"
 crystod-search = "crystod.cli.search:main"
 crystod-xrd = "crystod.cli.xrd:main"
+crystod-slab = "crystod.cli.slab:main"
+crystod-example = "crystod.cli.example:main"
 
 [tool.setuptools]
+# explicit, not packages.find: find would list the example directories as
+# packages that cannot be imported (crystod.examples.02_salc ...)
 packages = ["crystod", "crystod.cli", "crystod.examples"]
+# only the package-data globs below decide what ships; this also silences
+# "Package would be ignored" for test_POSCARs/, a valid identifier name
+include-package-data = false
 
 [tool.setuptools.package-data]
 crystod = ["CIR_data.txt.gz", "vesta_element_rgb.json"]
 # the inputs behind `--example` (a few POSCAR/XYZ files and one FORCE_SETS,
-# ~100 kB), so the quick start runs right after `pip install`
-"crystod.examples" = ["221_PPOSCAR_*", "FORCE_SETS_*", "XYZ_*.xyz"]
+# ~100 kB), so the quick start runs right after `pip install`; then the
+# packaged example directories (crystod-example): exact copies of the files
+# of example/ chosen in example/PACKAGED, written with their index.json and
+# README by script/sync_packaged_examples.py.  These globs read the disk and
+# ignore .gitignore, so build from a `git archive` export of the release
+# commit, never from a working tree.
+"crystod.examples" = ["221_PPOSCAR_*", "FORCE_SETS_*", "XYZ_*.xyz", "README", "index.json",
+                      "[0-9][0-9]_*/**/*", "test_POSCARs/*", "test_XYZs/*"]
+
+[tool.setuptools.exclude-package-data]
+"crystod.examples" = ["**/__pycache__/*", "**/*.pyc", "**/*.html", "**/*.pdf", "**/POTCAR*",
+                      "**/.DS_Store"]
 
 [project.urls]
 Homepage = "https://mochizuki-tus.github.io/CrystOD/"

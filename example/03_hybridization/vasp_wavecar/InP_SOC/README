@@ -1,0 +1,43 @@
+InP (F-43m, zincblende) with spin-orbit coupling: a small real VASP run for
+crystod --extract-irrep
+==========================================================================
+
+Fixture of the time-reversal pairs of crystod --extract-irrep
+(crystod/extract_irrep.py).  Zincblende has no inversion centre, so with
+spin-orbit coupling the two one-dimensional double-valued irreps -L4 and -L5
+at L (complex conjugates of each other) are degenerate only through time
+reversal.  VASP returns the two bands of such a pair as pure states, and the
+labelling engine names each band on its own; --extract-irrep keeps the pair
+as ONE two-fold level (degeneracy window, default 1 meV) and says why.  Run
+the command from this directory:
+
+  crystod --extract-irrep . --kpoint L
+
+      4  7-8   -1.0127    2  -L4/-L5  time-reversal pair (-L4 + -L5)
+
+(bands 13-14 likewise).  --degeneracy-tol 0.2 joins -L6 and the pair into one
+level and reports it as an accidental degeneracy, with the irrep of each band.
+
+How the run was made (2026-10-16)
+  VASP 6.5.1 (none of the CrystOD point-charge extensions is used),
+  "mpirun -np 2 vasp_ncl", about 1 s.  Zincblende InP (a = 5.8686 A, In at
+  the origin, P at (1/4,1/4,1/4)) at a low cutoff and on a 2x2x2 mesh.
+  INCAR   PREC = Normal, ENCUT = 200, LSORBIT = .TRUE., MAGMOM = 6*0,
+          ISMEAR = 0, SIGMA = 0.01, EDIFF = 1E-7, NBANDS = 16 (LDA)
+  KPOINTS Gamma-centred 2x2x2 mesh, reduced by VASP to GM, L (stored as
+          (1/2,0,0)) and X (stored as (1/2,1/2,0)); W is not in it
+  POTCAR  PAW In 03Oct2001, PAW P 26Mar2009 (LDA); it is NOT included
+          (POTCAR files are licensed)
+
+Files
+  INCAR, KPOINTS, POSCAR  the inputs as run (POSCAR in the VASP 5 format)
+  WAVECAR                 the run's WAVECAR, unchanged (0.28 MB)
+  OUTCAR                  trimmed to the run parameters and the final E-fermi
+                          line (the only OUTCAR line the code reads)
+  expected.json           (not in the pip package)
+                          crystod.salc.extract_band_irreps(DIR).to_dict(), as
+                          for the SrTiO3 runs (see ../SrTiO3/README for the
+                          regeneration snippet)
+
+Check (testsuite.py and expected.json are not in the pip package)
+  python testsuite.py 49

@@ -1,0 +1,71 @@
+# ruff configuration for CrystOD. `ruff check .` from the repository root is
+# what .github/workflows/lint.yml runs on every push and pull request.
+
+# requires-python = ">=3.10" in pyproject.toml
+target-version = "py310"
+line-length = 100
+
+# What is checked: crystod/ (the package, its CLIs and the bundled examples),
+# crystod-mcp/ (the MCP server), testsuite.py, doc/conf.py and the tutorial
+# notebooks (ruff lints .ipynb files by default). Everything listed below is
+# kept out: the research data and working directories that .gitignore already
+# keeps out of the public repository (ruff honours .gitignore, so those entries
+# only matter in a checkout that still carries them), the reference data and
+# research directories at the top level, the one-off scripts in script/ that
+# predate the package, and example/, whose few Python files are worked-example
+# inputs rather than maintained code. `extend-exclude` keeps ruff's own
+# defaults (.git, __pycache__, .venv, node_modules, _build, dist, ...).
+extend-exclude = [
+  # .gitignore: research data and working directories
+  "phonon_band",
+  "wannier90",
+  "iso",
+  "crystod_260814",
+  "doc_260814",
+  "CrystOD_claude",
+  "260824_debug",
+  # reference data, research directories and one-off scripts
+  "matsym",
+  "AMPLIMODES",
+  "DIRPRO",
+  "SUBGROUP",
+  "reference",
+  "HIF_survey",
+  "261013_decision_notes",
+  "markdown",
+  "script",
+  "example",
+  # build products
+  "doc/_build",
+  "dist",
+  "build",
+  "*.egg-info",
+]
+
+[lint]
+# The rule set was chosen empirically on the v0.4.0 tree (2026-09-13): each
+# rule below reports ZERO findings on the current code, so the gate is green
+# from the first run and a red Lint job always means a new problem. They are
+# the checks that point at a genuine error rather than a style preference:
+#   E9    syntax errors and files that cannot be read
+#   F63   invalid comparisons (`is` with a literal, `==` on a tuple, ...)
+#   F7    misplaced statements (`return` outside a function, `break` outside
+#         a loop, a default `except:` that is not last, ...)
+#   F82   undefined names
+#   F811  a name redefined while still unused (a duplicated def or import)
+#   E711  comparison to None with == / !=
+#   E712  comparison to True / False with == / !=
+#   E721  type comparison with == instead of isinstance()
+#   E722  bare `except:`
+# Candidates that were tried and NOT enabled: they report findings on the
+# current tree, and the policy is that a rule is enabled only when it passes
+# without code edits made just to satisfy it (counts on 2026-09-13):
+#   F401  unused imports                17 findings (left-over module imports;
+#         the deliberate ones already carry `# noqa: F401`)
+#   F841  unused local variables         7 findings
+#   F541  f-string without placeholders 10 findings
+# All three are mechanical to fix (`ruff check --select F401,F541 --fix`;
+# F841 by hand) and can be added here after a cleanup commit. E501 (line
+# length) is not enforced either; `line-length` above is the target for new
+# code.
+select = ["E9", "F63", "F7", "F82", "F811", "E711", "E712", "E721", "E722"]

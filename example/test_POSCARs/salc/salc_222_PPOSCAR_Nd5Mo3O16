@@ -1,0 +1,33 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ Pn-3n (222)
+
+ * Element (number of atoms) *
+ Nd (20)
+
+ * Wyckoff letters and site symmetry letters *
+ ['e', 'e', 'c', 'e', 'c', 'c', 'e', 'e', 'e', 'c', 'e', 'e', 'e', 'c', 'c', 'e', 'e', 'c', 'c', 'e']
+ ['4..', '4..', '.-3.', '4..', '.-3.', '.-3.', '4..', '4..', '4..', '.-3.', '4..', '4..', '4..', '.-3.', '.-3.', '4..', '4..', '.-3.', '.-3.', '4..']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  Pn-3n (222)
+ irreps             :  1.0 [GM1+(1)] + 2.0 [GM1-(1)] + 1.0 [GM2-(1)] + 1.0 [GM3+(2)] + 3.0 [GM3-(2)] + 3.0 [GM4+(3)] + 6.0 [GM4-(3)] + 2.0 [GM5+(3)] + 5.0 [GM5-(3)] 
+
+ k point (primitive):  R [0.5, 0.5, 0.5]
+ little group of k  :  Pn-3n (222)
+ irreps             :  2.0 [R1(2)] + 2.0 [R2(2)] + 2.0 [R3(2)] + 8.0 [R4(6)] 
+
+ k point (primitive):  M [0.5, 0.5, 0.0]
+ little group of k  :  P4/nnc (126)
+ irreps             :  7.0 [M1(2)] + 7.0 [M2(2)] + 8.0 [M3(2)] + 8.0 [M4(2)] 
+
+ k point (primitive):  X [0.0, 0.5, 0.0]
+ little group of k  :  P4/nnc (126)
+ irreps             :  6.0 [X1(2)] + 8.0 [X2(2)] + 8.0 [X3(2)] + 8.0 [X4(2)] 
+

@@ -2957,7 +2957,7 @@ def run_vasp_diagram(left, right, *, vasp_paths=(), overrides=None, cell_path=No
                          "to compute it from (give --vasp ROOT, or run in the ROOT that "
                          "holds BAND).")
 
-    say("\n * CrystOD --diagram --vasp, overlap engine *")
+    say("\n* CrystOD --diagram --vasp, overlap engine *")
     cache = None
     run_dirs: list = []
     if cache_only:
@@ -2966,7 +2966,7 @@ def run_vasp_diagram(left, right, *, vasp_paths=(), overrides=None, cell_path=No
         cell = _cell_of_cache(cache)
         where = f"the crystal of {cache_file}"
     else:
-        say("\n * VASP runs *")
+        say("\n* VASP runs *")
         resolved = _resolve_directories(paths, overrides, say)
         where = os.path.join(resolved["mo"], "POSCAR")
         cell = _cell_of_run(where)
@@ -2982,7 +2982,7 @@ def run_vasp_diagram(left, right, *, vasp_paths=(), overrides=None, cell_path=No
             raise SystemExit(f"ERROR: the -c cell {cell_path} is not the crystal of "
                              f"{where}; leave -c out, or give the crystal run's POSCAR.")
         if not _same_setting(given, cell):
-            say(f"\n * Setting *\n   the -c cell and {where} are the same crystal in "
+            say(f"\n* Setting *\n   the -c cell and {where} are the same crystal in "
                 "different settings: the overlap engine works in the crystal run's own "
                 "cell (the frame of the WAVECAR), and every irrep label refers to it")
     stem, named = _output_stem(cell, cell_path,
@@ -3000,7 +3000,7 @@ def run_vasp_diagram(left, right, *, vasp_paths=(), overrides=None, cell_path=No
                                  f"(available: {', '.join(names)}).")
             cache = OverlapCache(cache.meta, [kp for kp in cache.kpoints if kp.name == kpoint])
         spinor = cache.spinor
-        say("\n * k points (from the cache) *")
+        say("\n* k points (from the cache) *")
         for kp in cache.kpoints:
             say(f"   {kp.name:<3} {_kfrac_text(kp.frac):<16} k#{kp.index + 1}")
         targets = None
@@ -3017,7 +3017,7 @@ def run_vasp_diagram(left, right, *, vasp_paths=(), overrides=None, cell_path=No
             klist = wav.kpoints()
             spinor = wav.spinor
         targets, missing = [], []
-        say("\n * k points (special points of the space group in the crystal run's k "
+        say("\n* k points (special points of the space group in the crystal run's k "
             "list) *")
         for name, k in special:
             index, found = find_in_star(klist, k, rotations)
@@ -3050,7 +3050,7 @@ def run_vasp_diagram(left, right, *, vasp_paths=(), overrides=None, cell_path=No
                              "overlap-engine run (crystod --diagram --vasp --vasp-engine "
                              "overlap on the runs without spin-orbit coupling).")
     if spinor:
-        say("\n * Spin-orbit coupling: spinor (vasp_ncl) runs, one electron per band, "
+        say("\n* Spin-orbit coupling: spinor (vasp_ncl) runs, one electron per band, "
             "double-valued irreps *")
         if reference is None:
             say("   (no --vasp-scalar-reference: the scalar bridge is left out)")
@@ -3066,7 +3066,7 @@ def run_vasp_diagram(left, right, *, vasp_paths=(), overrides=None, cell_path=No
     if provider is None and not cache_only:
         jsons = irrep_json_for_runs(irrep_json, run_dirs) if irrep_json else None
         provider = wavecar_label_provider(run_dirs, symprec=symprec, irrep_json=jsons)
-        say("\n * Irrep labels *")
+        say("\n* Irrep labels *")
         say("   from the plane-wave coefficients of each run (crystod.wavecar_irreps): "
             + ("double-valued irreps of the spinor states, -K<n><p> names (-R6+ = "
                "R-bar 6+)" if spinor else "CrystOD's ISO-IR labels")
@@ -3081,13 +3081,13 @@ def run_vasp_diagram(left, right, *, vasp_paths=(), overrides=None, cell_path=No
     compound = formula + (" (SOC)" if spinor else "")
     if cache_only:
         columns = _cache_columns(cache, element_column)
-        say("\n * Analysis (stage 2) *")
+        say("\n* Analysis (stage 2) *")
         results = analyse_cache(cache, columns=columns, active_shells=active,
                                 frozen_window=emax, frozen_qmin=qmin,
                                 cross_sphere=cross_sphere, scalar_reference=reference,
                                 compound=compound, report=indented, symprec=symprec)
     else:
-        say("\n * All-electron overlaps (stage 1) and analysis (stage 2) *")
+        say("\n* All-electron overlaps (stage 1) and analysis (stage 2) *")
         results = run_overlap_analysis(run_dirs[0], run_dirs[1:], columns=["left", "right"],
                                        kpoints=targets, active_shells=active,
                                        frozen_window=emax, frozen_qmin=qmin,
@@ -3122,7 +3122,7 @@ def run_vasp_diagram(left, right, *, vasp_paths=(), overrides=None, cell_path=No
         _clean(results), cell, left, right, html_path,
         structure_label=(stem + (" (SOC)" if spinor else "") if named else None),
         window=window, symprec=symprec)
-    say("\n * Key results (eV vs the crystal VBM; the report has the full tables) *")
+    say("\n* Key results (eV vs the crystal VBM; the report has the full tables) *")
     for line in _key_results_lines(text):
         say(f"   {line}")
     from .crystal_orbital_diagram import dipole_rules_lines

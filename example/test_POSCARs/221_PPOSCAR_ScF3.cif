@@ -1,12 +1,12 @@
-# Created by the Bilbao Crystallographic Server
-# http://www.cryst.ehu.es
-# Date: 17/07/2026 16:41:08
+# Created by CrystOD (Bilbao Crystallographic Server style)
+# https://www.cryst.ehu.es
+# Date: 19/07/2026 10:37:50
 
 # 221_PPOSCAR_ScF3 -- non-magnetic
 
-data_3f6Qm17B
-_audit_creation_date               2026-07-17
-_audit_creation_method             "Bilbao Crystallographic Server"
+data_221_PPOSCAR_ScF3
+_audit_creation_date               2026-07-19
+_audit_creation_method             "CrystOD (Bilbao style)"
 _symmetry_Int_Tables_number        221
 _symmetry_space_group_name_H-M     "Pm-3m"
 _cell_length_a                     4.0696
@@ -20,53 +20,53 @@ loop_
 _symmetry_equiv_pos_site_id
 _symmetry_equiv_pos_as_xyz
    1   x,y,z
-   2   x,-y,-z
-   3   -x,y,-z
-   4   -x,-y,z
-   5   y,z,x
-   6   y,-z,-x
-   7   -y,z,-x
-   8   -y,-z,x
+   2   -y,x,z
+   3   -x,-y,z
+   4   y,-x,z
+   5   x,-y,-z
+   6   -y,-x,-z
+   7   -x,y,-z
+   8   y,x,-z
    9   z,x,y
-  10   z,-x,-y
-  11   -z,x,-y
-  12   -z,-x,y
-  13   -y,-x,-z
-  14   -y,x,z
-  15   y,-x,z
-  16   y,x,-z
-  17   -x,-z,-y
-  18   -x,z,y
-  19   x,-z,y
-  20   x,z,-y
-  21   -z,-y,-x
-  22   -z,y,x
-  23   z,-y,x
-  24   z,y,-x
+  10   z,-y,x
+  11   z,-x,-y
+  12   z,y,-x
+  13   -z,x,-y
+  14   -z,-y,-x
+  15   -z,-x,y
+  16   -z,y,x
+  17   y,z,x
+  18   x,z,-y
+  19   -y,z,-x
+  20   -x,z,y
+  21   -y,-z,x
+  22   -x,-z,-y
+  23   y,-z,-x
+  24   x,-z,y
   25   -x,-y,-z
-  26   -x,y,z
-  27   x,-y,z
-  28   x,y,-z
-  29   -y,-z,-x
-  30   -y,z,x
-  31   y,-z,x
-  32   y,z,-x
+  26   y,-x,-z
+  27   x,y,-z
+  28   -y,x,-z
+  29   -x,y,z
+  30   y,x,z
+  31   x,-y,z
+  32   -y,-x,z
   33   -z,-x,-y
-  34   -z,x,y
-  35   z,-x,y
-  36   z,x,-y
-  37   y,x,z
-  38   y,-x,-z
-  39   -y,x,-z
-  40   -y,-x,z
-  41   x,z,y
-  42   x,-z,-y
-  43   -x,z,-y
-  44   -x,-z,y
-  45   z,y,x
-  46   z,-y,-x
-  47   -z,y,-x
-  48   -z,-y,x
+  34   -z,y,-x
+  35   -z,x,y
+  36   -z,-y,x
+  37   z,-x,y
+  38   z,y,x
+  39   z,x,-y
+  40   z,-y,-x
+  41   -y,-z,-x
+  42   -x,-z,y
+  43   y,-z,x
+  44   x,-z,-y
+  45   y,z,-x
+  46   x,z,y
+  47   -y,z,x
+  48   -x,z,-y
 
 loop_
 _atom_site_label
@@ -75,5 +75,5 @@ _atom_site_fract_x
 _atom_site_fract_y
 _atom_site_fract_z
 _atom_site_occupancy
-F1 F 0.50000 0.00000 0.00000 1.0000
+F1 F 0.00000 0.50000 0.00000 1.0000
 Sc1 Sc 0.00000 0.00000 0.00000 1.0000

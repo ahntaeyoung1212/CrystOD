@@ -14,7 +14,9 @@ input as <POSCAR>.cif.
 expands the symmetry operations, and writes the spglib-standardized
 primitive cell as a POSCAR (the working format of the other crystod
 commands; --conventional writes the conventional cell instead).  The output
-is the input path without the .cif suffix.
+is the input path without the .cif suffix.  With --spacegroup-set SETTING
+it writes the conventional cell in that axis setting of the space group
+(crystod.space_group_setting) as <input without .cif>_<setting>.
 """
 
 from __future__ import annotations
@@ -377,6 +379,16 @@ def build_cif2poscar_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="Output POSCAR path (default: the input path without .cif).",
     )
+    parser.add_argument(
+        "--spacegroup-set",
+        dest="spacegroup_set",
+        default=None,
+        metavar="SETTING",
+        help="Write the conventional cell in this setting of the space group "
+        "(symbol, No. or choice of --cif-axis, e.g. Amam, 4 or -cba); the "
+        "input may be a CIF or a POSCAR; default output: the input path "
+        "without .cif plus _<setting>.",
+    )
     return parser
 
 
@@ -433,9 +445,41 @@ def poscar_lines(lattice_matrix, positions, atomic_numbers) -> list[str]:
     return lines
 
 
+def _cif2poscar_setting(args) -> None:
+    """--cif2poscar --spacegroup-set: the conventional cell of one setting."""
+    from .space_group_setting import (format_setting_structure, list_space_group_settings,
+                                      read_structure_cell, resolve_setting)
+
+    try:
+        cell = read_structure_cell(args.cell)
+        table = list_space_group_settings(cell, symprec=args.tolerance)
+        setting = resolve_setting(table, args.spacegroup_set)
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}")
+
+    if args.output:
+        output = args.output
+    else:
+        base = args.cell[: -len(".cif")] if args.cell.endswith(".cif") else args.cell
+        output = f"{base}_{setting.tag}"
+    overwritten = os.path.exists(output)
+    with open(output, "w") as handle:
+        handle.write("\n".join(poscar_lines(setting.std_lattice, setting.std_positions,
+                                            setting.std_numbers)))
+    print("\n".join(format_setting_structure(table, setting, args.cell,
+                                             len(setting.std_numbers))))
+    print("\n* Output files *")
+    print(f"  POSCAR written to: {output}" + (" (existing file overwritten)" if overwritten else ""))
+
+
 def cif2poscar_main(argv: list[str] | None = None) -> None:
     args = build_cif2poscar_parser().parse_args(argv)
 
+    if not args.tolerance > 0:
+        raise SystemExit(f"ERROR: --tolerance must be positive (got {args.tolerance})")
+    if args.spacegroup_set is not None:
+        _cif2poscar_setting(args)
+        return
     if not os.path.isfile(args.cell):
         raise SystemExit(f"ERROR: CIF file not found: {args.cell}")
     try:

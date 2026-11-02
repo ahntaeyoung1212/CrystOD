@@ -1,0 +1,669 @@
+{
+ "format": 1,
+ "examples": [
+  {
+   "name": "01_wigner_d",
+   "number": 1,
+   "description": "Wigner D matrices on real spherical harmonics (library API)",
+   "requires": [],
+   "files": [
+    "01_wigner_d/README",
+    "01_wigner_d/demo_wigner_d.py"
+   ],
+   "bytes": 1967
+  },
+  {
+   "name": "02_salc",
+   "number": 2,
+   "description": "crystod (SALC: crystal-orbital irreps, hybridization)",
+   "requires": [],
+   "files": [
+    "02_salc/README"
+   ],
+   "bytes": 2206
+  },
+  {
+   "name": "03_hybridization",
+   "number": 3,
+   "description": "crystod (--atomic-orbital hybridization; --diagram crystal-orbital diagrams)",
+   "requires": [],
+   "files": [
+    "03_hybridization/221_PPOSCAR_ScF3",
+    "03_hybridization/221_PPOSCAR_SrTiO3",
+    "03_hybridization/99_PPOSCAR_BaTiO3",
+    "03_hybridization/README",
+    "03_hybridization/vasp_CaF2/BAND/EIGENVAL.gz",
+    "03_hybridization/vasp_CaF2/BAND/OUTCAR",
+    "03_hybridization/vasp_CaF2/BAND/POSCAR",
+    "03_hybridization/vasp_CaF2/BAND/PROCAR.gz",
+    "03_hybridization/vasp_CaF2/BAND_sublattice1/EIGENVAL.gz",
+    "03_hybridization/vasp_CaF2/BAND_sublattice1/OUTCAR",
+    "03_hybridization/vasp_CaF2/BAND_sublattice1/POSCAR",
+    "03_hybridization/vasp_CaF2/BAND_sublattice1/PROCAR.gz",
+    "03_hybridization/vasp_CaF2/BAND_sublattice2/EIGENVAL.gz",
+    "03_hybridization/vasp_CaF2/BAND_sublattice2/OUTCAR",
+    "03_hybridization/vasp_CaF2/BAND_sublattice2/POSCAR",
+    "03_hybridization/vasp_CaF2/BAND_sublattice2/PROCAR.gz",
+    "03_hybridization/vasp_CaF2/README",
+    "03_hybridization/vasp_SrTiO3/BAND/EIGENVAL.gz",
+    "03_hybridization/vasp_SrTiO3/BAND/OUTCAR",
+    "03_hybridization/vasp_SrTiO3/BAND/POSCAR",
+    "03_hybridization/vasp_SrTiO3/BAND/PROCAR.gz",
+    "03_hybridization/vasp_SrTiO3/BAND_sublattice1/band/EIGENVAL.gz",
+    "03_hybridization/vasp_SrTiO3/BAND_sublattice1/band/OUTCAR",
+    "03_hybridization/vasp_SrTiO3/BAND_sublattice1/band/POSCAR",
+    "03_hybridization/vasp_SrTiO3/BAND_sublattice1/band/PROCAR.gz",
+    "03_hybridization/vasp_SrTiO3/BAND_sublattice2/EIGENVAL.gz",
+    "03_hybridization/vasp_SrTiO3/BAND_sublattice2/OUTCAR",
+    "03_hybridization/vasp_SrTiO3/BAND_sublattice2/POSCAR",
+    "03_hybridization/vasp_SrTiO3/BAND_sublattice2/PROCAR.gz",
+    "03_hybridization/vasp_SrTiO3/POSCAR-finish",
+    "03_hybridization/vasp_SrTiO3/README",
+    "03_hybridization/vasp_wavecar/InP_SOC/INCAR",
+    "03_hybridization/vasp_wavecar/InP_SOC/KPOINTS",
+    "03_hybridization/vasp_wavecar/InP_SOC/OUTCAR",
+    "03_hybridization/vasp_wavecar/InP_SOC/POSCAR",
+    "03_hybridization/vasp_wavecar/InP_SOC/README",
+    "03_hybridization/vasp_wavecar/InP_SOC/WAVECAR",
+    "03_hybridization/vasp_wavecar/SrTiO3/INCAR",
+    "03_hybridization/vasp_wavecar/SrTiO3/KPOINTS",
+    "03_hybridization/vasp_wavecar/SrTiO3/OUTCAR",
+    "03_hybridization/vasp_wavecar/SrTiO3/POSCAR",
+    "03_hybridization/vasp_wavecar/SrTiO3/README",
+    "03_hybridization/vasp_wavecar/SrTiO3/WAVECAR"
+   ],
+   "bytes": 1542496
+  },
+  {
+   "name": "04_selection_rules",
+   "number": 4,
+   "description": "crystod --diagram (dipole selection rules of the crystal-orbital diagrams)",
+   "requires": [],
+   "files": [
+    "04_selection_rules/POSCAR_Cu2O",
+    "04_selection_rules/README",
+    "04_selection_rules/api.py"
+   ],
+   "bytes": 5930
+  },
+  {
+   "name": "05_star_of_k",
+   "number": 5,
+   "description": "crystod --star-of-k",
+   "requires": [],
+   "files": [
+    "05_star_of_k/README"
+   ],
+   "bytes": 833
+  },
+  {
+   "name": "06_visualized_basis",
+   "number": 6,
+   "description": "crystod --visualize (SALC viewer HTML)",
+   "requires": [],
+   "files": [
+    "06_visualized_basis/CeO2_Fm-3m/225_PPOSCAR_CeO2",
+    "06_visualized_basis/CeO2_Fm-3m/README",
+    "06_visualized_basis/ScF3_Pm-3m/221_PPOSCAR_ScF3",
+    "06_visualized_basis/ScF3_Pm-3m/README",
+    "06_visualized_basis/TiO2_P42mnm/136_PPOSCAR_TiO2",
+    "06_visualized_basis/TiO2_P42mnm/README"
+   ],
+   "bytes": 3848
+  },
+  {
+   "name": "08_direct_product",
+   "number": 8,
+   "description": "crystod-group --product / --table (point- and space-group irreps)",
+   "requires": [],
+   "files": [
+    "08_direct_product/README"
+   ],
+   "bytes": 7791
+  },
+  {
+   "name": "09_symmetric_square",
+   "number": 9,
+   "description": "crystod-group --product --symmetric / --antisymmetric, --jahn-teller",
+   "requires": [],
+   "files": [
+    "09_symmetric_square/README"
+   ],
+   "bytes": 5287
+  },
+  {
+   "name": "10_decompose_irrep",
+   "number": 10,
+   "description": "crystod-group --decompose",
+   "requires": [],
+   "files": [
+    "10_decompose_irrep/README"
+   ],
+   "bytes": 1228
+  },
+  {
+   "name": "11_ligand_field_split",
+   "number": 11,
+   "description": "crystod-group --ligand-field",
+   "requires": [],
+   "files": [
+    "11_ligand_field_split/README"
+   ],
+   "bytes": 1099
+  },
+  {
+   "name": "12_basis_function",
+   "number": 12,
+   "description": "crystod-group --basis",
+   "requires": [],
+   "files": [
+    "12_basis_function/README"
+   ],
+   "bytes": 1634
+  },
+  {
+   "name": "13_tensor_form",
+   "number": 13,
+   "description": "crystod-group --tensor (property-tensor forms)",
+   "requires": [],
+   "files": [
+    "13_tensor_form/README"
+   ],
+   "bytes": 9873
+  },
+  {
+   "name": "14_generate_basis_function",
+   "number": 14,
+   "description": "crystod-group --generate-basis",
+   "requires": [],
+   "files": [
+    "14_generate_basis_function/README"
+   ],
+   "bytes": 2586
+  },
+  {
+   "name": "15_show_coset",
+   "number": 15,
+   "description": "crystod-group --coset",
+   "requires": [],
+   "files": [
+    "15_show_coset/README"
+   ],
+   "bytes": 1774
+  },
+  {
+   "name": "16_correlate",
+   "number": 16,
+   "description": "crystod-group --correlate (correlation and compatibility of irreps)",
+   "requires": [],
+   "files": [
+    "16_correlate/README"
+   ],
+   "bytes": 12176
+  },
+  {
+   "name": "17_isotropy_subgroup",
+   "number": 17,
+   "description": "crystod-group --parent (isotropy subgroups)",
+   "requires": [],
+   "files": [
+    "17_isotropy_subgroup/README"
+   ],
+   "bytes": 13782
+  },
+  {
+   "name": "18_invariants",
+   "number": 18,
+   "description": "crystod-group --parent --irrep --invariants (invariant polynomials)",
+   "requires": [],
+   "files": [
+    "18_invariants/README"
+   ],
+   "bytes": 11522
+  },
+  {
+   "name": "19_child_lookup",
+   "number": 19,
+   "description": "crystod-group --parent G --child H (reverse lookup)",
+   "requires": [],
+   "files": [
+    "19_child_lookup/README"
+   ],
+   "bytes": 19608
+  },
+  {
+   "name": "20_subgroup_graph",
+   "number": 20,
+   "description": "crystod-group --parent --irrep --graph (group-subgroup graph)",
+   "requires": [],
+   "files": [
+    "20_subgroup_graph/README"
+   ],
+   "bytes": 10378
+  },
+  {
+   "name": "21_multiplet",
+   "number": 21,
+   "description": "crystod-group --multiplet (spin multiplicities of irrep-shell configurations)",
+   "requires": [],
+   "files": [
+    "21_multiplet/README"
+   ],
+   "bytes": 11456
+  },
+  {
+   "name": "22_poscar2cif",
+   "number": 22,
+   "description": "crystod-group --poscar2cif / --cif2poscar (POSCAR <-> Bilbao-style CIF)",
+   "requires": [],
+   "files": [
+    "22_poscar2cif/14_PPOSCAR_ZrO2",
+    "22_poscar2cif/221_PPOSCAR_ScF3",
+    "22_poscar2cif/221_PPOSCAR_SrTiO3.cif",
+    "22_poscar2cif/225_PPOSCAR_NaCl",
+    "22_poscar2cif/POSCAR_CaTiO3_Pnma",
+    "22_poscar2cif/POSCAR_La3Ni2O7_Cmcm.cif",
+    "22_poscar2cif/README"
+   ],
+   "bytes": 14376
+  },
+  {
+   "name": "23_symmetry_mode",
+   "number": 23,
+   "description": "crystod-group --supergroup-cif (AMPLIMODES-style symmetry-mode analysis)",
+   "requires": [],
+   "files": [
+    "23_symmetry_mode/137_PPOSCAR_ZrO2.cif",
+    "23_symmetry_mode/139_PPOSCAR_La3Ni2O7.cif",
+    "23_symmetry_mode/140_PPOSCAR_SrTiO3.cif",
+    "23_symmetry_mode/167_PPOSCAR_AlF3.cif",
+    "23_symmetry_mode/221_PPOSCAR_AlF3.cif",
+    "23_symmetry_mode/221_PPOSCAR_BaTiO3.cif",
+    "23_symmetry_mode/221_PPOSCAR_CaTiO3.cif",
+    "23_symmetry_mode/221_PPOSCAR_SrTiO3.cif",
+    "23_symmetry_mode/225_PPOSCAR_ZrO2.cif",
+    "23_symmetry_mode/62_PPOSCAR_CaTiO3.cif",
+    "23_symmetry_mode/63_PPOSCAR_La3Ni2O7.cif",
+    "23_symmetry_mode/99_PPOSCAR_BaTiO3.cif",
+    "23_symmetry_mode/POSCAR_FeS2_P1_fcc2",
+    "23_symmetry_mode/POSCAR_FeS2_Pa-3",
+    "23_symmetry_mode/POSCAR_GaN2_P21",
+    "23_symmetry_mode/POSCAR_GaN2_P6mmm",
+    "23_symmetry_mode/POSCAR_K2SeO4_Pna21.cif",
+    "23_symmetry_mode/POSCAR_K2SeO4_Pnma.cif",
+    "23_symmetry_mode/POSCAR_KGeCl3_Cm",
+    "23_symmetry_mode/POSCAR_KGeCl3_P4mmm_pseudo",
+    "23_symmetry_mode/POSCAR_La3Ni2O7_Cmcm.cif",
+    "23_symmetry_mode/POSCAR_La3Ni2O7_I4mmm.cif",
+    "23_symmetry_mode/POSCAR_ScF3_Pbnm",
+    "23_symmetry_mode/POSCAR_SeO2_Cmme_pseudo",
+    "23_symmetry_mode/POSCAR_SeO2_Pmc21",
+    "23_symmetry_mode/README"
+   ],
+   "bytes": 69342
+  },
+  {
+   "name": "25_brillouin_zone",
+   "number": 25,
+   "description": "crystod-bz",
+   "requires": [],
+   "files": [
+    "25_brillouin_zone/README"
+   ],
+   "bytes": 389
+  },
+  {
+   "name": "26_bz_supercell",
+   "number": 26,
+   "description": "crystod-bz --trans-mat",
+   "requires": [],
+   "files": [
+    "26_bz_supercell/README"
+   ],
+   "bytes": 426
+  },
+  {
+   "name": "28_phonon_irrep",
+   "number": 28,
+   "description": "crystod-phonon --irreps",
+   "requires": [],
+   "files": [
+    "28_phonon_irrep/BaTiO3_P4mm/99_PPOSCAR_BaTiO3",
+    "28_phonon_irrep/BaTiO3_P4mm/FORCE_SETS",
+    "28_phonon_irrep/BaTiO3_P4mm/README",
+    "28_phonon_irrep/ScF3_Pm-3m/221_PPOSCAR_ScF3",
+    "28_phonon_irrep/ScF3_Pm-3m/FORCE_SETS",
+    "28_phonon_irrep/ScF3_Pm-3m/README",
+    "28_phonon_irrep/Si_Fd-3m/227_PPOSCAR_Si",
+    "28_phonon_irrep/Si_Fd-3m/FORCE_SETS",
+    "28_phonon_irrep/Si_Fd-3m/README",
+    "28_phonon_irrep/SrTiO3_Pm-3m/221_PPOSCAR_SrTiO3",
+    "28_phonon_irrep/SrTiO3_Pm-3m/FORCE_SETS",
+    "28_phonon_irrep/SrTiO3_Pm-3m/README"
+   ],
+   "bytes": 285421
+  },
+  {
+   "name": "29_phonon_activity",
+   "number": 29,
+   "description": "crystod-phonon --irreps / --vibration (IR / Raman / silent / acoustic activity at Gamma)",
+   "requires": [
+    "28_phonon_irrep",
+    "30_phonon_fatband"
+   ],
+   "files": [
+    "29_phonon_activity/README"
+   ],
+   "bytes": 15801
+  },
+  {
+   "name": "30_phonon_fatband",
+   "number": 30,
+   "description": "crystod-phonon --fatband",
+   "requires": [],
+   "files": [
+    "30_phonon_fatband/ScF3_Pm-3m/221_PPOSCAR_ScF3",
+    "30_phonon_fatband/ScF3_Pm-3m/BORN",
+    "30_phonon_fatband/ScF3_Pm-3m/FORCE_SETS",
+    "30_phonon_fatband/ScF3_Pm-3m/README",
+    "30_phonon_fatband/SrTiO3_Pm-3m/221_PPOSCAR_SrTiO3",
+    "30_phonon_fatband/SrTiO3_Pm-3m/FORCE_SETS",
+    "30_phonon_fatband/SrTiO3_Pm-3m/README"
+   ],
+   "bytes": 144520
+  },
+  {
+   "name": "31_phonon_lt",
+   "number": 31,
+   "description": "crystod-phonon --lt",
+   "requires": [],
+   "files": [
+    "31_phonon_lt/ScF3_Pm-3m/221_PPOSCAR_ScF3",
+    "31_phonon_lt/ScF3_Pm-3m/BORN",
+    "31_phonon_lt/ScF3_Pm-3m/FORCE_SETS",
+    "31_phonon_lt/ScF3_Pm-3m/README",
+    "31_phonon_lt/Si_Fd-3m/227_PPOSCAR_Si",
+    "31_phonon_lt/Si_Fd-3m/FORCE_SETS",
+    "31_phonon_lt/Si_Fd-3m/README"
+   ],
+   "bytes": 63112
+  },
+  {
+   "name": "32_phonon_vector",
+   "number": 32,
+   "description": "crystod-phonon --vector",
+   "requires": [],
+   "files": [
+    "32_phonon_vector/BaTiO3_P4mm/99_PPOSCAR_BaTiO3",
+    "32_phonon_vector/BaTiO3_P4mm/FORCE_SETS",
+    "32_phonon_vector/BaTiO3_P4mm/README",
+    "32_phonon_vector/Si_Fd-3m/227_PPOSCAR_Si",
+    "32_phonon_vector/Si_Fd-3m/FORCE_SETS",
+    "32_phonon_vector/Si_Fd-3m/README",
+    "32_phonon_vector/Sr3Ti2O7_I4mmm/139_PPOSCAR_Sr3Ti2O7",
+    "32_phonon_vector/Sr3Ti2O7_I4mmm/FORCE_SETS",
+    "32_phonon_vector/Sr3Ti2O7_I4mmm/README"
+   ],
+   "bytes": 586926
+  },
+  {
+   "name": "33_modulation",
+   "number": 33,
+   "description": "crystod-phonon --modulation",
+   "requires": [],
+   "files": [
+    "33_modulation/ScF3_Pm-3m/221_PPOSCAR_ScF3",
+    "33_modulation/ScF3_Pm-3m/FORCE_SETS",
+    "33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_1",
+    "33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_2",
+    "33_modulation/ScF3_Pm-3m/POSCAR_I4mcm_3",
+    "33_modulation/ScF3_Pm-3m/POSCAR_Pbnm",
+    "33_modulation/ScF3_Pm-3m/README",
+    "33_modulation/ScF3_Pm-3m/phonopy_params.yaml",
+    "33_modulation/Sr3Ti2O7_I4mmm/139_PPOSCAR_Sr3Ti2O7",
+    "33_modulation/Sr3Ti2O7_I4mmm/FORCE_SETS",
+    "33_modulation/Sr3Ti2O7_I4mmm/README"
+   ],
+   "bytes": 809705
+  },
+  {
+   "name": "34_vibration",
+   "number": 34,
+   "description": "crystod-phonon --vibration",
+   "requires": [],
+   "files": [
+    "34_vibration/ScF3_Pm-3m/221_PPOSCAR_ScF3",
+    "34_vibration/ScF3_Pm-3m/README"
+   ],
+   "bytes": 2023
+  },
+  {
+   "name": "36_spin_basis",
+   "number": 36,
+   "description": "crystod-mag",
+   "requires": [],
+   "files": [
+    "36_spin_basis/AlNi3_Pm-3m/221_PPOSCAR_AlNi3",
+    "36_spin_basis/AlNi3_Pm-3m/README",
+    "36_spin_basis/La2CuO4_I4mmm/139_PPOSCAR_La2CuO4",
+    "36_spin_basis/La2CuO4_I4mmm/README",
+    "36_spin_basis/La3Ni2O7_Cmcm/63_PPOSCAR_La3Ni2O7",
+    "36_spin_basis/La3Ni2O7_Cmcm/README",
+    "36_spin_basis/La3Ni2O7_I4mmm/139_PPOSCAR_La3Ni2O7",
+    "36_spin_basis/La3Ni2O7_I4mmm/X/README",
+    "36_spin_basis/La3Ni2O7_I4mmm/X2/README",
+    "36_spin_basis/LuFeO3_P63cm/185_PPOSCAR_LuFeO3",
+    "36_spin_basis/LuFeO3_P63cm/README",
+    "36_spin_basis/Y2Ir2O7_Fd-3m/227_PPOSCAR_Y2Ir2O7",
+    "36_spin_basis/Y2Ir2O7_Fd-3m/README"
+   ],
+   "bytes": 214155
+  },
+  {
+   "name": "37_magnetic_group",
+   "number": 37,
+   "description": "crystod-mag --classify-only (magnetic space groups, altermagnet classes)",
+   "requires": [],
+   "files": [
+    "37_magnetic_group/167_PPOSCAR_Cr2O3",
+    "37_magnetic_group/README"
+   ],
+   "bytes": 27426
+  },
+  {
+   "name": "39_xdatcar2adp",
+   "number": 39,
+   "description": "crystod-md --adp (and --summary on the same XDATCAR)",
+   "requires": [],
+   "files": [
+    "39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/README",
+    "39_xdatcar2adp/ScF3_Pm-3m_NpT_300K/XDATCAR_every10"
+   ],
+   "bytes": 3139036
+  },
+  {
+   "name": "40_md_projection",
+   "number": 40,
+   "description": "crystod-md --project (mode projection of an MD trajectory)",
+   "requires": [
+    "33_modulation",
+    "39_xdatcar2adp"
+   ],
+   "files": [
+    "40_md_projection/README",
+    "40_md_projection/XDATCAR_I4mcm_1",
+    "40_md_projection/XDATCAR_synthetic",
+    "40_md_projection/make_xdatcar.py"
+   ],
+   "bytes": 228303
+  },
+  {
+   "name": "42_molecular_salc",
+   "number": 42,
+   "description": "crystod-mol (--symmetry and molecular SALCs)",
+   "requires": [],
+   "files": [
+    "42_molecular_salc/README",
+    "42_molecular_salc/XYZ_CH4.xyz",
+    "42_molecular_salc/XYZ_NH3.xyz",
+    "42_molecular_salc/XYZ_O2.xyz"
+   ],
+   "bytes": 4049
+  },
+  {
+   "name": "43_molod",
+   "number": 43,
+   "description": "crystod-mol --diagram (MO diagrams: symmetry + overlap, or --pyscf)",
+   "requires": [],
+   "files": [
+    "43_molod/README",
+    "43_molod/XYZ_C6H6.xyz",
+    "43_molod/XYZ_CH3OH.xyz",
+    "43_molod/XYZ_CH4.xyz",
+    "43_molod/XYZ_H2O.xyz",
+    "43_molod/XYZ_NH3.xyz",
+    "43_molod/XYZ_O2.xyz",
+    "43_molod/XYZ_SF6.xyz"
+   ],
+   "bytes": 24142
+  },
+  {
+   "name": "45_python_api",
+   "number": 45,
+   "description": "the library API (crystod.phonon etc.) on the SrTiO3 data",
+   "requires": [
+    "28_phonon_irrep"
+   ],
+   "files": [
+    "45_python_api/README",
+    "45_python_api/macer_subgroup_bridge.py"
+   ],
+   "bytes": 4927
+  },
+  {
+   "name": "46_xrd_pattern",
+   "number": 46,
+   "description": "crystod-xrd (powder X-ray diffraction patterns)",
+   "requires": [],
+   "files": [
+    "46_xrd_pattern/ScF3_Pm-3m/221_PPOSCAR_ScF3",
+    "46_xrd_pattern/ScF3_Pm-3m/README",
+    "46_xrd_pattern/SrTiO3_Pm-3m/221_PPOSCAR_SrTiO3",
+    "46_xrd_pattern/SrTiO3_Pm-3m/README"
+   ],
+   "bytes": 1611
+  },
+  {
+   "name": "47_xrd_superlattice",
+   "number": 47,
+   "description": "crystod-xrd --parent / --radiation neutron (superlattice reflections, k points, irreps)",
+   "requires": [
+    "23_symmetry_mode"
+   ],
+   "files": [
+    "47_xrd_superlattice/README"
+   ],
+   "bytes": 37164
+  },
+  {
+   "name": "48_mp_search",
+   "number": 48,
+   "description": "crystod-search (Materials Project search and POSCAR download; needs an API key)",
+   "requires": [],
+   "files": [
+    "48_mp_search/README"
+   ],
+   "bytes": 9490
+  },
+  {
+   "name": "51_phonon_unfold",
+   "number": 51,
+   "description": "crystod-phonon --unfold (phonon band unfolding onto the parent Brillouin zone)",
+   "requires": [],
+   "files": [
+    "51_phonon_unfold/AlF3_R-3c/README",
+    "51_phonon_unfold/AlF3_R-3c/child/167_PPOSCAR_AlF3",
+    "51_phonon_unfold/AlF3_R-3c/child/FORCE_SETS",
+    "51_phonon_unfold/AlF3_R-3c/parent/221_PPOSCAR_AlF3",
+    "51_phonon_unfold/AlF3_R-3c/parent/FORCE_SETS",
+    "51_phonon_unfold/CaTiO3_Pnma/README",
+    "51_phonon_unfold/CaTiO3_Pnma/child/62_PPOSCAR_CaTiO3",
+    "51_phonon_unfold/CaTiO3_Pnma/child/FORCE_SETS",
+    "51_phonon_unfold/CaTiO3_Pnma/parent/221_PPOSCAR_CaTiO3",
+    "51_phonon_unfold/CaTiO3_Pnma/parent/FORCE_SETS",
+    "51_phonon_unfold/README"
+   ],
+   "bytes": 242209
+  },
+  {
+   "name": "52_phonon_visualize",
+   "number": 52,
+   "description": "crystod-phonon --visualize (interactive 3D viewer of the phonon modes by irrep)",
+   "requires": [],
+   "files": [
+    "52_phonon_visualize/README",
+    "52_phonon_visualize/ScF3_Pm-3m/221_PPOSCAR_ScF3",
+    "52_phonon_visualize/ScF3_Pm-3m/FORCE_SETS",
+    "52_phonon_visualize/ScF3_Pm-3m/README",
+    "52_phonon_visualize/SrTiO3_Pm-3m/221_PPOSCAR_SrTiO3",
+    "52_phonon_visualize/SrTiO3_Pm-3m/FORCE_SETS",
+    "52_phonon_visualize/SrTiO3_Pm-3m/README"
+   ],
+   "bytes": 161032
+  },
+  {
+   "name": "53_slab",
+   "number": 53,
+   "description": "crystod-slab (surface slabs, their terminations and polarity)",
+   "requires": [],
+   "files": [
+    "53_slab/La2CuO4_I4mmm/139_PPOSCAR_La2CuO4",
+    "53_slab/La2CuO4_I4mmm/README",
+    "53_slab/NaCl_Fm-3m/225_PPOSCAR_NaCl",
+    "53_slab/NaCl_Fm-3m/README",
+    "53_slab/README",
+    "53_slab/SrTiO3_Pm-3m/221_PPOSCAR_SrTiO3",
+    "53_slab/SrTiO3_Pm-3m/README"
+   ],
+   "bytes": 33775
+  }
+ ],
+ "shared": [
+  {
+   "name": "test_POSCARs",
+   "files": [
+    "test_POSCARs/10_PPOSCAR_MnO2",
+    "test_POSCARs/136_PPOSCAR_TiO2",
+    "test_POSCARs/139_PPOSCAR_Sr3Ti2O7",
+    "test_POSCARs/140_PPOSCAR_SrTiO3.cif",
+    "test_POSCARs/14_PPOSCAR_ZrO2",
+    "test_POSCARs/166_PPOSCAR_Bi",
+    "test_POSCARs/186_PPOSCAR_ZnO",
+    "test_POSCARs/221_PPOSCAR_AlNi3",
+    "test_POSCARs/221_PPOSCAR_ScF3",
+    "test_POSCARs/221_PPOSCAR_SrTiO3",
+    "test_POSCARs/221_PPOSCAR_SrTiO3.cif",
+    "test_POSCARs/224_PPOSCAR_Ag2O",
+    "test_POSCARs/225_PPOSCAR_NaCl",
+    "test_POSCARs/227_PPOSCAR_Si",
+    "test_POSCARs/229_PPOSCAR_Fe",
+    "test_POSCARs/58_PPOSCAR_MnO2",
+    "test_POSCARs/62_PPOSCAR_CaTiO3",
+    "test_POSCARs/83_PPOSCAR_Ti2Ga3"
+   ],
+   "bytes": 13980
+  },
+  {
+   "name": "test_XYZs",
+   "files": [
+    "test_XYZs/XYZ_CH4.xyz",
+    "test_XYZs/XYZ_H2O.xyz",
+    "test_XYZs/XYZ_NH3.xyz",
+    "test_XYZs/XYZ_O2.xyz",
+    "test_XYZs/XYZ_SF6.xyz"
+   ],
+   "bytes": 1274
+  }
+ ],
+ "total_bytes": 7802088
+}

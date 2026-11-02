@@ -1,0 +1,38 @@
+{#-
+  Local override of the sphinx-book-theme sidebar navigation.
+
+  Goal: show the numbered sections of every command page (its feature list)
+  as a tree in the left sidebar, so a visitor sees at a glance what CrystOD
+  can do.
+
+  The stock template calls pydata-sphinx-theme's generate_toctree_html(),
+  which deliberately removes every sidebar entry whose link carries a "#"
+  anchor (pydata/toctree.py: "Remove sidebar links to sub-headers on the
+  page") -- in-page sections can therefore never appear through it.  We call
+  Sphinx's own toctree() template function instead, which returns the plain
+  nested <ul> including the section anchors; the theme's own CSS styles it,
+  with a few rules for the section level added in _static/sidebar-tree.css.
+
+  Kept in sync with sphinx_book_theme 1.2.0
+  (theme/sphinx_book_theme/components/sbt-sidebar-nav.html).
+-#}
+<nav class="bd-links bd-docs-nav crystod-feature-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        {% if theme_home_page_in_toc == True %}
+        {#- This mimics the pydata theme list style so we can append an extra item at the top #}
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1{% if pagename == root_doc %} current active{% endif %}">
+                <a class="reference internal" href="{{ pathto(root_doc) }}">
+                    {{ root_title }}
+                </a>
+            </li>
+        </ul>
+        {% endif -%}
+
+        {{- toctree(
+            maxdepth=theme_max_navbar_depth|int,
+            collapse=False,
+            includehidden=True,
+            titles_only=False) }}
+    </div>
+</nav>

@@ -46,6 +46,8 @@ def crystod_crystal_orbital_irreps(
         kpoint: A k-point label of the space group (``GM``, ``X``, ``M``,
             ``R``, ...) or three fractional coordinates in the primitive
             reciprocal basis (``"1/2 1/2 1/2"``). Omitted, all special points.
+            A label is resolved as ``crystod --kpoint`` resolves it, in the
+            frame of the labels of the structure.
 
     Returns:
         Markdown with the CrystOD report: space group, Wyckoff letter and site
@@ -60,10 +62,16 @@ def crystod_crystal_orbital_irreps(
     argv = ["-c", "POSCAR", "--element", symbol, "--orbital", shell]
     heading = f"## Crystal-orbital irreps of {symbol} {shell}"
     if label is not None:
+        # the name is checked against the table here (the names are the
+        # same in every frame) and resolved by the command itself, in the
+        # frame of its labels: for a POSCAR outside the ISO-IR setting the
+        # point it names can be another arm than the table's (P of a
+        # shifted I-4 cell is (-1/4, -1/4, -1/4))
         number, _ = space_group_of_poscar(poscar_text)
-        coordinates = resolve_kpoint_label(str(number), label)
+        resolve_kpoint_label(str(number), label)
+        argv += ["--kpoint", label]
         heading += f" at {label}"
-    if coordinates is not None:
+    elif coordinates is not None:
         argv += ["--kpoint", *(repr(float(v)) for v in coordinates)]
     else:
         heading += " at every special k point"

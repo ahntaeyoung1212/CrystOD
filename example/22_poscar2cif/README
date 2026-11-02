@@ -1,0 +1,206 @@
+# POSCAR -> Bilbao-style CIF (crystod-group --poscar2cif); testsuite section 22
+# Writes <POSCAR>.cif in the Bilbao Crystallographic Server layout
+# (spglib-standardized ITA conventional cell; full operator list; one site per Wyckoff orbit).
+#
+# Run every command inside this directory. The inputs are local copies, so
+# every output is written here and nothing outside this directory changes:
+#   221_PPOSCAR_ScF3, 225_PPOSCAR_NaCl, 14_PPOSCAR_ZrO2   copies of the test_POSCARs files of the same name
+#   POSCAR_CaTiO3_Pnma                                   copy of 62_PPOSCAR_CaTiO3 in test_POSCARs
+#   221_PPOSCAR_SrTiO3.cif                               the --poscar2cif CIF of 221_PPOSCAR_SrTiO3 in test_POSCARs
+#   POSCAR_La3Ni2O7_Cmcm.cif                             copy of the file of the same name in 23_symmetry_mode
+
+$ crystod-group --poscar2cif -c 221_PPOSCAR_ScF3
+
+* Structure *
+input      : 221_PPOSCAR_ScF3
+space group: Pm-3m (No. 221), tolerance 0.01
+48 symmetry operations, 2 independent sites
+
+* Output files *
+  Bilbao-style CIF written to: 221_PPOSCAR_ScF3.cif
+
+# Generated 221_PPOSCAR_ScF3.cif (operator list abbreviated):
+
+# Created by CrystOD (Bilbao Crystallographic Server style)
+# https://www.cryst.ehu.es
+# Date: 27/10/2026 01:40:14
+
+# 221_PPOSCAR_ScF3 -- non-magnetic
+
+data_221_PPOSCAR_ScF3
+_audit_creation_date               2026-10-27
+_audit_creation_method             "CrystOD (Bilbao style)"
+_chemical_formula_sum              "Sc F3"
+_symmetry_Int_Tables_number        221
+_symmetry_space_group_name_H-M     "Pm-3m"
+_cell_length_a                     4.0696
+_cell_length_b                     4.0696
+_cell_length_c                     4.0696
+_cell_angle_alpha                  90.0000
+_cell_angle_beta                   90.0000
+_cell_angle_gamma                  90.0000
+
+loop_
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+   1   x,y,z
+   2   -y,x,z
+   3   -x,-y,z
+   4   y,-x,z
+   ...
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+F1 F 0.00000 0.50000 0.00000 1.0000
+Sc1 Sc 0.00000 0.00000 0.00000 1.0000
+
+$ crystod-group --poscar2cif -c POSCAR_CaTiO3_Pnma   # nonsymmorphic Pnma
+
+* Structure *
+input      : POSCAR_CaTiO3_Pnma
+space group: Pnma (No. 62), tolerance 0.01
+8 symmetry operations, 4 independent sites
+
+* Output files *
+  Bilbao-style CIF written to: POSCAR_CaTiO3_Pnma.cif
+
+# Operator list of the generated POSCAR_CaTiO3_Pnma.cif:
+
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+   1   x,y,z
+   2   -x+1/2,-y,z+1/2
+   3   x+1/2,-y+1/2,-z+1/2
+   4   -x,y+1/2,-z
+   5   -x,-y,-z
+   6   x+1/2,y,-z+1/2
+   7   -x+1/2,y+1/2,z+1/2
+   8   x,-y+1/2,z
+
+
+$ crystod-group --cif2poscar -c 221_PPOSCAR_SrTiO3.cif   # inverse: CIF -> primitive POSCAR
+
+* Structure *
+input      : 221_PPOSCAR_SrTiO3.cif
+space group: Pm-3m (No. 221), tolerance 0.01
+primitive cell, 5 atoms
+
+* Output files *
+  POSCAR written to: 221_PPOSCAR_SrTiO3
+
+# Generated 221_PPOSCAR_SrTiO3:
+
+Sr1 Ti1 O3
+1.0
+3.945100 0.000000 0.000000
+0.000000 3.945100 0.000000
+0.000000 0.000000 3.945100
+Sr Ti O
+1 1 3
+direct
+0.000000 0.000000 0.000000 Sr
+0.500000 0.500000 0.500000 Ti
+0.500000 0.000000 0.500000 O
+0.000000 0.500000 0.500000 O
+0.500000 0.500000 0.000000 O
+
+$ crystod-group --poscar2cif -c 225_PPOSCAR_NaCl   # writes the CIF read by the next step
+
+* Structure *
+input      : 225_PPOSCAR_NaCl
+space group: Fm-3m (No. 225), tolerance 0.01
+192 symmetry operations, 2 independent sites
+
+* Output files *
+  Bilbao-style CIF written to: 225_PPOSCAR_NaCl.cif
+
+$ crystod-group --cif2poscar -c 225_PPOSCAR_NaCl.cif --conventional --output 225_PPOSCAR_NaCl_conventional   # F-centred: 8-atom conventional cell
+
+* Structure *
+input      : 225_PPOSCAR_NaCl.cif
+space group: Fm-3m (No. 225), tolerance 0.01
+conventional cell, 8 atoms
+
+* Output files *
+  POSCAR written to: 225_PPOSCAR_NaCl_conventional
+
+# Axis settings of the space group (crystod-group --cif-axis, --cif2poscar --spacegroup-set);
+# testsuite section 22. The table lists every setting (Hall symbol) with the
+# lattice parameters of the input cell in its axes, as VESTA's Setting list;
+# --spacegroup-set writes the conventional cell of one setting.
+
+$ crystod-group --cif-axis -c POSCAR_La3Ni2O7_Cmcm.cif
+
+* Structure *
+input      : POSCAR_La3Ni2O7_Cmcm.cif
+space group: Cmcm (No. 63), tolerance 0.01
+input cell : a = 20.31300, b = 5.60630, c = 5.45710 A, alpha = 90.0000, beta = 90.0000, gamma = 90.0000 deg
+
+* CIF axis settings *
+No.  setting              a (A)       b (A)       c (A)     alpha      beta     gamma
+1    Cmcm (a, b, c)    20.31300     5.60630     5.45710   90.0000   90.0000   90.0000   <- input
+2    Ccmm (b, a, -c)    5.60630    20.31300     5.45710   90.0000   90.0000   90.0000
+3    Amma (c, a, b)     5.45710    20.31300     5.60630   90.0000   90.0000   90.0000
+4    Amam (-c, b, a)    5.45710     5.60630    20.31300   90.0000   90.0000   90.0000
+5    Bbmm (b, c, a)     5.60630     5.45710    20.31300   90.0000   90.0000   90.0000
+6    Bmmb (a, -c, b)   20.31300     5.45710     5.60630   90.0000   90.0000   90.0000
+(the Hall-symbol settings of spglib, in the order of VESTA and the International Tables;
+ lengths and angles of the input cell in the axes of each setting, x_setting = P x_input + p;
+ write one with --cif2poscar -c FILE --spacegroup-set <symbol | No. | choice>)
+
+$ crystod-group --cif2poscar -c POSCAR_La3Ni2O7_Cmcm.cif --spacegroup-set Amam --output POSCAR_La3Ni2O7_Cmcm_Amam
+
+* Structure *
+input      : POSCAR_La3Ni2O7_Cmcm.cif
+space group: Cmcm (No. 63), tolerance 0.01
+setting    : Amam (-c, b, a), No. 4 of 6
+transform  : x_Amam = P x_input + p, P rows (0, 0, -1), (0, 1, 0), (1, 0, 0); p = (0, 0, 0)
+conventional cell (Amam setting), 48 atoms: a = 5.45710, b = 5.60630, c = 20.31300 A, alpha = 90.0000, beta = 90.0000, gamma = 90.0000 deg
+
+* Output files *
+  POSCAR written to: POSCAR_La3Ni2O7_Cmcm_Amam
+
+# Generated POSCAR_La3Ni2O7_Cmcm_Amam (first lines; c is the long axis):
+
+La12 Ni8 O28
+1.0
+5.457100 0.000000 0.000000
+0.000000 5.606300 0.000000
+0.000000 0.000000 20.313000
+La Ni O
+12 8 28
+direct
+0.250000 0.249370 0.000000 La
+0.750000 0.750630 0.000000 La
+0.250000 0.236280 0.180290 La
+0.750000 0.263720 0.319710 La
+...
+
+$ crystod-group --cif-axis -c 14_PPOSCAR_ZrO2   # monoclinic: unique axis and cell choice
+
+* Structure *
+input      : 14_PPOSCAR_ZrO2
+space group: P2_1/c (No. 14), tolerance 0.01
+input cell : a = 5.23365, b = 5.26846, c = 5.41848 A, alpha = 90.0000, beta = 100.0548, gamma = 90.0000 deg
+
+* CIF axis settings *
+No.  setting                                    a (A)       b (A)       c (A)     alpha      beta     gamma
+1    P2_1/c (unique axis b, cell choice 1)    5.23365     5.26846     5.41848   90.0000  100.0548   90.0000   <- input
+2    P2_1/n (unique axis b, cell choice 2)    6.84461     5.26846     5.23365   90.0000  128.7868   90.0000
+3    P2_1/a (unique axis b, cell choice 3)    5.41848     5.26846     6.84461   90.0000  131.1583   90.0000
+4    P2_1/a (unique axis c, cell choice 1)    5.41848     5.23365     5.26846   90.0000   90.0000  100.0548
+5    P2_1/n (unique axis c, cell choice 2)    5.23365     6.84461     5.26846   90.0000   90.0000  128.7868
+6    P2_1/b (unique axis c, cell choice 3)    6.84461     5.41848     5.26846   90.0000   90.0000  131.1583
+7    P2_1/b (unique axis a, cell choice 1)    5.26846     5.41848     5.23365  100.0548   90.0000   90.0000
+8    P2_1/n (unique axis a, cell choice 2)    5.26846     5.23365     6.84461  128.7868   90.0000   90.0000
+9    P2_1/c (unique axis a, cell choice 3)    5.26846     6.84461     5.41848  131.1583   90.0000   90.0000
+(the Hall-symbol settings of spglib, in the order of VESTA and the International Tables;
+ lengths and angles of the input cell in the axes of each setting, x_setting = P x_input + p;
+ write one with --cif2poscar -c FILE --spacegroup-set <symbol | No. | choice>)
+
+$ crystod-group --cif2poscar -c 14_PPOSCAR_ZrO2 --spacegroup-set P2_1/n   # shared symbol
+ERROR: the setting P2_1/n of P2_1/c (No. 14) is not unique (No. 2 P2_1/n (unique axis b, cell choice 2) [choice b2]; No. 5 P2_1/n (unique axis c, cell choice 2) [choice c2]; No. 8 P2_1/n (unique axis a, cell choice 2) [choice a2]); give the No. or the choice

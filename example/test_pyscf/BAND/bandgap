@@ -1,0 +1,4 @@
+NOTE: This calculation is for band structure. Special Points: ['Gamma', 'X', 'M', 'Gamma', 'R', 'X', 'R', 'M']
+Bandgap: 1.7222 eV
+CBM: 4.326137 eV, k-point: [0.0, 0.0, 0.0]
+VBM: 2.603937 eV, k-point: [0.5, 0.5, 0.5]

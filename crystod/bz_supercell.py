@@ -22,7 +22,7 @@ from itertools import product
 import numpy as np
 from numpy.typing import NDArray
 
-from .brillouin_zone import get_brillouin_zone_3d, write_html
+from .brillouin_zone import _selling_reduce, get_brillouin_zone_3d, write_html
 
 
 class MyHelpFormatter(
@@ -54,7 +54,7 @@ def build_parser() -> ArgumentParser:
         dest="trans_mat",
         required=True,
         type=str,
-        help='Unit-cell to supercell transformation matrix (row-wise), e.g. "0 1 2  -1 0 2  1 -1 2". Fractions such as 1/2 are allowed.',
+        help='Unit-cell to supercell transformation matrix (row-wise, integer entries), e.g. "0 1 2  -1 0 2  1 -1 2".',
     )
     parser.add_argument(
         "--output",
@@ -68,9 +68,12 @@ def parse_transformation_matrix(text: str) -> NDArray[np.float64]:
     """Parse a ``--trans-mat`` string into a ``(3, 3)`` transformation matrix.
 
     The nine numbers are read row-wise, as ``crystod-bz --trans-mat`` takes
-    them; fractions such as ``1/2`` are accepted. The matrix ``T`` maps the
-    unit-cell lattice ``A`` (row vectors) to the supercell lattice ``T @ A``,
-    so ``|det T|`` is the number of unit cells in the supercell.
+    them. The matrix ``T`` maps the unit-cell lattice ``A`` (row vectors) to
+    the supercell lattice ``T @ A``, so ``|det T|`` is the number of unit
+    cells in the supercell. The entries must be integers (a fraction that
+    equals an integer, such as ``4/2``, is accepted): with a non-integer
+    entry ``T @ A`` is not a superlattice of the unit cell, and the folding
+    onto its Gamma point is undefined.
 
     Args:
         text: Nine whitespace-separated numbers, e.g.
@@ -80,9 +83,9 @@ def parse_transformation_matrix(text: str) -> NDArray[np.float64]:
         The ``(3, 3)`` float matrix.
 
     Raises:
-        SystemExit: The string does not hold exactly nine numbers, or the
-            matrix is singular (``ValueError`` when called through
-            ``crystod.bz``).
+        SystemExit: The string does not hold exactly nine numbers, an entry
+            is not an integer, or the matrix is singular (``ValueError``
+            when called through ``crystod.bz``).
         ValueError: A token is neither a number nor a fraction.
 
     Example:
@@ -90,12 +93,21 @@ def parse_transformation_matrix(text: str) -> NDArray[np.float64]:
         >>> bz.parse_transformation_matrix("2 0 0  0 2 0  0 0 2").tolist()
         [[2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 2.0]]
     """
-    values = [float(Fraction(token)) for token in text.split()]
+    tokens = text.split()
+    values = [Fraction(token) for token in tokens]
     if len(values) != 9:
         raise SystemExit(
             f'ERROR: --trans-mat requires nine numbers ("t11 t12 t13  t21 ..."), got {len(values)}.'
         )
-    matrix = np.array(values, dtype=float).reshape(3, 3)
+    non_integer = [token for token, value in zip(tokens, values) if value.denominator != 1]
+    if non_integer:
+        raise SystemExit(
+            "ERROR: --trans-mat must have integer entries (the supercell vectors are "
+            "integer combinations of the unit-cell vectors); got "
+            + ", ".join(non_integer)
+            + "."
+        )
+    matrix = np.array([float(value) for value in values], dtype=float).reshape(3, 3)
     if abs(np.linalg.det(matrix)) < 1e-10:
         raise SystemExit("ERROR: the transformation matrix is singular.")
     return matrix
@@ -110,7 +122,10 @@ def get_folded_gamma_points(trans_mat: NDArray[np.float64], rec_lat: NDArray[np.
     representative per class, brought into the unit-cell Brillouin zone by
     the minimum-image rule, is a unit-cell q point that becomes Gamma in the
     supercell; ``crystod-bz --trans-mat`` prints these points and tiles the
-    supercell zone at each of them.
+    supercell zone at each of them. The minimum image is searched on the
+    Selling-reduced basis as well, so it is the nearest image for any basis
+    of the unit cell (among equally near images, the first of the 27
+    ``{-1, 0, 1}`` images in the input basis is kept).
 
     Args:
         trans_mat: ``(3, 3)`` unit-cell to supercell transformation matrix
@@ -123,6 +138,10 @@ def get_folded_gamma_points(trans_mat: NDArray[np.float64], rec_lat: NDArray[np.
         ``points @ inv(rec_lat)`` gives them in fractional coordinates of
         the unit-cell reciprocal basis.
 
+    Raises:
+        SystemExit: ``trans_mat`` has a non-integer entry (``ValueError``
+            when called through ``crystod.bz``).
+
     Example:
         >>> import numpy as np
         >>> from crystod import bz
@@ -132,6 +151,13 @@ def get_folded_gamma_points(trans_mat: NDArray[np.float64], rec_lat: NDArray[np.
         >>> np.round(points @ np.linalg.inv(rec_lat), 3).tolist()
         [[0.0, 0.0, 0.0], [0.5, 0.5, 0.0]]
     """
+    trans_mat = np.asarray(trans_mat, dtype=float)
+    rec_lat = np.asarray(rec_lat, dtype=float)
+    if not np.allclose(trans_mat, np.rint(trans_mat), atol=1e-8):
+        raise SystemExit(
+            "ERROR: the transformation matrix must have integer entries "
+            "(a supercell of the unit cell)."
+        )
     n_classes = int(round(abs(np.linalg.det(trans_mat))))
     inv_t_transpose = np.linalg.inv(trans_mat).T
 
@@ -148,12 +174,28 @@ def get_folded_gamma_points(trans_mat: NDArray[np.float64], rec_lat: NDArray[np.
 
     # fold each representative into the Wigner-Seitz cell (minimum image)
     neighbors = np.array(list(product((-1, 0, 1), repeat=3)), dtype=float) @ rec_lat
+    # The 27 images of an unreduced basis (a sheared or very oblique cell) can
+    # miss the nearest one: also wrap the point into the parallelepiped of the
+    # Selling-reduced basis and search 5x5x5 images around it there. An image
+    # found that way replaces the first choice only when it is strictly
+    # nearer, so ties keep the image of the 27-point scan.
+    reduced, _ = _selling_reduce(rec_lat)
+    reduced_inv = np.linalg.inv(reduced)
+    reduced_neighbors = (
+        np.array(list(product(range(-2, 3), repeat=3)), dtype=float) @ reduced
+    )
     folded = []
     for frac in unique_fracs:
         point = frac @ rec_lat
         shifted = point - neighbors
-        point = shifted[np.argmin(np.linalg.norm(shifted, axis=1))]
-        folded.append(point)
+        norms = np.linalg.norm(shifted, axis=1)
+        best = shifted[np.argmin(norms)]
+        wrapped = point - np.rint(point @ reduced_inv) @ reduced
+        candidates = wrapped - reduced_neighbors
+        candidate_norms = np.linalg.norm(candidates, axis=1)
+        if candidate_norms.min() < norms.min() * (1.0 - 1e-9):
+            best = candidates[np.argmin(candidate_norms)]
+        folded.append(best)
     return np.array(folded)
 
 

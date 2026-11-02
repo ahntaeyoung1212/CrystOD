@@ -4,9 +4,10 @@ Three concerns live here so that the tool modules stay declarative:
 
 * **timeouts** -- :func:`blocking_tool` runs a synchronous tool body in a
   worker thread under ``asyncio.wait_for`` (60 s by default, overridable by
-  the ``CRYSTOD_MCP_TIMEOUT`` environment variable) and turns a timeout, or
-  any error CrystOD raises, into a ``ToolError`` whose one-line message the
-  model can read;
+  the ``CRYSTOD_MCP_TIMEOUT`` environment variable), keeps what the body
+  prints off stdout (the stdio transport's message stream), and turns a
+  timeout, or any error CrystOD raises, into a ``ToolError`` whose one-line
+  message the model can read;
 * **the citation footer** -- :func:`with_citation` appends the ISO-IR and
   CrystOD citation to every result;
 * **input validation** -- the ``parse_*`` / ``validate_*`` helpers raise
@@ -29,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
 from collections.abc import Callable, Iterable, Sequence
 from fractions import Fraction
 from pathlib import Path
@@ -108,32 +110,99 @@ def _one_line(text: object) -> str:
     return " ".join(str(text).split())
 
 
+_stdout_lock = threading.Lock()
+_stdout_users = 0
+_stdout_saved: Any = None
+_stdout_installed: Any = None
+
+
+@contextlib.contextmanager
+def _stdout_to_stderr():
+    """Send whatever a tool body prints to stdout to stderr instead.
+
+    On the stdio transport stdout carries the JSON-RPC messages, so the
+    progress lines CrystOD's implementation modules print (such as the
+    primitive-cell banner of the vibration analysis) must not reach it.
+    ``sys.stdout`` is process-wide while tool bodies run concurrently in
+    worker threads, so the calls share one redirection: the first call to
+    enter installs ``sys.stderr``, the last to leave restores the saved
+    stream. (``contextlib.redirect_stdout`` per call would hand stdout back
+    while another call is still printing.)
+    """
+    global _stdout_users, _stdout_saved, _stdout_installed
+    with _stdout_lock:
+        if _stdout_users == 0:
+            _stdout_saved = sys.stdout
+            _stdout_installed = sys.stderr
+            sys.stdout = _stdout_installed
+        _stdout_users += 1
+    try:
+        yield
+    finally:
+        with _stdout_lock:
+            _stdout_users -= 1
+            if _stdout_users == 0:
+                # leave a stream someone else installed meanwhile alone
+                if sys.stdout is _stdout_installed:
+                    sys.stdout = _stdout_saved
+                _stdout_saved = _stdout_installed = None
+
+
+def _exit_message(exc: SystemExit) -> str:
+    """The one-line message of a ``SystemExit`` (its ``ERROR:`` text, if any)."""
+    if exc.code is None or isinstance(exc.code, int):
+        return "invalid input"
+    return _one_line(exc).removeprefix("ERROR: ") or "invalid input"
+
+
+def _run_tool_body(fn: Callable[..., str], /, *args: Any, **kwargs: Any) -> str:
+    """Run a tool body in its worker thread; only a value or an ``Exception`` leaves it.
+
+    The command-line implementations report bad input with ``SystemExit``,
+    a ``BaseException``. Raised in a worker thread it must not travel
+    back as such: on Python 3.10/3.11 ``asyncio.wait_for`` awaits the thread
+    in an inner task, and a task re-raises ``SystemExit`` and
+    ``KeyboardInterrupt`` into the event loop, past the tool wrapper, which
+    ends the server. Both are therefore turned into a ``ToolError`` here,
+    on the worker's side of the thread boundary, and stdout is redirected
+    to stderr for the duration of the body (:func:`_stdout_to_stderr`).
+    """
+    with _stdout_to_stderr():
+        try:
+            return fn(*args, **kwargs)
+        except SystemExit as exc:
+            raise ToolError(_exit_message(exc)) from None
+        except KeyboardInterrupt:
+            raise ToolError("the calculation was interrupted before it finished.") from None
+
+
 def blocking_tool(fn: Callable[..., str]) -> Callable[..., Any]:
     """Turn a synchronous tool body into the async MCP tool.
 
     The body runs in a worker thread under ``asyncio.wait_for`` with the
-    limit of :func:`timeout_seconds`. Its return value gets the citation
-    footer; a timeout, a ``ValueError`` from validation, and any error the
-    CrystOD machinery raises (including the ``SystemExit`` the command-line
-    implementations use for bad input) become a ``ToolError``, which the SDK
-    returns to the model as an ``is_error`` result carrying the message. The
-    signature and docstring of ``fn`` are preserved (``functools.wraps``),
-    so the SDK derives the tool name, description and input schema from the
-    body itself.
+    limit of :func:`timeout_seconds`, with whatever it prints to stdout sent
+    to stderr (stdout is the message stream of the stdio transport). Its
+    return value gets the citation footer; a timeout, a ``ValueError`` from
+    validation, and any error the CrystOD machinery raises (including the
+    ``SystemExit`` the command-line implementations use for bad input, which
+    :func:`_run_tool_body` converts inside the worker thread) become a
+    ``ToolError``, which the SDK returns to the model as an ``is_error``
+    result carrying the message. The signature and docstring of ``fn`` are
+    preserved (``functools.wraps``), so the SDK derives the tool name,
+    description and input schema from the body itself.
     """
 
     @functools.wraps(fn)
     async def tool(*args: Any, **kwargs: Any) -> str:
         limit = timeout_seconds()
         try:
-            result = await asyncio.wait_for(asyncio.to_thread(fn, *args, **kwargs), limit)
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_run_tool_body, fn, *args, **kwargs), limit
+            )
         except (asyncio.TimeoutError, TimeoutError):
             raise ToolError(timeout_message(limit)) from None
         except ToolError:
             raise
-        except SystemExit as exc:
-            message = _one_line(exc).removeprefix("ERROR: ") or "invalid input"
-            raise ToolError(message) from None
         except Exception as exc:  # noqa: BLE001 - every failure must reach the model as text
             message = _one_line(exc).removeprefix("ERROR: ") or type(exc).__name__
             raise ToolError(message) from None
@@ -297,10 +366,11 @@ def parse_order_parameter(value: object) -> list[str] | None:
     if not tokens:
         return None
     for token in tokens:
-        if not re.fullmatch(r"[A-Za-z]|-?[0-9]+(\.[0-9]+)?", token):
+        if not re.fullmatch(r"-?[A-Za-z]|-?[0-9]+(\.[0-9]+)?", token):
             raise ValueError(
                 f'"{token}" is not an order-parameter component; give letters for '
-                'free parameters and numbers for fixed ones, e.g. "0 0 a" or "a a 0".'
+                'free parameters (with a sign, -a, for an opposite component) and '
+                'numbers for fixed ones, e.g. "0 0 a", "a a 0" or "a -a 0".'
             )
     return tokens
 
@@ -474,14 +544,28 @@ def _dataset_field(dataset: Any, name: str) -> Any:
     return dataset[name] if isinstance(dataset, dict) else getattr(dataset, name)
 
 
+def read_poscar_cell(path: object):
+    """The ``PhonopyAtoms`` of a POSCAR file, read as VASP reads it.
+
+    VASP multiplies the lattice vectors AND Cartesian coordinates by the scale
+    line, and a negative scale is the cell volume; phonopy's own reader leaves
+    Cartesian coordinates unscaled.  CrystOD >= 0.4.3 reads the file as VASP
+    does; with an older CrystOD this is phonopy's reader, as before.
+    """
+    try:
+        from crystod.vasp_io import read_poscar_cell as reader
+    except ImportError:  # CrystOD < 0.4.3
+        from phonopy.interface.vasp import read_vasp as reader
+    return reader(str(path))
+
+
 def space_group_of_poscar(poscar: str, symprec: float = 1e-5) -> tuple[int, str]:
     """``(number, international short symbol)`` of the structure in ``poscar``."""
     import spglib
-    from phonopy.interface.vasp import read_vasp
 
     with temporary_files({"POSCAR": poscar}) as directory:
         try:
-            cell = read_vasp(str(directory / "POSCAR"))
+            cell = read_poscar_cell(directory / "POSCAR")
         except Exception as exc:  # noqa: BLE001 - phonopy's parser reports many shapes of bad input
             raise ValueError(
                 f"the POSCAR text could not be read ({_one_line(exc)}); pass the "

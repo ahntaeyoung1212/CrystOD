@@ -1,0 +1,72 @@
+# ScF3 (Pm-3m), NpT MD at 300 K of a 4x4x4 supercell (256 atoms).
+# XDATCAR_every10 holds every 10th frame of the equilibrated part of the run
+# (configurations 2000, 2010, ..., 5000: 301 frames, the cell of every frame included).
+# The full 41.7 MB XDATCAR (4001 frames, not in the pip package) with --start-step 1000 gives the same to 0.2 % (Ueq 0.005485 and 0.023521 A^2).
+
+# Show the summary of MD calculation result from XDATCAR
+crystod-md --summary --start-step 0 --xdatcar XDATCAR_every10 --format vasp
+
+* Input *
+  Input file : XDATCAR_every10
+  Reading XDATCAR... (this may take a while)
+
+* Trajectory info *
+  atoms          : 256
+  composition    : {'Sc': 64, 'F': 192}
+  total steps    : 301
+  analyzed steps : 301 (step 0 .. 300)
+
+* Time-averaged cell (mean +/- std) *
+  a (A)       :      16.150052 +/- 0.077248
+  b (A)       :      16.155792 +/- 0.067524
+  c (A)       :      16.154326 +/- 0.068180
+  alpha (deg) :      89.954570 +/- 0.214752
+  beta (deg)  :      89.990552 +/- 0.261860
+  gamma (deg) :      89.998191 +/- 0.218285
+  V (A^3)     :    4214.959148 +/- 45.952311
+  V/atom (A^3):      16.464684
+
+NOTE: XDATCAR stores no energies or temperatures; Etot/T averages require OSZICAR/vasprun.xml.
+
+
+
+# Generate CIF file containing atomic displacement parameters from XDATCAR
+crystod-md --adp --dim 4 4 4 --start-step 0 --xdatcar XDATCAR_every10 --output ADP_ScF3_300K.cif
+
+* Input *
+  Supercell size : [4, 4, 4]
+  Start step     : 0
+  Input file     : XDATCAR_every10
+  Output file    : ADP_ScF3_300K.cif
+  Reading XDATCAR... (this may take a while)
+
+* Supercell info *
+  atoms          : 256
+  composition    : {'Sc': 64, 'F': 192}
+  analyzed steps : 301
+  Number of unit-cell sites (groups): 4
+  Expected replicas per group       : 64
+
+* Time-averaged unit cell *
+  Space group: Pm-3m (No. 221)
+  Atoms in unit cell   : 4
+  Symmetry operations  : 48
+  Asymmetric-unit sites: 2
+    Sc0: mult=1, coords=(1.00000, 0.99999, 1.00000)
+    F1: mult=3, coords=(0.00003, 0.50001, 0.00006)
+
+* ADP constraints per Wyckoff position *
+  Wyckoff 0 (Sc): site-symmetry order=48, U11=U22, U11=U33, U22=U33, U12=0, U13=0, U23=0
+  Wyckoff 1 (F): site-symmetry order=16, U11=U33, U12=0, U13=0, U23=0
+
+* Trajectory unwrapping *
+  Coordinate unwrapping done: 256 atoms x 301 steps
+
+* Atomic displacement parameters *
+Site       Ueq (A^2)    Constraint                         
+------------------------------------------------------------
+Sc0        0.005477     U11=U22, U11=U33, U22=U33, U12=0, U13=0, U23=0
+F1         0.023486     U11=U33, U12=0, U13=0, U23=0       
+
+* Output files *
+  Saved: ADP_ScF3_300K.cif

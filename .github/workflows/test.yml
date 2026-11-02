@@ -1,0 +1,87 @@
+# Run the regression suite (testsuite.py, 53 sections) on every push and pull
+# request to main.
+#
+# Expected runtime: the sections that do not need PySCF finish in minutes; the
+# --diagram --pyscf checks in sections 3 and 43 run several periodic SCF
+# calculations and dominate, so a full run takes on the order of an hour or
+# more per matrix entry on a GitHub-hosted runner (hence timeout-minutes: 180;
+# testsuite.py itself gives every individual command 900 s).
+#
+# Locally, one section is enough while iterating on a feature (the docstring
+# at the top of testsuite.py lists the sections; example/NN_* and the doc
+# sections share the numbers):
+#     python testsuite.py 17        # section 17 only
+#     python testsuite.py 3 43      # sections 3 and 43
+#
+# The matrix covers the oldest supported interpreter (3.10, requires-python),
+# a current one on both operating systems (3.12) and the newest one every
+# dependency ships wheels for (3.13). macOS is arm64 here and exercises the
+# arm64 wheels of pyscf/spglib/phonopy; Windows is not tested (pyscf has no
+# Windows wheel, see the classifiers in pyproject.toml).
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# a newer push to the same branch or pull request supersedes the running suite
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.12", "3.13"]
+        include:
+          - os: macos-latest
+            python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install CrystOD with the quantum extra (PySCF)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[quantum]"
+      - name: Show the resolved dependency versions
+        run: pip list
+      - name: Run the regression suite
+        run: python testsuite.py
+
+  # the MCP server is a separate package (crystod-mcp/) with its own tests
+  mcp:
+    name: crystod-mcp / Python 3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            crystod-mcp/pyproject.toml
+      - name: Install CrystOD and crystod-mcp (with its test extra)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install -e "./crystod-mcp[test]"
+      - name: Run the crystod-mcp tests
+        run: python -m pytest -q crystod-mcp/tests

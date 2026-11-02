@@ -835,8 +835,13 @@ class CrystalOrbitalDiagram:
         Diffuse cation shells (e.g. Sr 5s, Ti 4p) still overlap at 30+ bohr;
         a fixed short cutoff truncates their Bloch sums so badly that S_k
         loses positive semidefiniteness.  The sigma overlap along z is
-        probed outward until it falls below tol."""
-        sigma_m = {0: 0, 1: 2, 2: 2}   # s / pz / dz2: the slowest-decaying
+        probed outward until it falls below tol.  Valence f shells (the 4f
+        of Ce, Sm, Gd, Yb, Lu) are probed like every other shell; no f core
+        shell enters the basis (the Pb/Bi 4f is frozen in the def2 ECP and
+        absent from the archived atomic levels)."""
+        # s / pz / dz2 / fz3 (wigner_D_real component order): the
+        # slowest-decaying, sigma channel
+        sigma_m = {0: 0, 1: 2, 2: 2, 3: 6}
         kinds = []
         seen = set()
         for spec in self.specs:
@@ -849,11 +854,6 @@ class CrystalOrbitalDiagram:
             for b_spec in kinds[index:]:
                 key_a = (a_spec.element, a_spec.shell)
                 key_b = (b_spec.element, b_spec.shell)
-                if a_spec.l > 2 or b_spec.l > 2:
-                    # f shells appear only as ultra-compact cores (Pb/Bi
-                    # 4f); their inter-site overlap is neglected
-                    cutoffs[key_a, key_b] = cutoffs[key_b, key_a] = 6.0
-                    continue
                 a = AtomicOrbital(0, a_spec.element, a_spec.shell, a_spec.n,
                                   a_spec.l, sigma_m[a_spec.l], a_spec.zeta,
                                   a_spec.h_ii)
@@ -893,8 +893,9 @@ class CrystalOrbitalDiagram:
 
         ``S_k(i, j) = sum_n exp(2 pi i k . (n + x_j - x_i)) s(i at 0, j at
         n)`` over the lattice translations ``n`` within the pair cutoffs;
-        the on-site term of an orbital with itself is 1, and the compact
-        ``f`` cores carry no inter-site overlap.
+        the on-site term of an orbital with itself is 1.  Every shell, the
+        valence f shells included, takes its inter-site overlaps from the
+        shared two-centre STO routine (``pair_overlap``).
 
         Args:
             kpoint: Three primitive reciprocal coordinates.
@@ -919,8 +920,6 @@ class CrystalOrbitalDiagram:
                     fractional = fractionals[image_index]
                     if distances[image_index] < 1e-9:
                         overlap = 1.0 if (a.shell, a.m) == (b.shell, b.m) else 0.0
-                    elif a.l > 2 or b.l > 2:
-                        overlap = 0.0   # compact f cores: no inter-site overlap
                     else:
                         overlap = pair_overlap(
                             a, b, fractional @ lattice_bohr, self._aligned
@@ -2309,9 +2308,9 @@ def report_and_write(cell, *, left, right, symprec, electrons,
         oxidation=oxidation, conventional=conventional,
     )
     dataset = diagram.builder.spglib_dataset
-    print("\n * Space group *")
+    print("\n* Space group *")
     print(f" {dataset['international']} ({dataset['number']})\n")
-    print(" * Fragments (full-electron basis: core + valence shells;"
+    print("* Fragments (full-electron basis: core + valence shells;"
           " atomic levels from reference/atomic_level_*) *")
     for column in ("left", "right"):
         by_element: dict[str, list] = {}
@@ -2362,7 +2361,7 @@ def report_and_write(cell, *, left, right, symprec, electrons,
     print(f" electrons per cell in the diagram: {int(diagram.electrons)}"
           + (" (all electrons of the neutral atoms; override with"
              " --electrons)" if electrons is None else ""))
-    print(" * Ligand-field point charges (removed sublattice) *")
+    print("\n* Ligand-field point charges (removed sublattice) *")
     shifts: dict[str, list] = {}
     for atom, symbol in enumerate(diagram.symbols):
         shifts.setdefault(symbol, []).append(diagram.site_potential[atom])
@@ -2385,7 +2384,7 @@ def report_and_write(cell, *, left, right, symprec, electrons,
               f"jellium-referenced monopole {own} omitted)")
     print(" hover wave-function sketches: all atomic-orbital components "
           "of every level")
-    print(" * CAUTION: extended Hueckel gets the LEVEL ORDER wrong "
+    print("\n* CAUTION: extended Hueckel gets the LEVEL ORDER wrong "
           "sometimes *")
     print("   This is a non-self-consistent one-electron model with fixed "
           "atomic parameters.\n"
@@ -2424,7 +2423,7 @@ def report_and_write(cell, *, left, right, symprec, electrons,
     for name, kpoint in kpoints:
         levels, _ = diagram.solve_at(kpoint)
         entries.append((name, kpoint, levels))
-        print(f" * k point {name} {_format_kpoint(kpoint)} *")
+        print(f"* k point {name} {_format_kpoint(kpoint)} *")
         if diagram.last_estimated:
             print(f"   ({diagram.last_estimated} near-dependent diffuse Bloch "
                   f"combination(s) below overlap floor {_OVERLAP_FLOOR}: "

@@ -1,0 +1,509 @@
+# Rutile TiO2 with spins on Ti (the RuO2 / MnF2 geometry): magnetic groups and
+# collinear classes of every spin basis vector at Gamma, table only
+crystod-mag -c ../test_POSCARs/136_PPOSCAR_TiO2 --element Ti --qpoint GM --classify-only
+
+* Structure *
+  Space group: P4_2/mnm (#136)
+  Magnetic sites: Ti x 2
+    Ti1: [0.5, 0.5, 0.5]
+    Ti2: [0.0, 0.0, 0.0]
+
+* Selected Q point *
+  Selected q-point: GAMMA = [0.0, 0.0, 0.0]
+
+* Spin (axial-vector) representation *
+  Spin (axial-vector) representation on Ti sites: 6 dimensions
+  Decomposition: GM3+(1) + 2 x GM5+(2) + GM2+(1)
+
+* Symmetry-adapted spin bases *
+  GM3+(1): dim 1 [FM, dipole]
+  GM5+(2): dim 2 [FM, dipole]
+  GM5+(2): dim 2 [AFM, octupole]
+  GM2+(1): dim 1 [AFM, octupole]
+
+* Magnetic groups and collinear classes *
+basis                    component  MSG (BNS)             type  MPG      net magnetization  class
+GM3+(1) [FM, dipole]     z          P4_2/mn'm' (136.501)  III   4/mm'm'  along z            ferromagnet
+GM5+(2) [FM, dipole]     1m10       Cmm'm' (65.486)       III   mm'm'    along [1-10]       ferromagnet
+GM5+(2) [FM, dipole]     110        Cmm'm' (65.486)       III   mm'm'    along [110]        ferromagnet
+GM5+(2) [AFM, octupole]  1m10       Cmm'm' (65.486)       III   mm'm'    along [1-10]       altermagnet (d-wave)
+GM5+(2) [AFM, octupole]  110        Cmm'm' (65.486)       III   mm'm'    along [110]        altermagnet (d-wave)
+GM2+(1) [AFM, octupole]  z          P4_2'/mnm' (136.499)  III   4'/mmm'  none               altermagnet (d-wave)
+
+MSG: magnetic space group from the moment directions (BNS number, type I-IV);
+MPG: magnetic point group; net magnetization: the direction allowed by symmetry;
+class: from the signs of the moments along their common axis only (nonrelativistic).
+MSG and MPG symbols are in the standard BNS setting; directions are in the Cartesian axes of the input cell.
+
+All AFM bases satisfy sum_i S_i = 0; FM entries carry the cluster dipole moment.
+Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).
+
+
+# The same with the per-component listings, MAGMOM lines and VESTA files
+crystod-mag -c ../test_POSCARs/136_PPOSCAR_TiO2 --element Ti --qpoint GM
+
+* Structure *
+  Space group: P4_2/mnm (#136)
+  Magnetic sites: Ti x 2
+    Ti1: [0.5, 0.5, 0.5]
+    Ti2: [0.0, 0.0, 0.0]
+
+* Selected Q point *
+  Selected q-point: GAMMA = [0.0, 0.0, 0.0]
+
+* Spin (axial-vector) representation *
+  Spin (axial-vector) representation on Ti sites: 6 dimensions
+  Decomposition: GM3+(1) + 2 x GM5+(2) + GM2+(1)
+
+* Symmetry-adapted spin bases *
+  GM3+(1): dim 1 [FM, dipole]
+  GM5+(2): dim 2 [FM, dipole]
+  GM5+(2): dim 2 [AFM, octupole]
+  GM2+(1): dim 1 [AFM, octupole]
+
+* GM3+(1) [FM, dipole] *
+  component z:
+    Ti1: S = [ 0.0000,  0.0000,  1.0000]
+    Ti2: S = [ 0.0000,  0.0000,  1.0000]
+    net moment: [0.0, 0.0, 2.0]
+    magnetic space group: P4_2/mn'm' (BNS 136.501, type III), 16 operations, 8 with time reversal
+    magnetic point group: 4/mm'm'
+    allowed by symmetry: net magnetization along z; linear magnetoelectric effect none; piezomagnetism 3 components
+    collinear order: ferromagnet
+    spin directions (all atoms, POSCAR order):
+      Ti1: [0.0000, 0.0000, 1.0000]
+      Ti2: [0.0000, 0.0000, 1.0000]
+      O3: [0, 0, 0]
+      O4: [0, 0, 0]
+      O5: [0, 0, 0]
+      O6: [0, 0, 0]
+    MAGMOM = 0.0000 0.0000 1.0000   0.0000 0.0000 1.0000   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM5+(2) [FM, dipole] *
+  component 1m10:
+    Ti1: S = [ 0.7071, -0.7071,  0.0000]
+    Ti2: S = [ 0.7071, -0.7071,  0.0000]
+    net moment: [1.414214, -1.414214, 0.0]
+    magnetic space group: Cmm'm' (BNS 65.486, type III), 8 operations, 4 with time reversal
+    magnetic point group: mm'm'
+    allowed by symmetry: net magnetization along [1-10]; linear magnetoelectric effect none; piezomagnetism 5 components
+    collinear order: ferromagnet
+    spin directions (all atoms, POSCAR order):
+      Ti1: [0.7071, -0.7071, 0.0000]
+      Ti2: [0.7071, -0.7071, 0.0000]
+      O3: [0, 0, 0]
+      O4: [0, 0, 0]
+      O5: [0, 0, 0]
+      O6: [0, 0, 0]
+    MAGMOM = 0.7071 -0.7071 0.0000   0.7071 -0.7071 0.0000   0 0 0   0 0 0   0 0 0   0 0 0
+  component 110:
+    Ti1: S = [ 0.7071,  0.7071, -0.0000]
+    Ti2: S = [ 0.7071,  0.7071, -0.0000]
+    net moment: [1.414214, 1.414214, 0.0]
+    magnetic space group: Cmm'm' (BNS 65.486, type III), 8 operations, 4 with time reversal
+    magnetic point group: mm'm'
+    allowed by symmetry: net magnetization along [110]; linear magnetoelectric effect none; piezomagnetism 5 components
+    collinear order: ferromagnet
+    spin directions (all atoms, POSCAR order):
+      Ti1: [0.7071, 0.7071, -0.0000]
+      Ti2: [0.7071, 0.7071, -0.0000]
+      O3: [0, 0, 0]
+      O4: [0, 0, 0]
+      O5: [0, 0, 0]
+      O6: [0, 0, 0]
+    MAGMOM = 0.7071 0.7071 -0.0000   0.7071 0.7071 -0.0000   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM5+(2) [AFM, octupole] *
+  component 1m10:
+    Ti1: S = [ 0.7071, -0.7071,  0.0000]
+    Ti2: S = [-0.7071,  0.7071,  0.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: Cmm'm' (BNS 65.486, type III), 8 operations, 4 with time reversal
+    magnetic point group: mm'm'
+    allowed by symmetry: net magnetization along [1-10]; linear magnetoelectric effect none; piezomagnetism 5 components
+    collinear order: altermagnet (d-wave; spin splitting allowed by symmetry ~ k_x k_y; spin-degenerate planes perpendicular to [100], [010])
+    spin directions (all atoms, POSCAR order):
+      Ti1: [0.7071, -0.7071, 0.0000]
+      Ti2: [-0.7071, 0.7071, 0.0000]
+      O3: [0, 0, 0]
+      O4: [0, 0, 0]
+      O5: [0, 0, 0]
+      O6: [0, 0, 0]
+    MAGMOM = 0.7071 -0.7071 0.0000   -0.7071 0.7071 0.0000   0 0 0   0 0 0   0 0 0   0 0 0
+  component 110:
+    Ti1: S = [ 0.7071,  0.7071,  0.0000]
+    Ti2: S = [-0.7071, -0.7071,  0.0000]
+    net moment: [-0.0, -0.0, 0.0]
+    magnetic space group: Cmm'm' (BNS 65.486, type III), 8 operations, 4 with time reversal
+    magnetic point group: mm'm'
+    allowed by symmetry: net magnetization along [110]; linear magnetoelectric effect none; piezomagnetism 5 components
+    collinear order: altermagnet (d-wave; spin splitting allowed by symmetry ~ k_x k_y; spin-degenerate planes perpendicular to [100], [010])
+    spin directions (all atoms, POSCAR order):
+      Ti1: [0.7071, 0.7071, 0.0000]
+      Ti2: [-0.7071, -0.7071, 0.0000]
+      O3: [0, 0, 0]
+      O4: [0, 0, 0]
+      O5: [0, 0, 0]
+      O6: [0, 0, 0]
+    MAGMOM = 0.7071 0.7071 0.0000   -0.7071 -0.7071 0.0000   0 0 0   0 0 0   0 0 0   0 0 0
+
+* GM2+(1) [AFM, octupole] *
+  component z:
+    Ti1: S = [ 0.0000,  0.0000,  1.0000]
+    Ti2: S = [ 0.0000,  0.0000, -1.0000]
+    net moment: [0.0, 0.0, 0.0]
+    magnetic space group: P4_2'/mnm' (BNS 136.499, type III), 16 operations, 8 with time reversal
+    magnetic point group: 4'/mmm'
+    allowed by symmetry: net magnetization none; linear magnetoelectric effect none; piezomagnetism 2 components
+    collinear order: altermagnet (d-wave; spin splitting allowed by symmetry ~ k_x k_y; spin-degenerate planes perpendicular to [100], [010])
+    spin directions (all atoms, POSCAR order):
+      Ti1: [0.0000, 0.0000, 1.0000]
+      Ti2: [0.0000, 0.0000, -1.0000]
+      O3: [0, 0, 0]
+      O4: [0, 0, 0]
+      O5: [0, 0, 0]
+      O6: [0, 0, 0]
+    MAGMOM = 0.0000 0.0000 1.0000   0.0000 0.0000 -1.0000   0 0 0   0 0 0   0 0 0   0 0 0
+
+* Magnetic groups and collinear classes *
+basis                    component  MSG (BNS)             type  MPG      net magnetization  class
+GM3+(1) [FM, dipole]     z          P4_2/mn'm' (136.501)  III   4/mm'm'  along z            ferromagnet
+GM5+(2) [FM, dipole]     1m10       Cmm'm' (65.486)       III   mm'm'    along [1-10]       ferromagnet
+GM5+(2) [FM, dipole]     110        Cmm'm' (65.486)       III   mm'm'    along [110]        ferromagnet
+GM5+(2) [AFM, octupole]  1m10       Cmm'm' (65.486)       III   mm'm'    along [1-10]       altermagnet (d-wave)
+GM5+(2) [AFM, octupole]  110        Cmm'm' (65.486)       III   mm'm'    along [110]        altermagnet (d-wave)
+GM2+(1) [AFM, octupole]  z          P4_2'/mnm' (136.499)  III   4'/mmm'  none               altermagnet (d-wave)
+
+MSG: magnetic space group from the moment directions (BNS number, type I-IV);
+MPG: magnetic point group; net magnetization: the direction allowed by symmetry;
+class: from the signs of the moments along their common axis only (nonrelativistic).
+MSG and MPG symbols are in the standard BNS setting; directions are in the Cartesian axes of the input cell.
+
+* Output files *
+  Spin basis written to: POSCAR_TiO2_spin_GM3+_dipole_z.vesta
+  Spin basis written to: POSCAR_TiO2_spin_GM5+_dipole_1m10.vesta
+  Spin basis written to: POSCAR_TiO2_spin_GM5+_dipole_110.vesta
+  Spin basis written to: POSCAR_TiO2_spin_GM5+_octupole_1m10.vesta
+  Spin basis written to: POSCAR_TiO2_spin_GM5+_octupole_110.vesta
+  Spin basis written to: POSCAR_TiO2_spin_GM2+_octupole_z.vesta
+
+All AFM bases satisfy sum_i S_i = 0; FM entries carry the cluster dipole moment.
+Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).
+
+
+# MnO2 (Pnnm): the class follows the sign pattern, the MSG the moment direction
+crystod-mag -c ../test_POSCARs/58_PPOSCAR_MnO2 --element Mn --qpoint GM --classify-only
+
+* Structure *
+  Space group: Pnnm (#58)
+  Magnetic sites: Mn x 2
+    Mn1: [0.5, 0.5, 0.0]
+    Mn2: [0.0, 0.0, 0.5]
+
+* Selected Q point *
+  Selected q-point: GAMMA = [0.0, 0.0, 0.0]
+
+* Spin (axial-vector) representation *
+  Spin (axial-vector) representation on Mn sites: 6 dimensions
+  Decomposition: GM1+(1) + GM2+(1) + 2 x GM4+(1) + 2 x GM3+(1)
+
+* Symmetry-adapted spin bases *
+  GM1+(1): dim 1 [AFM, octupole]
+  GM2+(1): dim 1 [FM, dipole]
+  GM4+(1): dim 1 [FM, dipole]
+  GM4+(1): dim 1 [AFM, octupole]
+  GM3+(1): dim 1 [FM, dipole]
+  GM3+(1): dim 1 [AFM, octupole]
+
+* Magnetic groups and collinear classes *
+basis                    component  MSG (BNS)        type  MPG    net magnetization  class
+GM1+(1) [AFM, octupole]  z          Pnnm (58.393)    I     mmm    none               altermagnet (d-wave)
+GM2+(1) [FM, dipole]     z          Pn'n'm (58.397)  III   m'm'm  along z            ferromagnet
+GM4+(1) [FM, dipole]     y          Pnn'm' (58.398)  III   mm'm'  along y            ferromagnet
+GM4+(1) [AFM, octupole]  x          Pnn'm' (58.398)  III   mm'm'  along y            altermagnet (d-wave)
+GM3+(1) [FM, dipole]     x          Pnn'm' (58.398)  III   mm'm'  along x            ferromagnet
+GM3+(1) [AFM, octupole]  y          Pnn'm' (58.398)  III   mm'm'  along x            altermagnet (d-wave)
+
+MSG: magnetic space group from the moment directions (BNS number, type I-IV);
+MPG: magnetic point group; net magnetization: the direction allowed by symmetry;
+class: from the signs of the moments along their common axis only (nonrelativistic).
+MSG and MPG symbols are in the standard BNS setting; directions are in the Cartesian axes of the input cell.
+
+All AFM bases satisfy sum_i S_i = 0; FM entries carry the cluster dipole moment.
+Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).
+
+
+# Cr2O3 (R-3c, rhombohedral primitive cell with the hexagonal c axis along z;
+# generated with pymatgen from a = 4.9587, c = 13.5942 A, Cr 12c z = 0.3475,
+# O 18e x = 0.3057). Ordered by height along c the Cr sites are Cr3, Cr2,
+# Cr4, Cr1: GM1- z is the Cr2O3 order (+ - + -, R-3'c', magnetoelectric),
+# GM1+ z the hematite order below the Morin transition (+ - - +, R-3c).
+# The in-plane orders belong to GM3+ and GM3- (two copies each of a 2-dim
+# irrep): the partners lie along the two-fold axis x (the a axis) and along
+# y, the same for every copy; the GM3+ octupole is the in-plane hematite
+# order, the GM3- copies the in-plane orders + - + - and + + - -, all with
+# monoclinic groups
+crystod-mag -c 167_PPOSCAR_Cr2O3 --element Cr --qpoint GM --classify-only
+
+* Structure *
+  Space group: R-3c (#167)
+  Magnetic sites: Cr x 4
+    Cr1: [0.8475, 0.8475, 0.8475]
+    Cr2: [0.3475, 0.3475, 0.3475]
+    Cr3: [0.1525, 0.1525, 0.1525]
+    Cr4: [0.6525, 0.6525, 0.6525]
+
+* Selected Q point *
+  Selected q-point: GAMMA = [0.0, 0.0, 0.0]
+
+* Spin (axial-vector) representation *
+  Spin (axial-vector) representation on Cr sites: 12 dimensions
+  Decomposition: GM1+(1) + GM1-(1) + GM2+(1) + GM2-(1) + 2 x GM3+(2) + 2 x GM3-(2)
+
+* Symmetry-adapted spin bases *
+  GM1+(1): dim 1 [AFM, octupole]
+  GM1-(1): dim 1 [AFM, quadrupole]
+  GM2+(1): dim 1 [FM, dipole]
+  GM2-(1): dim 1 [AFM, hexadecapole]
+  GM3+(2): dim 2 [FM, dipole]
+  GM3+(2): dim 2 [AFM, octupole]
+  GM3-(2): dim 2 [AFM, quadrupole]
+  GM3-(2): dim 2 [AFM, quadrupole]
+
+* Magnetic groups and collinear classes *
+basis                        component  MSG (BNS)         type  MPG    net magnetization  class
+GM1+(1) [AFM, octupole]      z          R-3c (167.103)    I     -3m    none               altermagnet (g-wave)
+GM1-(1) [AFM, quadrupole]    z          R-3'c' (167.106)  III   -3'm'  none               antiferromagnet (P T)
+GM2+(1) [FM, dipole]         z          R-3c' (167.107)   III   -3m'   along z            ferromagnet
+GM2-(1) [AFM, hexadecapole]  z          R-3'c (167.105)   III   -3'm   none               antiferromagnet (P T)
+GM3+(2) [FM, dipole]         x          C2/c (15.85)      I     2/m    along x            ferromagnet
+GM3+(2) [FM, dipole]         y          C2'/c' (15.89)    III   2'/m'  in the yz plane    ferromagnet
+GM3+(2) [AFM, octupole]      y          C2/c (15.85)      I     2/m    along x            altermagnet (g-wave)
+GM3+(2) [AFM, octupole]      x          C2'/c' (15.89)    III   2'/m'  in the yz plane    altermagnet (g-wave)
+GM3-(2) [AFM, quadrupole]    x          C2'/c (15.87)     III   2'/m   none               antiferromagnet (P T)
+GM3-(2) [AFM, quadrupole]    y          C2/c' (15.88)     III   2/m'   none               antiferromagnet (P T)
+GM3-(2) [AFM, quadrupole]    y_2        C2'/c (15.87)     III   2'/m   none               antiferromagnet (P T)
+GM3-(2) [AFM, quadrupole]    x_2        C2/c' (15.88)     III   2/m'   none               antiferromagnet (P T)
+
+MSG: magnetic space group from the moment directions (BNS number, type I-IV);
+MPG: magnetic point group; net magnetization: the direction allowed by symmetry;
+class: from the signs of the moments along their common axis only (nonrelativistic).
+MSG and MPG symbols are in the standard BNS setting; directions are in the Cartesian axes of the input cell.
+
+All AFM bases satisfy sum_i S_i = 0; FM entries carry the cluster dipole moment.
+Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).
+
+
+# NiO-type order: spins on the Na sites of rock salt at L (AFM-II along [111])
+crystod-mag -c ../test_POSCARs/225_PPOSCAR_NaCl --element Na --qpoint L --classify-only
+
+* Structure *
+  Space group: Fm-3m (#225)
+  Magnetic sites: Na x 1
+    Na1: [0.0, 0.0, 0.0]
+
+* Selected Q point *
+  Selected q-point: L = [0.5, 0.5, 0.5]
+
+* Spin (axial-vector) representation *
+  Spin (axial-vector) representation on Na sites: 3 dimensions
+  Decomposition: L2+(1) + L3+(2)
+
+* Symmetry-adapted spin bases *
+  L2+(1): dim 1 [AFM (q != 0)]
+  L3+(2): dim 2 [AFM (q != 0)]
+
+* Magnetic cell *
+  Magnetic (commensurate) supercell: 2x2x2
+  the magnetic space group refers to the real spin field of the magnetic cell (global phase fixed as the VESTA export)
+
+* Magnetic groups and collinear classes *
+basis                  component  MSG (BNS)         type  MPG    net magnetization  class
+L2+(1) [AFM (q != 0)]  111        R_I-3c (167.108)  IV    -3m1'  none               antiferromagnet (T tau)
+L3+(2) [AFM (q != 0)]  2m1m1      C_c2/c (15.90)    IV    2/m1'  none               antiferromagnet (T tau)
+L3+(2) [AFM (q != 0)]  01m1       C_c2/m (12.63)    IV    2/m1'  none               antiferromagnet (T tau)
+
+MSG: magnetic space group from the moment directions (BNS number, type I-IV);
+MPG: magnetic point group; net magnetization: the direction allowed by symmetry;
+class: from the signs of the moments along their common axis only (nonrelativistic).
+MSG and MPG symbols are in the standard BNS setting; directions are in the Cartesian axes of the input cell.
+
+Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).
+
+
+# bcc Fe at H (moments in a 2x2x2 cell): spglib cannot name the group of the
+# x component in the cell given; an equivalent basis of the same lattice is
+# identified (the x row is the same group as z and y)
+crystod-mag -c ../test_POSCARs/229_PPOSCAR_Fe --element Fe --qpoint H --classify-only
+
+* Structure *
+  Space group: Im-3m (#229)
+  Magnetic sites: Fe x 1
+    Fe1: [0.0, 0.0, 0.0]
+
+* Selected Q point *
+  Selected q-point: H = [0.5, -0.5, 0.5]
+
+* Spin (axial-vector) representation *
+  Spin (axial-vector) representation on Fe sites: 3 dimensions
+  Decomposition: H4+(3)
+
+* Symmetry-adapted spin bases *
+  H4+(3): dim 3 [AFM (q != 0)]
+
+* Magnetic cell *
+  Magnetic (commensurate) supercell: 2x2x2
+  the magnetic space group refers to the real spin field of the magnetic cell (global phase fixed as the VESTA export)
+
+* Magnetic groups and collinear classes *
+basis                  component  MSG (BNS)           type  MPG      net magnetization  class
+H4+(3) [AFM (q != 0)]  z          P_I4/mnc (128.410)  IV    4/mmm1'  none               antiferromagnet (T tau)
+H4+(3) [AFM (q != 0)]  x          P_I4/mnc (128.410)  IV    4/mmm1'  none               antiferromagnet (T tau)
+H4+(3) [AFM (q != 0)]  y          P_I4/mnc (128.410)  IV    4/mmm1'  none               antiferromagnet (T tau)
+H4+(3) [AFM (q != 0)]  111        R_I-3c (167.108)    IV    -3m1'    none               antiferromagnet (T tau)
+
+MSG: magnetic space group from the moment directions (BNS number, type I-IV);
+MPG: magnetic point group; net magnetization: the direction allowed by symmetry;
+class: from the signs of the moments along their common axis only (nonrelativistic).
+MSG and MPG symbols are in the standard BNS setting; directions are in the Cartesian axes of the input cell.
+
+Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).
+
+
+# P4/m Ti2Ga3 (Ti 4k): GM3+ and GM4+ (and GM3-, GM4-) are one-dimensional complex
+# irreps; each conjugate pair is one real two-dimensional space, listed under
+# its pair label GM3+GM4+(2) with the FM dipole (moments along x and y) and the
+# in-plane octupole (a d-wave altermagnet) separated
+crystod-mag -c ../test_POSCARs/83_PPOSCAR_Ti2Ga3 --element Ti --qpoint GM --classify-only
+
+* Structure *
+  Space group: P4/m (#83)
+  Magnetic sites: Ti x 4
+    Ti1: [0.873483, 0.69647, 0.5]
+    Ti2: [0.69647, 0.126517, 0.5]
+    Ti3: [0.30353, 0.873483, 0.5]
+    Ti4: [0.126517, 0.30353, 0.5]
+
+* Selected Q point *
+  Selected q-point: GAMMA = [0.0, 0.0, 0.0]
+
+* Spin (axial-vector) representation *
+  Spin (axial-vector) representation on Ti sites: 12 dimensions
+  Decomposition: GM1+(1) + 2 x GM1-(1) + 2 x GM3+GM4+(2) + GM3-GM4-(2) + GM2+(1) + 2 x GM2-(1)
+
+* Symmetry-adapted spin bases *
+  GM1+(1): dim 1 [FM, dipole]
+  GM1-(1): dim 1 [AFM, quadrupole]
+  GM1-(1): dim 1 [AFM, hexadecapole]
+  GM3+GM4+(2): dim 2 [FM, dipole]
+  GM3+GM4+(2): dim 2 [AFM, octupole]
+  GM3-GM4-(2): dim 2 [AFM, quadrupole]
+  GM2+(1): dim 1 [AFM, octupole]
+  GM2-(1): dim 1 [AFM, quadrupole]
+  GM2-(1): dim 1 [AFM, quadrupole]
+
+* Magnetic groups and collinear classes *
+basis                          component  MSG (BNS)       type  MPG    net magnetization  class
+GM1+(1) [FM, dipole]           z          P4/m (83.43)    I     4/m    along z            ferromagnet
+GM1-(1) [AFM, quadrupole]      comp1      P4/m' (83.46)   III   4/m'   none               noncollinear
+GM1-(1) [AFM, hexadecapole]    comp1      P4/m' (83.46)   III   4/m'   none               noncollinear
+GM3+GM4+(2) [FM, dipole]       x          P2'/m' (10.46)  III   2'/m'  in the xy plane    ferromagnet
+GM3+GM4+(2) [FM, dipole]       y          P2'/m' (10.46)  III   2'/m'  in the xy plane    ferromagnet
+GM3+GM4+(2) [AFM, octupole]    x          P2'/m' (10.46)  III   2'/m'  in the xy plane    altermagnet (d-wave)
+GM3+GM4+(2) [AFM, octupole]    y          P2'/m' (10.46)  III   2'/m'  in the xy plane    altermagnet (d-wave)
+GM3-GM4-(2) [AFM, quadrupole]  z          P2'/m (10.44)   III   2'/m   none               antiferromagnet (P T)
+GM3-GM4-(2) [AFM, quadrupole]  z_2        P2'/m (10.44)   III   2'/m   none               antiferromagnet (P T)
+GM2+(1) [AFM, octupole]        z          P4'/m (83.45)   III   4'/m   none               altermagnet (d-wave)
+GM2-(1) [AFM, quadrupole]      comp1      P4'/m' (83.47)  III   4'/m'  none               noncollinear
+GM2-(1) [AFM, quadrupole]      comp1_2    P4'/m' (83.47)  III   4'/m'  none               noncollinear
+
+MSG: magnetic space group from the moment directions (BNS number, type I-IV);
+MPG: magnetic point group; net magnetization: the direction allowed by symmetry;
+class: from the signs of the moments along their common axis only (nonrelativistic).
+MSG and MPG symbols are in the standard BNS setting; directions are in the Cartesian axes of the input cell.
+component: the tag of the listing and of the VESTA file name (comp<N>: the N-th basis vector of its space).
+GM3+GM4+(2): a complex irrep and its conjugate, merged into one real space (the physically irreducible representation).
+GM3-GM4-(2): a complex irrep and its conjugate, merged into one real space (the physically irreducible representation).
+
+All AFM bases satisfy sum_i S_i = 0; FM entries carry the cluster dipole moment.
+Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).
+
+
+# P2/m MnO2 (monoclinic): GM2+ occurs twice in a single moment (the moments
+# perpendicular to the two-fold axis b), so it has two FM rows, along x and z,
+# and net-zero AFM rows with the moments along x or z
+crystod-mag -c ../test_POSCARs/10_PPOSCAR_MnO2 --element Mn --qpoint GM --classify-only
+
+* Structure *
+  Space group: P2/m (#10)
+  Magnetic sites: Mn x 6
+    Mn1: [0.0, 0.5, 0.5]
+    Mn2: [0.010647, 0.0, 0.765497]
+    Mn3: [0.989353, 0.0, 0.234503]
+    Mn4: [0.5, 0.0, 0.0]
+    Mn5: [0.767142, 0.5, 0.981507]
+    Mn6: [0.232858, 0.5, 0.018493]
+
+* Selected Q point *
+  Selected q-point: GAMMA = [0.0, 0.0, 0.0]
+
+* Spin (axial-vector) representation *
+  Spin (axial-vector) representation on Mn sites: 18 dimensions
+  Decomposition: 4 x GM1+(1) + 4 x GM1-(1) + 8 x GM2+(1) + 2 x GM2-(1)
+
+* Symmetry-adapted spin bases *
+  GM1+(1): dim 1 [FM, dipole]
+  GM1+(1): dim 1 [AFM, octupole]
+  GM1+(1): dim 1 [AFM, octupole]
+  GM1+(1): dim 1 [AFM, octupole]
+  GM1-(1): dim 1 [AFM, quadrupole]
+  GM1-(1): dim 1 [AFM, quadrupole]
+  GM1-(1): dim 1 [AFM, quadrupole]
+  GM1-(1): dim 1 [AFM, hexadecapole]
+  GM2+(1): dim 1 [FM, dipole]
+  GM2+(1): dim 1 [FM, dipole]
+  GM2+(1): dim 1 [AFM, octupole]
+  GM2+(1): dim 1 [AFM, octupole]
+  GM2+(1): dim 1 [AFM, octupole]
+  GM2+(1): dim 1 [AFM, octupole]
+  GM2+(1): dim 1 [AFM, 32pole]
+  GM2+(1): dim 1 [AFM, 32pole]
+  GM2-(1): dim 1 [AFM, quadrupole]
+  GM2-(1): dim 1 [AFM, quadrupole]
+
+* Magnetic groups and collinear classes *
+basis                        component  MSG (BNS)       type  MPG    net magnetization  class
+GM1+(1) [FM, dipole]         y          P2/m (10.42)    I     2/m    along y            ferromagnet
+GM1+(1) [AFM, octupole]      y          P2/m (10.42)    I     2/m    along y            compensated (unrelated sublattices)
+GM1+(1) [AFM, octupole]      y_2        P2/m (10.42)    I     2/m    along y            compensated (unrelated sublattices)
+GM1+(1) [AFM, octupole]      y_3        P2/m (10.42)    I     2/m    along y            compensated (unrelated sublattices)
+GM1-(1) [AFM, quadrupole]    x          P2/m' (10.45)   III   2/m'   none               antiferromagnet (P T)
+GM1-(1) [AFM, quadrupole]    z          P2/m' (10.45)   III   2/m'   none               antiferromagnet (P T)
+GM1-(1) [AFM, quadrupole]    x_2        P2/m' (10.45)   III   2/m'   none               antiferromagnet (P T)
+GM1-(1) [AFM, hexadecapole]  z          P2/m' (10.45)   III   2/m'   none               antiferromagnet (P T)
+GM2+(1) [FM, dipole]         x          P2'/m' (10.46)  III   2'/m'  in the xz plane    ferromagnet
+GM2+(1) [FM, dipole]         z          P2'/m' (10.46)  III   2'/m'  in the xz plane    ferromagnet
+GM2+(1) [AFM, octupole]      x          P2'/m' (10.46)  III   2'/m'  in the xz plane    compensated (unrelated sublattices)
+GM2+(1) [AFM, octupole]      x_2        P2'/m' (10.46)  III   2'/m'  in the xz plane    compensated (unrelated sublattices)
+GM2+(1) [AFM, octupole]      x_3        P2'/m' (10.46)  III   2'/m'  in the xz plane    compensated (unrelated sublattices)
+GM2+(1) [AFM, octupole]      z          P2'/m' (10.46)  III   2'/m'  in the xz plane    compensated (unrelated sublattices)
+GM2+(1) [AFM, 32pole]        z          P2'/m' (10.46)  III   2'/m'  in the xz plane    compensated (unrelated sublattices)
+GM2+(1) [AFM, 32pole]        z_2        P2'/m' (10.46)  III   2'/m'  in the xz plane    compensated (unrelated sublattices)
+GM2-(1) [AFM, quadrupole]    y          P2'/m (10.44)   III   2'/m   none               antiferromagnet (P T)
+GM2-(1) [AFM, quadrupole]    y_2        P2'/m (10.44)   III   2'/m   none               antiferromagnet (P T)
+
+MSG: magnetic space group from the moment directions (BNS number, type I-IV);
+MPG: magnetic point group; net magnetization: the direction allowed by symmetry;
+class: from the signs of the moments along their common axis only (nonrelativistic).
+MSG and MPG symbols are in the standard BNS setting; directions are in the Cartesian axes of the input cell.
+
+All AFM bases satisfy sum_i S_i = 0; FM entries carry the cluster dipole moment.
+Reference: M.-T. Suzuki et al., PRB 95, 094406 (2017); PRB 99, 174407 (2019).
+Reference (collinear classes): L. Smejkal, J. Sinova and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).

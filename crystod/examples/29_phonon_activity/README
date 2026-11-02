@@ -1,0 +1,392 @@
+# Spectroscopic activity of the Gamma-point phonons (IR / Raman / silent / acoustic),
+# Raman tensors, the Wyckoff-orbit breakdown, and the dielectric response from BORN
+# testsuite section 29; the inputs are those of ../28_phonon_irrep,
+# ../30_phonon_fatband/ScF3_Pm-3m and ../test_POSCARs (nothing is copied here;
+# crystod-example 29 also copies 28_phonon_irrep and 30_phonon_fatband)
+#
+# Every cd below and every -c ../test_POSCARs/... path is relative to this
+# directory (29_phonon_activity): go back here (cd -) before the next one.
+#
+# A Gamma mode is IR active when its irrep occurs in the vector representation
+# of the point group, Raman active when it occurs in the symmetric square of the
+# vector representation, silent when neither. The rigid translations (the
+# acoustic set) are reported as acoustic, not as IR active.
+# Counterpart of the selection-rule table of Bilbao SAM
+# (https://www.cryst.ehu.es/rep/sam.html).
+
+# 1. From force constants: crystod-phonon --irreps adds an activity line to every
+#    degenerate set at GM, an activity_summary line to the GM block and a
+#    "nac:" header line to phonon_irreps.yaml (run where FORCE_SETS is); every
+#    GM set also gets a mulliken line (the Mulliken symbol from phonopy's
+#    character tables), which the terminal summary shows in square brackets
+
+$ cd ../28_phonon_irrep/SrTiO3_Pm-3m
+$ crystod-phonon --irreps --dim 4 4 4 -c 221_PPOSCAR_SrTiO3
+
+* Gamma-point activity *
+GM4- [T1u] x4 (3 IR, 1 acoustic)
+GM5- [T2u] x1 (silent)
+
+* Band path *
+  k path (seekpath): GM-X-M-GM-R-X | R-M  (306 q points)
+  Labeled points: X, GM, R, M
+
+* Output files *
+  Phonon irreps written to: phonon_irreps.yaml
+  Phonon dispersion with irrep labels written to: phonon_irreps.pdf
+
+phonon_irreps.yaml (header and GM block):
+
+space_group: Pm-3m
+nac: false
+...
+- q_label: GM
+  q_position: [0.0, 0.0, 0.0]
+  activity_summary: GM4- x4 (3 IR, 1 acoustic), GM5- x1 (silent)
+  band_sets:
+  - band_indices: [1, 2, 3]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:   0.0000003685
+    activity: [acoustic]
+  - band_indices: [4, 5, 6]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:   2.6629186664
+    activity: [IR]
+  - band_indices: [7, 8, 9]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:   4.7144147359
+    activity: [IR]
+  - band_indices: [10, 11, 12]
+    irrep_label: ['GM5-(3)']
+    mulliken: T2u
+    frequency:   7.3464877515
+    activity: [silent]
+  - band_indices: [13, 14, 15]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:  15.3054117938
+    activity: [IR]
+
+# m-3m: GM4- = T1u (IR), GM5- = T2u (silent); no Raman-active mode in cubic
+# perovskite SrTiO3.
+
+$ cd ../28_phonon_irrep/Si_Fd-3m
+$ crystod-phonon --irreps --dim 4 4 4 -c 227_PPOSCAR_Si
+
+* Gamma-point activity *
+GM4- [T1u] x1 (acoustic)
+GM5+ [T2g] x1 (Raman)
+
+* Band path *
+  k path (seekpath): GM-X-U | K-GM-L-W-X  (306 q points)
+  Labeled points: U|K, GM, L, W, X
+
+* Output files *
+  Phonon irreps written to: phonon_irreps.yaml
+  Phonon dispersion with irrep labels written to: phonon_irreps.pdf
+
+- q_label: GM
+  q_position: [0.0, 0.0, 0.0]
+  activity_summary: GM4- x1 (acoustic), GM5+ x1 (Raman)
+  band_sets:
+  - band_indices: [1, 2, 3]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:   0.0000003424
+    activity: [acoustic]
+  - band_indices: [4, 5, 6]
+    irrep_label: ['GM5+(3)']
+    mulliken: T2g
+    frequency:  14.9571386738
+    activity: [Raman]
+
+# The optical triplet of Si (T2g = GM5+) is Raman active only.
+
+$ cd ../28_phonon_irrep/BaTiO3_P4mm
+$ crystod-phonon --irreps --dim 4 4 4 -c 99_PPOSCAR_BaTiO3
+
+* Gamma-point activity *
+GM5 [E] x5 (4 IR+Raman, 1 acoustic)
+GM1 [A1] x4 (3 IR+Raman, 1 acoustic)
+GM2 [B1] x1 (Raman)
+
+* Band path *
+  k path (seekpath): GM-X-M-GM-Z-R-A-Z | X-R | M-A  (459 q points)
+  Labeled points: X, M, GM, Z, R, A
+
+* Output files *
+  Phonon irreps written to: phonon_irreps.yaml
+  Phonon dispersion with irrep labels written to: phonon_irreps.pdf
+
+- q_label: GM
+  q_position: [0.0, 0.0, 0.0]
+  activity_summary: GM5 x5 (4 IR+Raman, 1 acoustic), GM1 x4 (3 IR+Raman, 1 acoustic), GM2 x1 (Raman)
+  band_sets:
+  - band_indices: [1, 2]
+    irrep_label: ['GM5(2)']
+    mulliken: E
+    frequency:  -2.9235314706
+    activity: [IR, Raman]
+  - band_indices: [3, 4, 5]
+    irrep_label: ['GM1(1)', 'GM5(2)']
+    mulliken: A1 + E
+    frequency:  -0.0000003320
+    activity: [acoustic]
+  - band_indices: [6]
+    irrep_label: ['GM1(1)']
+    mulliken: A1
+    frequency:   4.9896087387
+    activity: [IR, Raman]
+  - band_indices: [7, 8]
+    irrep_label: ['GM5(2)']
+    mulliken: E
+    frequency:   5.0962539888
+    activity: [IR, Raman]
+  - band_indices: [9]
+    irrep_label: ['GM1(1)']
+    mulliken: A1
+    frequency:   7.0252827137
+    activity: [IR, Raman]
+  - band_indices: [10]
+    irrep_label: ['GM2(1)']
+    mulliken: B1
+    frequency:   8.4778163647
+    activity: [Raman]
+  - band_indices: [11, 12]
+    irrep_label: ['GM5(2)']
+    mulliken: E
+    frequency:   8.6432228126
+    activity: [IR, Raman]
+  - band_indices: [13, 14]
+    irrep_label: ['GM5(2)']
+    mulliken: E
+    frequency:  13.5612107587
+    activity: [IR, Raman]
+  - band_indices: [15]
+    irrep_label: ['GM1(1)']
+    mulliken: A1
+    frequency:  14.2845800827
+    activity: [IR, Raman]
+
+# 4mm: optical modes 3 A1 + B1 + 4 E. A1 = GM1 and E = GM5 are IR and Raman
+# active, B1 = GM2 is Raman only. The acoustic set is GM1 + GM5, all three at
+# 0 THz by translation invariance, so the set carries both labels; it is split
+# per irrep (one acoustic GM1, one acoustic GM5) in the summary.
+
+# 2. From the structure alone: crystod-phonon --vibration --qpoint GM adds the
+#    activity to every mode space and prints the same summary (the acoustic
+#    count comes from the vector representation; --export-npz also stores an
+#    "activities" array)
+
+$ crystod-phonon --vibration -c ../test_POSCARs/221_PPOSCAR_SrTiO3 --qpoint GM
+
+ ### Inputed cell was converted into primitive cell. ###
+
+* Q points (primitive) *
+  GM       (0, 0, 0)
+  R        (1/2, 1/2, 1/2)
+  M        (1/2, 1/2, 0)
+  X        (0, 1/2, 0)
+
+* Selected Q point *
+  GM       (0, 0, 0)
+
+* Irrep-grouped vibration spaces *
+  Mode Space  1: irrep = GM4-(3) [T1u], dimension = 3, component numbers = 1..3, activity = IR
+  Mode Space  2: irrep = GM4-(3) [T1u], dimension = 3, component numbers = 1..3, activity = IR
+  Mode Space  3: irrep = GM4-(3) [T1u], dimension = 3, component numbers = 1..3, activity = IR
+  Mode Space  4: irrep = GM4-(3) [T1u], dimension = 3, component numbers = 1..3, activity = IR
+  Mode Space  5: irrep = GM5-(3) [T2u], dimension = 3, component numbers = 1..3, activity = silent
+
+* Gamma-point activity *
+GM4- [T1u] x4 (3 IR, 1 acoustic)
+GM5- [T2u] x1 (silent)
+  (acoustic: one set per occurrence of the irrep in the vector representation;
+   without force constants the mode spaces are symmetry-adapted patterns,
+   not normal modes)
+
+* Wyckoff-orbit breakdown (Gamma) *
+  Wyckoff orbit Sr (1a): GM4- [T1u]
+  Wyckoff orbit Ti (1b): GM4- [T1u]
+  Wyckoff orbit O (3c): 2 GM4- [T1u] + GM5- [T2u]
+  sum over the orbits: 4 GM4- + GM5- (equals the mode-space list)
+
+# Bilbao SAM, SrTiO3 Pm-3m: Gamma = 4 T1u + T2u; T1u IR active (one T1u is
+# the acoustic set), T2u silent. Per Wyckoff position: Sr 1a T1u, Ti 1b T1u,
+# O 3c 2 T1u + T2u.
+
+# 3. BORN is read only with --nac (every crystod-phonon mode that reads force
+#    data). ScF3 with the BORN file of ../30_phonon_fatband: without --nac
+#    the file is ignored (the yaml is the same with or without it); with --nac
+#    it is read and the yaml header records it. At Gamma itself the labels and
+#    frequencies are those of the TO modes (no q direction is applied).
+
+# With --nac, --irreps also reports the mode effective charges (|Z~|), the
+# contribution of every Gamma set to the static dielectric tensor, eps_0, the
+# acoustic sum rule of the Born charges and the Lyddane-Sachs-Teller check
+# (LO frequencies from phonopy with the non-analytical term for q -> 0 along
+# [1 0 0], TO frequencies without it).
+
+$ cd ../30_phonon_fatband/ScF3_Pm-3m     # 221_PPOSCAR_ScF3, FORCE_SETS, BORN
+$ crystod-phonon --irreps --dim 4 4 4 -c 221_PPOSCAR_ScF3 --nac
+
+NAC: Born effective charges and dielectric tensor read from BORN.
+
+* Gamma-point activity *
+GM4- [T1u] x3 (2 IR, 1 acoustic)
+GM5- [T2u] x1 (silent)
+
+* Gamma-point dielectric response (Born effective charges from BORN) *
+  set  irrep          freq (THz)  activity             |Z~| (e/sqrt(amu))  Delta eps (xx, yy, zz)
+    1  GM4-               0.0000  acoustic                         0.0000  -
+    2  GM5-               4.2122  silent                           0.0000    0.0000    0.0000    0.0000
+    3  GM4-               6.2446  IR                               0.7313    2.9993    2.9993    2.9993
+    4  GM4-              13.9231  IR                               1.4304    2.3086    2.3086    2.3086
+  eps_inf (diag):          2.2839    2.2839    2.2839
+  sum Delta eps (diag):    5.3079    5.3079    5.3079
+  eps_0 (diag):            7.5919    7.5919    7.5919
+  sum_kappa Z*_kappa: max |deviation| = 1.00e-08 (acoustic sum rule)
+  LST check: prod (nu_LO/nu_TO)^2 = 3.3240, eps_0/eps_inf = 3.3240 (q -> 0 along [1 0 0])
+
+* Band path *
+  k path (seekpath): GM-X-M-GM-R-X | R-M  (306 q points)
+  Labeled points: X, GM, R, M
+  NOTE: at GM the labels are those of the TO modes (phonopy applies no q direction at GM itself); the LO branches end there without labels
+
+* Output files *
+  Phonon irreps written to: phonon_irreps.yaml
+  Phonon dispersion with irrep labels written to: phonon_irreps.pdf
+
+space_group: Pm-3m
+nac: true
+dielectric_electronic: [[2.283939, 0.000000, 0.000000], [0.000000, 2.283939, 0.000000], [0.000000, 0.000000, 2.283939]]
+dielectric_static: [[7.591860, 0.000000, 0.000000], [0.000000, 7.591860, 0.000000], [0.000000, 0.000000, 7.591860]]
+...
+  - band_indices: [10, 11, 12]
+    irrep_label: ['GM4-(3)']
+    mulliken: T1u
+    frequency:  13.9231282991
+    activity: [IR]
+    mode_effective_charge: [[0.000000, -0.011905, -0.825778], [0.000000, -0.825778, 0.011905], [-0.825864, 0.000000, 0.000000]]
+    dielectric_contribution: [2.308629, 2.308629, 2.308629]
+
+# Z*(Sc) = 4.15 and Z*(F) = diag(-0.64, -2.87, -0.64) add up to zero (sum rule).
+# eps_0 = 7.59 from eps_inf = 2.28 and the two IR triplets; the LO/TO product
+# 3.3240 equals eps_0/eps_inf = 3.3240 (cubic: the same along every axis).
+
+$ cd ../28_phonon_irrep/ScF3_Pm-3m     # the same ScF3 data without BORN
+$ crystod-phonon --irreps --dim 4 4 4 -c 221_PPOSCAR_ScF3 --nac
+ERROR: --nac requires a BORN file (Born effective charges and dielectric
+       tensor) in the current directory, e.g. generated with phonopy-vasp-born.
+
+# 4. Raman tensors (--raman-tensor, with --irreps or --vibration --qpoint GM):
+#    the symmetric second-rank tensors of every Raman-active Gamma irrep, in the
+#    Cartesian axes of the input cell, each basis tensor with its own free
+#    constant a (a two-dimensional irrep that occurs twice is printed per
+#    partner with shared constants, see Bi below). Compare R. Loudon,
+#    Adv. Phys. 13, 423 (1964).
+
+$ cd ../28_phonon_irrep/Si_Fd-3m
+$ crystod-phonon --irreps --dim 4 4 4 -c 227_PPOSCAR_Si --raman-tensor
+
+* Gamma-point activity *
+GM4- [T1u] x1 (acoustic)
+GM5+ [T2g] x1 (Raman)
+
+* Raman tensors (Cartesian axes of the input cell) *
+  GM5+ [T2g] (3 tensors):  [[0, 0, 0], [0, 0, a], [0, a, 0]]   [[0, 0, a], [0, 0, 0], [a, 0, 0]]   [[0, a, 0], [a, 0, 0], [0, 0, 0]]
+
+* Band path *
+  k path (seekpath): GM-X-U | K-GM-L-W-X  (306 q points)
+  Labeled points: U|K, GM, L, W, X
+
+* Output files *
+  Phonon irreps written to: phonon_irreps.yaml
+  Phonon dispersion with irrep labels written to: phonon_irreps.pdf
+
+# T2g of m-3m: the three off-diagonal pairs.
+
+$ cd ../28_phonon_irrep/BaTiO3_P4mm
+$ crystod-phonon --irreps --dim 4 4 4 -c 99_PPOSCAR_BaTiO3 --raman-tensor
+
+* Gamma-point activity *
+GM5 [E] x5 (4 IR+Raman, 1 acoustic)
+GM1 [A1] x4 (3 IR+Raman, 1 acoustic)
+GM2 [B1] x1 (Raman)
+
+* Raman tensors (Cartesian axes of the input cell) *
+  GM1 [A1] (2 tensors):  [[a, 0, 0], [0, a, 0], [0, 0, 0]]   [[0, 0, 0], [0, 0, 0], [0, 0, a]]
+  GM2 [B1] (1 tensor):  [[a, 0, 0], [0, -a, 0], [0, 0, 0]]
+  GM5 [E] (2 tensors):  [[0, 0, 0], [0, 0, a], [0, a, 0]]   [[0, 0, a], [0, 0, 0], [a, 0, 0]]
+
+* Band path *
+  k path (seekpath): GM-X-M-GM-Z-R-A-Z | X-R | M-A  (459 q points)
+  Labeled points: X, M, GM, Z, R, A
+
+* Output files *
+  Phonon irreps written to: phonon_irreps.yaml
+  Phonon dispersion with irrep labels written to: phonon_irreps.pdf
+
+# 4mm: A1 = diag(a, a, b) (two basis tensors), B1 = diag(c, -c, 0), E = the yz
+# and xz pairs. Cubic SrTiO3 has no Raman-active Gamma phonon:
+
+$ crystod-phonon --vibration -c ../test_POSCARs/221_PPOSCAR_SrTiO3 --qpoint GM --raman-tensor
+...
+* Raman tensors (Cartesian axes of the input cell) *
+  no Raman-active irrep at Gamma
+
+# Trigonal Bi (R-3m): Eg occurs twice in the symmetric square, so its two
+# partners are printed with the shared constants a and b (Loudon's D3d table;
+# his second tensor is the negative of this one, a sign convention).
+
+$ crystod-phonon --vibration -c ../test_POSCARs/166_PPOSCAR_Bi --qpoint GM --raman-tensor
+...
+* Wyckoff-orbit breakdown (Gamma) *
+  Wyckoff orbit Bi (6c): GM1+ [A1g] + GM2- [A2u] + GM3+ [Eg] + GM3- [Eu]
+  sum over the orbits: GM1+ + GM2- + GM3+ + GM3- (equals the mode-space list)
+
+* Raman tensors (Cartesian axes of the input cell) *
+  GM1+ [A1g] (2 tensors):  [[a, 0, 0], [0, a, 0], [0, 0, 0]]   [[0, 0, 0], [0, 0, 0], [0, 0, a]]
+  GM3+ [Eg] (2 partners, constants a, b):  [[a, 0, 0], [0, -a, b], [0, b, 0]]   [[0, a, b], [a, 0, 0], [b, 0, 0]]
+
+# 5. Wurtzite ZnO (P6_3mc) from the structure alone: activity, Wyckoff-orbit
+#    breakdown and Raman tensors
+
+$ crystod-phonon --vibration -c ../test_POSCARs/186_PPOSCAR_ZnO --qpoint GM --raman-tensor
+...
+* Irrep-grouped vibration spaces *
+  Mode Space  1: irrep = GM1(1) [A1], dimension = 1, component numbers = 1..1, activity = IR+Raman
+  Mode Space  2: irrep = GM1(1) [A1], dimension = 1, component numbers = 1..1, activity = IR+Raman
+  Mode Space  3: irrep = GM4(1) [B1], dimension = 1, component numbers = 1..1, activity = silent
+  Mode Space  4: irrep = GM4(1) [B1], dimension = 1, component numbers = 1..1, activity = silent
+  Mode Space  5: irrep = GM5(2) [E2], dimension = 2, component numbers = 1..2, activity = Raman
+  Mode Space  6: irrep = GM5(2) [E2], dimension = 2, component numbers = 1..2, activity = Raman
+  Mode Space  7: irrep = GM6(2) [E1], dimension = 2, component numbers = 1..2, activity = IR+Raman
+  Mode Space  8: irrep = GM6(2) [E1], dimension = 2, component numbers = 1..2, activity = IR+Raman
+
+* Gamma-point activity *
+GM1 [A1] x2 (1 IR+Raman, 1 acoustic)
+GM4 [B1] x2 (silent)
+GM5 [E2] x2 (Raman)
+GM6 [E1] x2 (1 IR+Raman, 1 acoustic)
+  (acoustic: one set per occurrence of the irrep in the vector representation;
+   without force constants the mode spaces are symmetry-adapted patterns,
+   not normal modes)
+
+* Wyckoff-orbit breakdown (Gamma) *
+  Wyckoff orbit Zn (2b): GM1 [A1] + GM4 [B1] + GM5 [E2] + GM6 [E1]
+  Wyckoff orbit O (2b): GM1 [A1] + GM4 [B1] + GM5 [E2] + GM6 [E1]
+  sum over the orbits: 2 GM1 + 2 GM4 + 2 GM5 + 2 GM6 (equals the mode-space list)
+
+* Raman tensors (Cartesian axes of the input cell) *
+  GM1 [A1] (2 tensors):  [[a, 0, 0], [0, a, 0], [0, 0, 0]]   [[0, 0, 0], [0, 0, 0], [0, 0, a]]
+  GM5 [E2] (2 tensors):  [[a, 0, 0], [0, -a, 0], [0, 0, 0]]   [[0, a, 0], [a, 0, 0], [0, 0, 0]]
+  GM6 [E1] (2 tensors):  [[0, 0, 0], [0, 0, a], [0, a, 0]]   [[0, 0, a], [0, 0, 0], [a, 0, 0]]
+
+# 6mm: GM1 = A1, GM4 = B1 (silent), GM5 = E2 (Raman only), GM6 = E1. Bilbao
+# SAM, P6_3mc 2b: A1 + B1 + E1 + E2 per site, as both orbit lines say. The
+# tensors are those of Loudon's C6v table: A1 diag(a, a, b), E1 xz/yz, E2
+# (xx - yy)/xy.

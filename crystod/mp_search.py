@@ -23,10 +23,12 @@ The client talks to the REST API of the Materials Project
 (``https://api.materialsproject.org``, the ``materials/summary`` endpoint)
 with ``requests``, the same requests pymatgen's own basic ``MPRester``
 sends; pymatgen turns the downloaded structures into ``Structure`` objects,
-standardizes them and writes the POSCAR files.  The API key is read from
-the ``MP_API_KEY`` environment variable or from ``PMG_MAPI_KEY`` in the
-pymatgen settings file (``~/.config/.pmgrc.yaml`` or ``~/.pmgrc.yaml``);
-``MP_API_ENDPOINT`` points the client at another server.
+spglib standardizes them (``spglib.standardize_cell``, see
+:func:`standardize_cell`) and pymatgen writes the POSCAR files.  The API
+key is read from the ``MP_API_KEY`` environment variable or from
+``PMG_MAPI_KEY`` in the pymatgen settings file (``~/.config/.pmgrc.yaml``
+or ``~/.pmgrc.yaml``); ``MP_API_ENDPOINT`` points the client at another
+server.
 
 Material IDs are shown the way the website shows them.  The API returns
 every ID in the alphabetical form of the current database (``mp-aaaaahtd``

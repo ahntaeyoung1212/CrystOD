@@ -1,0 +1,9 @@
+SYSTEM = SrTiO3 Pm-3m, spin-orbit, CrystOD --extract-irrep fixture (low cutoff)
+PREC = Normal ; LREAL = .FALSE.
+ENCUT = 200
+LSORBIT = .TRUE. ; MAGMOM = 15*0
+ISMEAR = 0 ; SIGMA = 0.05
+EDIFF = 1E-6 ; NELM = 100
+NBANDS = 40
+LWAVE = .TRUE. ; LCHARG = .FALSE.
+GGA = PE

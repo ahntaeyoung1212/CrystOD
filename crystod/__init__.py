@@ -2,8 +2,8 @@
 
 Command-line tools (``crystod``, ``crystod-group``, ``crystod-bz``,
 ``crystod-phonon``, ``crystod-mag``, ``crystod-md``, ``crystod-mol``,
-``crystod-xrd``, ``crystod-search``) live in ``crystod.cli``; the Python API mirrors the same
-domains:
+``crystod-xrd``, ``crystod-search``, ``crystod-slab``) live in ``crystod.cli``; the Python API
+mirrors the same domains:
 
     import crystod
 
@@ -16,6 +16,7 @@ domains:
     crystod.mol       # molecular SALCs and MO diagrams
     crystod.xrd       # powder X-ray diffraction patterns
     crystod.search    # Materials Project search and POSCAR download
+    crystod.slab      # surface slabs: terminations, polarity, POSCAR files
 
 The most common entry points are also importable from the top level::
 
@@ -56,6 +57,7 @@ __all__ = [
     "mol",
     "xrd",
     "search",
+    "slab",
     # flagship API symbols (lazy)
     "isotropy_subgroups",
     "isotropy_subgroups_at_kpoint",
@@ -69,9 +71,9 @@ __all__ = [
     "SpaceGroupIrrepAlgebra",
 ]
 
-__version__ = "0.4.5"
+__version__ = "0.4.6"
 
-_API_DOMAINS = ("salc", "group", "phonon", "bz", "mag", "md", "mol", "xrd", "search")
+_API_DOMAINS = ("salc", "group", "phonon", "bz", "mag", "md", "mol", "xrd", "search", "slab")
 
 _LAZY_SYMBOLS = {
     "isotropy_subgroups": ("phonon_subgroups", "isotropy_subgroups"),

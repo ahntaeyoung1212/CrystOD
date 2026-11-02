@@ -1,0 +1,48 @@
+# Created by CrystOD (Bilbao Crystallographic Server style)
+# https://www.cryst.ehu.es
+# Date: 01/09/2026 04:04:54
+
+# POSCAR_BaAl2O4_P63 -- non-magnetic
+
+data_POSCAR_BaAl2O4_P63
+_audit_creation_date               2026-09-01
+_audit_creation_method             "CrystOD (Bilbao style)"
+_chemical_formula_sum              "Ba Al2 O4"
+_symmetry_Int_Tables_number        173
+_symmetry_space_group_name_H-M     "P63"
+_cell_length_a                     10.4804
+_cell_length_b                     10.4804
+_cell_length_c                     8.8061
+_cell_angle_alpha                  90.0000
+_cell_angle_beta                   90.0000
+_cell_angle_gamma                  120.0000
+
+loop_
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+   1   x,y,z
+   2   x-y,x,z+1/2
+   3   -y,x-y,z
+   4   -x,-y,z+1/2
+   5   -x+y,-x,z
+   6   y,-x+y,z+1/2
+
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+Al1 Al 0.33333 0.66667 0.54808 1.0000
+Al2 Al 0.33333 0.66667 0.94815 1.0000
+Al3 Al 0.66881 0.82434 0.06406 1.0000
+Al4 Al 0.67186 0.82593 0.45080 1.0000
+Ba1 Ba 0.00000 0.00000 0.24512 1.0000
+Ba2 Ba 0.99273 0.49943 0.25852 1.0000
+O1 O 0.00055 0.68689 0.04507 1.0000
+O2 O 0.33333 0.66667 0.74806 1.0000
+O3 O 0.49911 0.67946 0.00302 1.0000
+O4 O 0.67846 0.79161 0.25739 1.0000
+O5 O 0.81700 0.31424 0.99087 1.0000
+O6 O 0.99699 0.81868 0.48078 1.0000

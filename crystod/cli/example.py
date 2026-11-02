@@ -39,8 +39,8 @@ nothing is copied and the differing files are named.
 
 Without arguments (or with --list) the packaged directories are listed.
 The --example option of crystod, crystod-phonon, crystod-mol, crystod-bz,
-crystod-xrd and crystod-search is separate: it copies its input files, if
-any, into the current directory and runs one command.
+crystod-xrd, crystod-search and crystod-slab is separate: it copies its input
+files, if any, into the current directory and runs one command.
 
 # Command Examples:
 crystod-example                    (list the packaged directories)

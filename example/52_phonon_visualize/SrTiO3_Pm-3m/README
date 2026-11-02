@@ -1,0 +1,326 @@
+# The phonon modes of cubic SrTiO3 (Pm-3m, 5 atoms, Sr at the origin) at GM, X,
+# M and R, from the FORCE_SETS of a 4x4x4 supercell, with the Ti-O bonds and
+# the TiO6 octahedra. Writes phonon_visualize.html and band_vector.yaml. The
+# lowest level at R is imaginary (-1.09 THz, drawn in red): R5-, the antiphase
+# rotation of the TiO6 octahedra (R4+ with Ti at the origin) that condenses in
+# the 105 K transition to I4/mcm. Open phonon_visualize.html#q=R&mode=1&view=a
+# to see its first partner down its rotation axis, and tick 'animate'. The
+# second command adds the midpoints of the path segments (--all-irreps) and
+# writes phonon_visualize_all.html.
+crystod-phonon --visualize -c 221_PPOSCAR_SrTiO3 --dim 4 4 4 --bond Ti O 2.1
+
+* Structure *
+  Space group: Pm-3m (#221)
+  Formula: SrTiO3
+  Supercell: 4 x 4 x 4 (FORCE_SETS)
+
+* Band path *
+  k path (seekpath): GM-X-M-GM-R-X | R-M  (306 q points)
+  Labeled points: X, GM, R, M
+
+* Phonon modes at q = GM (0, 0, 0) *
+Band  Freq (THz)  Irrep    Comp.  Mulliken  Activity
+   1      0.0000  GM4-(3)      1  T1u       acoustic
+   2      0.0000  GM4-(3)      2  T1u       acoustic
+   3      0.0000  GM4-(3)      3  T1u       acoustic
+   4      2.6629  GM4-(3)      1  T1u       IR
+   5      2.6629  GM4-(3)      2  T1u       IR
+   6      2.6629  GM4-(3)      3  T1u       IR
+   7      4.7144  GM4-(3)      1  T1u       IR
+   8      4.7144  GM4-(3)      2  T1u       IR
+   9      4.7144  GM4-(3)      3  T1u       IR
+  10      7.3465  GM5-(3)      1  T2u       silent
+  11      7.3465  GM5-(3)      2  T2u       silent
+  12      7.3465  GM5-(3)      3  T2u       silent
+  13     15.3054  GM4-(3)      1  T1u       IR
+  14     15.3054  GM4-(3)      2  T1u       IR
+  15     15.3054  GM4-(3)      3  T1u       IR
+  Display cell: primitive, 1 x 1 x 1 cells
+
+* Phonon modes at q = X (0, 1/2, 0) *
+Band  Freq (THz)  Irrep   Comp.
+   1      3.1516  X5-(2)      1
+   2      3.1516  X5-(2)      2
+   3      3.7902  X5+(2)      1
+   4      3.7902  X5+(2)      2
+   5      4.6879  X3-         1
+   6      5.3846  X5+(2)      1
+   7      5.3846  X5+(2)      2
+   8      7.8417  X2+         1
+   9      7.8498  X1+         1
+  10      9.0357  X5-(2)      1
+  11      9.0357  X5-(2)      2
+  12     13.8180  X1+         1
+  13     14.2275  X5+(2)      1
+  14     14.2275  X5+(2)      2
+  15     21.2464  X3-         1
+  Display cell: primitive, 1 x 2 x 1 cells
+
+* Phonon modes at q = M (1/2, 1/2, 0) *
+Band  Freq (THz)  Irrep   Comp.
+   1      1.7234  M2+         1
+   2      3.0662  M3-         1
+   3      3.3562  M5-(2)      1
+   4      3.3562  M5-(2)      2
+   5      3.5013  M2-         1
+   6      7.4462  M5-(2)      1
+   7      7.4462  M5-(2)      2
+   8      9.2179  M5+(2)      1
+   9      9.2179  M5+(2)      2
+  10     12.7399  M2-         1
+  11     12.8629  M5-(2)      1
+  12     12.8629  M5-(2)      2
+  13     13.1307  M1+         1
+  14     14.9420  M3+         1
+  15     22.4200  M4+         1
+  Display cell: primitive, 2 x 2 x 1 cells
+
+* Phonon modes at q = R (1/2, 1/2, 1/2) *
+Band  Freq (THz)  Irrep   Comp.
+   1     -1.0867  R5-(3)      1
+   2     -1.0867  R5-(3)      2
+   3     -1.0867  R5-(3)      3
+   4      3.9891  R4-(3)      1
+   5      3.9891  R4-(3)      2
+   6      3.9891  R4-(3)      3
+   7     11.6887  R5+(3)      1
+   8     11.6887  R5+(3)      2
+   9     11.6887  R5+(3)      3
+  10     12.6621  R4-(3)      1
+  11     12.6621  R4-(3)      2
+  12     12.6621  R4-(3)      3
+  13     14.8133  R3-(2)      1
+  14     14.8133  R3-(2)      2
+  15     23.2302  R2-         1
+  Display cell: primitive, 2 x 2 x 2 cells
+
+* Output files *
+  Phonon band structure with eigenvectors written to: band_vector.yaml
+  Phonon mode viewer written to: phonon_visualize.html
+
+# With --all-irreps (the pair of crystod-phonon --irreps --all-irreps): the same
+# page plus the midpoint of every segment of the path, DT (GM-X), Z (X-M),
+# SM (M-GM), LD (GM-R), S (R-X) and T (R-M), each with its ISO-IR line irreps
+# (those of phonon_irreps_all.yaml), its own display cell (DT (0, 1/4, 0):
+# 1 x 4 x 1 primitive cells) and a dot in the middle of its leg of the
+# dispersion. Writes phonon_visualize_all.html (about 195 kB; band_vector.yaml
+# again, unchanged). Open phonon_visualize_all.html#q=DT&mode=1&view=a for the
+# transverse acoustic DT5 wave viewed down a; #q=DT(GM-X) and #q=5 (the fifth
+# q button) open the same point.
+crystod-phonon --visualize -c 221_PPOSCAR_SrTiO3 --dim "4 4 4" --bond Ti O 2.1 --all-irreps
+
+* Structure *
+  Space group: Pm-3m (#221)
+  Formula: SrTiO3
+  Supercell: 4 x 4 x 4 (FORCE_SETS)
+
+* Band path *
+  k path (seekpath): GM-X-M-GM-R-X | R-M  (306 q points)
+  Labeled points: X, GM, R, M
+  Segment midpoints: DT (GM-X), Z (X-M), SM (M-GM), LD (GM-R), S (R-X), T (R-M)
+
+* Phonon modes at q = GM (0, 0, 0) *
+Band  Freq (THz)  Irrep    Comp.  Mulliken  Activity
+   1      0.0000  GM4-(3)      1  T1u       acoustic
+   2      0.0000  GM4-(3)      2  T1u       acoustic
+   3      0.0000  GM4-(3)      3  T1u       acoustic
+   4      2.6629  GM4-(3)      1  T1u       IR
+   5      2.6629  GM4-(3)      2  T1u       IR
+   6      2.6629  GM4-(3)      3  T1u       IR
+   7      4.7144  GM4-(3)      1  T1u       IR
+   8      4.7144  GM4-(3)      2  T1u       IR
+   9      4.7144  GM4-(3)      3  T1u       IR
+  10      7.3465  GM5-(3)      1  T2u       silent
+  11      7.3465  GM5-(3)      2  T2u       silent
+  12      7.3465  GM5-(3)      3  T2u       silent
+  13     15.3054  GM4-(3)      1  T1u       IR
+  14     15.3054  GM4-(3)      2  T1u       IR
+  15     15.3054  GM4-(3)      3  T1u       IR
+  Display cell: primitive, 1 x 1 x 1 cells
+
+* Phonon modes at q = X (0, 1/2, 0) *
+Band  Freq (THz)  Irrep   Comp.
+   1      3.1516  X5-(2)      1
+   2      3.1516  X5-(2)      2
+   3      3.7902  X5+(2)      1
+   4      3.7902  X5+(2)      2
+   5      4.6879  X3-         1
+   6      5.3846  X5+(2)      1
+   7      5.3846  X5+(2)      2
+   8      7.8417  X2+         1
+   9      7.8498  X1+         1
+  10      9.0357  X5-(2)      1
+  11      9.0357  X5-(2)      2
+  12     13.8180  X1+         1
+  13     14.2275  X5+(2)      1
+  14     14.2275  X5+(2)      2
+  15     21.2464  X3-         1
+  Display cell: primitive, 1 x 2 x 1 cells
+
+* Phonon modes at q = M (1/2, 1/2, 0) *
+Band  Freq (THz)  Irrep   Comp.
+   1      1.7234  M2+         1
+   2      3.0662  M3-         1
+   3      3.3562  M5-(2)      1
+   4      3.3562  M5-(2)      2
+   5      3.5013  M2-         1
+   6      7.4462  M5-(2)      1
+   7      7.4462  M5-(2)      2
+   8      9.2179  M5+(2)      1
+   9      9.2179  M5+(2)      2
+  10     12.7399  M2-         1
+  11     12.8629  M5-(2)      1
+  12     12.8629  M5-(2)      2
+  13     13.1307  M1+         1
+  14     14.9420  M3+         1
+  15     22.4200  M4+         1
+  Display cell: primitive, 2 x 2 x 1 cells
+
+* Phonon modes at q = R (1/2, 1/2, 1/2) *
+Band  Freq (THz)  Irrep   Comp.
+   1     -1.0867  R5-(3)      1
+   2     -1.0867  R5-(3)      2
+   3     -1.0867  R5-(3)      3
+   4      3.9891  R4-(3)      1
+   5      3.9891  R4-(3)      2
+   6      3.9891  R4-(3)      3
+   7     11.6887  R5+(3)      1
+   8     11.6887  R5+(3)      2
+   9     11.6887  R5+(3)      3
+  10     12.6621  R4-(3)      1
+  11     12.6621  R4-(3)      2
+  12     12.6621  R4-(3)      3
+  13     14.8133  R3-(2)      1
+  14     14.8133  R3-(2)      2
+  15     23.2302  R2-         1
+  Display cell: primitive, 2 x 2 x 2 cells
+
+* Phonon modes at q = DT (0, 1/4, 0) *
+Band  Freq (THz)  Irrep   Comp.
+   1      2.1278  DT5(2)      1
+   2      2.1278  DT5(2)      2
+   3      3.7543  DT1         1
+   4      4.2407  DT5(2)      1
+   5      4.2407  DT5(2)      2
+   6      4.5085  DT5(2)      1
+   7      4.5085  DT5(2)      2
+   8      6.4191  DT1         1
+   9      7.6134  DT2         1
+  10      8.0429  DT5(2)      1
+  11      8.0429  DT5(2)      2
+  12     12.9498  DT1         1
+  13     14.8314  DT5(2)      1
+  14     14.8314  DT5(2)      2
+  15     19.8724  DT1         1
+  Segment: GM-X
+  Display cell: primitive, 1 x 4 x 1 cells
+
+* Phonon modes at q = Z (1/4, 1/2, 0) *
+Band  Freq (THz)  Irrep  Comp.
+   1      3.1115  Z3         1
+   2      3.2504  Z1         1
+   3      3.5372  Z4         1
+   4      3.6485  Z2         1
+   5      4.6697  Z1         1
+   6      6.5970  Z4         1
+   7      7.2703  Z2         1
+   8      7.6660  Z1         1
+   9      9.1172  Z3         1
+  10     10.1618  Z4         1
+  11     11.2470  Z1         1
+  12     13.6622  Z2         1
+  13     13.7626  Z1         1
+  14     14.6370  Z4         1
+  15     22.0986  Z4         1
+  Segment: X-M
+  Display cell: primitive, 4 x 2 x 1 cells
+
+* Phonon modes at q = SM (1/4, 1/4, 0) *
+Band  Freq (THz)  Irrep  Comp.
+   1      2.5599  SM3        1
+   2      2.7763  SM2        1
+   3      3.6468  SM1        1
+   4      4.1141  SM3        1
+   5      4.9662  SM2        1
+   6      6.1152  SM3        1
+   7      6.6625  SM1        1
+   8      6.6884  SM2        1
+   9      8.3783  SM4        1
+  10      9.4913  SM2        1
+  11      9.6237  SM1        1
+  12     13.2221  SM1        1
+  13     14.3367  SM3        1
+  14     14.7892  SM2        1
+  15     21.7575  SM1        1
+  Segment: M-GM
+  Display cell: primitive, 4 x 4 x 1 cells
+
+* Phonon modes at q = LD (1/4, 1/4, 1/4) *
+Band  Freq (THz)  Irrep   Comp.
+   1      3.1777  LD3(2)      1
+   2      3.1777  LD3(2)      2
+   3      3.2630  LD1         1
+   4      4.9504  LD3(2)      1
+   5      4.9504  LD3(2)      2
+   6      5.2480  LD2         1
+   7      8.1971  LD1         1
+   8      8.7307  LD3(2)      1
+   9      8.7307  LD3(2)      2
+  10     10.5299  LD3(2)      1
+  11     10.5299  LD3(2)      2
+  12     13.1268  LD1         1
+  13     14.5009  LD3(2)      1
+  14     14.5009  LD3(2)      2
+  15     22.5192  LD1         1
+  Segment: GM-R
+  Display cell: primitive, 4 x 4 x 4 cells
+
+* Phonon modes at q = S (1/4, 1/2, 1/4) *
+Band  Freq (THz)  Irrep  Comp.
+   1      3.2435  S1         1
+   2      3.4234  S3         1
+   3      3.5680  S2         1
+   4      4.2644  S2         1
+   5      4.8189  S1         1
+   6      5.0196  S4         1
+   7      8.5702  S3         1
+   8      8.6326  S4         1
+   9     10.7930  S1         1
+  10     11.1991  S3         1
+  11     11.5301  S2         1
+  12     13.5744  S1         1
+  13     14.1131  S4         1
+  14     14.5865  S3         1
+  15     22.6931  S3         1
+  Segment: R-X
+  Display cell: primitive, 4 x 2 x 4 cells
+
+* Phonon modes at q = T (1/2, 1/2, 1/4) *
+Band  Freq (THz)  Irrep  Comp.
+   1      0.9413  T2         1
+   2      3.5551  T1         1
+   3      3.6758  T5(2)      1
+   4      3.6758  T5(2)      2
+   5      4.4084  T5(2)      1
+   6      4.4084  T5(2)      2
+   7      8.5517  T3         1
+   8     10.9412  T5(2)      1
+   9     10.9412  T5(2)      2
+  10     12.7426  T5(2)      1
+  11     12.7426  T5(2)      2
+  12     12.9133  T1         1
+  13     14.0062  T3         1
+  14     14.8769  T4         1
+  15     22.9580  T3         1
+  Segment: R-M
+  Display cell: primitive, 2 x 2 x 4 cells
+
+* Output files *
+  Phonon band structure with eigenvectors written to: band_vector.yaml
+  Phonon mode viewer written to: phonon_visualize_all.html
+
+# Without --bond: the atoms and the arrows only. At GM the lowest optical
+# level, GM4- [T1u] at 2.66 THz, is the soft polar mode of the incipient
+# ferroelectric (the O octahedron against Ti and Sr); open
+# phonon_visualize_plain.html#q=GM&mode=4&view=c
+crystod-phonon --visualize -c 221_PPOSCAR_SrTiO3 --dim 4 4 4 -o phonon_visualize_plain.html

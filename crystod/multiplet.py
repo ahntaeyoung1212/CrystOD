@@ -72,7 +72,7 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--orbital",
         default=None,
-        help="Parent atomic orbital (s/p/d/f/...); checks that every occupied "
+        help="Parent atomic orbital (s, p, d or f); checks that every occupied "
         "shell occurs in its ligand-field splitting and prints the splitting.",
     )
     parser.add_argument(
@@ -462,11 +462,21 @@ def main(argv: list[str] | None = None) -> None:
     print(f"\n* Point group *\n{args.point_group}\n")
 
     if args.orbital:
+        from .multiplet_energy import ENERGY_ORBITALS
+
         orbital = args.orbital.strip().lower()
-        if orbital not in ORBITAL_AZIMUTHAL_NUMBER:
+        if orbital not in ENERGY_ORBITALS:
+            # g, h, i split in a ligand field (--ligand-field) but have no
+            # Coulomb parameters here: refuse before any block is computed
+            extra = (
+                ": the Coulomb multiplet energies are implemented for l <= 3 "
+                "only (the splitting alone: crystod-group --ligand-field "
+                f"{orbital} --pg {args.point_group})"
+                if orbital in ORBITAL_AZIMUTHAL_NUMBER else ""
+            )
             raise SystemExit(
-                f"ERROR: orbital '{args.orbital}' is not supported. "
-                f"Choose from: {', '.join(ORBITAL_AZIMUTHAL_NUMBER)}"
+                f"ERROR: orbital '{args.orbital}' is not supported{extra}. "
+                f"Choose from: {', '.join(ENERGY_ORBITALS)}"
             )
         orbital_characters = get_orbital_characters(orbital, character_table)
         splitting = decompose(

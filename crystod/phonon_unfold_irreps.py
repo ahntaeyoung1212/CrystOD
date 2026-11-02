@@ -121,9 +121,9 @@ class IrrepProjectorSet:
             order, Cartesian components of the parent frame, tau phase).
         dims, multiplicities: (n_present,) d_i and n_i (trace = d_i n_i).
         checks: Largest deviations of the projector identities.
-        names: ISO-IR names of all irreps (no ``(dim)``); None before labelling.
+        names: ISO-IR names of all irreps (no ``(dim)``); None before labeling.
         kname: ISO-IR k-vector type of k.
-        labelled_directly: The names come from ``get_irrep_labels`` at this k
+        labeled_directly: The names come from ``get_irrep_labels`` at this k
             (not copied along a run).
         units: Names of the units (an irrep, or a time-reversal pair ``S1+S2``),
             natural order; ``unit_members`` their positions in ``present``;
@@ -149,7 +149,7 @@ class IrrepProjectorSet:
     checks: dict
     names: list | None = None
     kname: str | None = None
-    labelled_directly: bool = False
+    labeled_directly: bool = False
     units: list | None = None
     unit_members: list | None = None
     unit_characters: np.ndarray | None = None
@@ -305,7 +305,7 @@ class ParentIrrepBasis:
         return pset, rep
 
     def projector_set(self, k) -> IrrepProjectorSet:
-        """The projector set at k, labelled and with its time-reversal units."""
+        """The projector set at k, labeled and with its time-reversal units."""
         pset, _rep = self.build(k)
         if pset.names is None:
             self.label_directly(pset)
@@ -336,7 +336,7 @@ class ParentIrrepBasis:
 
     def label_directly(self, pset: IrrepProjectorSet) -> None:
         pset.names, pset.kname = self.direct_labels(pset)
-        pset.labelled_directly = True
+        pset.labeled_directly = True
         pset.units = None
 
     def make_units(self, pset: IrrepProjectorSet) -> None:
@@ -729,13 +729,13 @@ def _label_points(basis: ParentIrrepBasis, psets: list, path) -> dict:
     little group are of one k type).  The end points of the legs (the vertices)
     never join a run: two different special points can share their little
     group and their phase-stripped characters (GM and R of a symmorphic cubic
-    group), so they are always labelled directly.  The first point of a run is
-    labelled directly, the others by matching phase-stripped characters; the
-    last point of a run of three or more points is labelled directly as a
+    group), so they are always labeled directly.  The first point of a run is
+    labeled directly, the others by matching phase-stripped characters; the
+    last point of a run of three or more points is labeled directly as a
     check.  A failed match or a check that disagrees labels the whole run point
     by point (counted as a mismatch).
     """
-    stats = {"runs": 0, "labelled_directly": 0, "copied": 0, "mismatches": 0}
+    stats = {"runs": 0, "labeled_directly": 0, "copied": 0, "mismatches": 0}
     if path is None:
         for pset in psets:
             if pset.names is None:
@@ -772,22 +772,22 @@ def _label_points(basis: ParentIrrepBasis, psets: list, path) -> dict:
                     break
                 pset.names = [first.names[j] for j in perm]
                 pset.kname = first.kname
-                pset.labelled_directly = False
+                pset.labeled_directly = False
             last = psets[members[-1]]
-            if consistent and len(members) >= 3 and not last.labelled_directly:
+            if consistent and len(members) >= 3 and not last.labeled_directly:
                 names, _kname = basis.direct_labels(last)
                 if names == last.names:
-                    last.labelled_directly = True
+                    last.labeled_directly = True
                 else:
                     consistent = False
             if not consistent:
                 stats["mismatches"] += 1
                 for ik in members:
-                    if not psets[ik].labelled_directly:
+                    if not psets[ik].labeled_directly:
                         basis.label_directly(psets[ik])
     unique = {id(p): p for p in psets}.values()
-    stats["labelled_directly"] = sum(1 for p in unique if p.labelled_directly)
-    stats["copied"] = sum(1 for p in unique if not p.labelled_directly)
+    stats["labeled_directly"] = sum(1 for p in unique if p.labeled_directly)
+    stats["copied"] = sum(1 for p in unique if not p.labeled_directly)
     return stats
 
 
@@ -840,7 +840,7 @@ class UnfoldedIrreps:
             'selection_groups' (groups checked), 'class_multiplicity'
             (distance from integers of the multiplicities behind the
             inseparable sets), 'translation_mismatch'.
-        cache: ``{'runs', 'labelled_directly', 'copied', 'mismatches'}`` of the line-label cache.
+        cache: ``{'runs', 'labeled_directly', 'copied', 'mismatches'}`` of the line-label cache.
         basis: The :class:`ParentIrrepBasis` (reused by :func:`crystod.phonon_unfold.gamma_origin`).
         notes: NOTE lines (time-reversal test failed, Mulliken symbols, checks above 1e-6).
         timings: CPU wall times of the steps.
@@ -1005,7 +1005,7 @@ def irrep_resolve(
     for k_ in tr_failed:
         notes.append(
             f"NOTE: Wigner's time-reversal test failed at k = {_vec(k_)}; levels there are "
-            "labelled per irrep."
+            "labeled per irrep."
         )
     # pass 4: parent levels
     parent_labels = None

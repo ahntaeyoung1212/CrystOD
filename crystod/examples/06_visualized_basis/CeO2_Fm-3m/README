@@ -1,0 +1,11 @@
+# Visualize crystal orbitals of Ce-f and O-p states at Gamma point in conventional form
+crystod --visualize -c 225_PPOSCAR_CeO2 --element Ce --orbital f --kpoint 0 0 0 --bond Ce O 3 --real-coefficient --conventional
+crystod --visualize -c 225_PPOSCAR_CeO2 --element O --orbital p --kpoint 0 0 0 --bond Ce O 3 --real-coefficient --conventional
+
+# Omit --kpoint to visualize every special k point of the space group
+# (writes SALC_225_PPOSCAR_CeO2_Ce_f_{GM,L,X,W}.html, one per point)
+crystod --visualize -c 225_PPOSCAR_CeO2 --element Ce --orbital f
+
+# Crystal-orbital diagram of CeO2 (rare-earth EHT parameters: La, Ce, Sm,
+# Gd, Yb, Lu)
+crystod --diagram -c 225_PPOSCAR_CeO2 --co-left Ce --co-right O2

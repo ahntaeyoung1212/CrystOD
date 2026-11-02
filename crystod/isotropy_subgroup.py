@@ -1136,9 +1136,13 @@ class IsotropyAnalyzer:
         domain-equivalent directions of one stratum; the representative is
         the image with the simplest direction label, the rule by which
         ``enumerate_directions`` names every stratum (the row of
-        ``crystod-group --parent SG --irrep IR``).  A direction found on a
-        structure (``crystod-group --supergroup-cif``) is named by it, so
-        that both commands print the same label for the same stratum.
+        ``crystod-group --parent SG --irrep IR``).  The decomposition of a
+        structure (``crystod-group --supergroup-cif``) applies the same rule
+        (``_orbit_representative``, on the orbits it has already built): it
+        shows its largest mode with domain-equivalent directions on the
+        representative, so that both commands print the same label for that
+        stratum, and names the representative of every other mode's stratum
+        in a note when the domain shown puts the mode on another image.
 
         Args:
             projector: Orthogonal projector onto the subspace, shape

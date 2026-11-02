@@ -1,0 +1,225 @@
+# Group-subgroup graph (crystod-group --parent SG --irrep IR [IR2 ...] --graph);
+# testsuite section 20
+# The nodes are the parent, every stratum of the irrep (for several irreps:
+# of the direct sum, including the strata in which only some irreps condense)
+# and the kernel, layered by index; a line joins a group to each of its
+# maximal subgroups among the nodes, up to conjugacy in the parent (some
+# parent image of the fixed space of the larger group lies in the fixed space
+# of the smaller one), transitively reduced. A line from the parent is dashed
+# when the irrep that alone gives the stratum violates the Landau condition
+# (cubic invariant) or the Lifshitz condition, so the transition cannot be
+# continuous (M1+ of Pm-3m below); lines between strata are drawn solid
+# (their continuity is not tested).
+# Files: SUBGROUP_<SG>_<irreps>.html (inline SVG; hover a node for its
+# direction, irreps, size, index, conventional basis and origin), --output
+# FILE renames it, --graph-dot also writes the Graphviz .dot file.
+# Pm-3m R4+ M3+: the 15 tilt systems of Howard and Stokes, Acta Cryst. B54,
+# 782-789 (1998), with the group-subgroup lines among them (25 lines, which
+# their Fig. 1 draws; derived here from their Glazer patterns), plus the ten
+# strata with an in-phase and an out-of-phase tilt about one axis (R-3,
+# P2_1/c, Pmmn and second embeddings of P4/mbm, Cmcm, C2/m, C2/c, P2_1/m,
+# P-1). I4/mmm X2+ X3-: the hybrid improper ferroelectric Cmc2_1 of the n = 2
+# Ruddlesden-Popper perovskites below Cmcm and Cmce.
+
+$ crystod-group --parent Pm-3m --irrep R4+ M3+ --graph --graph-dot
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Coupled irreps *
+R4+: order parameter dimension 3
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+M3+: order parameter dimension 3
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+
+* Group-subgroup graph *
+25 nodes (the parent and 24 strata), 56 edges (0 dashed)
+  index 1: Pm-3m (221)
+  index 6: P4/mbm (127), I4/mcm (140)
+  index 8: R-3c (167), Im-3 (204)
+  index 12: Imma (74), I4/mmm (139), P4/mbm (127)
+  index 24: C2/m (12), C2/c (15), Pnma (62), Cmcm (63), P4_2/nmc (137),
+    Immm (71)
+  index 48: Cmcm (63), P-1 (2), P2_1/m (11), C2/m (12), P2_1/c (14), Pmmn (59)
+  index 64: R-3 (148)
+  index 96: C2/c (15), P-1 (2), P2_1/m (11)
+  index 192: P-1 (2)
+
+* Nodes *
+node  subgroup        size  index  direction              maximal in   from parent
+1     Pm-3m (221)     1     1      -                      -            -
+2     P4/mbm (127)    2     6      M3+(0;0;d)             1            solid
+3     I4/mcm (140)    2     6      R4+(0,0,a)             1            solid
+4     R-3c (167)      2     8      R4+(a,a,a)             1            solid
+5     Im-3 (204)      4     8      M3+(d;d;d)             1            solid
+6     Imma (74)       2     12     R4+(0,a,a)             1            solid
+7     I4/mmm (139)    4     12     M3+(0;d;d)             1            solid
+8     P4/mbm (127)    4     12     R4+(0,0,a) M3+(0;0;d)  2,3          -
+9     C2/m (12)       2     24     R4+(0,a,b)             3,6          -
+10    C2/c (15)       2     24     R4+(a,a,b)             3,4,6        -
+11    Pnma (62)       4     24     R4+(0,a,a) M3+(d;0;0)  2,6          -
+12    Cmcm (63)       4     24     R4+(0,0,a) M3+(0;d;0)  2,3          -
+13    P4_2/nmc (137)  8     24     R4+(0,0,a) M3+(d;d;0)  3,7          -
+14    Immm (71)       4     24     M3+(d;e;f)             2,5,7        -
+15    Cmcm (63)       8     48     R4+(0,a,a) M3+(0;d;d)  6,7          -
+16    P-1 (2)         2     48     R4+(a,b,c)             9,10         -
+17    P2_1/m (11)     4     48     R4+(0,a,b) M3+(d;0;0)  9,11,12      -
+18    C2/m (12)       4     48     R4+(0,a,b) M3+(0;0;d)  8,9,12       -
+19    P2_1/c (14)     4     48     R4+(a,a,b) M3+(0;0;d)  8,10,11      -
+20    Pmmn (59)       8     48     R4+(0,0,a) M3+(d;e;f)  8,12,13,14   -
+21    R-3 (148)       8     64     R4+(a,a,a) M3+(d;d;d)  4,5          -
+22    C2/c (15)       8     96     R4+(a,a,b) M3+(d;d;0)  10,13,15     -
+23    P-1 (2)         4     96     R4+(a,b,c) M3+(0;0;d)  16,17,18,19  -
+24    P2_1/m (11)     8     96     R4+(0,a,b) M3+(d;e;f)  15,17,18,20  -
+25    P-1 (2)         8     192    R4+(a,b,c) M3+(d;e;f)  21,22,23,24  -
+maximal in: the nodes in which this subgroup is maximal (among the nodes)
+from parent: the line from the parent; dashed when the Landau or the
+Lifshitz condition of its irrep fails (no continuous transition)
+
+* Output files *
+  SUBGROUP_Pm-3m_R4+_M3+.html
+  SUBGROUP_Pm-3m_R4+_M3+.dot
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+Octahedral tilt systems of the perovskites: C. J. Howard and
+H. T. Stokes, "Group-Theoretical Analysis of Octahedral Tilting in
+Perovskites", Acta Cryst. B54, 782-789 (1998).
+
+$ crystod-group --parent Pm-3m --irrep R4+ --graph
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+R4+: order parameter dimension 3
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+
+* Group-subgroup graph *
+7 nodes (the parent and 6 strata), 10 edges (0 dashed)
+  index 1: Pm-3m (221)
+  index 6: I4/mcm (140)
+  index 8: R-3c (167)
+  index 12: Imma (74)
+  index 24: C2/m (12), C2/c (15)
+  index 48: P-1 (2)
+
+* Nodes *
+node  subgroup      size  index  direction   maximal in  from parent
+1     Pm-3m (221)   1     1      -           -           -
+2     I4/mcm (140)  2     6      R4+(0,0,a)  1           solid
+3     R-3c (167)    2     8      R4+(a,a,a)  1           solid
+4     Imma (74)     2     12     R4+(0,a,a)  1           solid
+5     C2/m (12)     2     24     R4+(0,a,b)  2,4         -
+6     C2/c (15)     2     24     R4+(a,a,b)  2,3,4       -
+7     P-1 (2)       2     48     R4+(a,b,c)  5,6         -
+maximal in: the nodes in which this subgroup is maximal (among the nodes)
+from parent: the line from the parent; dashed when the Landau or the
+Lifshitz condition of its irrep fails (no continuous transition)
+
+* Output files *
+  SUBGROUP_Pm-3m_R4+.html
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+Octahedral tilt systems of the perovskites: C. J. Howard and
+H. T. Stokes, "Group-Theoretical Analysis of Octahedral Tilting in
+Perovskites", Acta Cryst. B54, 782-789 (1998).
+
+$ crystod-group --parent Pm-3m --irrep M1+ --graph
+
+* Supergroup *
+Pm-3m (No. 221)
+
+* Irrep *
+M1+: order parameter dimension 3
+  Landau condition: violated (1 cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is forbidden (Landau)
+
+* Group-subgroup graph *
+5 nodes (the parent and 4 strata), 5 edges (2 dashed)
+  index 1: Pm-3m (221)
+  index 4: Im-3m (229)
+  index 6: P4/mmm (123)
+  index 12: I4/mmm (139)
+  index 24: Immm (71)
+
+* Nodes *
+node  subgroup      size  index  direction   maximal in  from parent
+1     Pm-3m (221)   1     1      -           -           -
+2     Im-3m (229)   4     4      M1+(a;a;a)  1           dashed
+3     P4/mmm (123)  2     6      M1+(0;0;a)  1           dashed
+4     I4/mmm (139)  4     12     M1+(a;a;b)  2,3         -
+5     Immm (71)     4     24     M1+(a;b;c)  4           -
+maximal in: the nodes in which this subgroup is maximal (among the nodes)
+from parent: the line from the parent; dashed when the Landau or the
+Lifshitz condition of its irrep fails (no continuous transition)
+
+* Output files *
+  SUBGROUP_Pm-3m_M1+.html
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).
+
+$ crystod-group --parent I4/mmm --irrep X2+ X3- --graph --output graphs/I4mmm_HIF.html
+
+* Supergroup *
+I4/mmm (No. 139)
+
+* Coupled irreps *
+X2+: order parameter dimension 2
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+X3-: order parameter dimension 2
+  Landau condition: satisfied (no cubic invariant)
+  Lifshitz condition: satisfied (no Lifshitz invariant)
+  -> a continuous transition is allowed
+
+* Group-subgroup graph *
+13 nodes (the parent and 12 strata), 23 edges (0 dashed)
+  index 1: I4/mmm (139)
+  index 4: Cmcm (63), Cmce (64), P4/mbm (127), P4_2/mnm (136)
+  index 8: Cmc2_1 (36), Pbam (55), Pnnm (58), Pnma (62)
+  index 16: Amm2 (38), Pmc2_1 (26), Pmn2_1 (31)
+  index 32: Pm (6)
+
+* Nodes *
+node  subgroup        size  index  direction          maximal in  from parent
+1     I4/mmm (139)    1     1      -                  -           -
+2     Cmcm (63)       2     4      X3-(0;c)           1           solid
+3     Cmce (64)       2     4      X2+(0;a)           1           solid
+4     P4/mbm (127)    4     4      X2+(a;a)           1           solid
+5     P4_2/mnm (136)  4     4      X3-(c;c)           1           solid
+6     Cmc2_1 (36)     2     8      X2+(0;a) X3-(0;c)  2,3         -
+7     Pbam (55)       4     8      X2+(a;b)           3,4         -
+8     Pnnm (58)       4     8      X3-(c;d)           2,5         -
+9     Pnma (62)       4     8      X2+(0;a) X3-(c;0)  2,3         -
+10    Amm2 (38)       4     16     X2+(a;a) X3-(c;c)  4,5         -
+11    Pmc2_1 (26)     4     16     X2+(a;b) X3-(0;c)  6,7,9       -
+12    Pmn2_1 (31)     4     16     X2+(0;a) X3-(c;d)  6,8,9       -
+13    Pm (6)          4     32     X2+(a;b) X3-(c;d)  10,11,12    -
+maximal in: the nodes in which this subgroup is maximal (among the nodes)
+from parent: the line from the parent; dashed when the Landau or the
+Lifshitz condition of its irrep fails (no continuous transition)
+
+* Output files *
+  graphs/I4mmm_HIF.html
+
+Conventions and validation: ISOSUBGROUP (https://iso.byu.edu):
+H. T. Stokes, S. van Orden and B. J. Campbell, "Tool for Generating
+Isotropy Subgroups of Crystallographic Space Groups",
+J. Appl. Cryst. 49, 1849-1853 (2016).

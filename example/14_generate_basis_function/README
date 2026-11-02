@@ -1,0 +1,117 @@
+# Generate symmetry-adapted polynomial basis functions (1st-3rd order)
+
+crystod-group --generate-basis --point-group m-3m
+
+* Point group *
+m-3m
+
+* Input basis functions: 1st order (linear) *
+ x, y, z
+
+* Closed basis-function space: 1st order (linear) *
+ dimension: 3
+ basis: [x, y, z]
+
+* Reducible characters: 1st order (linear) *
+  E: 3
+  C3: 0
+  C2: -1
+  C4: 1
+  C4^2: -1
+  i: -3
+  S4: -1
+  S6: 0
+  sgh: 1
+  sgd: 1
+
+* Decomposition: 1st order (linear) *
+ 1.0 [T1u]
+
+* Irreducible representations for basis functions: 1st order (linear) *
+  T1u: [x, y, z]
+
+* Input basis functions: 2nd order (quadratic) *
+ x^2, y^2, z^2, xy, yz, xz
+
+* Closed basis-function space: 2nd order (quadratic) *
+ dimension: 6
+ basis: [x^2, y^2, z^2, xy, yz, xz]
+
+* Reducible characters: 2nd order (quadratic) *
+  E: 6
+  C3: 0
+  C2: 2
+  C4: 0
+  C4^2: 2
+  i: 6
+  S4: 0
+  S6: 0
+  sgh: 2
+  sgd: 2
+
+* Decomposition: 2nd order (quadratic) *
+ 1.0 [A1g] + 1.0 [Eg] + 1.0 [T2g]
+
+* Irreducible representations for basis functions: 2nd order (quadratic) *
+  A1g: [x^2 + y^2 + z^2]
+  Eg: [-2 x^2 + y^2 + z^2, x^2 - 2 y^2 + z^2]
+  T2g: [xy, yz, xz]
+
+* Input basis functions: 3rd order (cubic) *
+ x^3, y^3, z^3, x^2 y, x^2 z, xy^2, y^2 z, xz^2, yz^2, xyz
+
+* Closed basis-function space: 3rd order (cubic) *
+ dimension: 10
+ basis: [x^3, y^3, z^3, x^2 y, x^2 z, xy^2, y^2 z, xz^2, yz^2, xyz]
+
+* Reducible characters: 3rd order (cubic) *
+  E: 10
+  C3: 1
+  C2: -2
+  C4: 0
+  C4^2: -2
+  i: -10
+  S4: 0
+  S6: -1
+  sgh: 2
+  sgd: 2
+
+* Decomposition: 3rd order (cubic) *
+ 1.0 [A2u] + 2.0 [T1u] + 1.0 [T2u]
+
+* Irreducible representations for basis functions: 3rd order (cubic) *
+  A2u: [xyz]
+  T1u: [x^3, y^3, z^3, x^2 y + yz^2, x^2 z + y^2 z, xy^2 + xz^2]
+  T2u: [-x^2 y + yz^2, -x^2 z + y^2 z, -xy^2 + xz^2]
+
+
+
+# Space-group mode at a k point; --order restricts to a single order
+crystod-group --generate-basis --space-group Pm-3m --kpoint 0 0 0 --order 2
+
+* Space group *
+Pm-3m (221)
+
+* Little group of k *
+Pm-3m (221)
+
+* k-point (primitive) *
+ GM [0.0, 0.0, 0.0]
+
+* Input basis functions: 2nd order (quadratic) *
+ x^2, y^2, z^2, xy, yz, xz
+
+* Closed basis-function space: 2nd order (quadratic) *
+ dimension: 6
+ basis: [x^2, y^2, z^2, xy, yz, xz]
+
+* Little-group characters: 2nd order (quadratic) *
+ (48 operations, omitted here -- run the command to see them)
+
+* Decomposition: 2nd order (quadratic) *
+ 1.0 [GM1+(1)] + 1.0 [GM3+(2)] + 1.0 [GM5+(3)]
+
+* Irreducible representations for basis functions: 2nd order (quadratic) *
+  GM1+(1): [x^2 + y^2 + z^2]
+  GM3+(2): [-2 x^2 + y^2 + z^2, x^2 - 2 y^2 + z^2]
+  GM5+(3): [xy, yz, xz]

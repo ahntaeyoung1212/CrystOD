@@ -9,7 +9,7 @@ irrep, the unfolded child colored by the label of each degenerate group,
 level panels at the special points of the path and a legend.
 
 Every text is measured in the font in use (Arial, or DejaVu Sans where Arial
-is not installed, whose glyphs are about 12 % wider) and fitted: titles and
+is not installed, whose glyphs are roughly 10-15 % wider) and fitted: titles and
 notes are set smaller or wrapped to their room, labels that would run into
 each other go into staggered rows or upright (the k labels of many star
 arms), and crowded panels grow.
@@ -205,7 +205,7 @@ def _text_width_pt(text: str, size: float, style: str = "normal") -> float:
 def _fit_font(texts, size: float, width_pt: float, minimum: float) -> float:
     """The largest font size from ``minimum`` to ``size`` (pt) at which the widest of the texts is
     at most ``width_pt`` wide, measured in the font in use (Arial, or DejaVu Sans where Arial is
-    missing, whose glyphs are about 12 % wider)."""
+    missing, whose glyphs are roughly 10-15 % wider)."""
     texts = [t for t in texts if t]
     if not texts:
         return size
@@ -263,14 +263,14 @@ def _label_ink(texts) -> tuple:
     return above, below
 
 
-def _rows(centres, widths, gap: float = 1.5) -> np.ndarray:
+def _rows(centers, widths, gap: float = 1.5) -> np.ndarray:
     """Row of every label (0, 1, ...) so that labels of one row clear each other by ``gap``:
-    labels centred at ``centres`` (pt) with ``widths`` (pt), each in the first row where it
+    labels centered at ``centers`` (pt) with ``widths`` (pt), each in the first row where it
     clears the previous label of that row."""
-    rows = np.zeros(len(centres), dtype=int)
+    rows = np.zeros(len(centers), dtype=int)
     ends: list = []
-    for i in np.argsort(centres, kind="stable"):
-        left, right = centres[i] - widths[i] / 2, centres[i] + widths[i] / 2
+    for i in np.argsort(centers, kind="stable"):
+        left, right = centers[i] - widths[i] / 2, centers[i] + widths[i] / 2
         for r, end in enumerate(ends):
             if left >= end + gap:
                 rows[i], ends[r] = r, right
@@ -286,15 +286,15 @@ def _label_rows(
 ) -> np.ndarray:
     """Row of every tick label (0, 1, ...) so that labels of one row do not overlap.
 
-    The labels are centred on their ticks along an axis ``width_cm`` long;
+    The labels are centered on their ticks along an axis ``width_cm`` long;
     each goes to the first row where it clears the previous label of that row
     by ``gap`` points.  All zeros when the labels fit side by side.
     """
     ticks = np.asarray(ticks, dtype=float)
     span = ticks[-1] - ticks[0] if len(ticks) > 1 and ticks[-1] > ticks[0] else 1.0
-    centres = (ticks - ticks[0]) / span * width_cm / PT_CM
+    centers = (ticks - ticks[0]) / span * width_cm / PT_CM
     widths = np.array([_text_width_pt(t, size, style) if t else 0.0 for t in texts])
-    return _rows(centres, widths, gap)
+    return _rows(centers, widths, gap)
 
 
 def _staggered_labels(ax, ticks, texts, rows, size, pad, side, color) -> None:
@@ -664,7 +664,7 @@ def _page_bands(plt, run, weight_min: float):
     for ax in (ax1, ax2):
         plt.setp(ax.get_yticklabels(), visible=False)
     extra = _child_axis(ax1, ticks, _tick_child_points(path), width_cm=wb)
-    # panel titles centred on their panels: each at most one panel pitch wide
+    # panel titles centered on their panels: each at most one panel pitch wide
     title_font = _fit_font(titles, 7.0, (wb + gap) / PT_CM - 2 * LABEL_GAP, 5.0)
     for ax, title in zip((ax0, ax1, ax2), titles):
         ax.set_title(title, fontsize=title_font, pad=13 + extra)
@@ -808,9 +808,9 @@ def _repel(targets, h, lo, hi):
 
     With the labels in target order and ``q_i = p_i - i h`` the conditions read ``q`` non-decreasing
     and ``lo <= q_i <= hi - (n - 1) h``: an isotonic regression of ``t_i - i h`` (pool adjacent
-    violators: blocks of labels stacked ``h`` apart, centred on the mean of their targets), cut to
+    violators: blocks of labels stacked ``h`` apart, centered on the mean of their targets), cut to
     those bounds, which is the optimum with the bounds.  Every block is cut with the same bounds, so
-    blocks pushed against an end of the range stack onto their neighbours instead of landing on
+    blocks pushed against an end of the range stack onto their neighbors instead of landing on
     them.  When ``n`` labels do not fit (``(n - 1) h > hi - lo``) they are spread evenly over
     ``[lo, hi]``.
     """
@@ -920,7 +920,7 @@ def _level_pitch(font: float, ink=(0.0, 0.0)) -> float:
     more when the ink of the labels needs it.
 
     ``ink`` is ``(above, below)`` of :func:`_label_ink`.  The pitch keeps a gap of ``LEVEL_GAP`` em
-    between the ink of neighbouring labels both where Agg draws them and where matplotlib's PDF
+    between the ink of neighboring labels both where Agg draws them and where matplotlib's PDF
     output does: its vector layout of mathtext rounds the box height up to whole points and so
     lifts a label by up to ``PDF_LIFT`` (by a different amount for each label).
     """
@@ -1032,7 +1032,7 @@ def _page_irreps(plt, run, weight_min: float):
     def row_width(kt):
         return 0.75 + sum(entry_width(u, kt) for u in by_type[kt])
 
-    mixed_text = "mixed (grey): no irrep and no inseparable set holds 50 % of P$_g$(k)"
+    mixed_text = "mixed (gray): no irrep and no inseparable set holds 50 % of P$_g$(k)"
     left_w = max(
         [row_width(kt) for kt in rows_pts] + [7.4, 0.38 + _text_width_pt(mixed_text, 6.3) * PT_CM]
     )
@@ -1067,7 +1067,7 @@ def _page_irreps(plt, run, weight_min: float):
     title_lines = _wrap(title, title_font, header)
     second = (
         "M = %s (N = %d); color = label of each degenerate group (>= 50 %% of P$_g$ in one irrep "
-        "or in an inseparable set), grey = mixed" % (_matrix_compact(mapping.M), mapping.N)
+        "or in an inseparable set), gray = mixed" % (_matrix_compact(mapping.M), mapping.N)
     )
     second_font = _fit_font([second], 6.3, header, 5.0)
     second_lines = _wrap(second, second_font, header)
@@ -1156,13 +1156,13 @@ def _page_irreps(plt, run, weight_min: float):
             per_cm = (ylim[1] - ylim[0]) / hb  # data units per cm of the panel
             h = pitch * per_cm
             ypos = _repel(targets, h, ylim[0] + 0.5 * h, ylim[1] - 0.5 * h)
-            # baselines placed so that the ink of the labels (with the PDF lift) is centred on ypos
+            # baselines placed so that the ink of the labels (with the PDF lift) is centered on ypos
             above, below = _label_ink(texts)
-            centre = 0.5 * ((above - below) * font + PDF_LIFT) * PT_CM * per_cm
+            center = 0.5 * ((above - below) * font + PDF_LIFT) * PT_CM * per_cm
             for (_f, _name, wl), text, y, t in zip(items, texts, ypos, targets):
                 ax.text(
                     LX,
-                    y - centre,
+                    y - center,
                     text,
                     fontsize=font,
                     color=INK,

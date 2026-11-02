@@ -1,0 +1,33 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ Fm-3c (226)
+
+ * Element (number of atoms) *
+ K (2)
+
+ * Wyckoff letters and site symmetry letters *
+ ['a', 'a']
+ ['432', '432']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  Fm-3c (226)
+ irreps             :  1.0 [-GM6(2)] + 1.0 [-GM8(2)] + 1.0 [-GM10(4)] + 1.0 [-GM11(4)] 
+
+ k point (primitive):  X [0.5, 0.0, 0.5]
+ little group of k  :  I4/mcm (140)
+ irreps             :  1.0 [-X6(2)] + 2.0 [-X7(2)] + 1.0 [-X8(2)] + 2.0 [-X9(2)] 
+
+ k point (primitive):  L [0.5, 0.5, 0.5]
+ little group of k  :  R-3c (167)
+ irreps             :  2.0 [-L4(2)] + 2.0 [-L5(2)] + 2.0 [-L6(2)] 
+
+ k point (primitive):  W [0.5, 0.25, 0.75]
+ little group of k  :  I-42m (121)
+ irreps             :  3.0 [-W6(2)] + 3.0 [-W7(2)] 
+

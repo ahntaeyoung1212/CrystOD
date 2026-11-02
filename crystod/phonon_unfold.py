@@ -9,7 +9,7 @@ weight P_J(k) of its projection (Allen, Berlijn, Casavant and Soler,
 Phys. Rev. B 87, 085322 (2013)).  The transformation between the two cells
 and the origin shift are those of ``crystod-group --supergroup-cif PARENT
 --subgroup-cif CHILD`` (:class:`crystod.symmetry_mode.SymmetryModeAnalysis`);
-the unfolded levels are labelled with the irreps of the parent
+the unfolded levels are labeled with the irreps of the parent
 (:mod:`crystod.phonon_unfold_irreps`) and drawn by
 :mod:`crystod.phonon_unfold_plot`.
 
@@ -85,6 +85,7 @@ SUM_RULE_TOLERANCE = 1e-6  # |sum_J P_J(k) - 3 n_parent| above this: internal er
 PROJECTOR_TOLERANCE = 1e-8  # projector identities above this: internal error
 ORBIT_SPECTRUM_TOLERANCE = (1e-4, 1e-4)  # THz, weight: arms of one class; above: NOTE
 CHUNK = 512  # k points per phonopy run_qpoints call
+OUTPUT_WIDTH = 100  # columns: the rows, lists, tables and notes of the terminal output fit it
 
 TWO_PI_I = 2j * np.pi
 _POINT_GROUP_WARNING = ".*Point group symmetries of supercell and primitivecell are different"
@@ -102,9 +103,13 @@ CONVENTIONS = (
     "K.d_s) e_J(K; s, alpha) exp(-2 pi i k.p) (phonopy mass-weighted eigenvectors, ideal-site "
     "gauge, parent origin, alpha Cartesian in the CHILD frame; v_parent = frame_rotation @ "
     "v_child); weights_canonical, vectors_canonical: degenerate child modes (|df| <= 1e-4 THz) "
-    "rotated so that their unfolded vectors are orthogonal (basis independent; group sums "
-    "unchanged; inside a set of two levels closer than 1e-4 THz the pairing of a per-mode weight "
-    "with a frequency is arbitrary); per level (every mode carries its level's value): "
+    "rotated so that their unfolded vectors are orthogonal (group sums unchanged; "
+    "weights_canonical, arm_weights_canonical, davg_weights, gamma_weights and the per-level "
+    "arrays do not depend on the eigenvector basis phonopy returns; weights does (phonopy's "
+    "basis; only its group sums do not), and so does vectors_canonical (the phase of every "
+    "vector and, inside a level, the vectors of equal weight); inside a set of two levels closer "
+    "than 1e-4 THz the pairing of a per-mode weight with a frequency is arbitrary); "
+    "per level (every mode carries its level's value): "
     "group_weight = P_g of the mode's degenerate group, group_label, group_fraction, "
     "gamma_group_label, gamma_child_irrep; distances 1/Angstrom without "
     "2 pi in the reciprocal metric of A_pp; arm_*: every arm of the stars of the path vertices; "
@@ -157,19 +162,81 @@ def _domains(n: int) -> str:
 
 def _note(text: str) -> list:
     """A NOTE under a block: ``'  NOTE: ...'`` wrapped to 100 columns, continuation lines
-    aligned with the text after ``NOTE:``."""
+    aligned with the text after ``NOTE:``.  ``text`` may carry the ``NOTE:`` prefix itself (the
+    notes collected by the mapping, the irreps and the child Gamma origin do)."""
+    text = " ".join(str(text).split())
+    if text.startswith("NOTE:"):
+        text = text[len("NOTE:") :].lstrip()
     return textwrap.wrap(
         text,
-        width=100,
+        width=OUTPUT_WIDTH,
         initial_indent="  NOTE: ",
         subsequent_indent=" " * 8,
         break_on_hyphens=False,
+        break_long_words=False,
     )
 
 
-def _kv(key: str, text: str) -> str:
-    """One summary line of a block: the key padded to 15 characters."""
-    return f"{key:<15}{text}" if len(key) < 15 else f"{key} {text}"
+def _legend(text: str) -> list:
+    """The explanation under a table, ``'  (...)'``, wrapped to 100 columns with the continuation
+    lines indented by three spaces."""
+    return textwrap.wrap(
+        "(" + text + ")",
+        width=OUTPUT_WIDTH,
+        initial_indent="  ",
+        subsequent_indent="   ",
+        break_on_hyphens=False,
+        break_long_words=False,
+    )
+
+
+def _fill(pieces, first: str, rest: str) -> list:
+    """The lines of ``pieces`` joined by single spaces and filled to OUTPUT_WIDTH columns: the
+    first line starts with ``first``, the next ones with ``rest``.  No line break splits a piece
+    (a matrix, a k point, a clause), so a piece longer than the room left stands alone on its
+    line; text that fits on one line comes out as one line."""
+    lines, text = [], ""
+    for piece in pieces:
+        prefix = rest if lines else first
+        if text and len(prefix) + len(text) + 1 + len(piece) > OUTPUT_WIDTH:
+            lines.append(prefix + text)
+            text = piece
+        else:
+            text = f"{text} {piece}" if text else piece
+    lines.append((rest if lines else first) + text)
+    return lines
+
+
+def _commas(items) -> list:
+    """``['a', 'b', 'c']`` -> ``['a,', 'b,', 'c']``: the pieces of a list separated by commas."""
+    items = list(items)
+    return [item + "," for item in items[:-1]] + items[-1:]
+
+
+def _kv(key: str, pieces) -> list:
+    """One row of a block: the key padded to 15 characters, then ``pieces`` (one string, or the
+    list of the strings no line break may split) filled to OUTPUT_WIDTH columns, the
+    continuation lines under the text."""
+    if isinstance(pieces, str):
+        pieces = [pieces]
+    return _fill(pieces, f"{key:<15}" if len(key) < 15 else f"{key} ", " " * 15)
+
+
+def _parenthesis(items, width: int = OUTPUT_WIDTH - 15) -> list:
+    """``['Al', 'F', 'F']`` -> ``['(Al F F)']``: items in parentheses as pieces for :func:`_fill`,
+    one piece when they fit ``width`` columns (a continuation line of :func:`_kv`), else chunks
+    of whole items within ``width`` columns, the ``(`` on the first and the ``)`` on the last, so
+    that no line break falls inside a parenthesis that fits on one line."""
+    words = [str(item) for item in items] or [""]
+    words[0] = "(" + words[0]
+    words[-1] = words[-1] + ")"
+    pieces = []
+    for word in words:
+        if pieces and len(pieces[-1]) + 1 + len(word) <= width:
+            pieces[-1] += " " + word
+        else:
+            pieces.append(word)
+    return pieces
 
 
 def _display_path(path: str) -> str:
@@ -232,6 +299,36 @@ def _empty_working_directory():
             yield empty
         finally:
             os.chdir(previous)
+
+
+@contextlib.contextmanager
+def _quiet_spglib():
+    """spglib's C warnings off inside the block (spglib reads SPGLIB_WARNING at every warning).
+
+    A setting search that fails, e.g. at a tolerance far below the round-off of the cell
+    (``--tolerance 1e-16``), prints its own one-line ERROR; spglib would add some twenty lines
+    such as ``spglib: ssm_get_exact_positions failed.`` before it.
+    """
+    previous = os.environ.get("SPGLIB_WARNING")
+    os.environ["SPGLIB_WARNING"] = "OFF"
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop("SPGLIB_WARNING", None)
+        else:
+            os.environ["SPGLIB_WARNING"] = previous
+
+
+def _spglib_errors() -> tuple:
+    """The exception class spglib raises when it fails (``spglib.error.SpglibError`` with its
+    ``SpglibCppError``), as a tuple for ``except``; empty for a spglib without it."""
+    import spglib
+
+    error = getattr(spglib, "SpglibError", None)
+    if error is None:
+        error = getattr(getattr(spglib, "error", None), "SpglibError", None)
+    return (error,) if isinstance(error, type) and issubclass(error, Exception) else ()
 
 
 # ---------------------------------------------------------------------------
@@ -920,6 +1017,12 @@ def _load_phonon(unitcell, dim, matrix, force_file: str, readfc: bool, role: str
             f"ERROR: the {role} force data '{shown}' are for {np.asarray(fc).shape[1]} atoms, but "
             f"the supercell {' '.join(str(v) for v in dim)} of the {role} has {n_super} atoms."
         )
+    if not np.all(np.isfinite(fc)):  # else the eigensolver fails after the setup block
+        what = "force constants" if readfc else "forces"
+        raise SystemExit(
+            f"ERROR: the {role} force data '{shown}' give force constants with NaN or infinite "
+            f"entries; check the {what} in that file."
+        )
     return phonon
 
 
@@ -1329,9 +1432,10 @@ def find_parent_mapping(
         :class:`ParentMapping`.
 
     Raises:
-        SystemExit: crystod-group cannot relate the structures, or
-            ``trans_mat`` is not an equivalent setting (``ValueError`` through
-            ``crystod.phonon``).
+        SystemExit: crystod-group cannot relate the structures, spglib fails
+            at ``tolerance`` (far below the round-off of the cells, e.g.
+            1e-16), or ``trans_mat`` is not an equivalent setting
+            (``ValueError`` through ``crystod.phonon``).
     """
     from .symmetry_mode import SymmetryModeAnalysis
 
@@ -1359,7 +1463,7 @@ def find_parent_mapping(
         np.array(parent_unitcell.cell, dtype=float).T, np.array(parent_cell.cell, dtype=float).T
     )
     try:
-        with warnings.catch_warnings():
+        with warnings.catch_warnings(), _quiet_spglib():
             warnings.simplefilter("ignore", DeprecationWarning)
             warnings.simplefilter("ignore", UserWarning)
             analysis = SymmetryModeAnalysis(parent_poscar, child_poscar, tolerance)
@@ -1368,12 +1472,18 @@ def find_parent_mapping(
         raise SystemExit(
             f"ERROR: crystod-group could not relate the two structures: {message}"
         ) from None
+    except _spglib_errors() as exc:  # e.g. 'cell standardization failed' at --tolerance 1e-16
+        message = " ".join(str(exc).split()) or type(exc).__name__
+        raise SystemExit(
+            f"ERROR: spglib failed in the setting search at --tolerance {tolerance:g} Angstrom "
+            f"({message}); give a larger --tolerance (default {MAPPING_TOLERANCE:g})."
+        ) from None
     st = analysis.setting_transformation(frame="input")
     if st.frame != "input":
         raise SystemExit(
             "ERROR: spglib gave no setting transformation for one of the input files; the "
             "transformation cannot be expressed in the input cells (give the structures in a "
-            "setting spglib recognises)."
+            "setting spglib recognizes)."
         )
     M_file = np.asarray(st.matrix, dtype=float).T
     M0f = Pc.T @ M_file @ np.linalg.inv(Pp.T)
@@ -1433,7 +1543,8 @@ def find_parent_mapping(
     mapping.crystod_group_P = np.asarray(st.matrix, dtype=float)
     mapping.crystod_group_p = np.asarray(st.origin, dtype=float)
     if operation is None:
-        # exactly what crystod-group prints (a centred parent: p could differ by a centring vector)
+        # exactly what crystod-group prints (a centered parent: p could differ by a centering
+        # vector)
         mapping.setting_P = mapping.crystod_group_P.copy()
         mapping.setting_p = mapping.crystod_group_p.copy()
     else:
@@ -2158,7 +2269,7 @@ def _child_gamma_irreps(child_phonon, freqs, groups, tol: float, notes: list):
             deviation = max(deviation, abs(float(freqs[b - 1]) - mode.frequency))
     if deviation > 1e-6:
         notes.append(
-            "NOTE: the labelled child levels at GM differ from the unfolded ones by "
+            "NOTE: the labeled child levels at GM differ from the unfolded ones by "
             f"{deviation:.1e} THz."
         )
     for ig, g in enumerate(groups):
@@ -2433,7 +2544,7 @@ def write_dat(
         "#   of P_g held by the label's irreps (0 for mixed and -)"
         + ("" if irreps is not None else "; no labels (--no-irreps)"),
         "#",
-        "# dataset 0: one domain, the path arm k itself",
+        "# dataset 0: one domain, the path arm k itself (k_index 0, 1, ... along the path)",
         "# k_index distance kx ky kz mode frequency weight group_weight label fraction",
     ]
     for ik in range(n_k):
@@ -2465,6 +2576,10 @@ def write_dat(
         "row per class of equivalent",
         "#   arms and mode; weight = canonical weight of the class representative x multiplicity "
         "/ n_arms)",
+        "#   class: 1, 2, ... at each k; multiplicity: arms in the class; n_arms: arms of the "
+        "star; akx aky akz: the arm",
+        "#   unfolded for the class (its representative, parent fractional), at which the "
+        "frequencies were computed",
         "# k_index distance class multiplicity n_arms akx aky akz mode frequency weight",
     ]
     rows_of = {}
@@ -2630,14 +2745,20 @@ def _matrix_fraction_text(matrix) -> str:
     )
 
 
-def _cell_line(poscar: str, unitcell, cell, matrix, space_group: str) -> str:
-    text = f"{_display_path(poscar)}: {space_group}, {len(unitcell)} atoms, "
+def _cell_pieces(poscar: str, unitcell, cell, matrix, space_group: str) -> list:
+    """The pieces of the child and parent rows of the setup block (see :func:`_fill`)."""
+    pieces = [f"{_display_path(poscar)}: {space_group},", f"{len(unitcell)} atoms,"]
     if np.allclose(matrix, np.eye(3)):
-        return text + "cell used as given"
-    return text + (
-        f"conventional cell; unfolded on its primitive cell of {len(cell)} atoms (phonopy "
-        f"primitive matrix {_matrix_fraction_text(matrix)})"
-    )
+        return pieces + ["cell used as given"]
+    return pieces + [
+        "conventional cell;",
+        f"unfolded on its primitive cell of {len(cell)} atoms",
+        f"(phonopy primitive matrix {_matrix_fraction_text(matrix)})",
+    ]
+
+
+def _force_pieces(force_file: str, dim) -> list:
+    return [f"{_display_path(force_file)},", f"supercell {' '.join(str(v) for v in dim)}"]
 
 
 def _print_setup(inputs: UnfoldInputs, mapping: ParentMapping) -> None:
@@ -2649,110 +2770,104 @@ def _print_setup(inputs: UnfoldInputs, mapping: ParentMapping) -> None:
     )
     child_shown = _display_path(inputs.child_poscar)
     parent_shown = _display_path(inputs.parent_poscar)
-    lines = [
-        "",
-        "* Unfolding setup *",
-        _kv(
-            "child",
-            _cell_line(
-                inputs.child_poscar,
-                inputs.child_unitcell,
-                inputs.child_cell,
-                inputs.child_primitive_matrix,
-                mapping.child_space_group,
-            ),
+    lines = ["", "* Unfolding setup *"]
+    lines += _kv(
+        "child",
+        _cell_pieces(
+            inputs.child_poscar,
+            inputs.child_unitcell,
+            inputs.child_cell,
+            inputs.child_primitive_matrix,
+            mapping.child_space_group,
         ),
-        _kv(
-            "child forces",
-            f"{_display_path(inputs.child_force_file)}, supercell "
-            f"{' '.join(str(v) for v in inputs.child_dim)}",
+    )
+    lines += _kv("child forces", _force_pieces(inputs.child_force_file, inputs.child_dim))
+    lines += _kv(
+        "parent",
+        _cell_pieces(
+            inputs.parent_poscar,
+            inputs.parent_unitcell,
+            inputs.parent_cell,
+            inputs.parent_primitive_matrix,
+            mapping.parent_space_group,
         ),
-        _kv(
-            "parent",
-            _cell_line(
-                inputs.parent_poscar,
-                inputs.parent_unitcell,
-                inputs.parent_cell,
-                inputs.parent_primitive_matrix,
-                mapping.parent_space_group,
-            ),
-        ),
-    ]
+    )
     if inputs.parent_force_file is None:
-        lines.append(_kv("parent forces", "- (no --parent-dim: no parent bands)"))
+        lines += _kv("parent forces", "- (no --parent-dim: no parent bands)")
     else:
-        lines.append(
-            _kv(
-                "parent forces",
-                f"{_display_path(inputs.parent_force_file)}, supercell "
-                f"{' '.join(str(v) for v in inputs.parent_dim)}",
-            )
-        )
+        lines += _kv("parent forces", _force_pieces(inputs.parent_force_file, inputs.parent_dim))
     n_eq = len(mapping.equivalent_settings)
     if mapping.source == "--trans-mat":
         W, w = mapping.parent_operation
         M0 = mapping.equivalent_settings[0]
-        lines.append(
-            _kv(
-                "setting",
-                f"--trans-mat {_matrix_text(mapping.M)}: the crystod-group setting "
-                f"{_matrix_text(M0)}",
-            )
+        lines += _kv(
+            "setting",
+            [
+                f"--trans-mat {_matrix_text(mapping.M)}:",
+                "the crystod-group setting",
+                _matrix_text(M0),
+            ],
         )
-        lines.append(
-            _kv(
-                "",
-                f"transformed by the parent operation W = {_matrix_text(W)}, w = {_vec(w)} ({n_eq} "
-                "equivalent settings)",
-            )
-        )
-        heading = "parent -> child of this setting in crystod-group's convention (columns of P:"
-    else:
-        lines.append(
-            _kv(
-                "setting",
-                f"crystod-group --supergroup-cif {parent_shown} --subgroup-cif {child_shown}",
-            )
-        )
-        lines.append(_kv("", f"(1 of {n_eq} equivalent settings)"))
-        heading = "parent -> child as crystod-group prints it (columns of P:"
-    lines.append(_kv("transformation", heading + " the child basis in parent units,"))
-    lines.append(
-        _kv(
+        lines += _kv(
             "",
-            "(a', b', c') = (a, b, c) P; last column: the origin shift p, x_parent = P x_child + "
-            "p):",
+            [
+                "transformed by the parent operation",
+                f"W = {_matrix_text(W)},",
+                f"w = {_vec(w)}",
+                f"({n_eq} equivalent settings)",
+            ],
         )
+        heading = ["parent -> child", "of this setting", "in crystod-group's convention"]
+    else:
+        lines += _kv(
+            "setting",
+            [
+                "crystod-group",
+                f"--supergroup-cif {parent_shown}",
+                f"--subgroup-cif {child_shown}",
+                f"(1 of {n_eq} equivalent settings)",
+            ],
+        )
+        heading = ["parent -> child", "as crystod-group prints it"]
+    lines += _kv(
+        "transformation",
+        heading
+        + [
+            "(columns of P:",
+            "the child basis in",
+            "parent units,",
+            "(a', b', c') = (a, b, c) P;",
+            "last column:",
+            "the origin shift p,",
+            "x_parent = P x_child + p):",
+        ],
     )
     setting = SettingTransformation(mapping.setting_P, mapping.setting_p, "input")
     lines += setting.lines(parent_shown, child_shown)[2:5]
-    key = "M (rows, parent primitive cell -> child cell)" if reduced else "M (rows)"
-    lines.append(
-        _kv(
-            key,
-            f"{_matrix_text(mapping.M)}  (A_child = M A_parent, k_child = M k_parent; the form "
-            "--trans-mat takes)",
-        )
+    lines += _kv("M (rows)", _matrix_text(mapping.M))
+    lines += _kv(
+        "", ["(A_child = M A_parent,", "k_child = M k_parent;", "the form --trans-mat takes)"]
     )
-    lines.append(_kv("origin shift", f"p = {_vec(mapping.origin_shift)} (parent fractional)"))
-    lines.append(
-        _kv(
-            "cells",
-            f"N = {mapping.N} parent cell{'s' if mapping.N != 1 else ''} in the child cell; "
-            f"n_child = {len(mapping.child_cell)}, n_parent = {len(mapping.parent_cell)} atoms "
-            f"({' '.join(mapping.parent_cell.symbols)})",
-        )
+    if reduced:  # M relates the cells the run unfolds on, not those of the files
+        lines += _kv("", "(of the unfolding cells: the parent primitive cell -> the child cell)")
+    lines += _kv("origin shift", [f"p = {_vec(mapping.origin_shift)}", "(parent fractional)"])
+    lines += _kv(
+        "cells",
+        [
+            f"N = {mapping.N} parent cell{'s' if mapping.N != 1 else ''} in the child cell;",
+            f"n_child = {len(mapping.child_cell)},",
+            f"n_parent = {len(mapping.parent_cell)} atoms",
+        ]
+        + _parenthesis(mapping.parent_cell.symbols),
     )
     st = mapping.strain
-    lines.append(
-        _kv(
-            "pseudo-parent",
-            "A_pp = inv(M) A_child: a = "
-            + " ".join(f"{v:.4f}" for v in st["lengths_pp"])
-            + " A, angles "
-            + " ".join(f"{v:.3f}" for v in st["angles_pp"])
-            + " deg",
-        )
+    lines += _kv(
+        "pseudo-parent",
+        [
+            "A_pp = inv(M) A_child:",
+            "a = " + " ".join(f"{v:.4f}" for v in st["lengths_pp"]) + " A,",
+            "angles " + " ".join(f"{v:.3f}" for v in st["angles_pp"]) + " deg",
+        ],
     )
     lengths = st["parent_lengths"]
     parent_a = (
@@ -2760,45 +2875,42 @@ def _print_setup(inputs: UnfoldInputs, mapping: ParentMapping) -> None:
         if max(lengths) - min(lengths) < 1e-4
         else "a = " + " ".join(f"{v:.4f}" for v in lengths) + " A"
     )
-    lines.append(
-        _kv(
-            "strain",
-            "lengths "
-            + " ".join(f"{v:.2f}" for v in st["length_strain_percent"])
-            + f" %, volume {st['volume_strain_percent']:.2f} % against the parent cell "
-            + f"({parent_a}); "
+    lines += _kv(
+        "strain",
+        [
+            "lengths " + " ".join(f"{v:.2f}" for v in st["length_strain_percent"]) + " %,",
+            f"volume {st['volume_strain_percent']:.2f} %",
+            "against the parent cell",
+            f"({parent_a});",
             f"rotation {st['rotation_deg']:.1f} deg",
-        )
+        ],
     )
-    lines.append(
-        _kv(
-            "displacement",
+    lines += _kv(
+        "displacement",
+        [
             f"max {mapping.max_displacement:.4f} A ({mapping.max_displacement_species}), rms "
-            f"{mapping.rms_displacement:.4f} A in the child lattice; "
+            f"{mapping.rms_displacement:.4f} A in the child lattice;",
             f"{mapping.max_displacement_parent_lattice:.4f} A in the strain-free parent lattice",
-        )
+        ],
     )
     if mapping.sma_max_displacement is not None:
-        lines.append(_kv("", f"(crystod-group: {mapping.sma_max_displacement:.4f} A)"))
+        lines += _kv("", f"(crystod-group: {mapping.sma_max_displacement:.4f} A)")
     if mapping.sma_modes:
-        lines.append(
-            _kv(
-                "condensed",
-                ", ".join(f"{irrep} {amp:.4f}" for _k, irrep, amp in mapping.sma_modes)
-                + " A (crystod-group mode amplitudes)",
-            )
+        amplitudes = [f"{irrep} {amp:.4f}" for _k, irrep, amp in mapping.sma_modes]
+        lines += _kv(
+            "condensed",
+            _commas(amplitudes[:-1] + [amplitudes[-1] + " A"])
+            + ["(crystod-group mode amplitudes)"],
         )
-    lines.append(
-        _kv(
-            "folding",
-            "parent k folding onto the child Gamma point: "
-            + ", ".join(
-                f"{name} {_vec(k)}"
-                for name, k in zip(mapping.folding_names, mapping.folding_kpoints)
-            ),
-        )
+    lines += _kv(
+        "folding",
+        ["parent k folding onto the child Gamma point:"]
+        + _commas(
+            f"{name} {_vec(k)}" for name, k in zip(mapping.folding_names, mapping.folding_kpoints)
+        ),
     )
-    lines += [f"  {note}" for note in mapping.notes]
+    for note in mapping.notes:
+        lines += _note(note)
     print("\n".join(lines))
 
 
@@ -2808,53 +2920,68 @@ def _print_path(path: ParentPath) -> None:
         if path.source == "seekpath"
         else "manual --band, parent primitive basis"
     )
-    lines = [
-        "",
-        "* Unfolding path *",
-        _kv(
-            "path",
-            f"{path.path_text} ({source}), {path.npoints} points per leg, {len(path.kpoints)} k",
-        ),
-        _kv("distances", "1/A without 2 pi, reciprocal metric of the pseudo-parent cell A_pp"),
-        f"{'vertex':<8}{'k (parent)':<21}{'K = M k (child)':<22}child point",
-    ]
-    for label, k, K, point in path.vertices:
-        lines.append(f"{label:<8}{_vec(k):<21}{_vec(K):<22}{point}")
+    lines = ["", "* Unfolding path *"]
+    lines += _kv(
+        "path",
+        [
+            path.path_text,
+            f"({source}),",
+            f"{path.npoints} points per leg,",
+            f"{len(path.kpoints)} k",
+        ],
+    )
+    lines += _kv("distances", "1/A without 2 pi, reciprocal metric of the pseudo-parent cell A_pp")
+    rows = [(str(label), _vec(k), _vec(K), point) for label, k, K, point in path.vertices]
+    # columns as wide as their longest entry plus two spaces (at least 8, 21 and 22), so that a
+    # k with irrational coordinates (an R-3c parent) never runs into the next column
+    w_label = max([8] + [len(r[0]) + 2 for r in rows])
+    w_k = max([21] + [len(r[1]) + 2 for r in rows])
+    w_K = max([22] + [len(r[2]) + 2 for r in rows])
+    lines.append(f"{'vertex':<{w_label}}{'k (parent)':<{w_k}}{'K = M k (child)':<{w_K}}child point")
+    for label, k_text, K_text, point in rows:
+        lines.append(f"{label:<{w_label}}{k_text:<{w_k}}{K_text:<{w_K}}{point}")
     if path.note:
-        lines.append(f"  {path.note}")
+        lines += _note(path.note)
     print("\n".join(lines))
 
 
 def _print_arms(
     mapping: ParentMapping, arms: StarArms, davg: DomainAverage, n_child_ops: int, n_parent_ops: int
 ) -> None:
-    lines = [
-        "",
-        "* Star arms of the path vertices *",
-        _kv(
-            "point groups",
-            f"child {n_child_ops} operations ({mapping.child_symbol}), parent {n_parent_ops} "
-            f"({mapping.parent_symbol}): {_domains(davg.n_domains)}",
-        ),
-        f"{'star':<6}{'arm k (parent)':<23}{'K = M k mod 1':<21}"
-        f"{'child point':<13}{'to child GM':<13}{'path':<6}class",
-    ]
+    lines = ["", "* Star arms of the path vertices *"]
+    lines += _kv(
+        "point groups",
+        [
+            f"child {n_child_ops} operations ({mapping.child_symbol}),",
+            f"parent {n_parent_ops} ({mapping.parent_symbol}):",
+            _domains(davg.n_domains),
+        ],
+    )
+    k_text = [_vec(k) for k in arms.k_parent]
+    K_text = [_vec(K) for K in arms.K_child_reduced]
+    # columns as wide as their longest entry plus two spaces (at least 6, 23, 21 and 13): a k of
+    # a parent with irrational coordinates (R-3c) has 4 decimals per component
+    w_star = max([6] + [len(str(s)) + 2 for s in arms.star])
+    w_k = max([23] + [len(t) + 2 for t in k_text])
+    w_K = max([21] + [len(t) + 2 for t in K_text])
+    w_point = max([13] + [len(str(p)) + 2 for p in arms.child_point])
+    lines.append(
+        f"{'star':<{w_star}}{'arm k (parent)':<{w_k}}{'K = M k mod 1':<{w_K}}"
+        f"{'child point':<{w_point}}{'to child GM':<13}{'path':<6}class"
+    )
     for i in range(len(arms.star)):
         letter = (
             chr(ord("a") + int(arms.orbit[i])) if arms.orbit[i] < 26 else str(int(arms.orbit[i]))
         )
         lines.append(
-            f"{arms.star[i]:<6}{_vec(arms.k_parent[i]):<23}{_vec(arms.K_child_reduced[i]):<21}"
-            f"{arms.child_point[i]:<13}{'yes' if arms.condensed[i] else '-':<13}"
+            f"{arms.star[i]:<{w_star}}{k_text[i]:<{w_k}}{K_text[i]:<{w_K}}"
+            f"{arms.child_point[i]:<{w_point}}{'yes' if arms.condensed[i] else '-':<13}"
             f"{'path' if arms.on_path[i] else '-':<6}{letter}"
         )
-    lines.append(
-        "  (arms with the same class letter are related by a child operation or by time reversal "
-        "and give the same"
-    )
-    lines.append(
-        "   unfolded spectrum; 'to child GM' = the arm folds onto the child Gamma point, where a "
-        "condensed distortion lives)"
+    lines += _legend(
+        "arms with the same class letter are related by a child operation or by time reversal "
+        "and give the same unfolded spectrum; 'to child GM' = the arm folds onto the child Gamma "
+        "point, where a condensed distortion lives"
     )
     for i in range(len(arms.star)):
         if arms.condensed[i] and not arms.on_path[i]:
@@ -2871,10 +2998,10 @@ def _print_arms(
     print("\n".join(lines))
 
 
-def _levels_text(
+def _parent_levels(
     units, freqs, mulliken: dict, kname: str, tol: float = DEGENERACY_TOLERANCE
-) -> str:
-    """Parent levels ``'GM4- [T1u] -1.4465 x3, ...'`` from per-band units and frequencies."""
+) -> list:
+    """Parent levels ``['GM4- [T1u] -1.4465 x3', ...]`` from per-band units and frequencies."""
     from .phonon_unfold_irreps import format_label
 
     order = np.argsort(freqs, kind="stable")
@@ -2892,7 +3019,7 @@ def _levels_text(
         n = j - i + 1
         out.append(f"{shown} {_thz(freqs[order[i]], 0)}" + (f" x{n}" if n > 1 else ""))
         i = j + 1
-    return ", ".join(out)
+    return out
 
 
 def _unit_members_of(unit: str) -> tuple:
@@ -2939,23 +3066,20 @@ def _print_irreps(path: ParentPath, bands: UnfoldedBands, irreps, mapping: Paren
         pset = basis.projector_set(k)
         lines.append(f"{label} {_vec(k)} -> child {point}")
         if irreps.parent_labels is not None:
-            lines.append(
-                "  parent levels: "
-                + _levels_text(
-                    list(irreps.parent_labels[ik]),
-                    irreps.parent_frequencies[ik],
-                    irreps.mulliken,
-                    kname,
-                )
+            levels = _parent_levels(
+                list(irreps.parent_labels[ik]),
+                irreps.parent_frequencies[ik],
+                irreps.mulliken,
+                kname,
             )
+            lines += _fill(_commas(levels), "  parent levels: ", " " * 17)
         classes = irreps.inseparable[ik]
-        lines.append(
-            "  not separated by the child symmetry: "
-            + (
-                ", ".join("{" + ", ".join(c) + "}" for c in classes)
-                if classes
-                else "none (every level is one irrep)"
-            )
+        lines += _fill(
+            _commas("{" + ", ".join(c) + "}" for c in classes)
+            if classes
+            else ["none (every level is one irrep)"],
+            "  not separated by the child symmetry: ",
+            " " * 39,
         )
         lines.append(f"  {'freq(THz)':>9} {'n':>3} {'P_g':>6}  {'label':<18} fractions")
         u = rotate_unfolded_vectors(bands.vectors[ik], mapping.frame_rotation)
@@ -2981,18 +3105,15 @@ def _print_irreps(path: ParentPath, bands: UnfoldedBands, irreps, mapping: Paren
                 f"  {_thz(bands.frequencies[ik, g].mean())} {len(g):3d} {Pg:6.3f}  {shown:<18} "
                 f"{_fractions_text(f, pset.units)}"
             )
-    lines += textwrap.wrap(
+    lines += _legend(
         f"rows: the degenerate groups of child modes (|df| <= 1e-4 THz) with P_g >= "
         f"{LEVEL_TABLE_MIN:.2f}; the .dat file has all groups. The label is the irrep holding at "
         "least 50 % of P_g, else the smallest set of irreps that the child symmetry cannot "
         "separate and that together hold at least 50 % (written A/B), else mixed; two irreps "
-        "that time reversal joins count as one (written S1+S2).)",
-        width=100,
-        initial_indent="  (",
-        subsequent_indent="   ",
-        break_on_hyphens=False,
+        "that time reversal joins count as one (written S1+S2)."
     )
-    lines += [f"  {note}" for note in irreps.notes]
+    for note in irreps.notes:
+        lines += _note(note)
     print("\n".join(lines))
 
 
@@ -3007,10 +3128,10 @@ def _print_gamma(
         name if names.count(name) == 1 else name + "(" + ",".join(_frac_text(v) for v in k) + ")"
         for name, k in zip(names, gamma.k_fold)
     ]
-    described = ", ".join(
+    described = [
         f"{name} {_vec(k)}" + ("" if on else " (not on the path)")
         for name, k, on in zip(names, gamma.k_fold, gamma.on_path)
-    )
+    ]
     mulliken = irreps.mulliken if irreps is not None else {}
 
     def shown(i, ig):  # the label at folding k i, with the Mulliken symbols at GM
@@ -3033,33 +3154,54 @@ def _print_gamma(
         modes = ",".join(str(int(J) + 1) for J in g)
         frequency = gamma.frequencies[g].mean()
         rows.append((modes, frequency, len(g), gamma.child_irreps[ig], cells, origin))
-    # columns as wide as their longest entry (at least 10, 26 and 14 characters)
+    # columns as wide as their longest entry (at least 10, 26 and 14 characters); the levels
+    # with their child irrep and origin come first, then their weights at the folding k, in
+    # tables of as many folding-k columns as fit OUTPUT_WIDTH columns
     w_modes = max([10] + [len(r[0]) + 2 for r in rows])
     w_irrep = max([26] + [len(r[3]) + 2 for r in rows])
     w_cells = [
         max([14, len(h) + 2] + [len(r[4][i]) + 2 for r in rows]) for i, h in enumerate(headers)
     ]
-    lines = [
+    lead = f"{'modes':<{w_modes}}{'freq(THz)':>9}{'n':>3}  "
+    lines = ["", "* Child GM mode origin *"]
+    lines += _fill(
+        ["child GM (K = 0),", f"{n_band} modes,", "from the parent k folding onto it:"]
+        + _commas(described),
         "",
-        "* Child GM mode origin *",
-        f"child GM (K = 0), {n_band} modes, from the parent k folding onto it: {described}",
-        f"{'modes':<{w_modes}}{'freq(THz)':>9}{'n':>3}  {'child irrep':<{w_irrep}}"
-        + "".join(f"{h:<{w}}" for h, w in zip(headers, w_cells))
-        + "origin",
-    ]
-    for modes, frequency, n, irrep, cells, origin in rows:
-        lines.append(
-            (
-                f"{modes:<{w_modes}}{_thz(frequency)}{n:3d}  {irrep:<{w_irrep}}"
-                + "".join(f"{c:<{w}}" for c, w in zip(cells, w_cells))
-                + origin
-            ).rstrip()
-        )
-    lines.append(
-        "  (columns: weight P_g(k) of the child level at each folding k and its label there ('-' "
-        f"below {weight_min:g}); the"
+        "  ",
     )
-    lines.append("   weights of a level add up to its number of modes)")
+    lines.append(f"{lead}{'child irrep':<{w_irrep}}origin")
+    for modes, frequency, n, irrep, _cells, origin in rows:
+        lines.append(
+            f"{modes:<{w_modes}}{_thz(frequency)}{n:3d}  {irrep:<{w_irrep}}{origin}".rstrip()
+        )
+    lines += _legend(
+        "origin: the folding k with the largest P_g(k) of the level"
+        + (", its label there and that P_g(k)" if gamma.group_labels is not None else "")
+    )
+    chunks = [[]]
+    for i, w in enumerate(w_cells):  # the last column needs no two spaces after it
+        if chunks[-1] and len(lead) + sum(w_cells[j] for j in chunks[-1]) + w - 2 > OUTPUT_WIDTH:
+            chunks.append([])
+        chunks[-1].append(i)
+    for chunk in chunks:
+        lines.append((lead + "".join(f"{headers[i]:<{w_cells[i]}}" for i in chunk)).rstrip())
+        for modes, frequency, n, _irrep, cells, _origin in rows:
+            lines.append(
+                (
+                    f"{modes:<{w_modes}}{_thz(frequency)}{n:3d}  "
+                    + "".join(f"{cells[i]:<{w_cells[i]}}" for i in chunk)
+                ).rstrip()
+            )
+    lines += _legend(  # without labels the cells hold the weights alone, with no '-'
+        "columns: weight P_g(k) of the child level at each folding k"
+        + (
+            f" and its label there ('-' below {weight_min:g})"
+            if gamma.group_labels is not None
+            else ""
+        )
+        + "; the weights of a level add up to its number of modes"
+    )
     if parent:
         lines.append(
             "soft parent levels and the child GM levels they go into (content c_g >= 0.02):"
@@ -3075,11 +3217,11 @@ def _print_gamma(
                 else unit
             )
             head = (
-                f"  {level['k_name']} {_vec(level['k'])}"
+                f"{level['k_name']} {_vec(level['k'])}"
                 + (f" {shown}" if shown else "")
                 + f" {_thz(level['frequency'], 0)}"
                 + (f" x{level['n']}" if level["n"] > 1 else "")
-                + ": "
+                + ":"
             )
             parts = [
                 f"{float(gamma.frequencies[gamma.groups[ig]].mean()):.3f} {short} {c:.2f}"
@@ -3087,8 +3229,12 @@ def _print_gamma(
             ]
             if len(level["contents"]) > 8:
                 parts.append("...")
-            lines.append(head + ", ".join(parts) + f"; mean {level['mean_frequency']:.2f} THz")
-    lines += [f"  {note}" for note in gamma.notes]
+            parts = _commas(parts[:-1] + [parts[-1] + ";"]) if parts else [";"]
+            lines += _fill(
+                [head] + parts + [f"mean {level['mean_frequency']:.2f} THz"], "  ", "    "
+            )
+    for note in gamma.notes:
+        lines += _note(note)
     print("\n".join(lines))
 
 
@@ -3135,60 +3281,70 @@ def _print_summary(run: UnfoldRun, pages: int) -> None:
     b, dv, ir, m = run.bands, run.domain_average, run.irreps, run.mapping
     n_k, n_band = b.frequencies.shape
     n3 = 3 * len(m.parent_cell)
-    lines = [
-        "",
-        "* Unfolding summary *",
-        _kv(
-            "k points",
-            f"{n_k} on the path; {dv.n_arms_unfolded} arms of their stars unfolded for the domain "
-            f"average ({_domains(dv.n_domains)})",
-        ),
-        _kv(
-            "modes",
-            f"{n_band} child modes at every k; {n_k * n_band} (k, mode) pairs, "
+    lines = ["", "* Unfolding summary *"]
+    lines += _kv(
+        "k points",
+        [
+            f"{n_k} on the path;",
+            f"{dv.n_arms_unfolded} arms of their stars unfolded for the domain average",
+            f"({_domains(dv.n_domains)})",
+        ],
+    )
+    lines += _kv(
+        "modes",
+        [
+            f"{n_band} child modes at every k;",
+            f"{n_k * n_band} (k, mode) pairs,",
             f"{int(np.sum(b.weights_canonical >= run.weight_min))} with weight >= "
             f"{run.weight_min:g}",
-        ),
-        _kv(
-            "sum rule",
-            f"max |sum_J P_J(k) - {n3}| = {b.sum_rule_max_deviation:.1e} on the path, "
+        ],
+    )
+    lines += _kv(
+        "sum rule",
+        [
+            f"max |sum_J P_J(k) - {n3}| = {b.sum_rule_max_deviation:.1e} on the path,",
             f"{dv.sum_rule_max_deviation:.1e} for the domain average",
-        ),
-        _kv(
-            "arm classes",
+        ],
+    )
+    lines += _kv(
+        "arm classes",
+        [
             f"arms of one class agree to {dv.orbit_spectral_max_deviation[0]:.1e} THz and "
-            f"{dv.orbit_spectral_max_deviation[1]:.1e} in weight (child operations and time "
-            "reversal)",
-        ),
-    ]
+            f"{dv.orbit_spectral_max_deviation[1]:.1e} in weight",
+            "(child operations and time reversal)",
+        ],
+    )
     if ir is not None:
         c = ir.checks
         projectors = max(c["completeness"], c["idempotency"], c["hermiticity"])
-        text = (
-            f"projectors {projectors:.1e} (completeness, idempotency, hermiticity); per-irrep sum "
-            f"rule {c['per_irrep_sum_rule']:.1e};"
+        lines += _kv(
+            "irreps",
+            [
+                f"projectors {projectors:.1e} (completeness, idempotency, hermiticity);",
+                f"per-irrep sum rule {c['per_irrep_sum_rule']:.1e};",
+            ]
+            + (
+                [f"parent levels pure to {c['parent_purity']:.1e};"]
+                if ir.parent_labels is not None
+                else []
+            )
+            + [f"weight forbidden by the child symmetry {c['forbidden_weight']:.1e}"],
         )
-        lines.append(_kv("irreps", text))
-        second = (
-            f"parent levels pure to {c['parent_purity']:.1e}; "
-            if ir.parent_labels is not None
-            else ""
-        ) + f"weight forbidden by the child symmetry {c['forbidden_weight']:.1e}"
-        lines.append(_kv("", second))
         single, sets, mixed = _group_counts(b, ir, run.weight_min)
         cache = ir.cache
-        lines.append(
-            _kv(
-                "labels",
-                f"ISO-IR labels computed at {cache['labelled_directly']} k and copied along "
-                f"{cache['runs']} straight runs ({cache['mismatches']} mismatches); groups with",
-            )
-        )
-        lines.append(
-            _kv(
-                "",
-                f"P_g >= {run.weight_min:g}: {single} one irrep, {sets} sets (A/B), {mixed} mixed",
-            )
+        lines += _kv(
+            "labels",
+            (
+                f"ISO-IR labels computed at {cache['labeled_directly']} k and copied along "
+                f"{cache['runs']} straight runs"
+            ).split()
+            + [
+                f"({cache['mismatches']} mismatches);",
+                f"groups with P_g >= {run.weight_min:g}:",
+                f"{single} one irrep,",
+                f"{sets} sets (A/B),",
+                f"{mixed} mixed",
+            ],
         )
     t = run.timings
     parts = [
@@ -3206,18 +3362,17 @@ def _print_summary(run: UnfoldRun, pages: int) -> None:
         for key, name in parts
         if key in t
     ]
-    lines.append(_kv("timings (CPU)", ", ".join(shown[:5]) + ("," if len(shown) > 5 else "")))
-    if len(shown) > 5:
-        lines.append(_kv("", ", ".join(shown[5:])))
+    lines += _kv("timings (CPU)", _commas(shown))
     print("\n".join(lines))
 
 
-def _print_files(files: dict, pages: int) -> None:
+def _print_files(files: dict, pages: int, *, labels: bool = True) -> None:
+    # labels: False when no labels were computed (--no-irreps), as the .dat header says
     lines = [
         "",
         "* Output files *",
         f"  Unfolded bands ({pages} page{'s' if pages != 1 else ''}) written to: {files['pdf']}",
-        f"  Weights and labels written to: {files['dat']}",
+        f"  Weights{' and labels' if labels else ''} written to: {files['dat']}",
     ]
     if files.get("npz"):
         lines.append(f"  All arrays written to: {files['npz']}")
@@ -3434,5 +3589,5 @@ def run(args: argparse.Namespace) -> UnfoldRun:
     except OSError as exc:
         raise SystemExit(f"ERROR: could not write the output files: {exc}") from None
     _print_summary(result, pages)
-    _print_files(files, pages)
+    _print_files(files, pages, labels=irreps is not None)  # the condition of the .dat header
     return result

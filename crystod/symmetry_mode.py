@@ -52,11 +52,13 @@ from itertools import product
 import numpy as np
 
 from .isotropy_subgroup import (
+    ENANTIOMORPHIC_PAIRS,
     ComputedInducedRepresentation,
     InducedRepresentation,
     IsotropyAnalyzer,
     _nullspace,
     _projector,
+    _projector_key,
 )
 from .spacegroup_product import DEN, SpaceGroupIrrepAlgebra
 
@@ -1098,17 +1100,34 @@ class SymmetryModeAnalysis:
             of independent modes), ``amplitude`` (Angstrom),
             ``projected_u`` (the irrep-projected displacement field on the
             core cell, shape ``(n_atoms, 3)``), ``label_info()``, which
-            returns ``(direction label, subgroup info, index)``, and
-            ``domain_label``.  The direction label names the stratum by its
-            ISOTROPY representative, the row of ``crystod-group --parent SG
-            --irrep IR`` (``IsotropyAnalyzer.canonical_projector``), and the
-            subgroup info and index are those of that row (conjugate to the
-            isotropy subgroup of the input child: same type and index);
-            ``domain_label`` is the domain-equivalent direction the child
-            sits on as given (equal to the direction label when the child
-            sits on the representative), which the command names in a note
-            under the table when they differ.  The sublattice setting, the
-            mode fields and the files follow the input child.  A complex
+            returns ``(direction label, subgroup info, index)``,
+            ``domain_label`` and ``representative_label``.  The direction
+            labels of all rows describe one domain of the child (one parent
+            operation applied to all modes, ``_common_domain``): the
+            domain-equivalent child in which the modes, in order of
+            decreasing amplitude, sit on the simplest directions left to
+            them, so that the largest mode with domain-equivalent
+            directions sits on the ISOTROPY representative of its stratum,
+            the row of ``crystod-group --parent SG --irrep IR``
+            (``IsotropyAnalyzer.canonical_projector``), while the rows
+            together remain one coupled order-parameter direction
+            (``crystod-group --parent SG --irrep IR1 IR2 --order-parameter
+            ...``) whose isotropy subgroup is conjugate to the child's (for
+            an enantiomorphic type, possibly its partner).
+            ``representative_label`` is the representative of each
+            mode's stratum on its own (a smaller mode can sit on another
+            image in that domain), ``domain_label`` the direction the child
+            sits on as given; the command names both in a note under the
+            table when they differ from the direction shown.  The subgroup
+            info and index are those of the isotropy subgroup of the
+            direction the input child sits on in that irrep
+            (``domain_label``; 74 Imma for R4+ of a Pnma child, not Pnma
+            itself), conjugate to the one of the direction shown: the same
+            index and type, except that a child on a mirror-image domain of
+            a stratum of an enantiomorphic type (``ENANTIOMORPHIC_PAIRS``)
+            has the partner of that type, which the note names as well.
+            The sublattice setting, the mode fields and the files follow the
+            input child.  A complex
             pair whose conjugate irrep lives on the -k star (a parent with
             no operation taking k to -k) is one entry on the first of the
             two stars; its field and amplitude include the -k Fourier
@@ -2178,6 +2197,109 @@ class SymmetryModeAnalysis:
             for index, small in enumerate(smalls)
         ]
 
+    def _common_domain(self):
+        """The domain the direction column shows, one for all modes.
+
+        The child as given sits on one domain: the projectors ``P_j`` onto
+        the fixed spaces of its subgroup in the modes' representations.  A
+        parent operation ``g`` moves all of them at once, ``g P_j g^T``, to
+        a domain-equivalent child.  Of these images (the orbit of the tuple
+        under the parent group, by breadth-first search over the coset
+        representatives and the unit lattice translations) the one shown
+        is chosen mode by mode in order of decreasing printed amplitude,
+        then table order: each mode on the simplest direction
+        (``IsotropyAnalyzer._orbit_representative``, the rule of the
+        ``--parent`` tables) among the images left by the larger ones.  The
+        largest mode with several images is thus on the representative of
+        its stratum, the row of ``crystod-group --parent SG --irrep IR``,
+        and the rows together still describe one domain: one coupled
+        order-parameter direction whose isotropy subgroup is that of the
+        child (naming every mode by its own representative instead can give
+        a combination of a lower symmetry, e.g. R4+ (0,a,a) with M3+ (0;0;a)
+        for a Pnma perovskite, a C2/m direction).  Computed once, then
+        kept.
+
+        Returns:
+            ``(shown, sizes, primary, images)``: the shown projector of
+            every mode (in ``modes`` order), the number of
+            domain-equivalent images of every mode's own projector, the
+            mode that sits on the representative of its stratum because it
+            decides first (None when no mode has more than one image), and
+            the orbit of every mode's own projector (its domain-equivalent
+            images, the projector of the child as given first), from which
+            ``_ModeEntry.representative_label`` takes the representative.
+        """
+        cached = getattr(self, "_domain_cache", None)
+        if cached is not None:
+            return cached
+        modes = self.modes
+        units = [np.zeros(3, dtype=np.int64)] + list(np.eye(3, dtype=np.int64))
+        generators = [(i, u) for i in range(self.algebra.n_ops) for u in units]
+        images, actions = [], []
+        for mode in modes:
+            analyzer, projector = mode._actual_projector()
+            N = mode.representation.grid_n
+            wanted = {(i, tuple(int(x) % N for x in u)) for i, u in generators}
+            found = {}
+            for i, t, matrix in analyzer.elements:
+                key = (i, tuple(int(x) for x in t))
+                if key in wanted:
+                    found[key] = matrix
+            G = np.array([
+                found[(i, tuple(int(x) % N for x in u))] for i, u in generators
+            ], dtype=float)
+            # orbit of the mode's own projector and the action of every
+            # generator on it (image index -> image index)
+            orbit = [projector]
+            index = {_projector_key(projector): 0}
+            action = []
+            k = 0
+            while k < len(orbit):
+                row = []
+                for image in G @ orbit[k] @ G.transpose(0, 2, 1):
+                    key = _projector_key(image)
+                    if key not in index:
+                        index[key] = len(orbit)
+                        orbit.append(image)
+                    row.append(index[key])
+                action.append(row)
+                k += 1
+            images.append(orbit)
+            actions.append(action)
+        # the joint orbit: the images of all modes under the same operation
+        start = (0,) * len(modes)
+        seen = {start}
+        joint = [start]
+        k = 0
+        while k < len(joint):
+            for new in zip(*(action[joint[k][j]] for j, action in enumerate(actions))):
+                if new not in seen:
+                    seen.add(new)
+                    joint.append(new)
+            k += 1
+        order = sorted(
+            range(len(modes)),
+            key=lambda j: (-float(f"{modes[j].amplitude:.4f}"), j),
+        )
+        primary = None
+        for j in order:
+            candidates = list(dict.fromkeys(member[j] for member in joint))
+            if len(candidates) == 1:
+                continue
+            analyzer = modes[j]._actual_projector()[0]
+            projectors = [images[j][u] for u in candidates]
+            best = analyzer._orbit_representative(projectors)
+            choice = candidates[next(
+                n for n, projector in enumerate(projectors) if projector is best
+            )]
+            joint = [member for member in joint if member[j] == choice]
+            if primary is None:
+                primary = modes[j]
+        shown = [images[j][u] for j, u in enumerate(joint[0])]
+        self._domain_cache = (
+            shown, [len(orbit) for orbit in images], primary, images)
+        return self._domain_cache
+
 
     def setting_transformation(self, frame: str = "input"):
         """The transformation (P, p) from the parent to the child conventional setting.
@@ -2324,19 +2446,19 @@ class _ModeEntry:
         self.partner_kvec = None
         self._label_info = None
         self._domain_label = None
+        self._representative_label = None
+        self._actual = None
+        # subgroup info of the direction shown when it is the enantiomorphic
+        # partner of the type of the child (set by label_info)
+        self._listed_partner = None
 
-    def label_info(self):
-        """(direction label, subgroup info, index) via the isotropy machinery.
-
-        The direction is that of the stratum, named by its ISOTROPY
-        representative (``IsotropyAnalyzer.canonical_projector``, the row of
-        ``crystod-group --parent SG --irrep IR``); the subgroup and index
-        are those of that representative, conjugate to the isotropy
-        subgroup of the input child (same type and index).  The direction
-        the child sits on as given is ``domain_label``.
-        """
-        if self._label_info is not None:
-            return self._label_info
+    def _actual_projector(self):
+        """``(analyzer, projector)``: the isotropy analyzer of the mode's
+        representation and the projector onto the fixed space of the
+        child's subgroup in it (the direction the child sits on as given).
+        Computed once, then kept."""
+        if self._actual is not None:
+            return self._actual
         analyzer = IsotropyAnalyzer.from_representation(
             self.analysis.algebra, self.representation
         )
@@ -2361,25 +2483,76 @@ class _ModeEntry:
                     seen.add((i, shifted))
                     members.append((i, np.asarray(shifted, dtype=np.int64)))
         fixed = analyzer.fixed_space(members)
-        projector = _projector(fixed)
-        # the child may sit on any domain-equivalent image of its stratum
-        # (the sublattice setting follows the orientation of the input
-        # files); the label names the stratum by the image the --parent
-        # table lists, and the image of the child is kept as domain_label
-        canonical = analyzer.canonical_projector(projector)
-        label, _ = analyzer.direction_label(canonical)
+        self._actual = (analyzer, _projector(fixed))
+        return self._actual
+
+    def label_info(self):
+        """(direction label, subgroup info, index) via the isotropy machinery.
+
+        The direction is the one this mode has in the domain the table
+        shows (``SymmetryModeAnalysis._common_domain``): one parent
+        operation moves the child as given to the domain-equivalent child
+        in which the modes, in order of decreasing amplitude, sit on the
+        simplest directions, so that the largest mode with several images
+        is on the ISOTROPY representative of its stratum (the row of
+        ``crystod-group --parent SG --irrep IR``) and all rows together
+        describe one domain.  The direction the child sits on as given is
+        ``domain_label``, the representative of the mode's stratum on its
+        own ``representative_label``.  The subgroup info and index are
+        those of the isotropy subgroup of the direction the input child
+        sits on in this irrep (``domain_label``; 74 Imma for R4+ of a Pnma
+        child, not Pnma itself), conjugate to the one of the direction
+        shown: the same index and type, except that a child on a
+        mirror-image domain of a stratum of an enantiomorphic type
+        (``ENANTIOMORPHIC_PAIRS``) has the partner of that type.
+        """
+        if self._label_info is not None:
+            return self._label_info
+        analyzer, projector = self._actual_projector()
+        # the child may sit on any domain-equivalent image (the sublattice
+        # setting follows the orientation of the input files); the label is
+        # that of the domain the table shows, the image of the child is kept
+        # as domain_label
+        shown = self.analysis._common_domain()[0][self.analysis.modes.index(self)]
+        label, _ = analyzer.direction_label(shown)
         self._domain_label, _ = analyzer.direction_label(projector)
-        stabilizer = analyzer.stabilizer_of(canonical)
+        # the subgroup is that of the child as given: conjugate to the one of
+        # the direction shown (same index), and of the same type unless an
+        # improper parent operation relates the two images, which turns a
+        # type of an enantiomorphic pair into its partner (kept for the note)
+        stabilizer = analyzer.stabilizer_of(projector)
         info, size, index, *_ = analyzer.subgroup_of(stabilizer)
+        self._listed_partner = None
+        if info.number in ENANTIOMORPHIC_PAIRS and not np.allclose(
+                shown, projector, atol=1e-6):
+            listed = analyzer.subgroup_of(analyzer.stabilizer_of(shown))[0]
+            if listed.number != info.number:
+                self._listed_partner = listed
         self._label_info = (label, info, index)
         return self._label_info
 
     @property
     def domain_label(self):
         """Direction label of the domain the input child sits on (the label
-        of ``label_info()`` when the child sits on the representative)."""
+        of ``label_info()`` when the child sits on the domain shown)."""
         self.label_info()
         return self._domain_label
+
+    @property
+    def representative_label(self):
+        """Direction label of the ISOTROPY representative of the mode's
+        stratum on its own (the rule of
+        ``IsotropyAnalyzer.canonical_projector``, applied to the orbit
+        ``SymmetryModeAnalysis._common_domain`` has built; the row of
+        ``crystod-group --parent SG --irrep IR``); the label of
+        ``label_info()`` for the mode that decides the domain first."""
+        if self._representative_label is None:
+            analyzer = self._actual_projector()[0]
+            orbit = self.analysis._common_domain()[3][self.analysis.modes.index(self)]
+            self._representative_label, _ = analyzer.direction_label(
+                analyzer._orbit_representative(orbit)
+            )
+        return self._representative_label
 
 
 # ---------------------------------------------------------------------------
@@ -2402,6 +2575,104 @@ def _element_symbol(z: int) -> str:
     from pymatgen.core.periodic_table import Element
 
     return Element.from_Z(int(z)).symbol
+
+
+def _and_join(items: list[str]) -> str:
+    """``a``, ``a and b``, ``a, b and c``."""
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _direction_note(analysis, rows) -> str | None:
+    """The note under the decomposition table on the directions shown.
+
+    The rows describe one domain (``SymmetryModeAnalysis._common_domain``);
+    the note says which, names the representatives of the strata that the
+    smaller modes do not sit on in that domain (what ``crystod-group
+    --parent SG --irrep IR`` lists for them on their own), the directions
+    of the input child as given when they differ, and the enantiomorphic
+    partner types of a mirror-image child.
+
+    Args:
+        analysis: The ``SymmetryModeAnalysis``.
+        rows: ``(mode, label, subgroup)`` per table row.
+
+    Returns:
+        The note wrapped to 79 columns (continuation lines indented by one
+        space), or None when every row is the representative of its
+        stratum and the child sits on the domain shown.
+    """
+    _, sizes, primary, _ = analysis._common_domain()
+    others = [
+        f"{mode.irrep_name}\0{mode.representative_label}"
+        for mode, label, _ in rows
+        if mode is not primary and mode.representative_label != label
+    ]
+    domains = [
+        f"{mode.irrep_name}\0{mode.domain_label}"
+        for mode, label, _ in rows if mode.domain_label != label
+    ]
+    # a child on a mirror-image domain of a stratum of an enantiomorphic
+    # type has the partner of the type of the direction shown
+    partners = [
+        (mode.irrep_name, f"{partner.number}\0{partner.international_short}")
+        for mode, _, _ in rows
+        if (partner := mode._listed_partner) is not None
+    ]
+    if primary is None or not (others or domains or partners):
+        return None
+    if isinstance(primary.representation, ComputedInducedRepresentation):
+        # a non-special k point: no --parent table to point to
+        where = "the representative (the simplest direction) of its stratum"
+    else:
+        # the command stays on one line (\0 is a space)
+        where = (
+            "its ISOTROPY representative as listed by crystod-group\0--parent"
+            f"\0{analysis.parent_number}\0--irrep\0{primary.irrep_name}"
+        )
+    if sum(size > 1 for size in sizes) > 1:
+        largest = max(analysis.modes, key=lambda mode: float(f"{mode.amplitude:.4f}"))
+        which = (
+            "the largest mode" if float(f"{largest.amplitude:.4f}")
+            == float(f"{primary.amplitude:.4f}")
+            else "the largest mode with domain-equivalent directions"
+        )
+        clauses = [
+            f"direction: the rows describe one domain of the child: {which}, "
+            f"{primary.irrep_name}, sits on {where}, and the smaller modes on "
+            "the simplest directions left in that domain"
+        ]
+    else:
+        clauses = [f"direction: {primary.irrep_name} sits on {where}"]
+    if len(others) == 1:
+        irrep, label = others[0].split("\0")
+        clauses.append(f"listed on its own, the stratum of {irrep} reads {label}")
+    elif others:
+        clauses.append(
+            "listed on their own, the other strata read " + _and_join(others)
+        )
+    if domains:
+        listed = ("direction " if len(domains) == 1 else "directions ") + _and_join(domains)
+        clauses.append(f"the input child as given sits on the domain-equivalent {listed}")
+    if partners:
+        plural = "s" if len(partners) > 1 else ""
+        clauses.append(
+            "the isotropy subgroup is that of the input child, for "
+            f"{_and_join([name for name, _ in partners])} the enantiomorphic "
+            f"partner{plural} of the "
+            f"{_and_join([subgroup for _, subgroup in partners])} of the "
+            f"direction{plural} shown"
+        )
+    # an irrep and its direction, a subgroup number and its symbol, and the
+    # command stay on one line (\0 is the space between them), a direction
+    # is never broken at its minus signs; only a token longer than a line
+    # (a direction of a large star) is cut, to keep the 79 columns
+    wrapped = textwrap.fill(
+        "(" + "; ".join(clauses) + ")", width=79, subsequent_indent=" ",
+        break_on_hyphens=False, break_long_words=True,
+    )
+    return "\n".join(line.rstrip() for line in wrapped.replace("\0", " ").splitlines())
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -2508,27 +2779,9 @@ def main(argv: list[str] | None = None) -> None:
             "gauge may differ from the ISOTROPY web tables;\n the isotropy "
             "subgroup, dimension and amplitude are gauge-independent)"
         )
-    domains = [
-        f"{mode.irrep_name}\0{mode.domain_label}"
-        for mode, label, _ in rows if mode.domain_label != label
-    ]
-    if domains:
-        if len(domains) == 1:
-            listed = "direction " + domains[0]
-        else:
-            listed = ("directions " + ", ".join(domains[:-1])
-                      + " and " + domains[-1])
-        note = (
-            "(direction: each stratum is named by its ISOTROPY representative, "
-            "the row that crystod-group --parent "
-            f"{analysis.parent_number} --irrep IR lists; the input child sits "
-            f"on the domain-equivalent {listed})"
-        )
-        # an irrep and its direction stay on one line (\0 is the space
-        # between them), and a direction is never broken at its minus signs
-        table_lines.append(textwrap.fill(
-            note, width=79, subsequent_indent=" ", break_on_hyphens=False,
-            break_long_words=False).replace("\0", " "))
+    note = _direction_note(analysis, rows)
+    if note is not None:
+        table_lines.append(note)
     print("\n" + "\n".join(table_lines))
 
     # the table again as a text file, named by the parent composition

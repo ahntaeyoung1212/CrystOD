@@ -1,0 +1,64 @@
+# Surface slabs (crystod-slab); testsuite section 53
+# For each Miller index (h k l), crystod-slab cuts every distinct termination of
+# the surface from the bulk with pymatgen's SlabGenerator (whole oriented unit
+# cells stacked to the minimum slab height, plus vacuum), lists it with its
+# number of atoms, thickness, vacuum, in-plane area and formula, tests it for a
+# dipole (polar: the dipole per area from the oxidation states, pymatgen
+# Slab.is_polar) and for two equivalent faces (symmetric: pymatgen
+# Slab.is_symmetric), and writes it as POSCAR_slab_{bulk formula}_{h}{k}{l}_t{n}
+# (_s{n} for the symmetrized slabs of --symmetrize).
+# The Miller indices come from --index (repeatable; h k i l for hexagonal axes),
+# --index-list FILE (one index per line) or --max-index N (every index with
+# |h|,|k|,|l| <= N that is distinct under the Laue group of the crystal, in the
+# axes of the cell). With none of them the command asks for the indices and the
+# main settings interactively and prints the equivalent command line. The
+# functionality of slabkit.py by Ryuju Kiribayashi.
+#
+# Three cases, each with its bulk POSCAR:
+#   SrTiO3_Pm-3m/    221_PPOSCAR_SrTiO3    every surface up to (1 1 1); the SrO- and
+#                                          TiO2-terminated symmetric (1 0 0) slabs
+#   NaCl_Fm-3m/      225_PPOSCAR_NaCl      a primitive fcc cell: --conventional gives
+#                                          the textbook indices; the Tasker cases
+#   La2CuO4_I4mmm/   139_PPOSCAR_La2CuO4   the three (0 0 1) terminations of the
+#                                          compound of the paper to cite
+# Run the commands of each README inside its directory, e.g.
+#   cd SrTiO3_Pm-3m
+#   crystod-slab -c 221_PPOSCAR_SrTiO3 --max-index 1
+# A run takes about 3 s (mostly the import of pymatgen) and writes the slabs
+# into the current directory (--output-dir DIR elsewhere, --no-files lists
+# them only); an identical file already there is kept, a different one is
+# refused unless --force. The POSCAR_slab_* files of the sample runs are kept
+# next to each README in the CrystOD source tree; crystod-example 53 copies the
+# READMEs and the bulk POSCARs, and the commands write the slabs again.
+#
+# The table: thickness is the extent of the atoms along the surface normal,
+# vacuum the rest of the cell height along the normal. pymatgen stacks whole
+# oriented unit cells until they reach the minimum slab height (--slab-size)
+# and the minimum vacuum, and the atoms span the stacked height less the gap
+# at the cut, so the thickness can be below --slab-size: the (1 0 0) slab of
+# SrTiO3 is 3 cells of 3.945 A (11.8 A), its atoms span 9.86 A. A symmetrized
+# slab that is charged gets a charge column (net formal charge per cell).
+#
+# Other options (crystod-slab --help):
+#   --slab-size T, --vacuum-size V   minimum slab and vacuum height (10 and 15 A;
+#                                    with --in-unit-planes in d_hkl lattice planes)
+#   --max-atoms N        larger slabs are listed but not written
+#   --no-polar           polar slabs are listed but not written
+#   --symmetrize         symmetric (hence non-polar) slabs: atoms are removed from
+#                        one face, so the stoichiometry changes and the slab can
+#                        carry a net charge (the charge column)
+#   --oxidation EL=Q ... the oxidation states of the polarity test, balancing the
+#                        bulk (default: pymatgen's guess; without one, as for a
+#                        metal, polar is ?)
+#   --conventional       Miller indices of the conventional standard cell
+#   --no-center, --no-primitive, --orthogonal-c, --max-normal-search N
+#                        the corresponding settings of pymatgen's SlabGenerator / Slab
+#   --lll-reduce         the shortest in-plane cell, a and b kept in the surface
+#   --tolerance T        symmetry tolerance (A) of the space group, the Laue group
+#                        of --max-index, --conventional, the symmetric-slab test
+#                        and --symmetrize (default 0.1)
+#   --force              replace POSCAR_slab_* files of different content
+#
+# Every run ends with the reference to cite for crystod-slab:
+# R. Kiribayashi et al., ACS Appl. Mater. Interfaces 17, 61872-61887 (2025),
+# https://doi.org/10.1021/acsami.5c17978

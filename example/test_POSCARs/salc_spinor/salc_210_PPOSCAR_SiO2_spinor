@@ -1,0 +1,33 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ F4_132 (210)
+
+ * Element (number of atoms) *
+ Si (12)
+
+ * Wyckoff letters and site symmetry letters *
+ ['g', 'g', 'g', 'g', 'g', 'g', 'g', 'g', 'g', 'g', 'g', 'g']
+ ['..2', '..2', '..2', '..2', '..2', '..2', '..2', '..2', '..2', '..2', '..2', '..2']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  F4_132 (210)
+ irreps             :  6.0 [-GM6(2)] + 6.0 [-GM7(2)] + 12.0 [-GM8(4)] 
+
+ k point (primitive):  X [0.5, 0.0, 0.5]
+ little group of k  :  I4_122 (98)
+ irreps             :  18.0 [-X6(2)] + 18.0 [-X7(2)] 
+
+ k point (primitive):  L [0.5, 0.5, 0.5]
+ little group of k  :  R32 (155)
+ irreps             :  12.0 [-L4(1)] + 12.0 [-L5(1)] + 24.0 [-L6(2)] 
+
+ k point (primitive):  W [0.5, 0.25, 0.75]
+ little group of k  :  I2_12_12_1 (24)
+ irreps             :  18.0 [-W2(1)] + 18.0 [-W3(1)] + 18.0 [-W4(1)] + 18.0 [-W5(1)] 
+

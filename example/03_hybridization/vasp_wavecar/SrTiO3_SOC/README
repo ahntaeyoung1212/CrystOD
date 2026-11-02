@@ -1,0 +1,2 @@
+Spin-orbit (vasp_ncl, LSORBIT = .TRUE.) run of the crystod --extract-irrep fixture:
+see ../SrTiO3/README for how the three runs were made and checked.

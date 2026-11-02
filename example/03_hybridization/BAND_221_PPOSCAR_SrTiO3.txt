@@ -1,0 +1,4 @@
+221_PPOSCAR_SrTiO3  PBE/gth-dzvp-molopt-sr
+k path: GAMMA-X-M-GAMMA-R-X  |  R-M
+energies referenced to VBM
+VBM 9.8440 eV, CBM 11.1838 eV (absolute); mesh gap 1.3398 eV

@@ -157,6 +157,107 @@ def irrep_character_rows(character_table: dict) -> dict[str, np.ndarray]:
     }
 
 
+# how far the reduction formula may stray from an integer, and the rebuilt
+# characters from the given ones, before a character vector is rejected as
+# not belonging to a representation (the tables hold integer characters)
+REPRESENTATION_TOLERANCE = 1e-3
+
+
+def reduction_coefficients(
+    characters: list[float],
+    character_table: dict,
+    multiplicities: list[int] | None = None,
+) -> dict[str, float]:
+    """Unrounded multiplicities of the reduction formula.
+
+    The values ``decompose`` rounds: ``n_i = sum_C |C| chi_i(C) chi(C) /
+    sum_C |C| chi_i(C)^2``.  For the character of a representation they are
+    non-negative integers.
+
+    Args:
+        characters: Characters of the reducible representation, one per
+            class in the order of ``character_table["rotation_list"]``.
+        character_table: The table from ``get_character_table``.
+        multiplicities: Class sizes in the same order; by default
+            ``class_sizes(character_table)``.
+
+    Returns:
+        ``{irrep label: unrounded multiplicity}`` over every irrep.
+    """
+    if multiplicities is None:
+        multiplicities = class_sizes(character_table)
+    sizes = np.array(multiplicities, dtype=float)
+    reducible = np.atleast_1d(np.array(characters, dtype=float))
+    results: dict[str, float] = {}
+    for irrep_name, irrep in irrep_character_rows(character_table).items():
+        norm = float(np.sum(sizes * irrep * irrep))
+        results[irrep_name] = float(np.sum(sizes * irrep * reducible)) / norm
+    return results
+
+
+def representation_problem(
+    characters: list[float],
+    character_table: dict,
+    multiplicities: list[int] | None = None,
+    tolerance: float = REPRESENTATION_TOLERANCE,
+) -> str | None:
+    """Why a character vector is not the character of a representation.
+
+    A representation reduces into irreps with non-negative integer
+    multiplicities, and that integer combination of the irrep rows gives the
+    characters back.  The reduction formula itself never fails, so a vector
+    that is not a representation's character (a typo, a wrong class order)
+    would otherwise be rounded silently into some decomposition: 2 0 1 in
+    3m becomes A1 + E, of dimension 3.
+
+    Args:
+        characters: Characters, one per class (as for ``decompose``).
+        character_table: The table from ``get_character_table``.
+        multiplicities: Class sizes; by default ``class_sizes``.
+        tolerance: Largest accepted deviation of an unrounded multiplicity
+            from its integer and of a rebuilt character from the given one.
+
+    Returns:
+        ``None`` for the character of a representation, else a sentence
+        naming the non-integer or negative multiplicities and the characters
+        the nearest integer combination would have.
+    """
+    if multiplicities is None:
+        multiplicities = class_sizes(character_table)
+    raw = reduction_coefficients(characters, character_table, multiplicities)
+    rounded = {name: round(value) for name, value in raw.items()}
+    rows = irrep_character_rows(character_table)
+    given = np.atleast_1d(np.array(characters, dtype=float))
+    rebuilt = sum((count * rows[name] for name, count in rounded.items()),
+                  np.zeros_like(given))
+
+    problems = []
+    fractional = [(name, value) for name, value in raw.items()
+                  if abs(value - round(value)) > tolerance]
+    if fractional:
+        problems.append("the reduction formula gives non-integer "
+                        "multiplicities "
+                        + ", ".join(f"{name} {value:.3f}"
+                                    for name, value in fractional))
+    negative = [(name, count) for name, count in rounded.items() if count < 0]
+    if negative:
+        problems.append("negative multiplicities "
+                        + ", ".join(f"{name} {count}"
+                                    for name, count in negative)
+                        + " (a difference of representations)")
+    if np.max(np.abs(rebuilt - given)) > tolerance:
+        terms = [f"{count}({name})" for name, count in rounded.items()
+                 if count != 0]
+        combination = (" + ".join(terms).replace("+ -", "- ")
+                       if terms else "0")
+        problems.append(f"the nearest integer combination {combination} has "
+                        "the characters "
+                        + " ".join(f"{value:g}" for value in rebuilt)
+                        + ", not "
+                        + " ".join(f"{value:g}" for value in given))
+    return "; ".join(problems) if problems else None
+
+
 def decompose(
     characters: list[float],
     character_table: dict,
@@ -194,15 +295,8 @@ def decompose(
         >>> group.decompose([2, 0, -2], group.get_character_table("4"))
         {'A': 0, 'B': 0, 'E': 1}
     """
-    if multiplicities is None:
-        multiplicities = class_sizes(character_table)
-    sizes = np.array(multiplicities, dtype=float)
-    reducible = np.atleast_1d(np.array(characters, dtype=float))
-    results: dict[str, int] = {}
-    for irrep_name, irrep in irrep_character_rows(character_table).items():
-        norm = float(np.sum(sizes * irrep * irrep))
-        results[irrep_name] = round(float(np.sum(sizes * irrep * reducible)) / norm)
-    return results
+    raw = reduction_coefficients(characters, character_table, multiplicities)
+    return {name: round(value) for name, value in raw.items()}
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -229,6 +323,18 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{label}: {value:g}")
     else:
         characters = [float(input(f"{label}: ")) for label in class_labels]
+
+    # the rounding in decompose() would turn any vector into some answer
+    problem = representation_problem(characters, character_table, multiplicities)
+    if problem is not None:
+        raise SystemExit(
+            "ERROR: the characters "
+            + " ".join(f"{value:g}" for value in characters)
+            + f" are not those of a representation of {args.point_group} "
+            f"(classes {', '.join(class_labels)}):\n{problem}.\n"
+            "Check the values and their class order "
+            f"(crystod-group --table --pg {args.point_group})."
+        )
 
     results = decompose(characters, character_table, multiplicities)
     result = " + ".join(f"{count}({irrep})" for irrep, count in results.items() if count > 0)

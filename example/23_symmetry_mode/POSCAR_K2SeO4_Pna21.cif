@@ -1,0 +1,54 @@
+# Created by CrystOD (Bilbao Crystallographic Server style)
+# https://www.cryst.ehu.es
+# Date: 25/08/2026 00:24:37
+
+# POSCAR_K2SeO4_Pna21 -- non-magnetic
+
+data_POSCAR_K2SeO4_Pna21
+_audit_creation_date               2026-08-25
+_audit_creation_method             "CrystOD (Bilbao style)"
+_symmetry_Int_Tables_number        33
+_symmetry_space_group_name_H-M     "Pna21"
+_cell_length_a                     23.3699
+_cell_length_b                     10.6527
+_cell_length_c                     6.1466
+_cell_angle_alpha                  90.0000
+_cell_angle_beta                   90.0000
+_cell_angle_gamma                  90.0000
+
+loop_
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+   1   x,y,z
+   2   -x,-y,z+1/2
+   3   -x+1/2,y+1/2,z+1/2
+   4   x+1/2,-y+1/2,z
+
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+K1 K 0.66655 0.29421 0.76762 1.0000
+K2 K 0.72327 0.07998 0.26562 1.0000
+K3 K 0.83310 0.20654 0.75654 1.0000
+K4 K 0.89013 0.42178 0.25109 1.0000
+K5 K 0.94339 0.92327 0.73427 1.0000
+K6 K 0.99977 0.70587 0.23238 1.0000
+O1 O 0.00335 0.42968 0.28268 1.0000
+O2 O 0.16349 0.93498 0.71389 1.0000
+O3 O 0.22910 0.44032 0.79558 1.0000
+O4 O 0.22994 0.64406 0.52914 1.0000
+O5 O 0.25510 0.17488 0.46817 1.0000
+O6 O 0.39812 0.84795 0.97402 1.0000
+O7 O 0.40934 0.83585 0.52991 1.0000
+O8 O 0.42400 0.33921 0.46376 1.0000
+O9 O 0.43209 0.33972 0.01841 1.0000
+O10 O 0.43946 0.55932 0.24421 1.0000
+O11 O 0.60365 0.93772 0.23235 1.0000
+O12 O 0.82960 0.93218 0.71619 1.0000
+Se1 Se 0.57408 0.08135 0.25348 1.0000
+Se2 Se 0.74075 0.41804 0.25446 1.0000
+Se3 Se 0.90715 0.08213 0.23588 1.0000

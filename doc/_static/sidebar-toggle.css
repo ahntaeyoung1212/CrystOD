@@ -1,0 +1,54 @@
+/*
+  Desktop show/hide for the right-hand "Contents" sidebar (the page table of
+  contents).
+
+  sphinx-book-theme gives the left navigation sidebar a desktop toggle: the
+  header hamburger (.primary-toggle) toggles .pst-sidebar-hidden on
+  #pst-primary-sidebar (theme/static/scripts/sphinx-book-theme.js), and the
+  theme ships the matching rule .bd-sidebar-primary.pst-sidebar-hidden.
+
+  The secondary sidebar has no such pair.  Below 1200px it is a fixed drawer
+  that pydata-sphinx-theme opens as a modal from the .secondary-toggle button
+  -- that behaviour is fine and is left alone.  From 1200px up the sidebar is
+  laid out inline in the page grid and the theme sets the button to
+  display:none, so there is no way to put the table of contents away.  These
+  rules, together with _static/sidebar-toggle.js, restore the button there and
+  give it the same behaviour the navigation sidebar already has.
+
+  Kept in sync with sphinx_book_theme 1.2.0 / pydata_sphinx_theme 0.16.1.
+*/
+
+@media (min-width: 1200px) {
+  /* undo sphinx-book-theme's `button.sidebar-toggle.secondary-toggle
+     {display:none}`; `flex` is what `html .pst-navbar-icon` gives the other
+     header icons, so the button lines up with them */
+  button.sidebar-toggle.secondary-toggle {
+    display: flex;
+  }
+
+  /* mirror of .bd-sidebar-primary.pst-sidebar-hidden, on the other edge */
+  .bd-sidebar-secondary.pst-sidebar-hidden {
+    margin-right: -20%;
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .bd-sidebar-secondary {
+    transition:
+      margin-right 0.2s ease-out,
+      opacity 0.2s ease-out,
+      visibility 0.2s ease-out;
+  }
+
+  /* sphinx-book-theme keeps the article clear of the table of contents with
+     `.bd-main .bd-content .bd-article-container {max-width: calc(100% -
+     var(--pst-sidebar-secondary))}`; with the sidebar gone the article should
+     take that space back, the way it does when the navigation sidebar is
+     hidden.  The sidebar is a *later* sibling of the article container, so
+     the state has to be carried on <body> (set in sidebar-toggle.js) rather
+     than through a sibling selector -- and the theme's three-class selector
+     has to be repeated to outweigh it. */
+  body.crystod-toc-hidden .bd-main .bd-content .bd-article-container {
+    max-width: 100%;
+  }
+}

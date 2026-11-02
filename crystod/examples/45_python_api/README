@@ -1,0 +1,38 @@
+Python API examples (testsuite section 45; guide: doc/python-api.md,
+https://mochizuki-tus.github.io/CrystOD/python-api.html)
+====================================================================
+
+macer_subgroup_bridge.py
+------------------------
+The symmetry-lowering step of a structure search, written on the CrystOD API:
+imaginary phonon modes are labeled with their irreps and the isotropy
+subgroups of those irreps are enumerated -- every order-parameter direction,
+independent of the arbitrary eigenvector basis a diagonalization returns.
+
+Run it in a directory holding a unit cell and FORCE_SETS, here the SrTiO3
+data of the 28_phonon_irrep example (crystod-example 45 copies it too):
+
+  cd ../28_phonon_irrep/SrTiO3_Pm-3m
+  python ../../45_python_api/macer_subgroup_bridge.py -c 221_PPOSCAR_SrTiO3 --dim 4 4 4
+
+  freq (THz)  q    irrep    direction  subgroup   cell
+     -1.0867  R    R5-      (0,0,a)    I4/mcm     x2
+     -1.0867  R    R5-      (a,a,a)    R-3c       x2
+     -1.0867  R    R5-      (0,a,a)    Imma       x2
+     -1.0867  R    R5-      (0,a,b)    C2/m       x2
+     -1.0867  R    R5-      (a,a,b)    C2/c       x2
+     -1.0867  R    R5-      (a,b,c)    P-1        x2
+
+The same analysis without writing any Python:
+
+  crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_SrTiO3
+
+Freezing in one eigenvector at a time explores only one direction per attempt,
+and which one depends on the basis the diagonalizer happens to return: for this
+SrTiO3 cell that approach finds I4/mcm and C2/m but misses R-3c and Imma, the
+octahedral-tilt systems the search has to try before it can claim a ground
+state. The enumeration above is basis-independent and complete.
+
+The distorted structure of a chosen direction is generated with
+crystod-phonon --modulation; its default output name carries the irrep and the
+resulting space group (see the 33_modulation example).

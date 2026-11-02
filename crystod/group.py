@@ -120,6 +120,12 @@ Structure files (``crystod-group --poscar2cif``, ``--cif2poscar``):
 
 - ``bilbao_cif_lines``, ``poscar_lines`` -- Bilbao-style CIF and POSCAR
   writers.
+- ``list_space_group_settings`` -- every axis setting (Hall symbol) of the
+  space group of a cell with the cell's lattice parameters in it
+  (``--cif-axis``), as a ``SettingTable`` of ``SpaceGroupSetting`` records;
+  ``resolve_setting`` picks one by symbol, No. or choice and
+  ``transform_to_setting`` returns its conventional cell
+  (``--cif2poscar --spacegroup-set``).
 
 Star of k (``crystod --star-of-k``; also in ``crystod.salc``):
 
@@ -219,6 +225,12 @@ _EXPORTS = {
     # POSCAR <-> Bilbao-style CIF (crystod-group --poscar2cif / --cif2poscar)
     "bilbao_cif_lines": ("poscar2cif", "bilbao_cif_lines"),
     "poscar_lines": ("poscar2cif", "poscar_lines"),
+    # axis settings of a space group (crystod-group --cif-axis / --spacegroup-set)
+    "list_space_group_settings": ("space_group_setting", "list_space_group_settings"),
+    "resolve_setting": ("space_group_setting", "resolve_setting"),
+    "transform_to_setting": ("space_group_setting", "transform_to_setting"),
+    "SpaceGroupSetting": ("space_group_setting", "SpaceGroupSetting"),
+    "SettingTable": ("space_group_setting", "SettingTable"),
     # star of k (crystod --star-of-k; also exposed in crystod.salc)
     "compute_star": ("star_of_k", "compute_star"),
     "format_star_lines": ("star_of_k", "format_star_lines"),

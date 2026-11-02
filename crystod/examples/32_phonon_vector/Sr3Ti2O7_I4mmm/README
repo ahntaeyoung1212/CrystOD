@@ -1,0 +1,140 @@
+# Confirm the irreps of phonon modes for the I4/mmm phase 
+crystod-phonon --vector --dim "4 4 4" -c 139_PPOSCAR_Sr3Ti2O7 --qpoint X
+
+# Result 
+
+* Structure *
+  Space group: I4/mmm (#139)
+
+* Available high-symmetry q-points *
+  GM       [0.0, 0.0, 0.0]
+  X        [0.0, 0.0, 0.5]
+  M        [0.5, 0.5, 0.5]
+  N        [0.0, 0.5, 0.0]
+  P        [0.25, 0.25, 0.25]
+
+* Selected Q point *
+  Selected q-point: X = [0.0, 0.0, 0.5]
+
+* Phonon modes at q = X *
+ Mode    Freq (THz)  Irrep
+----------------------------------------
+    1        2.2105  X3-(1)
+    2        2.6519  X4-(1)
+    3        3.1120  X1-(1)
+    4        3.2560  X3+(1)
+    5        3.4220  X2+(1)
+    6        3.4749  X4+(1)
+    7        3.4768  X3-(1)
+    8        3.5443  X2-(1)
+    9        3.6427  X4-(1)
+   10        4.1211  X3-(1)
+   11        4.3933  X2-(1)
+   12        4.5038  X1+(1)
+   13        4.8212  X4-(1)
+   14        4.8338  X3+(1)
+   15        6.2962  X2-(1)
+   16        6.4490  X4+(1)
+   17        6.8091  X3-(1)
+   18        7.6292  X4-(1)
+   19        9.6887  X1+(1)
+   20       10.7529  X3+(1)
+   21       10.9176  X4+(1)
+   22       11.8463  X2-(1)
+   23       12.1322  X3-(1)
+   24       12.2640  X4-(1)
+   25       12.5004  X3+(1)
+   26       12.5356  X4+(1)
+   27       12.9325  X1+(1)
+   28       13.0778  X4-(1)
+   29       13.1042  X3-(1)
+   30       13.2236  X2-(1)
+   31       13.7427  X1+(1)
+   32       14.0144  X2-(1)
+   33       15.3257  X1-(1)
+   34       15.3933  X2+(1)
+   35       22.8936  X1+(1)
+   36       23.1297  X2-(1)
+
+* Displacement patterns *
+  No --mode given; exporting all 36 modes as individual VESTA files.
+  Commensurate supercell for visualization: 1x1x2 primitive cells
+  + mode 1: X3-(1), 2.2105 THz
+  + mode 2: X4-(1), 2.6519 THz
+  + mode 3: X1-(1), 3.1120 THz
+  + mode 4: X3+(1), 3.2560 THz
+  + mode 5: X2+(1), 3.4220 THz
+  + mode 6: X4+(1), 3.4749 THz
+  + mode 7: X3-(1), 3.4768 THz
+  + mode 8: X2-(1), 3.5443 THz
+  + mode 9: X4-(1), 3.6427 THz
+  + mode 10: X3-(1), 4.1211 THz
+  + mode 11: X2-(1), 4.3933 THz
+  + mode 12: X1+(1), 4.5038 THz
+  + mode 13: X4-(1), 4.8212 THz
+  + mode 14: X3+(1), 4.8338 THz
+  + mode 15: X2-(1), 6.2962 THz
+  + mode 16: X4+(1), 6.4490 THz
+  + mode 17: X3-(1), 6.8091 THz
+  + mode 18: X4-(1), 7.6292 THz
+  + mode 19: X1+(1), 9.6887 THz
+  + mode 20: X3+(1), 10.7529 THz
+  + mode 21: X4+(1), 10.9176 THz
+  + mode 22: X2-(1), 11.8463 THz
+  + mode 23: X3-(1), 12.1322 THz
+  + mode 24: X4-(1), 12.2640 THz
+  + mode 25: X3+(1), 12.5004 THz
+  + mode 26: X4+(1), 12.5356 THz
+  + mode 27: X1+(1), 12.9325 THz
+  + mode 28: X4-(1), 13.0778 THz
+  + mode 29: X3-(1), 13.1042 THz
+  + mode 30: X2-(1), 13.2236 THz
+  + mode 31: X1+(1), 13.7427 THz
+  + mode 32: X2-(1), 14.0144 THz
+  + mode 33: X1-(1), 15.3257 THz
+  + mode 34: X2+(1), 15.3933 THz
+  + mode 35: X1+(1), 22.8936 THz
+  + mode 36: X2-(1), 23.1297 THz
+  Arrows are scaled so the largest displacement is 1.5 A; adjust arrow size in VESTA via Edit > Vectors or Properties > Vectors if needed.
+
+* Output files *
+  Mode table written to: phonon_modes_Sr3Ti2O7_X.txt
+  Mode 1 written to: POSCAR_Sr3Ti2O7_X_mode01_X3-.vesta
+  Mode 2 written to: POSCAR_Sr3Ti2O7_X_mode02_X4-.vesta
+  Mode 3 written to: POSCAR_Sr3Ti2O7_X_mode03_X1-.vesta
+  Mode 4 written to: POSCAR_Sr3Ti2O7_X_mode04_X3+.vesta
+  Mode 5 written to: POSCAR_Sr3Ti2O7_X_mode05_X2+.vesta
+  Mode 6 written to: POSCAR_Sr3Ti2O7_X_mode06_X4+.vesta
+  Mode 7 written to: POSCAR_Sr3Ti2O7_X_mode07_X3-.vesta
+  Mode 8 written to: POSCAR_Sr3Ti2O7_X_mode08_X2-.vesta
+  Mode 9 written to: POSCAR_Sr3Ti2O7_X_mode09_X4-.vesta
+  Mode 10 written to: POSCAR_Sr3Ti2O7_X_mode10_X3-.vesta
+  Mode 11 written to: POSCAR_Sr3Ti2O7_X_mode11_X2-.vesta
+  Mode 12 written to: POSCAR_Sr3Ti2O7_X_mode12_X1+.vesta
+  Mode 13 written to: POSCAR_Sr3Ti2O7_X_mode13_X4-.vesta
+  Mode 14 written to: POSCAR_Sr3Ti2O7_X_mode14_X3+.vesta
+  Mode 15 written to: POSCAR_Sr3Ti2O7_X_mode15_X2-.vesta
+  Mode 16 written to: POSCAR_Sr3Ti2O7_X_mode16_X4+.vesta
+  Mode 17 written to: POSCAR_Sr3Ti2O7_X_mode17_X3-.vesta
+  Mode 18 written to: POSCAR_Sr3Ti2O7_X_mode18_X4-.vesta
+  Mode 19 written to: POSCAR_Sr3Ti2O7_X_mode19_X1+.vesta
+  Mode 20 written to: POSCAR_Sr3Ti2O7_X_mode20_X3+.vesta
+  Mode 21 written to: POSCAR_Sr3Ti2O7_X_mode21_X4+.vesta
+  Mode 22 written to: POSCAR_Sr3Ti2O7_X_mode22_X2-.vesta
+  Mode 23 written to: POSCAR_Sr3Ti2O7_X_mode23_X3-.vesta
+  Mode 24 written to: POSCAR_Sr3Ti2O7_X_mode24_X4-.vesta
+  Mode 25 written to: POSCAR_Sr3Ti2O7_X_mode25_X3+.vesta
+  Mode 26 written to: POSCAR_Sr3Ti2O7_X_mode26_X4+.vesta
+  Mode 27 written to: POSCAR_Sr3Ti2O7_X_mode27_X1+.vesta
+  Mode 28 written to: POSCAR_Sr3Ti2O7_X_mode28_X4-.vesta
+  Mode 29 written to: POSCAR_Sr3Ti2O7_X_mode29_X3-.vesta
+  Mode 30 written to: POSCAR_Sr3Ti2O7_X_mode30_X2-.vesta
+  Mode 31 written to: POSCAR_Sr3Ti2O7_X_mode31_X1+.vesta
+  Mode 32 written to: POSCAR_Sr3Ti2O7_X_mode32_X2-.vesta
+  Mode 33 written to: POSCAR_Sr3Ti2O7_X_mode33_X1-.vesta
+  Mode 34 written to: POSCAR_Sr3Ti2O7_X_mode34_X2+.vesta
+  Mode 35 written to: POSCAR_Sr3Ti2O7_X_mode35_X1+.vesta
+  Mode 36 written to: POSCAR_Sr3Ti2O7_X_mode36_X2-.vesta
+
+# Visualize the phonon mode transforming as irrep X3- in conventional form
+crystod-phonon --vector --dim "4 4 4" -c 139_PPOSCAR_Sr3Ti2O7 --qpoint X --mode 1 --conventional

@@ -1,0 +1,67 @@
+# Created by the Bilbao Crystallographic Server
+# http://www.cryst.ehu.es
+# Date: 26/09/2017 00:15:33
+
+# POSCAR_g -- non-magnetic
+
+data_2n1RW2Dm
+_audit_creation_date               2017-09-26
+_audit_creation_method             "Bilbao Crystallographic Server"
+_symmetry_Int_Tables_number        139
+#_symmetry_space_group_name_H-M    "I4/mmm1'"
+_cell_length_a                     3.7950
+_cell_length_b                     3.7950
+_cell_length_c                     20.0507
+_cell_angle_alpha                  90.0000
+_cell_angle_beta                   90.0000
+_cell_angle_gamma                  90.0000
+
+loop_
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+   1   x,y,z
+   2   x+1/2,y+1/2,z+1/2
+   3   x,-y,-z
+   4   x+1/2,-y+1/2,-z+1/2
+   5   -x,y,-z
+   6   -x+1/2,y+1/2,-z+1/2
+   7   -x,-y,z
+   8   -x+1/2,-y+1/2,z+1/2
+   9   -y,-x,-z
+  10   -y+1/2,-x+1/2,-z+1/2
+  11   -y,x,z
+  12   -y+1/2,x+1/2,z+1/2
+  13   y,-x,z
+  14   y+1/2,-x+1/2,z+1/2
+  15   y,x,-z
+  16   y+1/2,x+1/2,-z+1/2
+  17   -x,-y,-z
+  18   -x+1/2,-y+1/2,-z+1/2
+  19   -x,y,z
+  20   -x+1/2,y+1/2,z+1/2
+  21   x,-y,z
+  22   x+1/2,-y+1/2,z+1/2
+  23   x,y,-z
+  24   x+1/2,y+1/2,-z+1/2
+  25   y,x,z
+  26   y+1/2,x+1/2,z+1/2
+  27   y,-x,-z
+  28   y+1/2,-x+1/2,-z+1/2
+  29   -y,x,-z
+  30   -y+1/2,x+1/2,-z+1/2
+  31   -y,-x,z
+  32   -y+1/2,-x+1/2,z+1/2
+
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+La1 La 0.00000 0.00000 0.32128 1.0000
+La2 La 0.00000 0.00000 0.50000 1.0000
+Ni1 Ni 0.00000 0.00000 -0.09762 1.0000
+O1 O 0.00000 0.00000 0.00000 1.0000
+O2 O 0.00000 0.50000 -0.09688 1.0000
+O3 O 0.00000 0.00000 0.79677 1.0000

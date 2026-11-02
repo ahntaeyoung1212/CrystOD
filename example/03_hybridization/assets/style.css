@@ -1,0 +1,365 @@
+/* ==========================================================
+   マテリアル計算科学入門 共通スタイルシート
+   東京理科大学 先進工学部 マテリアル創成工学科
+   ========================================================== */
+:root {
+  --text: #1a202c;
+  --text-muted: #4a5568;
+  --bg: #fdfdfc;
+  --accent: #14684a;          /* 見出し・リンクの基調色(深い緑) */
+  --accent-light: #eaf5f0;
+  --rule: #d5dbdb;
+
+  --def-border: #14684a;      /* 定義: 緑 */
+  --def-bg: #eff7f3;
+  --thm-border: #7d3c98;      /* 定理: 紫 */
+  --thm-bg: #f8f2fb;
+  --derive-border: #1a5276;   /* 導出: 青 */
+  --derive-bg: #eef4f9;
+  --note-border: #b9770e;     /* 数学ノート: 琥珀 */
+  --note-bg: #fdf8ee;
+  --phys-border: #b03a2e;     /* 物理的意味: 赤茶 */
+  --phys-bg: #fdf3f1;
+  --why-border: #117a8b;      /* なぜ?/直感: 藍 */
+  --why-bg: #eef8fa;
+  --warn-border: #a04000;     /* 注意・よくある誤解: 橙 */
+  --warn-bg: #fdf2ec;
+  --ex-border: #566573;       /* 例・演習: 灰 */
+  --ex-bg: #f4f6f6;
+  --code-bg: #2c3e50;
+  --keyeq-bg: #fffbea;
+  --keyeq-border: #f1c40f;
+}
+
+* { box-sizing: border-box; }
+
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP", serif;
+  line-height: 1.9;
+  text-align: justify;
+}
+
+/* ---------- ヘッダー・ナビゲーション ---------- */
+header.site {
+  background: var(--accent);
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+header.site a { color: #fff; text-decoration: none; }
+header.site a:hover { text-decoration: underline; }
+header.site .series { font-size: 0.9rem; opacity: 0.9; }
+
+nav.pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 2.5rem auto 1rem;
+  max-width: 900px;
+  padding: 0 1.2rem;
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 0.95rem;
+}
+nav.pager a {
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  background: #fff;
+  max-width: 45%;
+}
+nav.pager a:hover { background: var(--accent-light); }
+nav.pager .spacer { flex: 1; }
+
+/* ---------- 本文レイアウト ---------- */
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem 1.2rem 4rem;
+}
+
+h1 {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 1.9rem;
+  color: var(--accent);
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 0.4rem;
+  margin: 1.8rem 0 0.6rem;
+  line-height: 1.4;
+}
+h1 .chapter-no {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  font-weight: normal;
+  letter-spacing: 0.08em;
+}
+
+h2 {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 1.45rem;
+  color: var(--accent);
+  border-left: 6px solid var(--accent);
+  padding-left: 0.6rem;
+  margin: 2.8rem 0 1rem;
+  line-height: 1.45;
+  scroll-margin-top: 4rem;
+}
+
+h3 {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 1.15rem;
+  color: var(--text);
+  margin: 2.2rem 0 0.8rem;
+  scroll-margin-top: 4rem;
+}
+
+p { margin: 0.9rem 0; }
+
+a { color: var(--accent); }
+
+em.term { font-style: normal; font-weight: bold; }
+
+ul, ol { padding-left: 1.5rem; }
+li { margin: 0.3rem 0; }
+
+/* 章の導入文 */
+.lead {
+  background: var(--accent-light);
+  border-radius: 8px;
+  padding: 1rem 1.3rem;
+  margin: 1.4rem 0 2rem;
+}
+.lead p { margin: 0.5rem 0; }
+
+/* この章で学ぶこと */
+.goals {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 0.95rem;
+}
+.goals ul { margin: 0.4rem 0 0.2rem; padding-left: 1.4rem; }
+
+/* 前提知識 */
+.prereq {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--rule);
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+}
+
+/* 章内目次 */
+nav.chapter-toc {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 0.92rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.8rem 1.2rem;
+  margin: 1.5rem 0 2rem;
+}
+nav.chapter-toc strong { color: var(--accent); display: block; margin-bottom: 0.3rem; }
+nav.chapter-toc ol { margin: 0.2rem 0; padding-left: 1.3rem; }
+nav.chapter-toc li { margin: 0.15rem 0; }
+nav.chapter-toc a { text-decoration: none; }
+nav.chapter-toc a:hover { text-decoration: underline; }
+
+/* ---------- ボックス類 ---------- */
+.box {
+  border-left: 5px solid;
+  border-radius: 0 8px 8px 0;
+  padding: 0.9rem 1.2rem;
+  margin: 1.6rem 0;
+}
+.box > .box-title {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-weight: bold;
+  font-size: 0.98rem;
+  margin: 0 0 0.5rem;
+}
+.box p:last-child { margin-bottom: 0.2rem; }
+
+.def    { border-color: var(--def-border);    background: var(--def-bg); }
+.def    > .box-title { color: var(--def-border); }
+.thm    { border-color: var(--thm-border);    background: var(--thm-bg); }
+.thm    > .box-title { color: var(--thm-border); }
+.derive { border-color: var(--derive-border); background: var(--derive-bg); }
+.derive > .box-title { color: var(--derive-border); }
+.note   { border-color: var(--note-border);   background: var(--note-bg); }
+.note   > .box-title { color: var(--note-border); }
+.phys   { border-color: var(--phys-border);   background: var(--phys-bg); }
+.phys   > .box-title { color: var(--phys-border); }
+.why    { border-color: var(--why-border);    background: var(--why-bg); }
+.why    > .box-title { color: var(--why-border); }
+.warn   { border-color: var(--warn-border);   background: var(--warn-bg); }
+.warn   > .box-title { color: var(--warn-border); }
+.ex     { border-color: var(--ex-border);     background: var(--ex-bg); }
+.ex     > .box-title { color: var(--ex-border); }
+
+/* 重要式(最重要結果)の強調 */
+.keyeq {
+  background: var(--keyeq-bg);
+  border: 1.5px solid var(--keyeq-border);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  margin: 1.6rem 0;
+  overflow-x: auto;
+}
+
+/* ---------- 数式まわり ---------- */
+mjx-container[jax="CHTML"][display="true"] {
+  margin: 1rem 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+/* ---------- コード ---------- */
+pre {
+  background: var(--code-bg);
+  color: #ecf0f1;
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+  font-family: "SFMono-Regular", Menlo, Consolas, "Courier New", monospace;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  margin: 1.2rem 0;
+  text-align: left;
+}
+pre .cmt { color: #95a5a6; }
+pre .prompt { color: #58d68d; }
+code {
+  font-family: "SFMono-Regular", Menlo, Consolas, "Courier New", monospace;
+  font-size: 0.88em;
+  background: #eef1f2;
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+}
+pre code { background: none; padding: 0; font-size: 1em; color: inherit; }
+
+.codecap {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: -0.8rem 0 1.2rem;
+  text-align: left;
+}
+
+/* ---------- 表 ---------- */
+table {
+  border-collapse: collapse;
+  margin: 1.4rem auto;
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 0.95rem;
+}
+caption {
+  caption-side: top;
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  text-align: left;
+}
+th, td {
+  border: 1px solid var(--rule);
+  padding: 0.45rem 0.9rem;
+}
+th { background: var(--accent-light); color: var(--accent); }
+td { background: #fff; }
+.tablewrap { overflow-x: auto; margin: 1.4rem 0; }
+.tablewrap table { margin: 0 auto; }
+
+/* ---------- 図 ---------- */
+figure {
+  margin: 1.8rem auto;
+  text-align: center;
+}
+figure svg { max-width: 100%; height: auto; }
+figcaption {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+/* ---------- 目次ページ ---------- */
+.toc-part {
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  color: var(--accent);
+  font-size: 1.2rem;
+  margin: 2.2rem 0 0.6rem;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 0.25rem;
+}
+ol.toc { list-style: none; padding: 0; margin: 0.6rem 0; }
+ol.toc li {
+  margin: 0.55rem 0;
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+}
+ol.toc li a {
+  display: block;
+  text-decoration: none;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+}
+ol.toc li a:hover { background: var(--accent-light); }
+ol.toc .ch-no {
+  color: var(--accent);
+  font-weight: bold;
+  margin-right: 0.6rem;
+}
+ol.toc .ch-desc {
+  display: block;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+/* ---------- 脚注・参考 ---------- */
+.refs {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--rule);
+  margin-top: 3rem;
+  padding-top: 1rem;
+}
+.refs ol { padding-left: 1.4rem; }
+
+/* ---------- 印刷 ---------- */
+@media print {
+  header.site, nav.pager, nav.chapter-toc { display: none; }
+  body { background: #fff; }
+  main { max-width: 100%; }
+  .box { break-inside: avoid; }
+  pre { background: #f4f6f6; color: #1a202c; border: 1px solid var(--rule); }
+}
+
+@media (max-width: 640px) {
+  html { font-size: 15px; }
+  h1 { font-size: 1.55rem; }
+  h2 { font-size: 1.25rem; }
+  body { text-align: left; }
+  nav.pager { flex-direction: column; }
+  nav.pager a { max-width: 100%; }
+}

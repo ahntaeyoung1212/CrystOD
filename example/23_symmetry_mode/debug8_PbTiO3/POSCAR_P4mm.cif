@@ -1,0 +1,42 @@
+# Created by CrystOD (Bilbao Crystallographic Server style)
+# https://www.cryst.ehu.es
+# Date: 26/08/2026 18:50:56
+
+# POSCAR-finish -- non-magnetic
+
+data_POSCAR-finish
+_audit_creation_date               2026-08-26
+_audit_creation_method             "CrystOD (Bilbao style)"
+_chemical_formula_sum              "Pb Ti O3"
+_symmetry_Int_Tables_number        99
+_symmetry_space_group_name_H-M     "P4mm"
+_cell_length_a                     3.8924
+_cell_length_b                     3.8924
+_cell_length_c                     4.1048
+_cell_angle_alpha                  90.0000
+_cell_angle_beta                   90.0000
+_cell_angle_gamma                  90.0000
+
+loop_
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+   1   x,y,z
+   2   -y,x,z
+   3   -x,-y,z
+   4   y,-x,z
+   5   -x,y,z
+   6   y,x,z
+   7   x,-y,z
+   8   -y,-x,z
+
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+O1 O 0.00000 0.50000 0.49782 1.0000
+O2 O 0.50000 0.50000 0.01319 1.0000
+Pb1 Pb 0.00000 0.00000 0.11044 1.0000
+Ti1 Ti 0.50000 0.50000 0.57093 1.0000

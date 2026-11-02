@@ -9,12 +9,13 @@ The phonon modes:
 - ``--modulation`` -- modulated structures;
 - ``--vibration``  -- symmetry-only vibration bases, no force data;
 - ``--subgroup``   -- isotropy subgroups reachable from the imaginary modes;
-- ``--unfold``     -- phonon band unfolding onto the parent Brillouin zone.
+- ``--unfold``     -- phonon band unfolding onto the parent Brillouin zone;
+- ``--visualize``  -- interactive 3D viewer of the modes by irrep, with the dispersion.
 """
 
 from __future__ import annotations
 
-from argparse import ArgumentParser, RawTextHelpFormatter
+from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
 
 from .common import (
     CRYSTOD_CITATION,
@@ -27,12 +28,15 @@ from .common import (
     run_example,
 )
 
+_NOT_GIVEN = object()  # main(): marks an option left out (--threshold, refused by --unfold)
+
 desc = """\
 Phonon analyses from phonopy force data: a unit cell with FORCE_SETS (or
 FORCE_CONSTANTS with --readfc), or a phonopy_params.yaml — except --vibration,
 which needs only the crystal structure.
 
 # Command Examples:
+crystod-phonon --irreps --dim "4 4 4" -c 221_PPOSCAR_SrTiO3   (phonon_irreps.yaml + the dispersion with the labels, phonon_irreps.pdf)
 crystod-phonon --irreps --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --readfc
 crystod-phonon --irreps --dim "4 4 4" -c 221_PPOSCAR_ScF3 --nac   (BORN read only with --nac; dielectric response)
 crystod-phonon --irreps --dim "4 4 4" -c 227_PPOSCAR_Si --raman-tensor
@@ -50,6 +54,9 @@ crystod-phonon --subgroup --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --qpoint R --modul
 crystod-phonon --subgroup --yaml phonopy_params.yaml --qpoint R
 crystod-phonon --unfold --child-poscar POSCAR_child --child-dim 2 2 2 \\
                --parent-poscar POSCAR_parent --parent-dim 2 2 2   (unfold onto the parent zone)
+crystod-phonon --visualize --dim "4 4 4" -c 221_PPOSCAR_ScF3   (3D viewer of the modes by irrep: phonon_visualize.html + band_vector.yaml)
+crystod-phonon --visualize --dim "4 4 4" -c 221_PPOSCAR_ScF3 --bond Sc F 2.3 --qpoint R   (R only, ScF6 octahedra)
+crystod-phonon --visualize --dim "4 4 4" -c 221_PPOSCAR_SrTiO3 --bond Ti O 2.1 --all-irreps   (also the segment midpoints DT, Z, SM, ...: phonon_visualize_all.html)
 crystod-phonon --example SrTiO3   (bundled input; --example alone lists the names)
 """
 
@@ -71,7 +78,9 @@ def build_parser() -> ArgumentParser:
         "file is YAML: irreps lists every q point (q_label, q_position) with its\n"
         "band_sets, one per degenerate set (band_indices 1-based, irrep_label,\n"
         "frequency in THz; at Gamma also mulliken and activity);\n"
-        "crystod.phonon.read_phonon_irreps reads it.",
+        "crystod.phonon.read_phonon_irreps reads it. Next to it the dispersion with\n"
+        "these labels at the special points of the k path (seekpath, or --band) is\n"
+        "drawn: the YAML name with .pdf (phonon_irreps.pdf).",
     )
     mode.add_argument(
         "--fatband",
@@ -111,6 +120,14 @@ def build_parser() -> ArgumentParser:
         "levels (writes phonon_unfold.pdf and phonon_unfold.dat, or -o PREFIX). The\n"
         "transformation and origin shift come from crystod-group --supergroup-cif.",
     )
+    mode.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Interactive 3D viewer of the phonon modes at the special points of the k\n"
+        "path (with --all-irreps also at the segment midpoints), grouped by irrep,\n"
+        "with the dispersion (writes band_vector.yaml, phonopy's band.yaml with\n"
+        "eigenvectors, and phonon_visualize.html, or the -o path).",
+    )
 
     # sentinel default: --modulation has to tell "-c was given" (drive the run
     # from the structure file + FORCE_SETS) from "-c was left out" (fall back to
@@ -126,7 +143,7 @@ def build_parser() -> ArgumentParser:
             "Supercell dimension of the force calculation: three diagonal values\n"
             "or a nine-value diagonal matrix, quoted or unquoted, e.g.\n"
             '--dim 4 4 4, --dim="4 4 4", --dim 4 0 0 0 4 0 0 0 4.\n'
-            "Required for --irreps/--fatband/--lt/--vector, and for --subgroup\n"
+            "Required for --irreps/--fatband/--lt/--vector/--visualize, and for --subgroup\n"
             "unless --yaml is given; for --unfold the child (alias of --child-dim)."
         ),
     )
@@ -141,7 +158,8 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="Apply the non-analytical term correction (LO/TO splitting) with the\n"
         "BORN file (or the NAC parameters of --yaml) in --irreps/--fatband/--lt/\n"
-        "--vector/--modulation/--subgroup. Without --nac no BORN file is read.\n"
+        "--vector/--modulation/--subgroup/--visualize. Without --nac no BORN file\n"
+        "is read.\n"
         "In --irreps it adds the mode effective charges, the dielectric contribution\n"
         "of every Gamma set, eps_0, the acoustic sum rule and the LST check.",
     )
@@ -162,8 +180,9 @@ def build_parser() -> ArgumentParser:
         "--band",
         default=None,
         help=(
-            "Optional manual band path for --fatband/--lt and --unfold (parent primitive\n"
-            "coordinates), comma-separated continuous segments, e.g.\n"
+            "Optional manual band path for --fatband/--lt, --irreps, --visualize and\n"
+            "--unfold (parent primitive coordinates), comma-separated continuous\n"
+            "segments, e.g.\n"
             '"0 0 0  0 1/2 0  1/2 1/2 0, 1/2 1/2 0  1/2 1/2 1/2".\n'
             "If omitted, the path is generated automatically with seekpath."
         ),
@@ -173,15 +192,16 @@ def build_parser() -> ArgumentParser:
         "--label",
         dest="band_labels",
         default=None,
-        help='Optional labels for the manual band path (--fatband/--lt, and --unfold with\n'
-        'parent primitive coordinates), e.g. "GM X M GM R X M R".',
+        help='Optional labels for the manual band path (--fatband/--lt, --irreps,\n'
+        '--visualize, and --unfold with parent primitive coordinates), e.g.\n'
+        '"GM X M GM R X M R".',
     )
     parser.add_argument(
         "--npoints",
         type=int,
         default=None,
-        help="Number of q-points per band-path leg for --fatband/--lt and --unfold (parent\n"
-        "primitive coordinates) (default: 51).",
+        help="Number of q-points per band-path leg for --fatband/--lt, --irreps,\n"
+        "--visualize and --unfold (parent primitive coordinates) (default: 51).",
     )
     parser.add_argument(
         "--projection-direction",
@@ -193,15 +213,19 @@ def build_parser() -> ArgumentParser:
         "--qpoint",
         nargs="+",
         default=None,
-        help="q-point for --vector/--modulation/--vibration/--subgroup: three coordinates\n"
-        "or a special-point label (GM, X, M, R, ...). In --subgroup mode it is optional;\n"
-        "without it every q point commensurate with the supercell is scanned.",
+        help="q-point for --vector/--modulation/--vibration/--subgroup/--visualize: three\n"
+        "coordinates or a special-point label (GM, X, M, R, ...). In --subgroup mode it\n"
+        "is optional; without it every q point commensurate with the supercell is\n"
+        "scanned. In --visualize mode it is optional too: it restricts the page to\n"
+        "that q point (default: every labeled special point of the k path).",
     )
     parser.add_argument(
         "--threshold",
         type=float,
         default=-0.1,
-        help="Frequency in THz below which a mode counts as imaginary in --subgroup mode.",
+        help="Frequency in THz below which a mode counts as imaginary in --subgroup mode\n"
+        "(and is drawn in red in the dispersion figure of --irreps and on the\n"
+        "--visualize page).",
     )
     parser.add_argument(
         "--mode",
@@ -243,7 +267,8 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--conventional",
         action="store_true",
-        help="Output the conventional cell instead of the primitive cell in --vector mode.",
+        help="Output the conventional cell instead of the primitive cell in --vector mode\n"
+        "(--visualize: display the conventional cell).",
     )
     parser.add_argument(
         "--keep-q-coords",
@@ -259,7 +284,9 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="In --irreps, additionally label the phonon irreps at the midpoints of the\n"
         "seekpath k-path segments (the symmetry lines DT, Z, SM, ...; ISO-IR labels).\n"
-        "Slower than the default special-points-only survey.",
+        "Slower than the default special-points-only survey. In --visualize, also\n"
+        "show the modes at those midpoints (the page is then phonon_visualize_all.html;\n"
+        "not with --qpoint).",
     )
     parser.add_argument(
         "--modulate",
@@ -354,9 +381,26 @@ def build_parser() -> ArgumentParser:
         type=float,
         default=None,
         metavar="W",
-        help="--unfold: smallest unfolding weight drawn and labelled (default 0.02).",
+        help="--unfold: the weight cut (default 0.02). Page 1 draws every child mode\n"
+        "with a weight >= W; page 2, the labels and the tables use the weight P_g\n"
+        "of each degenerate group (a group with P_g < W is not drawn, label '-').",
     )
-    add_output_argument(parser, "Output path (mode-dependent default).")
+    parser.add_argument(
+        "--bond",
+        nargs=3,
+        action="append",
+        default=None,
+        metavar=("EL1", "EL2", "MAX"),
+        help="Draw bonds between EL1 and EL2 atoms up to MAX Angstroms, plus the\n"
+        "VESTA-style coordination polyhedra around the EL1 atoms, in --visualize\n"
+        "mode (repeatable), e.g. --bond Sc F 2.3.",
+    )
+    add_output_argument(
+        parser,
+        "Output path (mode-dependent default; --visualize: the HTML page, default\n"
+        "phonon_visualize.html, phonon_visualize_all.html with --all-irreps, while\n"
+        "band_vector.yaml keeps its name).",
+    )
     parser.add_argument(
         "--tolerance",
         # --t used to reach --tolerance by abbreviation; --threshold made that
@@ -365,9 +409,10 @@ def build_parser() -> ArgumentParser:
         "--tol",
         type=float,
         default=None,
-        help="Symmetry tolerance forwarded to the selected analysis (for --unfold:\n"
-        "the tolerance of the setting search of crystod-group --supergroup-cif,\n"
-        "in (0, 0.5] Angstrom, default 0.01).",
+        help="Symmetry tolerance forwarded to the selected analysis (for --irreps and\n"
+        "--visualize: the degeneracy tolerance of the irrep labels in THz, default\n"
+        "1e-3; for --unfold: the tolerance of the setting search of crystod-group\n"
+        "--supergroup-cif, in (0, 0.5] Angstrom, default 0.01).",
     )
     return parser
 
@@ -375,7 +420,8 @@ def build_parser() -> ArgumentParser:
 def _require_force_file(parser: ArgumentParser, readfc: bool) -> None:
     """Stop with one line when the force file is not in the working directory.
 
-    ``--irreps``, ``--fatband``, ``--lt``, ``--vector`` and ``--subgroup`` read
+    ``--irreps``, ``--fatband``, ``--lt``, ``--vector``, ``--subgroup`` and
+    ``--visualize`` read
     ``FORCE_SETS`` (``FORCE_CONSTANTS`` with ``--readfc``) from the working
     directory, as phonopy does; only ``--modulation`` also looks next to the
     cell file. Without this check the run died in a phonopy traceback.
@@ -453,12 +499,18 @@ def main(argv: list[str] | None = None) -> None:
         argv = sys.argv[1:]
     argv = mark_negative_fractions(list(argv))
     try:
-        args, unknown = parser.parse_known_args(argv)
+        # --threshold keeps its default (-0.1) for the modes that use it, but --unfold must
+        # tell "given" from "not given": argparse fills in a default only for an attribute the
+        # namespace does not hold yet, so a marker in its place survives when it is not given
+        args, unknown = parser.parse_known_args(argv, namespace=Namespace(threshold=_NOT_GIVEN))
     except ExampleRequested as request:
         # --example: put the bundled input in place, then run the ordinary
         # command line it stands for (plus whatever else was given)
         main(run_example("crystod-phonon", request.name, argv))
         return
+    threshold_given = args.threshold is not _NOT_GIVEN
+    if not threshold_given:
+        args.threshold = parser.get_default("threshold")
 
     if unknown and not args.modulation:
         parser.error(f"unrecognized arguments: {' '.join(unknown)}")
@@ -481,6 +533,8 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.band_labels and not args.band:
         parser.error("--band-labels requires --band.")
+    if args.bond and not args.visualize:
+        parser.error("--bond is only available with --visualize.")
     if args.raman_tensor and not (args.irreps or args.vibration):
         parser.error("--raman-tensor is only used by --irreps and --vibration --qpoint GM.")
 
@@ -507,10 +561,77 @@ def main(argv: list[str] | None = None) -> None:
             dispatch_argv.append("--raman-tensor")
         if args.output:
             dispatch_argv.extend(["--output", args.output])
+        # the dispersion figure: its path, its points per leg and its red threshold
+        dispatch_argv.extend(["--threshold", str(args.threshold)])
+        if args.band:
+            dispatch_argv.extend(["--band", args.band])
+        if args.band_labels:
+            dispatch_argv.extend(["--band-labels", args.band_labels])
+        if args.npoints is not None:
+            dispatch_argv.extend(["--npoints", str(args.npoints)])
 
         from ..phonon_irreps import main as phonon_irreps_main
 
         phonon_irreps_main(dispatch_argv)
+        return
+
+    if args.visualize:
+        if not dim:
+            parser.error("--visualize requires --dim.")
+        for name, given in (
+            ("--mode", args.mode),
+            ("--mode-index", args.mode_index),
+            ("--component-index", args.component_index),
+            ("--amplitude", args.amplitude),
+            ("--element", args.element),
+            ("--projection-direction", args.projection_direction),
+            ("--yaml", args.yaml),
+            ("--keep-q-coords", args.keep_q_coords),
+            ("--modulate", args.modulate),
+            ("--list-qpoints", args.list_qpoints),
+            ("--export-npz", args.export_npz),
+        ):
+            if given not in (None, False):
+                parser.error(f"{name} is not used by --visualize.")
+        if args.all_irreps and args.qpoint:
+            parser.error("--all-irreps is not used with --qpoint (--qpoint shows one point).")
+        for _, _, max_text in args.bond or []:
+            try:
+                float(max_text)
+            except ValueError:
+                parser.error(
+                    f"--bond expects a numeric maximum length in Angstroms, got '{max_text}'."
+                )
+        _require_force_file(parser, args.readfc)
+
+        dispatch_argv = ["--dim", dim, "--poscar", cell]
+        if args.readfc:
+            dispatch_argv.append("--readfc")
+        if args.nac:
+            dispatch_argv.append("--nac")
+        if args.tolerance is not None:
+            dispatch_argv.extend(["--tolerance", str(args.tolerance)])
+        if args.qpoint:
+            dispatch_argv.extend(["--qpoint", *[str(value) for value in args.qpoint]])
+        if args.all_irreps:
+            dispatch_argv.append("--all-irreps")
+        if args.band:
+            dispatch_argv.extend(["--band", args.band])
+        if args.band_labels:
+            dispatch_argv.extend(["--band-labels", args.band_labels])
+        if args.npoints is not None:
+            dispatch_argv.extend(["--npoints", str(args.npoints)])
+        dispatch_argv.extend(["--threshold", str(args.threshold)])
+        if args.conventional:
+            dispatch_argv.append("--conventional")
+        for el1, el2, max_text in args.bond or []:
+            dispatch_argv.extend(["--bond", el1, el2, max_text])
+        if args.output:
+            dispatch_argv.extend(["--output", args.output])
+
+        from ..phonon_visualize import main as phonon_visualize_main
+
+        phonon_visualize_main(dispatch_argv)
         return
 
     if args.fatband:
@@ -691,6 +812,11 @@ def main(argv: list[str] | None = None) -> None:
             parser.error(
                 "--nac is not supported by --unfold in this version (unfolding LO/TO-split bands "
                 "needs the direction of approach to Gamma); run without --nac."
+            )
+        if threshold_given:
+            parser.error(
+                "--threshold is not used by --unfold (the soft parent levels it follows are those "
+                "below -0.1 THz, a fixed cutoff); run without --threshold."
             )
         for name, given in (
             ("--qpoint", args.qpoint),

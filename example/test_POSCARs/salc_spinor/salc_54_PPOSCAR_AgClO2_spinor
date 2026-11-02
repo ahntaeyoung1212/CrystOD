@@ -1,0 +1,49 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ Pcca (54)
+
+ * Element (number of atoms) *
+ Ag (4)
+
+ * Wyckoff letters and site symmetry letters *
+ ['c', 'c', 'c', 'c']
+ ['.2.', '.2.', '.2.', '.2.']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  Pcca (54)
+ irreps             :  6.0 [-GM5(2)] + 6.0 [-GM6(2)] 
+
+ k point (primitive):  R [0.5, 0.5, 0.5]
+ little group of k  :  Pcca (54)
+ irreps             :  6.0 [-R3(2)] + 6.0 [-R4(2)] 
+
+ k point (primitive):  S [0.5, 0.5, 0.0]
+ little group of k  :  Pcca (54)
+ irreps             :  6.0 [-S3(2)] + 6.0 [-S4(2)] 
+
+ k point (primitive):  T [0.0, 0.5, 0.5]
+ little group of k  :  Pcca (54)
+ irreps             :  6.0 [-T3(2)] + 6.0 [-T4(2)] 
+
+ k point (primitive):  U [0.5, 0.0, 0.5]
+ little group of k  :  Pcca (54)
+ irreps             :  6.0 [-U3(2)] + 6.0 [-U4(2)] 
+
+ k point (primitive):  X [0.5, 0.0, 0.0]
+ little group of k  :  Pcca (54)
+ irreps             :  6.0 [-X3(2)] + 6.0 [-X4(2)] 
+
+ k point (primitive):  Y [0.0, 0.5, 0.0]
+ little group of k  :  Pcca (54)
+ irreps             :  6.0 [-Y5(2)] + 6.0 [-Y6(2)] 
+
+ k point (primitive):  Z [0.0, 0.0, 0.5]
+ little group of k  :  Pcca (54)
+ irreps             :  6.0 [-Z3(2)] + 6.0 [-Z4(2)] 
+

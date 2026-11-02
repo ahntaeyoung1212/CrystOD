@@ -1,0 +1,61 @@
+# CaF2 (Fm-3m, fluorite): the three VASP runs of `crystod --diagram --vasp`
+#
+#   crystod --diagram -c BAND/POSCAR --co-left Ca --co-right F2 --vasp .
+#
+# Layout
+#   BAND/                     the crystal run            Ca F           NELECT 24
+#   BAND_sublattice1/         the cation sublattice      Ca Va1-        NELECT  8
+#   BAND_sublattice2/         the anion sublattice       Va2+ F         NELECT 16
+#
+# Why this structure is in the test suite
+#   Fluorite is the case that FIXED the PROCAR gauge convention of the engine.  Its
+#   two F sites sit on the QUARTER coordinates (1/4,1/4,1/4) and (3/4,3/4,3/4) of the
+#   primitive fcc basis.  Every site of SrTiO3 and of ScF3 sits on half-integer
+#   coordinates, where a conjugation of the symmetry representation with
+#   Lambda_a = exp(2 pi i k . tau_a) is an exact no-op, so those two structures cannot
+#   tell a right gauge from a wrong one.  CaF2 can: with that conjugation 21 of the 85
+#   labelled levels fall below irrep purity 0.90 (minimum 0.000 at W, 12 failures at L,
+#   3 at X), the fragment manifolds no longer reproduce the group-theory SALC
+#   decomposition, the Ca shell spread is 6.58 eV and the F spread 2.31 eV so BOTH
+#   sites fail the per-element scale test, and the page ends up with 0 bonding and 0
+#   antibonding levels.  Without it every labelled level has purity 1.000, the
+#   manifolds match the SALC decomposition exactly at GM, L, X and W, and the diagram
+#   is the textbook fluorite picture (30 nonbonding, 6 antibonding, 5 bonding).
+#
+#   Fluorite is also the ionic control of the site-resolved alignment: Ca +4.536 eV and
+#   F +4.434 eV differ by 0.10 eV, against +12.33 eV for Ti - Sr in SrTiO3.  A system
+#   with no covalent back-donation shows no site splitting, which is exactly what the
+#   site picture predicts.
+#
+# What was trimmed
+#   Real output of three finished VASP 6.5.1 runs (PAW/PBE, ENCUT 550 eV, LORBIT 12,
+#   a 6x6x6 irreducible mesh plus the zero-weight special points L, X and W).  For this
+#   fixture PROCAR and EIGENVAL were restricted to the four k points the diagram reads
+#   -- GM, L, X and W -- and their headers rewritten to match.  The complex LORBIT = 12
+#   phase tables are untouched, so the projections, irreps, shares and connector weights
+#   are the real ones; the files are gzipped (every reader of crystod/vasp_io.py accepts
+#   a .gz sibling) and the whole fixture is about 37 kB instead of 20 MB.
+#
+#   The OUTCARs are excerpts, under the same rule as the SrTiO3 fixture next to it: the
+#   run parameters, the Fermi level, the CrystOD Va point-charge table, and the two
+#   lines that name each PAW dataset and its valence configuration.  The PAW header
+#   tables of a real OUTCAR are a verbatim dump of the POTCAR header and are NOT
+#   reproduced here; no POTCAR file is shipped, and nothing from the VASP source tree is.
+#
+# The point-charge wall
+#   Both sublattice runs use the calibrated wall that --vasp-setup now writes by
+#   default: VACSIGMA 0.5 A, VACRWALL 0.45 A, VACWALL 2.5 q e^2 sqrt(2/pi) / sigma.
+#   CaF2 is the transfer test of that calibration, which was made on SrTiO3 and ScF3
+#   only: at this setting the F anchor residuals come out at rms 0.289 / max 0.523 eV,
+#   against 0.304 / 0.555 for ScF3 and 0.407 / 0.844 for SrTiO3.  A third space group
+#   and a tetrahedral anion cage need no retuning.
+#
+# Fidelity
+#   The report this fixture produces is identical, line for line, to the one the
+#   untrimmed runs produce -- the alignment (Ca +4.536, F +4.434 eV; the rigid
+#   diagnostic left +4.426 / right +4.478 eV), the trace diagnostic (-0.039 eV per
+#   electron) and every level energy.
+#
+# The full runs, the modified VASP that understands the Va species, and the patch
+# itself are not part of CrystOD; VASP is proprietary and the patch is available to
+# VASP licensees on request.

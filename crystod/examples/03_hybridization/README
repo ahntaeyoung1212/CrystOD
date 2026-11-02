@@ -1,0 +1,120 @@
+# Crystal-orbital diagrams and hybridization (crystod --diagram / --atomic-orbital);
+# testsuite section 3
+# The crystal orbital diagram (COD): the two fragment sublattices (--co-left/--co-right, full-electron
+# basis with the neutral-atom levels of crystod/atomic_levels.py, tabulated from archived PySCF
+# calculations, + point-charge ligand field of the removed sublattice) are the pre-bonding states;
+# states sharing a little-group irrep at k mix into bonding/antibonding.
+#
+# Run the commands from this directory; they write their outputs here.  The pip package
+# ships this README, the three POSCARs, vasp_SrTiO3/, vasp_CaF2/, vasp_wavecar/SrTiO3/ and
+# vasp_wavecar/InP_SOC/.  The commands of the last part, "Data not in the pip package",
+# need data that stays in the CrystOD development tree.  The --pyscf commands need the
+# optional PySCF (pip install "CrystOD[quantum]").
+
+crystod --atomic-orbital Sc_d F_p -c 221_PPOSCAR_ScF3
+
+
+# Derive the crystal orbital diagram of BaTiO3 by calculating the energy levels of
+# BaTiO3, sublattices (BaTi)6+ and (O3)6- by using B3LYP hybrid functional
+crystod --diagram -c 99_PPOSCAR_BaTiO3 --pyscf --co-left BaTi --co-right O3 --ke-cutoff 150 --kmesh 2 2 2 --max-l 2 --xc b3lyp --chk BaTiO3_b3lyp.chk
+
+
+# Derive the crystal orbital diagram of ScF3 by calculating the energy levels of
+# ScF3, sublattices Sc3+ and (F3)3- by using PBE functional
+crystod --diagram -c 221_PPOSCAR_ScF3 --pyscf --co-left Sc --co-right F3 --ke-cutoff 80 --kmesh 2 2 2 --max-l 2 --xc pbe --chk ScF3.chk
+
+
+# Derive the crystal orbital diagram of SrTiO3 by calculating the energy levels of
+# SrTiO3, sublattices (SrTi)6+ and (O3)6- by using B3LYP hybrid functional without using ghost atoms
+crystod --diagram -c 221_PPOSCAR_SrTiO3 --pyscf --co-left SrTi --co-right O3 --ke-cutoff 150 --kmesh 2 2 2 --max-l 2 --xc b3lyp --no-ghost --chk SrTiO3_b3lyp.chk
+
+
+# The same diagram from finished VASP runs (--vasp).  vasp_SrTiO3/ holds a trimmed
+# copy of three real SrTiO3 runs -- the crystal (BAND), the cation sublattice
+# (BAND_sublattice1/band, Sr Ti + Va2- point charges, NELECT 8) and the anion
+# sublattice (BAND_sublattice2, Va2+ Va4+ + O, NELECT 24) -- restricted to the four
+# special k points the diagram uses (GM, R, X, M).  It reproduces every number of
+# the untrimmed 288-k-point runs; see vasp_SrTiO3/README.
+crystod --diagram --co-left SrTi --co-right O3 --vasp vasp_SrTiO3
+
+# -c is optional with --vasp (the structure is then the crystal run's POSCAR).  Giving
+# it fixes the SETTING the irrep labels refer to: every run is mapped onto that file's
+# primitive cell (one origin shift, an atom permutation, lattice wraps).  The run
+# POSCARs here have Ti at the origin and POSCAR-finish has Sr there, which is the same
+# crystal: the two commands below give the same energies, shifts and weights under
+# irrep labels related one-to-one at R, X and M.  --vasp also takes the three run
+# directories in any order instead of one ROOT.
+crystod --diagram -c vasp_SrTiO3/BAND/POSCAR   --co-left SrTi --co-right O3 --vasp vasp_SrTiO3
+crystod --diagram -c vasp_SrTiO3/POSCAR-finish --co-left SrTi --co-right O3 --vasp vasp_SrTiO3
+crystod --diagram --co-left SrTi --co-right O3 \
+        --vasp vasp_SrTiO3/BAND vasp_SrTiO3/BAND_sublattice1 vasp_SrTiO3/BAND_sublattice2
+
+# vasp_CaF2/ holds the same three runs for fluorite CaF2 (Ca + Va1-, Va2+ + F),
+# restricted to GM, L, X and W: the structure whose quarter-coordinate F sites fixed
+# the PROCAR gauge convention of the engine, and the ionic control of the
+# site-resolved alignment (the Ca and F shifts differ by about 0.1 eV); see
+# vasp_CaF2/README.
+crystod --diagram -c vasp_CaF2/BAND/POSCAR --co-left Ca --co-right F2 --vasp vasp_CaF2
+
+
+# The irreps of the bands of ONE VASP run, straight from its WAVECAR (no diagram,
+# no sublattice runs; testsuite section 49).  vasp_wavecar/SrTiO3 is a small real
+# scalar SrTiO3 run on a 4x4x4 mesh (vasp_wavecar/SrTiO3/README), and
+# vasp_wavecar/InP_SOC is InP with spin-orbit coupling, whose -L4/-L5
+# time-reversal pairs at L are one two-fold level (vasp_wavecar/InP_SOC/README).
+crystod --extract-irrep vasp_wavecar/SrTiO3
+crystod --extract-irrep vasp_wavecar/SrTiO3 --all-kpoints --window -3 3 -o SrTiO3_irreps.yaml
+crystod --extract-irrep vasp_wavecar/InP_SOC --kpoint L
+
+
+# The inputs of the two sublattice runs are written by --vasp-setup.  Run it in the
+# directory of your own calculation, where BAND/ is the finished crystal run: it
+# splits that run's POTCAR (or takes --potcar-dir) and prints the three VASP
+# commands; add --vasp-engine overlap for LWAVE = .TRUE.  No POTCAR ships here
+# (POTCAR files are licensed):
+crystod --diagram -c BAND/POSCAR --co-left SrTi --co-right O3 --vasp-setup .
+# To see what it writes, give it a copy of the crystal POSCAR of vasp_SrTiO3/.
+# Without a POTCAR it writes POSCAR, KPOINTS and INCAR of the three runs into
+# my_runs/ and reports "NOT ready to run":
+mkdir -p my_runs/BAND && cp vasp_SrTiO3/BAND/POSCAR my_runs/BAND/
+crystod --diagram --co-left SrTi --co-right O3 --vasp-setup my_runs
+
+
+# --diagram no longer takes --atomic-orbital (the run stops with "--diagram no longer
+# takes --atomic-orbital"): the hover wave-function sketches are always embedded, for
+# every level, with all of their atomic-orbital components.  The extended-Hueckel
+# diagram of ScF3 is simply
+crystod --diagram -c 221_PPOSCAR_ScF3 --co-left Sc --co-right F3
+
+
+# Data not in the pip package.  The directories below stay in the CrystOD development
+# tree for testsuite sections 3 and 49; run these commands there, from this directory.
+# vasp_SrTiO3_LAK/ and vasp_overlap/: unpublished, not distributed (work not yet
+# published).  vasp_wavecar/SrTiO3_ISPIN2/ and SrTiO3_SOC/: test data.
+
+# A meta-GGA run with a long band list (unpublished, not distributed): vasp_SrTiO3_LAK/
+# holds the same three runs with METAGGA = LAK and NBANDS = 64.  The report and the
+# page name the functional LAK, and the rigid diagnostic is anchored on the Sr 4s band
+# itself (+4.257 eV), not on the empty Sr 5s-like level the PROCAR cannot tell from
+# it; see vasp_SrTiO3_LAK/README.
+crystod --diagram --co-left SrTi --co-right O3 --vasp vasp_SrTiO3_LAK
+
+# The WAVECAR-overlap engine (unpublished, not distributed; no energy alignment;
+# frozen-ion parents, Loewdin COHP colours, the energy ledger).  vasp_overlap/ holds
+# its overlap caches of four runs (SrTiO3, SrGeO3, CsPbI3, CsPbI3 with spin-orbit
+# coupling); with --vasp-cache and no run directory the whole analysis comes from the
+# cache.  Run from a directory without BAND/ (the outputs go there); see
+# vasp_overlap/<case>/README.
+crystod --diagram --co-left SrTi --co-right O3 --vasp --vasp-engine overlap \
+        --vasp-cache vasp_overlap/SrTiO3/overlap_cache.npz
+crystod --diagram --co-left CsPb --co-right I3 --vasp --vasp-engine overlap \
+        --vasp-cache vasp_overlap/CsPbI3/overlap_cache.npz
+crystod --diagram --co-left CsPb --co-right I3 --vasp --vasp-engine overlap \
+        --vasp-cache vasp_overlap/CsPbI3_SOC/overlap_cache.npz \
+        --vasp-scalar-reference CrystOD_CsPbI3_Pm-3m_vasp_overlap.json
+
+# Two more small real SrTiO3 runs for --extract-irrep (not in the pip package), made
+# like vasp_wavecar/SrTiO3: ISPIN = 2 (one table per spin channel) and spin-orbit
+# (double-valued irreps).
+crystod --extract-irrep vasp_wavecar/SrTiO3_ISPIN2 --kpoint GM X
+crystod --extract-irrep vasp_wavecar/SrTiO3_SOC

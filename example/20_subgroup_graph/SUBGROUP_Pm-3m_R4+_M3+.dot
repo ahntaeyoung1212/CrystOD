@@ -1,0 +1,94 @@
+digraph "SUBGROUP_Pm-3m_R4+_M3+" {
+  rankdir=TB;
+  node [shape=box, fontname="Helvetica", fontsize=11];
+  n1 [label="Pm-3m (221)"];
+  n2 [label="P4/mbm (127)\nM3+(0;0;d)"];
+  n3 [label="I4/mcm (140)\nR4+(0,0,a)"];
+  n4 [label="R-3c (167)\nR4+(a,a,a)"];
+  n5 [label="Im-3 (204)\nM3+(d;d;d)"];
+  n6 [label="Imma (74)\nR4+(0,a,a)"];
+  n7 [label="I4/mmm (139)\nM3+(0;d;d)"];
+  n8 [label="P4/mbm (127)\nR4+(0,0,a) M3+(0;0;d)"];
+  n9 [label="C2/m (12)\nR4+(0,a,b)"];
+  n10 [label="C2/c (15)\nR4+(a,a,b)"];
+  n11 [label="Pnma (62)\nR4+(0,a,a) M3+(d;0;0)"];
+  n12 [label="Cmcm (63)\nR4+(0,0,a) M3+(0;d;0)"];
+  n13 [label="P4_2/nmc (137)\nR4+(0,0,a) M3+(d;d;0)"];
+  n14 [label="Immm (71)\nM3+(d;e;f)"];
+  n15 [label="Cmcm (63)\nR4+(0,a,a) M3+(0;d;d)"];
+  n16 [label="P-1 (2)\nR4+(a,b,c)"];
+  n17 [label="P2_1/m (11)\nR4+(0,a,b) M3+(d;0;0)"];
+  n18 [label="C2/m (12)\nR4+(0,a,b) M3+(0;0;d)"];
+  n19 [label="P2_1/c (14)\nR4+(a,a,b) M3+(0;0;d)"];
+  n20 [label="Pmmn (59)\nR4+(0,0,a) M3+(d;e;f)"];
+  n21 [label="R-3 (148)\nR4+(a,a,a) M3+(d;d;d)"];
+  n22 [label="C2/c (15)\nR4+(a,a,b) M3+(d;d;0)"];
+  n23 [label="P-1 (2)\nR4+(a,b,c) M3+(0;0;d)"];
+  n24 [label="P2_1/m (11)\nR4+(0,a,b) M3+(d;e;f)"];
+  n25 [label="P-1 (2)\nR4+(a,b,c) M3+(d;e;f)"];
+  { rank=same; n1; }
+  { rank=same; n2; n3; }
+  { rank=same; n4; n5; }
+  { rank=same; n6; n7; n8; }
+  { rank=same; n9; n10; n11; n12; n13; n14; }
+  { rank=same; n15; n16; n17; n18; n19; n20; }
+  { rank=same; n21; }
+  { rank=same; n22; n23; n24; }
+  { rank=same; n25; }
+  n1 -> n2;
+  n1 -> n3;
+  n1 -> n4;
+  n1 -> n5;
+  n1 -> n6;
+  n1 -> n7;
+  n2 -> n8;
+  n2 -> n11;
+  n2 -> n12;
+  n2 -> n14;
+  n3 -> n8;
+  n3 -> n9;
+  n3 -> n10;
+  n3 -> n12;
+  n3 -> n13;
+  n4 -> n10;
+  n4 -> n21;
+  n5 -> n14;
+  n5 -> n21;
+  n6 -> n9;
+  n6 -> n10;
+  n6 -> n11;
+  n6 -> n15;
+  n7 -> n13;
+  n7 -> n14;
+  n7 -> n15;
+  n8 -> n18;
+  n8 -> n19;
+  n8 -> n20;
+  n9 -> n16;
+  n9 -> n17;
+  n9 -> n18;
+  n10 -> n16;
+  n10 -> n19;
+  n10 -> n22;
+  n11 -> n17;
+  n11 -> n19;
+  n12 -> n17;
+  n12 -> n18;
+  n12 -> n20;
+  n13 -> n20;
+  n13 -> n22;
+  n14 -> n20;
+  n15 -> n22;
+  n15 -> n24;
+  n16 -> n23;
+  n17 -> n23;
+  n17 -> n24;
+  n18 -> n23;
+  n18 -> n24;
+  n19 -> n23;
+  n20 -> n24;
+  n21 -> n25;
+  n22 -> n25;
+  n23 -> n25;
+  n24 -> n25;
+}

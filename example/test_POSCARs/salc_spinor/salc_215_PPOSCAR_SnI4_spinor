@@ -1,0 +1,33 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ P-43m (215)
+
+ * Element (number of atoms) *
+ Sn (1)
+
+ * Wyckoff letters and site symmetry letters *
+ ['a']
+ ['-43m']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  P-43m (215)
+ irreps             :  1.0 [-GM7(2)] + 1.0 [-GM8(4)] 
+
+ k point (primitive):  R [0.5, 0.5, 0.5]
+ little group of k  :  P-43m (215)
+ irreps             :  1.0 [-R7(2)] + 1.0 [-R8(4)] 
+
+ k point (primitive):  M [0.5, 0.5, 0.0]
+ little group of k  :  P-42m (111)
+ irreps             :  2.0 [-M6(2)] + 1.0 [-M7(2)] 
+
+ k point (primitive):  X [0.0, 0.5, 0.0]
+ little group of k  :  P-42m (111)
+ irreps             :  2.0 [-X6(2)] + 1.0 [-X7(2)] 
+

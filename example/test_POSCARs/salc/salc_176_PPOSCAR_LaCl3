@@ -1,0 +1,41 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ P6_3/m (176)
+
+ * Element (number of atoms) *
+ La (2)
+
+ * Wyckoff letters and site symmetry letters *
+ ['d', 'd']
+ ['-6..', '-6..']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  A [0.0, 0.0, 0.5]
+ little group of k  :  P6_3/m (176)
+ irreps             :  1.0 [A1(2)] + 1.0 [A2(2)] + 1.0 [A3(2)] 
+
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  P6_3/m (176)
+ irreps             :  1.0 [GM1-(1)] + 1.0 [GM2+(1)] + 1.0 [GM3+(1)] + 1.0 [GM4-(1)] + 1.0 [GM5+(1)] + 1.0 [GM6-(1)] 
+
+ k point (primitive):  H [0.33, 0.33, 0.5]
+ little group of k  :  P-6 (174)
+ irreps             :  1.0 [H1(1)] + 1.0 [H2(1)] + 2.0 [H4(1)] + 2.0 [H5(1)] 
+
+ k point (primitive):  K [0.33, 0.33, 0.0]
+ little group of k  :  P-6 (174)
+ irreps             :  2.0 [K1(1)] + 1.0 [K3(1)] + 1.0 [K4(1)] + 1.0 [K5(1)] + 1.0 [K6(1)] 
+
+ k point (primitive):  L [0.5, 0.0, 0.5]
+ little group of k  :  P2_1/m (11)
+ irreps             :  3.0 [L1(2)] 
+
+ k point (primitive):  M [0.5, 0.0, 0.0]
+ little group of k  :  P2_1/m (11)
+ irreps             :  2.0 [M1+(1)] + 1.0 [M1-(1)] + 1.0 [M2+(1)] + 2.0 [M2-(1)] 
+

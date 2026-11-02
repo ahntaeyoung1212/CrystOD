@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crystod-mcp"
-version = "0.1.0"
-description = "Model Context Protocol server for CrystOD: space-group irreps, isotropy subgroups, phonon irreps, crystal-orbital SALCs, special k points and molecular point groups as tools for AI assistants."
+version = "0.3.0"
+description = "Model Context Protocol server for CrystOD: space-group irreps, isotropy subgroups, phonon irreps, magnetic space groups, crystal-orbital SALCs, special k points, molecular point groups and surface slabs as tools for AI assistants."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -45,7 +45,7 @@ classifiers = [
 # mcp 2.x: MCPServer (the FastMCP successor), in-process Client for tests.
 dependencies = [
   "mcp>=2,<3",
-  "CrystOD>=0.4.0",
+  "CrystOD>=0.4.4",
 ]
 
 [project.optional-dependencies]

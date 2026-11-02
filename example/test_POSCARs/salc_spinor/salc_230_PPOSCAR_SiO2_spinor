@@ -1,0 +1,33 @@
+
+ ### Inputed cell was converted into primitive cell. ###
+
+ * Space group *
+ Ia-3d (230)
+
+ * Element (number of atoms) *
+ Si (48)
+
+ * Wyckoff letters and site symmetry letters *
+ ['h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 'h']
+ ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1']
+
+ * Atomic Orbital *
+ p
+
+ * Crystal Orbitals *
+ k point (primitive):  GM [0.0, 0.0, 0.0]
+ little group of k  :  Ia-3d (230)
+ irreps             :  12.0 [-GM6(2)] + 12.0 [-GM7(2)] + 12.0 [-GM8(2)] + 12.0 [-GM9(2)] + 24.0 [-GM10(4)] + 24.0 [-GM11(4)] 
+
+ k point (primitive):  H [0.5, 0.5, 0.5]
+ little group of k  :  Ia-3d (230)
+ irreps             :  24.0 [-H5(4)] + 24.0 [-H6(4)] + 24.0 [-H7(4)] 
+
+ k point (primitive):  P [0.25, 0.25, 0.25]
+ little group of k  :  I-43d (220)
+ irreps             :  12.0 [-P4(1)] + 12.0 [-P5(1)] + 24.0 [-P6(2)] + 36.0 [-P7(3)] + 36.0 [-P8(3)] 
+
+ k point (primitive):  N [0.0, 0.0, 0.5]
+ little group of k  :  Fddd (70)
+ irreps             :  72.0 [-N3(2)] + 72.0 [-N4(2)] 
+

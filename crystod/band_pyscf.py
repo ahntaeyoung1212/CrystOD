@@ -148,7 +148,7 @@ def report_and_write(cell, *, sublattice_left, sublattice_right, fatband,
         sigma=scf_sigma, no_ghost=no_ghost, max_l=max_l,
         projection=projection, chk=chk, onsite=onsite, verbose=verbose,
     )
-    print(f" * Band structure from the PySCF density matrix: "
+    print(f"\n* Band structure from the PySCF density matrix: "
           f"{diagram.formula['left'] + diagram.formula['right']} *")
     print(f"   basis {diagram.basis_name} / pseudo {diagram.pseudo_name} / "
           f"functional {diagram.xc.upper()}; SCF mesh "
@@ -396,6 +396,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--no-ghost", action="store_true")
     parser.add_argument("--max-l", type=int, default=None)
     parser.add_argument("--chk", default=None, metavar="FILE")
+    parser.add_argument("--no-chk", action="store_true",
+                        help="accepted for symmetry with --diagram --pyscf, "
+                        "where it disables the automatic CHK_{formula}.chk "
+                        "cache; the band step never uses that cache (a "
+                        "checkpoint is read or written only through --chk "
+                        "FILE), so here it changes nothing")
     parser.add_argument("--onsite", action="store_true",
                         help="run (or reuse) only the crystal SCF; also "
                         "accepts the crystal-only chk files an --onsite "

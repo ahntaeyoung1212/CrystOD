@@ -1,0 +1,58 @@
+# Created by CrystOD (Bilbao Crystallographic Server style)
+# https://www.cryst.ehu.es
+# Date: 01/09/2026 05:31:14
+
+# POSCAR_CdC2N2_P-43m_bilbao -- non-magnetic
+
+data_POSCAR_CdC2N2_P-43m_bilbao
+_audit_creation_date               2026-09-01
+_audit_creation_method             "CrystOD (Bilbao style)"
+_chemical_formula_sum              "Cd C2 N2"
+_symmetry_Int_Tables_number        215
+_symmetry_space_group_name_H-M     "P-43m"
+_cell_length_a                     6.3719
+_cell_length_b                     6.3719
+_cell_length_c                     6.3719
+_cell_angle_alpha                  90.0000
+_cell_angle_beta                   90.0000
+_cell_angle_gamma                  90.0000
+
+loop_
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+   1   x,y,z
+   2   -x,-y,z
+   3   x,-y,-z
+   4   -x,y,-z
+   5   z,x,y
+   6   z,-x,-y
+   7   -z,x,-y
+   8   -z,-x,y
+   9   y,z,x
+  10   -y,z,-x
+  11   -y,-z,x
+  12   y,-z,-x
+  13   y,-x,-z
+  14   -y,x,-z
+  15   y,x,z
+  16   -y,-x,z
+  17   -z,y,-x
+  18   -z,-y,x
+  19   z,y,x
+  20   z,-y,-x
+  21   -x,-z,y
+  22   x,-z,-y
+  23   x,z,y
+  24   -x,z,-y
+
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+C1 C 0.80125 0.80125 0.19875 1.0000
+Cd1 Cd 0.00000 0.00000 0.00000 1.0000
+Cd2 Cd 0.50000 0.50000 0.50000 1.0000
+N1 N 0.69565 0.69565 0.30435 1.0000

@@ -1,0 +1,92 @@
+# The phonon modes of cubic ScF3 (Pm-3m, 4 atoms) at GM, X, M and R, from the
+# FORCE_SETS of a 4x4x4 supercell. Writes phonon_visualize.html and
+# band_vector.yaml. Open the page in a browser; the lowest level at R is the
+# rigid rotation of the ScF6 octahedra (R4+, 1.42 THz, real in this harmonic
+# calculation): phonon_visualize.html#q=R&mode=1&view=a shows it down the
+# rotation axis of its first partner.
+crystod-phonon --visualize -c 221_PPOSCAR_ScF3 --dim 4 4 4
+
+* Structure *
+  Space group: Pm-3m (#221)
+  Formula: ScF3
+  Supercell: 4 x 4 x 4 (FORCE_SETS)
+
+* Band path *
+  k path (seekpath): GM-X-M-GM-R-X | R-M  (306 q points)
+  Labeled points: X, GM, R, M
+
+* Phonon modes at q = GM (0, 0, 0) *
+Band  Freq (THz)  Irrep    Comp.  Mulliken  Activity
+   1      0.0000  GM4-(3)      1  T1u       acoustic
+   2      0.0000  GM4-(3)      2  T1u       acoustic
+   3      0.0000  GM4-(3)      3  T1u       acoustic
+   4      4.2122  GM5-(3)      1  T2u       silent
+   5      4.2122  GM5-(3)      2  T2u       silent
+   6      4.2122  GM5-(3)      3  T2u       silent
+   7      6.2446  GM4-(3)      1  T1u       IR
+   8      6.2446  GM4-(3)      2  T1u       IR
+   9      6.2446  GM4-(3)      3  T1u       IR
+  10     13.9231  GM4-(3)      1  T1u       IR
+  11     13.9231  GM4-(3)      2  T1u       IR
+  12     13.9231  GM4-(3)      3  T1u       IR
+  Display cell: primitive, 1 x 1 x 1 cells
+
+* Phonon modes at q = X (0, 1/2, 0) *
+Band  Freq (THz)  Irrep   Comp.
+   1      2.4340  X5-(2)      1
+   2      2.4340  X5-(2)      2
+   3      4.3678  X4-         1
+   4      5.0791  X5+(2)      1
+   5      5.0791  X5+(2)      2
+   6      5.4566  X3-         1
+   7      5.5083  X5-(2)      1
+   8      5.5083  X5-(2)      2
+   9     13.1823  X3-         1
+  10     13.9026  X5-(2)      1
+  11     13.9026  X5-(2)      2
+  12     17.2438  X1+         1
+  Display cell: primitive, 1 x 2 x 1 cells
+
+* Phonon modes at q = M (1/2, 1/2, 0) *
+Band  Freq (THz)  Irrep   Comp.
+   1      1.6697  M3+         1
+   2      3.9737  M3-         1
+   3      4.8316  M5-(2)      1
+   4      4.8316  M5-(2)      2
+   5      5.0704  M5+(2)      1
+   6      5.0704  M5+(2)      2
+   7      7.3764  M4+         1
+   8     12.1655  M5-(2)      1
+   9     12.1655  M5-(2)      2
+  10     13.6868  M2+         1
+  11     13.9404  M3-         1
+  12     17.9477  M1+         1
+  Display cell: primitive, 2 x 2 x 1 cells
+
+* Phonon modes at q = R (1/2, 1/2, 1/2) *
+Band  Freq (THz)  Irrep   Comp.
+   1      1.4169  R4+(3)      1
+   2      1.4169  R4+(3)      2
+   3      1.4169  R4+(3)      3
+   4      7.1689  R5+(3)      1
+   5      7.1689  R5+(3)      2
+   6      7.1689  R5+(3)      3
+   7     11.3334  R4-(3)      1
+   8     11.3334  R4-(3)      2
+   9     11.3334  R4-(3)      3
+  10     13.6922  R3+(2)      1
+  11     13.6922  R3+(2)      2
+  12     18.7661  R1+         1
+  Display cell: primitive, 2 x 2 x 2 cells
+
+* Output files *
+  Phonon band structure with eigenvectors written to: band_vector.yaml
+  Phonon mode viewer written to: phonon_visualize.html
+
+# The same page with the Sc-F bonds and the ScF6 octahedra, which follow the
+# atoms in the animation (a page of its own; band_vector.yaml is written again,
+# unchanged)
+crystod-phonon --visualize -c 221_PPOSCAR_ScF3 --dim 4 4 4 --bond Sc F 2.3 -o phonon_visualize_bond.html
+
+# The R point only (one mode table in the terminal, one q button on the page)
+crystod-phonon --visualize -c 221_PPOSCAR_ScF3 --dim 4 4 4 --qpoint R -o phonon_visualize_R.html

@@ -141,9 +141,13 @@ and :func:`run_irrep` produces one by running the ``irrep`` program as a
 subprocess (the JSON is only read; the GPL ``irrep`` package is never
 imported).
 
-Time reversal is not applied: levels are labelled by unitary small irreps,
-and two complex-conjugate irreps held together by time reversal show up as
-``A/B``.  Only primitive cells are accepted (a supercell WAVECAR folds
+Time reversal is not applied: levels are labelled by unitary small irreps.
+Two irreps held together by time reversal (the complex-conjugate -L4/-L5 of
+zincblende with spin-orbit coupling) show up as one ``A/B`` level when the
+run mixes them, and as two levels of one irrep each when it returns pure
+states (the finest split above); ``crystod --extract-irrep`` puts such
+blocks of one degeneracy window back into one level and classifies it by
+Wigner's test (``crystod.extract_irrep._time_reversal``).  Only primitive cells are accepted (a supercell WAVECAR folds
 several k points of the primitive zone onto one); a collinear spin-polarized
 run is two scalar problems, one per spin channel.
 
@@ -877,11 +881,16 @@ def _assess(S, M, group: LittleGroup, plan: _Plan) -> _Assessment:
     for target, left, right, factor in plan.steps:
         D[target] = factor * (D[left] @ D[right])
     characters = np.array([np.trace(matrix) for matrix in D])
-    values, vectors = np.linalg.eigh(S)
-    half = (vectors / np.sqrt(np.maximum(values, 1e-300))) @ vectors.conj().T
-    captured = np.einsum("ij,gjk,kl->gil", half,
-                         np.conj(np.swapaxes(M, 1, 2)) @ inverse @ M, half)
-    leakage = float(max(0.0, 1.0 - np.min(np.linalg.eigvalsh(captured))))
+    if len(M):
+        values, vectors = np.linalg.eigh(S)
+        half = (vectors / np.sqrt(np.maximum(values, 1e-300))) @ vectors.conj().T
+        captured = np.einsum("ij,gjk,kl->gil", half,
+                             np.conj(np.swapaxes(M, 1, 2)) @ inverse @ M, half)
+        leakage = float(max(0.0, 1.0 - np.min(np.linalg.eigvalsh(captured))))
+    else:
+        # a trivial little group (a general k point): the generating set is
+        # empty, and every span is invariant under the identity
+        leakage = 0.0
     multiplicities = np.conj(group.characters) @ characters / group.order
     counts = np.clip(np.rint(multiplicities.real), 0, None).astype(int)
     deviation = float(np.max(np.abs(multiplicities - counts)))

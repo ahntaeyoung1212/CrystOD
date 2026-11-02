@@ -1,0 +1,12 @@
+ trimmed OUTCAR excerpt (CrystOD test fixture of crystod --extract-irrep):
+ the run parameters and the final Fermi level.  The PAW header tables of
+ the real OUTCAR are POTCAR content and are not reproduced here.
+ vasp.6.5.1 10Mar25 (build Sep 29 2026 20:42:21) complex
+   k-points           NKPTS =     10   k-points in BZ     NKDIM =     10   number of bands    NBANDS=     24
+   ISPIN  =      1    spin polarized calculation?
+   LNONCOLLINEAR =      F non collinear calculations
+   LSORBIT =      F    spin-orbit coupling
+   ENCUT  =  250.0 eV  18.37 Ry    4.29 a.u.   5.04  5.04  5.04*2*pi/ulx,y,z
+   NELECT =      32.0000    total number of electrons
+   GGA     = PE    functional components
+ E-fermi :   2.7258     XC(G=0): -11.1457     alpha+bet :-12.6007

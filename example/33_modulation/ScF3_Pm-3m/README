@@ -1,0 +1,73 @@
+# The unit cell and FORCE_SETS are enough -- no phonopy yaml has to be made
+# first. The supercell is read from phonopy_disp.yaml or phonopy_params.yaml if
+# one is here, otherwise inferred from the atom count of FORCE_SETS; --dim
+# "4 4 4" overrides it.
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3 --output POSCAR_R-3c
+
+# Every --modulation command below is written that way; --yaml
+# phonopy_params.yaml in place of -c 221_PPOSCAR_ScF3 gives byte-identical
+# structures, both with the phonopy_params.yaml kept here (it holds the force
+# constants; ../../40_md_projection reads it too) and with the one phonopy 4
+# writes from the unit cell and FORCE_SETS (it holds the displacements and
+# forces). Make that one in a subdirectory, phonopy4/, so that the file kept
+# here is not replaced (a later crystod-example 33 or 40 into the same
+# directory would stop at the changed file). There phonopy-init also writes
+# SPOSCAR, POSCAR-001 and POSCAR-002, and cmp prints nothing: the structure
+# from the new phonopy_params.yaml is POSCAR_R-3c of the first command, byte
+# for byte.
+mkdir -p phonopy4 && cd phonopy4
+cp ../221_PPOSCAR_ScF3 ../FORCE_SETS .
+phonopy-init -d -c 221_PPOSCAR_ScF3 --dim 4 4 4
+phonopy phonopy_disp.yaml --sp
+crystod-phonon --modulation --yaml phonopy_params.yaml --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3 --output POSCAR_R-3c
+cmp POSCAR_R-3c ../POSCAR_R-3c
+cd ..
+
+# phonopy before version 4 (where -c moved to phonopy-init) makes that
+# phonopy_params.yaml in one command, in phonopy4/ as well:
+# phonopy --sp -c 221_PPOSCAR_ScF3 --dim="4 4 4"
+
+# generate modulated POSCAR_R-3c transforming as irrep R4+(a,a,a)
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 1 2 3 --amplitude 0.3 --output POSCAR_R-3c
+
+# generate modulated POSCAR_I4mcm_{1,2,3} transforming as irreps R4+(a,0,0), R4+(0,a,0), R4+(0,0,a), respectively
+# (octahedral rotations about a, b and c)
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 1 --amplitude 0.3 --output POSCAR_I4mcm_1
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 2 --amplitude 0.3 --output POSCAR_I4mcm_2
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 3 --amplitude 0.3 --output POSCAR_I4mcm_3
+
+# generate modulated POSCAR_Imma_{1,2,3} transforming as irreps R4+(a,a,0), R4+(0,a,a), R4+(a,0,a), respectively (up to signs)
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 1 2 --amplitude 0.3 --output POSCAR_Imma_1
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 2 3 --amplitude 0.3 --output POSCAR_Imma_2
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0.5 --mode 3 1 --amplitude 0.3 --output POSCAR_Imma_3
+
+# generate modulated POSCAR_P4mbm_{1,2,3} transforming as irreps M3+(0;0;a), M3+(0;a;0), M3+(a;0;0), respectively
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0.5 0 --mode 1 --amplitude 0.3 --output POSCAR_P4mbm_1
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0.5 0 0.5 --mode 1 --amplitude 0.3 --output POSCAR_P4mbm_2
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint 0 0.5 0.5 --mode 1 --amplitude 0.3 --output POSCAR_P4mbm_3
+
+# generate modulated POSCAR_I4mmm transforming as irrep M3+(a;a;0)
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint1 0 0.5 0.5 --mode1 1 --amplitude1 0.3 --qpoint2 0.5 0 0.5 --mode2 1 --amplitude2 0.3 --output POSCAR_I4mmm
+
+# generate modulated POSCAR_Im-3 transforming as irrep M3+(a;a;a): all three arms of the M star
+crystod-phonon --modulation -c 221_PPOSCAR_ScF3 --qpoint1 0 0.5 0.5 --mode1 1 --amplitude1 0.3 --qpoint2 0.5 0 0.5 --mode2 1 --amplitude2 0.3 --qpoint3 0.5 0.5 0 --mode3 1 --amplitude3 0.3 --output POSCAR_Im-3
+
+# The POSCAR_* files named in the commands above are their output, byte for
+# byte. The partners of a degenerate level follow a convention that depends
+# neither on the origin nor on the orientation of the cell: --mode 1, 2 and 3
+# of the R4+ triplet rotate the octahedra about a, b and c, so POSCAR_I4mcm_1
+# is the rotation about a and POSCAR_I4mcm_3 the rotation about c.
+# POSCAR_Pbnm (the a-a-c+ structure of the 23_symmetry_mode example) and the
+# other POSCAR_* files without a command here are kept as fixtures; testsuite
+# section 23 uses POSCAR_R-3c and POSCAR_Pbnm. The copy made by
+# crystod-example holds, besides the inputs and phonopy_params.yaml, only
+# POSCAR_Pbnm and POSCAR_I4mcm_{1,2,3} (used by the 23_symmetry_mode and
+# 40_md_projection examples); the commands above write the other structures.
+
+# All of the above at once, for an UNSTABLE structure: crystod-phonon --subgroup
+# --modulate enumerates the order-parameter directions of every imaginary mode
+# and writes the distorted structure of each, together with the --modulation
+# command that reproduces it. ScF3 has no imaginary mode with these force
+# constants, so raise --threshold to treat the soft R4+/M3+ levels as unstable:
+crystod-phonon --subgroup -c 221_PPOSCAR_ScF3 --dim "4 4 4" --qpoint R --threshold 2.0 --modulate
+crystod-phonon --subgroup -c 221_PPOSCAR_ScF3 --dim "4 4 4" --qpoint M --threshold 3.0 --modulate
